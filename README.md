@@ -1,9 +1,5 @@
 # SGE Starter Template
 
-# SGE Starter Template
-
-# SGE Starter Template
-
 > **Infrastructure, not abstraction.** A production-ready tech stack with proven patterns from [ScheduleBoard v2](https://github.com/gamalamadingdong/scheduleboardv2).
 
 ## 🎯 What is this?
@@ -12,11 +8,11 @@ A **tech stack starter template** that gives you production-ready infrastructure
 
 **What you get:**
 - ✅ Multi-tenant database with security (11 tables, ~30 RLS policies)
-- ✅ Auth and invitation system
-- ✅ Subscription management (Stripe)
-- ✅ Multi-channel notifications (email, SMS, push)
+- ✅ Auth and invitation system (5 Edge Functions)
+- ✅ Subscription management with Stripe (5 Edge Functions)
+- ✅ Multi-channel notifications (3 Edge Functions)
 - ✅ Mobile apps (iOS/Android) with build automation
-- ✅ Utilities and component templates
+- ✅ CLI generator for instant project scaffolding
 
 **What you build:**
 - Your domain models (jobs, appointments, services, etc.)
@@ -32,110 +28,104 @@ A **tech stack starter template** that gives you production-ready infrastructure
 - **Mobile**: Capacitor 7 (iOS + Android)
 - **Payments**: Stripe (optional)
 - **Email**: Resend (optional)
-- **SMS**: Twilio (optional)
 
 ## ✅ Current Status
 
-**Phases 1-4: COMPLETE** (100% ✅)
+**Phases 1-5: COMPLETE** (100% ✅)
 
-### Foundation & Infrastructure
+### CLI Generator (Phase 5 - NEW!)
+- ✅ **create-sge-app** - Interactive project scaffolding
+- ✅ **720 lines** - Full-featured CLI implementation
+- ✅ **750+ lines** - Comprehensive documentation
+- ✅ **Feature toggles** - Auth, mobile, subscriptions, notifications
+- ✅ **Smart defaults** - Auto-detect package manager, validate inputs
+- ✅ **Beautiful UX** - Colors, spinners, clear feedback
+
+### Foundation & Infrastructure (Phases 1-2)
 - ✅ **@sge/shared** - Foundation utilities (3 files)
 - ✅ **@sge/ui** - Component templates (2 files)
 - ✅ **Build Scripts** - iOS/Android versioning (2 scripts)
 - ✅ **Database Schema** - Multi-tenant foundation (3 SQL files)
 
-### Edge Functions (13 Functions)
+### Edge Functions (Phases 3-4) - 13 Functions
 - ✅ **Authentication** - 5 functions (invitations, onboarding, GDPR)
 - ✅ **Notifications** - 3 functions (orchestration, email, cleanup)
 - ✅ **Subscriptions** - 5 functions (Stripe integration, webhooks, tier management)
 
-**Total:** 24 production-ready files (~6,500 lines of code + docs)
+**Total:** 27 production-ready files (~8,000 lines of code + docs)
 
-[📖 See Phase 4 Summary](./docs/PHASE-4-SUMMARY.md)
+[📖 See Complete Journey](./docs/COMPLETE-EXTRACTION-JOURNEY.md) | [📖 Phase 5 Summary](./docs/PHASE-5-CLI-COMPLETE.md)
 
 ## 🏁 Quick Start
 
-## 🎯 What is this?
+### Option 1: Use CLI Generator (Recommended)
 
-A **tech stack starter template** that gives you production-ready infrastructure so you can focus on building your unique business logic.
-
-**What you get:**
-- ✅ Multi-tenant database with security (11 tables, ~30 RLS policies)
-- ✅ Auth and invitation system
-- ✅ Subscription management (Stripe)
-- ✅ Multi-channel notifications (email, SMS, push)
-- ✅ Mobile apps (iOS/Android) with build automation
-- ✅ Utilities and component templates
-
-**What you build:**
-- Your domain models (jobs, appointments, services, etc.)
-- Your business logic (scheduling, workflows, calculations)
-- Your UI/UX (customized for your users)
-
-**Philosophy:** Copy-and-adapt components with clear TODO markers, not configuration-driven business logic abstraction.
-
-## 🚀 Tech Stack
-
-- **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Backend**: Supabase (PostgreSQL + Auth + Edge Functions + Realtime)
-- **Mobile**: Capacitor 7 (iOS + Android)
-- **Payments**: Stripe (optional)
-- **Email**: Resend (optional)
-- **SMS**: Twilio (optional)
-
-## 🎯 What is This?
-
-**SGE (Service Grid Engine) Starter** is a configurable foundation for building multi-tenant SaaS applications with:
-- React + TypeScript + Vite (web)
-- Capacitor (iOS/Android)
-- Supabase (backend + auth + db)
-- Tailwind + shadcn/ui (styling)
-- Stripe (payments - optional)
-- Vercel (hosting)
-
-**Not a framework. Not a boilerplate.** It's a **production-quality starter** with proven patterns you can copy and adapt.
-
-## ✅ Current Status
-
-**Phase 1: COMPLETE** (70%)
-
-- ✅ **@sge/shared** - Foundation utilities (date handling, mobile detection, App Store compliance)
-- ✅ **@sge/ui** - Component templates (auth guards, utilities)
-- ✅ **Build Scripts** - iOS/Android versioning automation
-- 🔨 **Database Schema** - Multi-tenant foundation (in progress - see Option B)
-
-## � Quick Start
-
-### For Template Development:
+> **Note:** The CLI tool is not yet published to npm. Use the local instructions below.
 
 ```bash
-# Clone the template
+# Clone this repository first
+git clone https://github.com/gamalamadingdong/sge-starter.git
 cd sge-starter
+
+# Build the CLI tool
+cd generator
+npm install
+npm run build
+
+# Run the CLI (from generator directory)
+node dist/index.js my-app
+
+# Or run interactively
+node dist/index.js
+
+# With options
+node dist/index.js my-app --no-mobile --no-subscriptions --pm npm
+```
+
+**After publishing to npm, you'll be able to use:**
+```bash
+npx @sge/create-app my-app
+```
+
+**CLI Features:**
+- ✅ Interactive prompts for configuration
+- ✅ Auto-generates `.env` with your API keys
+- ✅ Removes unused features automatically
+- ✅ Installs dependencies
+- ✅ Shows clear next steps
+
+**Available Flags:**
+- `--skip-install` - Skip dependency installation
+- `--no-mobile` - Exclude mobile app support
+- `--no-subscriptions` - Exclude Stripe subscriptions
+- `--no-notifications` - Exclude notification system
+- `--no-auth` - Exclude authentication
+- `--email <provider>` - Email provider (resend|sendgrid|none)
+- `--pm <manager>` - Package manager (npm|yarn|pnpm)
+
+[📖 Full CLI Documentation](./generator/README.md)
+
+### Option 2: Manual Clone
+
+```bash
+# Clone the repository
+git clone https://github.com/gamalamadingdong/sge-starter.git my-app
+cd my-app
 
 # Install dependencies
 npm install
+
+# Copy .env.example and configure
+cp .env.example .env
+# Edit .env with your Supabase, Stripe, and Resend keys
 
 # Start development
 npm run dev
 ```
 
-### To Use the Template:
-
-```bash
-# Coming soon: CLI generator
-npx create-sge-app my-app
-
-# For now: Copy packages manually
-cp -r packages/shared my-app/packages/
-cp -r packages/ui my-app/packages/
-cp -r scripts my-app/scripts/
-```
-
 ## 📦 What's Included
 
-### Packages
-
-#### **@sge/shared** - Foundation Utilities
+### Foundation Utilities (`packages/shared/`)
 ```typescript
 // Timezone-safe date handling
 import { getTodayLocalString, parseDateString } from '@sge/shared/lib/dateUtils';
@@ -147,17 +137,52 @@ import { useIsMobile } from '@sge/shared/hooks/use-mobile';
 import { handleMobileSubscriptionUpgrade } from '@sge/shared/lib/mobileCompliance';
 ```
 
-#### **@sge/ui** - Component Library
+### UI Components (`packages/ui/`)
 ```typescript
-// Route guards (copy & customize)
-import { ProtectedRoute, PublicRoute } from '@sge/ui/auth/ProtectedRoute';
+// Route guards
+import { ProtectedRoute } from '@sge/ui/auth/ProtectedRoute';
 
-// Tailwind utilities
+// Utilities
 import { cn } from '@sge/ui/lib/utils';
 ```
 
-### Build Automation
+### Database Schema (`infra/schema/`)
+Multi-tenant architecture with:
+- **11 tables**: businesses, profiles, user_business_roles, invitations, notifications, etc.
+- **~30 RLS policies**: Business-level isolation and role-based access
+- **GDPR compliant**: Account deletion with cascade
+- **Subscription ready**: Stripe integration tables
 
+[📖 Database Documentation](./infra/schema/README.md)
+
+### Edge Functions (`packages/functions/`)
+
+#### Authentication (5 functions)
+- **create-invite** - Generate invitation tokens
+- **process-invite** - Handle invitation acceptance
+- **send-invite-email** - Email delivery via Resend
+- **get-invite** - Retrieve invitation details
+- **delete-user-account** - GDPR-compliant deletion
+
+[📖 Auth Documentation](./packages/functions/auth/README.md)
+
+#### Notifications (3 functions)
+- **orchestrator** - Multi-channel routing (email, SMS, push, in-app)
+- **send-email** - Resend integration with templates
+- **cleanup** - Automated notification cleanup
+
+[📖 Notifications Documentation](./packages/functions/notifications/README.md)
+
+#### Subscriptions (5 functions)
+- **stripe-webhooks** - Webhook handler (CRITICAL)
+- **create-intent** - Payment intent creation
+- **verify-session** - Session verification
+- **check-status** - Status synchronization
+- **manage-tier** - Tier management
+
+[📖 Subscriptions Documentation](./packages/functions/subscriptions/README.md)
+
+### Build Automation (`scripts/`)
 ```bash
 # Increment iOS build number (required for App Store)
 npm run version:ios
@@ -169,112 +194,150 @@ npm run version:android
 npm run version:increment
 ```
 
-### Database Schema (Coming in Option B)
+## 🚀 After Generation
 
-Multi-tenant foundation with:
-- Business/tenant isolation
-- Role-based access control (RBAC)
-- Subscription management (Stripe)
-- Notification system
-- Invitation flows
+### 1. Configure Environment
+Edit `.env` with your API keys:
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-## 📋 Development Phases
+STRIPE_SECRET_KEY=sk_test_xxx
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
 
-### ✅ Phase 1: Foundation (Week 1) - 70% COMPLETE
-- ✅ Repository structure created
-- ✅ @sge/shared package with utilities
-- ✅ @sge/ui package with component templates
-- ✅ Build automation scripts
-- 🔨 Database schema extraction (your next task)
+RESEND_API_KEY=re_xxx
+```
 
-### Phase 2: Component Library (Week 2)
-- [ ] Mobile navigation components
-- [ ] Form components with validation
-- [ ] Loading states and feedback
-- [ ] Subscription UI components
+### 2. Deploy Database Schema
+Run SQL files in Supabase Dashboard → SQL Editor:
+1. `infra/schema/core.sql` - Creates tables
+2. `infra/schema/rls-policies.sql` - Sets up security
 
-### Phase 3: Backend (Week 3)
-- [ ] Supabase Edge Functions (auth, invites, notifications)
-- [ ] RLS policies and security
-- [ ] Email templates (Resend)
-- [ ] Stripe integration module
+Or use Supabase CLI:
+```bash
+supabase db push
+```
 
-### Phase 4: CLI Generator (Week 4)
-- [ ] Interactive project setup
-- [ ] Optional integration modules
-- [ ] Automated configuration
-## 📚 Documentation
+### 3. Deploy Edge Functions
+```bash
+# Login and link project
+supabase login
+supabase link --project-ref your-project-ref
 
-**Start here:**
-- 📄 **[QUICKSTART.md](docs/QUICKSTART.md)** - Get up and running
-- 📄 **[PHASE-1-SUMMARY.md](docs/PHASE-1-SUMMARY.md)** - What we've built
-- 📄 **[OPTION-B-DATABASE-EXTRACTION.md](docs/OPTION-B-DATABASE-EXTRACTION.md)** - Your next task
+# Deploy all functions
+supabase functions deploy
 
-**Package docs:**
-- 📦 **[packages/shared/README.md](packages/shared/README.md)** - Utilities guide
-- 📦 **[packages/ui/README.md](packages/ui/README.md)** - Component guide
-- 🔧 **[scripts/README.md](scripts/README.md)** - Build automation
+# Or deploy individually
+supabase functions deploy create-invite
+supabase functions deploy notification-orchestrator
+supabase functions deploy stripe-webhooks
+```
 
-**Planning docs:**
-- 📋 **[EXTRACTION-PROGRESS.md](docs/EXTRACTION-PROGRESS.md)** - Detailed progress
-- 📋 **[EXTRACTION-PLAN.md](docs/EXTRACTION-PLAN.md)** - Overall strategy
-- 📋 **[TEMPLATE-STRATEGY.md](docs/TEMPLATE-STRATEGY.md)** - High-level vision
+### 4. Configure Stripe Webhooks
+1. Go to Stripe Dashboard → Developers → Webhooks
+2. Add endpoint: `https://your-project.supabase.co/functions/v1/stripe-webhooks`
+3. Select events:
+   - `customer.subscription.created`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+4. Copy webhook secret to `.env`
+
+### 5. Configure Email Domain (Resend)
+1. Go to Resend Dashboard → Domains
+2. Add and verify your domain
+3. Update `.env` with verified sender email
+
+### 6. Start Development
+```bash
+npm run dev
+```
+Visit `http://localhost:5173`
+
+## 📱 Mobile App Setup
+
+### iOS
+```bash
+# Sync Capacitor
+npm run ios:sync
+
+# Open in Xcode
+npx cap open ios
+
+# Configure signing and run on simulator/device
+```
+
+### Android
+```bash
+# Sync Capacitor
+npx cap sync android
+
+# Open in Android Studio
+npx cap open android
+
+# Run on emulator/device
+```
+
+### Mobile Commands
+```bash
+npm run ios:dev              # Build and open in Xcode
+npm run android:dev          # Build and open in Android Studio
+npm run version:ios          # Increment build number
+npm run version:android      # Increment version code
+npm run mobile:sync          # Sync both platforms
+```
 
 ## 🎯 Design Philosophy
 
 ### What This Template IS:
-- ✅ **Production-quality tech stack** with proven patterns
-- ✅ **Copy-and-adapt components** you customize per project
-- ✅ **Mobile-first** with iOS/Android automation built-in
-- ✅ **Monetization-ready** with subscription foundation
-- ✅ **Battle-tested** from ScheduleBoard v2 production use
+- ✅ **Production-quality infrastructure** - Battle-tested from ScheduleBoard v2
+- ✅ **Copy-and-adapt components** - Clear TODO markers for customization
+- ✅ **Mobile-first** - iOS/Android automation built-in
+- ✅ **Monetization-ready** - Stripe subscriptions included
+- ✅ **Multi-tenant** - Business isolation with RLS policies
 
 ### What This Template is NOT:
 - ❌ Not a rigid framework with complex abstractions
-- ❌ Not business logic you configure via settings
+- ❌ Not business logic configured via settings
 - ❌ Not a one-size-fits-all solution
 - ❌ Not a black box - you own and modify everything
 
 ### How to Use It:
-1. **Clone** the template for a new project
-2. **Copy** the utilities and components you need
-3. **Customize** the TODOs for your specific use case  
+1. **Generate** project with `create-sge-app`
+2. **Configure** API keys and deploy infrastructure
+3. **Customize** TODO markers for your use case
 4. **Build** your custom business logic on top
 5. **Deploy** with confidence (automation included)
 
-## � Repository Structure
+## 📁 Repository Structure
 
 ```
 sge-starter/
-├── docs/                   # Complete documentation
-│   ├── QUICKSTART.md      # Start here
-│   ├── PHASE-1-SUMMARY.md # What's been built
-│   └── OPTION-B-*.md      # Your next step
+├── docs/                     # Complete documentation
+│   ├── QUICKSTART.md         # Getting started guide
+│   ├── COMPLETE-EXTRACTION-JOURNEY.md  # Full project history
+│   ├── PHASE-5-CLI-COMPLETE.md         # CLI generator docs
+│   └── ...                   # Phase summaries and guides
 │
-├── packages/              # Monorepo packages
-│   ├── shared/           # ✅ Utilities (dates, mobile, compliance)
-│   ├── ui/               # ✅ Component templates (auth, utils)
-│   ├── web/              # Coming: React app shell
-│   ├── mobile/           # Coming: Capacitor setup
-│   └── functions/        # Coming: Supabase Edge Functions
+├── packages/
+│   ├── shared/              # Foundation utilities
+│   ├── ui/                  # UI components
+│   ├── functions/           # Supabase Edge Functions
+│   │   ├── auth/           # Authentication (5 functions)
+│   │   ├── notifications/  # Notifications (3 functions)
+│   │   └── subscriptions/  # Stripe integration (5 functions)
+│   └── mobile/             # Capacitor configuration
 │
-├── scripts/              # ✅ Build automation (iOS/Android)
-├── infra/                # 🔨 Database schema (your turn)
-├── generator/            # Coming: CLI tool
-└── examples/             # Coming: Reference implementations
+├── infra/
+│   └── schema/             # Database schema and RLS policies
+│
+├── scripts/                # Build automation (iOS/Android)
+├── generator/              # CLI tool (create-sge-app)
+└── examples/               # Example implementations
 ```
-
-## 🚀 Next Steps
-
-### For You (Option B):
-1. Read `docs/OPTION-B-DATABASE-EXTRACTION.md`
-2. Extract multi-tenant database schema from ScheduleBoard
-3. Create `infra/schema/` with core tables and RLS policies
-
-### After Option B:
-- **Week 2:** Extract mobile navigation, forms, subscription UI
-- **Week 3:** Extract Supabase Edge Functions (auth, notifications)
-- **Week 4:** Build CLI generator with integration options
 
 ## 🎯 Target Applications
 
@@ -294,11 +357,93 @@ This template is ideal for:
 
 ### Key Features:
 - ✅ Multi-tenant with business isolation
-- ✅ Role-based access control
+- ✅ Role-based access control (6 tiers)
 - ✅ Subscription management (Stripe)
 - ✅ iOS/Android native apps (Capacitor)
 - ✅ Real-time updates (Supabase)
 - ✅ App Store compliant
+
+## 📚 Documentation
+
+### Getting Started
+- 📄 **[QUICKSTART.md](docs/QUICKSTART.md)** - Quick start guide
+- 📄 **[CLI-GENERATOR-READY.md](docs/CLI-GENERATOR-READY.md)** - CLI usage guide
+- 📄 **[COMPLETE-EXTRACTION-JOURNEY.md](docs/COMPLETE-EXTRACTION-JOURNEY.md)** - Full project history
+
+### Package Documentation
+- 📦 **[packages/shared/README.md](packages/shared/README.md)** - Utilities guide
+- 📦 **[packages/ui/README.md](packages/ui/README.md)** - Component guide
+- 📦 **[generator/README.md](generator/README.md)** - CLI documentation
+
+### Feature Documentation
+- 🔐 **[packages/functions/auth/README.md](packages/functions/auth/README.md)** - Authentication
+- 🔔 **[packages/functions/notifications/README.md](packages/functions/notifications/README.md)** - Notifications
+- 💳 **[packages/functions/subscriptions/README.md](packages/functions/subscriptions/README.md)** - Subscriptions
+- 🗄️ **[infra/schema/README.md](infra/schema/README.md)** - Database schema
+
+### Development
+- 📋 **[DEVELOPMENT-ROADMAP.md](docs/DEVELOPMENT-ROADMAP.md)** - Development timeline
+- 📋 **[TEMPLATE-PHILOSOPHY.md](docs/TEMPLATE-PHILOSOPHY.md)** - Design principles
+- 📋 **[TEMPLATE-STRATEGY.md](docs/TEMPLATE-STRATEGY.md)** - Technical strategy
+
+## 🚀 Time to Value
+
+### Before SGE Template
+```
+1. Research tech stack (weeks)
+2. Set up database (days)
+3. Implement authentication (weeks)
+4. Add notifications (weeks)
+5. Integrate Stripe (weeks)
+6. Configure mobile (weeks)
+7. Set up build automation (days)
+8. Write documentation (weeks)
+
+Total: 2-3 months
+```
+
+### With SGE Template
+```
+1. Run create-sge-app (5 minutes)
+2. Configure API keys (10 minutes)
+3. Deploy database schema (5 minutes)
+4. Deploy Edge Functions (10 minutes)
+5. Start building business logic (immediately)
+
+Total: 30 minutes to production-ready
+```
+
+**Time Saved:** 2-3 months → 30 minutes = **99% faster**
+
+## 📦 Publishing the CLI to npm (Optional)
+
+To make the CLI globally available via `npx @sge/create-app`:
+
+```bash
+# Navigate to generator directory
+cd generator
+
+# Ensure you're logged in to npm
+npm login
+
+# Update version if needed
+npm version patch  # or minor/major
+
+# Build the package
+npm run build
+
+# Publish to npm (first time: use --access public for scoped packages)
+npm publish --access public
+
+# After publishing, users can run:
+npx @sge/create-app my-app
+```
+
+**Requirements:**
+- npm account with publishing permissions
+- Proper scoping (`@sge/create-app`)
+- Built dist/ directory
+- Valid package.json configuration
 
 ## 🤝 Contributing
 
@@ -317,30 +462,14 @@ MIT License - Use freely for your projects
 
 Extracted from [ScheduleBoard v2](https://github.com/gamalamadingdong/scheduleboardv2) production codebase.
 
----
-
-**Ready to start?** Check out [QUICKSTART.md](docs/QUICKSTART.md) and [PHASE-1-SUMMARY.md](docs/PHASE-1-SUMMARY.md)!
-- Custom implementation services: $15,000-50,000
-- Revenue sharing on deployed applications: 5-15%
-
-## 🔗 Links to ScheduleBoard
-
-This template extracts proven components and patterns from the production ScheduleBoard v2 application:
-- **Source Repository**: `../scheduleboardv2/`
-- **Component Source**: `../scheduleboardv2/src/components/`
-- **Edge Functions**: `../scheduleboardv2/supabase/functions/`
-- **Mobile Implementation**: `../scheduleboardv2/android/` & `../scheduleboardv2/ios/`
-
-## 📖 Documentation
-
-See the `docs/` folder for:
-- **Template Strategy**: Overall approach and market positioning
-- **Component Extraction Plan**: Systematic extraction from ScheduleBoard
-- **Market Opportunities**: Analysis of target applications
-- **Implementation Guides**: Step-by-step development instructions
+Built with proven patterns from real production use.
 
 ---
 
-**Next Steps**: Review `docs/TEMPLATE-STRATEGY.md` and `docs/EXTRACTION-PLAN.md` to understand the complete template development roadmap.
+**Ready to start?** 
 
-Last Updated: October 1, 2025
+**Local Usage:** Clone this repo, build the generator, and run `node generator/dist/index.js my-app`
+
+**After npm publish:** `npx @sge/create-app my-app`
+
+**Last Updated:** October 2, 2025
