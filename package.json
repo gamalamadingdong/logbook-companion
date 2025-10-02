@@ -1,0 +1,68 @@
+{
+  "name": "@sge/starter-template",
+  "version": "0.1.0",
+  "description": "SGE Template - Repeatable tech stack for rapid application development",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "generator",
+    "packages/shared",
+    "packages/ui"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "extract:components": "node scripts/extract-components.js",
+    "android:dev": "npm run build:dev && npx cap sync android && npx cap open android",
+    "android:build": "node scripts/increment-android-build.js && npm run build:prod && npx cap sync android",
+    "android:release": "node scripts/increment-android-build.js && npm run build:prod && npx cap sync android && cd android && gradlew.bat assembleRelease",
+    "mobile:setup": "npx cap add android && npx cap add ios",
+    "mobile:sync": "npx cap sync",
+    "mobile:clean": "npx cap sync --deployment",
+    "version:ios": "node scripts/increment-ios-build.js",
+    "version:android": "node scripts/increment-android-build.js",
+    "version:increment": "npm run version:ios && npm run version:android",
+    "ios:permissions": "node scripts/add-ios-permissions.js",
+    "ios:sync": "npx cap sync ios && npm run ios:permissions",
+    "ios:dev": "npm run build:dev && npm run ios:sync && npx cap open ios",
+    "ios:build": "node scripts/increment-ios-build.js && npm run build:prod && npm run ios:sync",
+    "ios:release": "node scripts/increment-ios-build.js && npm run build:prod && npm run ios:sync",
+    "generator:dev": "npm run dev --workspace=generator",
+    "generator:build": "npm run build --workspace=generator"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3",
+    "@supabase/supabase-js": "^2.58.0",
+    "@tanstack/react-query": "^5.83.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "tailwind-merge": "^2.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.462.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react-swc": "^3.11.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.1.6",
+    "tailwindcss": "^3.4.17",
+    "eslint": "^9.32.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
