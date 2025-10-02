@@ -60,43 +60,35 @@ A **tech stack starter template** that gives you production-ready infrastructure
 
 ### Option 1: Use CLI Generator (Recommended)
 
-> **Note:** The CLI tool is not yet published to npm. Use the local instructions below.
+> **Note:** The CLI tool is designed for local use and is not published to npm.
 
 ```bash
-# Clone this repository first
-git clone https://github.com/gamalamadingdong/sge-starter.git
-cd sge-starter
+# From the root of this repository, run:
+npm run generate -- my-app
 
-# Build the CLI tool
-cd generator
-npm install
-npm run build
+# Or specify an absolute path outside the template
+npm run generate -- C:\path\to\my-app
 
-# IMPORTANT: Navigate back to parent directory before running
-# (to avoid circular copy errors)
-cd ..
-
-# Run the CLI to create project as sibling directory
-node sge-starter/generator/dist/index.js my-app
-
-# Or use absolute path for output location
-node sge-starter/generator/dist/index.js c:\path\to\my-app
-
-# Or run interactively
-node sge-starter/generator/dist/index.js
+# Interactive mode (will prompt for project name)
+npm run generate
 ```
 
-**After publishing to npm, you'll be able to use:**
-```bash
-npx @sge/create-app my-app
-```
+**The generator will:**
+- ✅ Clone the template with your selected features
+- ✅ Copy `.github/instructions/copilot-instructions.md` for AI assistance
+- ✅ Create `docs/planning/` with 7 AI-assisted planning templates
+- ✅ Generate comprehensive `README.md` with workflow guide
+- ✅ Auto-generate `.env` with your API keys
+- ✅ Remove unused features automatically
+- ✅ Install dependencies
+- ✅ Show clear next steps
 
-**CLI Features:**
-- ✅ Interactive prompts for configuration
-- ✅ Auto-generates `.env` with your API keys
-- ✅ Removes unused features automatically
-- ✅ Installs dependencies
-- ✅ Shows clear next steps
+**Generated Project Includes:**
+- 🤖 **AI-Assisted Workflow Guide** - Step-by-step development process
+- 📋 **Planning Templates** - Market research, product spec, requirements
+- 🎯 **Copilot Configuration** - Pre-configured AI assistant context
+- ⚡ **Production Infrastructure** - Auth, database, Edge Functions
+- 📱 **Mobile Ready** - iOS/Android with Capacitor (optional)
 
 **Available Flags:**
 - `--skip-install` - Skip dependency installation
@@ -108,6 +100,42 @@ npx @sge/create-app my-app
 - `--pm <manager>` - Package manager (npm|yarn|pnpm)
 
 [📖 Full CLI Documentation](./generator/README.md)
+
+## 🤖 AI-First Development Workflow
+
+Every generated project includes a comprehensive AI-assisted development workflow:
+
+### Phase 1: Research & Discovery (Week 1)
+Work with your AI assistant to complete `docs/planning/market-research.md`:
+- Market size and opportunity analysis
+- Target audience and personas
+- Competitive landscape
+- Market trends and gaps
+
+### Phase 2: Product Strategy (Week 1-2)
+Define your product with AI assistance:
+- **Product Spec** (`product-spec.md`) - Vision, features, user stories
+- **Requirements** (`critical-requirements.md`) - Must-haves, compliance, risks
+
+### Phase 3: Technical Planning (Week 2)
+Plan implementation with AI:
+- **Architecture** (`technical-decisions.md`) - Data models, APIs, integrations
+- **Roadmap** (`development-roadmap.md`) - Phases, milestones, timelines
+
+### Phase 4: Configure AI Context (Week 2)
+Update `.github/instructions/copilot-instructions.md` with:
+- Your project-specific goals and vision
+- Custom business logic and rules
+- Specific terminology and conventions
+
+### Phase 5: Build & Iterate (Week 3+)
+Use AI to scaffold and implement:
+- Generate components with proper patterns
+- Implement features incrementally
+- Test across web and mobile platforms
+- Document decisions in `ai-chat-log.md`
+
+**Why This Works:** The SGE template provides battle-tested infrastructure. Your AI-assisted planning defines the unique business value. This workflow ensures you build the right thing, the right way.
 
 ### Option 2: Manual Clone
 

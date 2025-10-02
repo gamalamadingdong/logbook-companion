@@ -35,7 +35,8 @@
     "ios:build": "node scripts/increment-ios-build.js && npm run build:prod && npm run ios:sync",
     "ios:release": "node scripts/increment-ios-build.js && npm run build:prod && npm run ios:sync",
     "generator:dev": "npm run dev --workspace=generator",
-    "generator:build": "npm run build --workspace=generator"
+    "generator:build": "npm run build --workspace=generator",
+    "generate": "cd generator && npm run build && node dist/index.js"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",
