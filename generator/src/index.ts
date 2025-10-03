@@ -38,6 +38,7 @@ interface ProjectConfig {
   emailProvider: 'resend' | 'sendgrid' | 'none';
   includeAuth: boolean;
   skipInstall: boolean;
+  projectDescription?: string;
   
   // Migration-specific options
   migrationSource?: string;
@@ -197,6 +198,59 @@ async function runInteractivePrompts(): Promise<ProjectConfig> {
     answers.emailProvider = 'none';
   }
 
+  // Get project narrative description
+  const narrativeAnswer = await inquirer.prompt([
+    {
+      type: 'editor',
+      name: 'projectDescription',
+      message: answers.projectType === 'migration' 
+        ? 'Describe your legacy system and what you want to achieve with this migration:'
+        : 'Tell me about your project - what does it do, who uses it, what problem does it solve?',
+      default: answers.projectType === 'migration'
+        ? `# Legacy System Description
+
+## What the current system does:
+[Describe the main functionality and purpose of your legacy system]
+
+## Who uses it:
+[Describe your users - customers, internal staff, partners, etc.]
+
+## Problems you want to solve:
+[What issues with the current system are driving this migration?]
+
+## Vision for the new system:
+[What do you want to achieve with the SGE template migration?]
+
+## Business context:
+[Any additional context about your business domain, industry, or specific requirements]`
+        : `# Project Description
+
+## What this project does:
+[Describe the main functionality and purpose of your application]
+
+## Who will use it:
+[Describe your target users - customers, internal staff, partners, etc.]
+
+## Problem it solves:
+[What problem does this application solve for your users?]
+
+## Business goals:
+[What business outcomes are you hoping to achieve?]
+
+## Special requirements:
+[Any specific technical or business requirements worth noting]`,
+      validate: (input: string) => {
+        if (!input || input.trim().length < 50) {
+          return 'Please provide a meaningful description (at least 50 characters)';
+        }
+        return true;
+      }
+    }
+  ]);
+
+  // Merge all answers
+  Object.assign(answers, narrativeAnswer);
+
   // Handle path separation: if projectName contains path separators, extract directory name
   const resolvedPath = path.resolve(process.cwd(), answers.projectName);
   const extractedProjectName = path.basename(resolvedPath);
@@ -350,7 +404,8 @@ async function processTemplateFiles(config: ProjectConfig, spinner: Ora): Promis
         content = content
           .replace(/{{PROJECT_NAME}}/g, config.projectName)
           .replace(/{{PACKAGE_MANAGER}}/g, config.packageManager)
-          .replace(/{{GENERATION_DATE}}/g, new Date().toISOString().split('T')[0]);
+          .replace(/{{GENERATION_DATE}}/g, new Date().toISOString().split('T')[0])
+          .replace(/{{PROJECT_DESCRIPTION}}/g, config.projectDescription || '[Project description not provided]');
         
         // Handle conditional sections
         content = processConditionalSections(content, config);
@@ -620,13 +675,32 @@ async function createMigrationProject(config: ProjectConfig, spinner: Ora): Prom
       await fs.ensureDir(path.join(config.projectPath, dir));
     }
     
-    // Copy migration templates
+    // Copy and process migration templates
     const templateDir = path.resolve(__dirname, '../..');
     const migrationTemplatesDir = path.join(templateDir, 'generator/templates/migration');
     const targetMigrationDir = path.join(config.projectPath, 'docs/migration');
     
     if (await fs.pathExists(migrationTemplatesDir)) {
-      await fs.copy(migrationTemplatesDir, targetMigrationDir);
+      // Get all template files
+      const templateFiles = await fs.readdir(migrationTemplatesDir);
+      
+      // Process each template file
+      for (const templateFile of templateFiles) {
+        const sourcePath = path.join(migrationTemplatesDir, templateFile);
+        const targetPath = path.join(targetMigrationDir, templateFile);
+        
+        if ((await fs.stat(sourcePath)).isFile()) {
+          let content = await fs.readFile(sourcePath, 'utf8');
+          
+          // Perform variable substitution
+          content = content
+            .replace(/{{PROJECT_NAME}}/g, config.projectName)
+            .replace(/{{PROJECT_DESCRIPTION}}/g, config.projectDescription || '[Project description not provided]')
+            .replace(/{{GENERATION_DATE}}/g, new Date().toISOString().split('T')[0]);
+          
+          await fs.writeFile(targetPath, content);
+        }
+      }
     }
     
     // Create package.json for migration project
@@ -1912,6 +1986,7 @@ program
   .option('--no-auth', 'Exclude authentication')
   .option('--email <provider>', 'Email provider (resend|sendgrid|none)')
   .option('--pm <manager>', 'Package manager (npm|yarn|pnpm)')
+  .option('--description <text>', 'Project description for AI context')
   .action(async (projectName?: string, options?: any) => {
     try {
       let config: ProjectConfig;
@@ -1934,8 +2009,32 @@ program
           emailProvider: options.email || 'resend',
           skipInstall: options.skipInstall || false,
           migrationSource: options.source,
-          migrationTarget: options.target || 'fullstack'
+          migrationTarget: options.target || 'fullstack',
+          projectDescription: options.description
         };
+        
+        // If no project description provided, prompt for it
+        if (!config.projectDescription) {
+          const descriptionPrompt = await inquirer.prompt([
+            {
+              type: 'editor',
+              name: 'projectDescription',
+              message: config.projectType === 'migration' 
+                ? 'Describe your legacy system and migration goals:'
+                : 'Tell me about your project:',
+              default: config.projectType === 'migration'
+                ? `# Legacy System Description\n\n## What the current system does:\n[Describe your legacy system]\n\n## Migration goals:\n[What you want to achieve]`
+                : `# Project Description\n\n## What this project does:\n[Describe your application]\n\n## Who will use it:\n[Your target users]`,
+              validate: (input: string) => {
+                if (!input || input.trim().length < 20) {
+                  return 'Please provide a meaningful description (at least 20 characters)';
+                }
+                return true;
+              }
+            }
+          ]);
+          config.projectDescription = descriptionPrompt.projectDescription;
+        }
       } else {
         // Interactive mode
         config = await runInteractivePrompts();

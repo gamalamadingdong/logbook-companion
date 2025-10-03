@@ -6,6 +6,12 @@
 **Template:** SGE Starter Template  
 **Tech Stack:** React 18, TypeScript, Supabase, Tailwind CSS{{#includeMobile}}, Capacitor{{/includeMobile}}{{#includeSubscriptions}}, Stripe{{/includeSubscriptions}}
 
+## 🎯 What This Project Is About
+
+{{PROJECT_DESCRIPTION}}
+
+---
+
 ## Mission
 
 You are assisting with the development of **{{PROJECT_NAME}}**, a modern web{{#includeMobile}} and mobile{{/includeMobile}} application built using the SGE (Scalable Growth Engine) Template. This template provides a production-ready foundation with authentication, database, and deployment infrastructure already configured.

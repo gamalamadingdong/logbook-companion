@@ -2,6 +2,12 @@
 
 🎯 **ANALYSIS GOAL:** Map legacy system to SGE Template architecture and identify migration path
 
+## 📋 Project & Business Context
+
+{{PROJECT_DESCRIPTION}}
+
+---
+
 ## System Overview
 **Project Name:** ___________________________
 **Current Technology Stack:** ___________________________

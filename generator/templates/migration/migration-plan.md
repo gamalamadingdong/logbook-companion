@@ -2,6 +2,12 @@
 
 🎯 **MIGRATION STRATEGY:** Transform legacy system using SGE Template as the target architecture
 
+## 📋 Project & Business Context
+
+{{PROJECT_DESCRIPTION}}
+
+---
+
 ## Project Overview
 **Migration Target:** {{project_name}}
 **Business Type:** {{business_type}}
