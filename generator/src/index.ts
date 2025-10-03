@@ -31,12 +31,17 @@ interface ProjectConfig {
   projectName: string;
   projectPath: string;
   packageManager: PackageManager;
+  projectType: 'new' | 'migration';
   includeMobile: boolean;
   includeSubscriptions: boolean;
   includeNotifications: boolean;
   emailProvider: 'resend' | 'sendgrid' | 'none';
   includeAuth: boolean;
   skipInstall: boolean;
+  
+  // Migration-specific options
+  migrationSource?: string;
+  migrationTarget?: string;
   
   // Supabase configuration
   supabaseUrl?: string;
@@ -73,15 +78,54 @@ async function runInteractivePrompts(): Promise<ProjectConfig> {
 
   const answers = await inquirer.prompt([
     {
+      type: 'list',
+      name: 'projectType',
+      message: 'What type of project are you creating?',
+      choices: [
+        { 
+          name: '🚀 New SGE Application - Start a fresh project with the full SGE template',
+          value: 'new' 
+        },
+        { 
+          name: '🔄 Legacy System Migration - Modernize existing codebase with AI assistance',
+          value: 'migration' 
+        }
+      ],
+      default: 'new'
+    },
+    {
       type: 'input',
       name: 'projectName',
       message: 'Project name:',
-      default: 'my-sge-app',
+      default: (answers: any) => answers.projectType === 'migration' ? 'my-legacy-migration' : 'my-sge-app',
       validate: (input: string) => {
         if (!input) return 'Project name is required';
         if (!/^[a-z0-9-]+$/.test(input)) return 'Project name must be lowercase with hyphens only';
         return true;
       }
+    },
+    {
+      type: 'input',
+      name: 'migrationSource',
+      message: 'Path to existing codebase (directory or Git repository):',
+      when: (answers: any) => answers.projectType === 'migration',
+      validate: (input: string) => {
+        if (!input) return 'Source path is required for migration projects';
+        return true;
+      }
+    },
+    {
+      type: 'list',
+      name: 'migrationTarget',
+      message: 'Migration target platform:',
+      choices: [
+        { name: 'Web Application (React + TypeScript)', value: 'web' },
+        { name: 'Mobile App (React Native + Capacitor)', value: 'mobile' },
+        { name: 'Full Stack (Web + Mobile)', value: 'fullstack' },
+        { name: 'Microservices Architecture', value: 'microservices' }
+      ],
+      when: (answers: any) => answers.projectType === 'migration',
+      default: 'fullstack'
     },
     {
       type: 'list',
@@ -94,25 +138,29 @@ async function runInteractivePrompts(): Promise<ProjectConfig> {
       type: 'confirm',
       name: 'includeAuth',
       message: 'Include authentication (Supabase)?',
-      default: true
+      default: true,
+      when: (answers: any) => answers.projectType === 'new'
     },
     {
       type: 'confirm',
       name: 'includeMobile',
       message: 'Include mobile app support (iOS/Android)?',
-      default: true
+      default: (answers: any) => answers.migrationTarget === 'mobile' || answers.migrationTarget === 'fullstack',
+      when: (answers: any) => answers.projectType === 'new' || (answers.projectType === 'migration' && (answers.migrationTarget === 'mobile' || answers.migrationTarget === 'fullstack'))
     },
     {
       type: 'confirm',
       name: 'includeSubscriptions',
       message: 'Include Stripe subscription management?',
-      default: true
+      default: true,
+      when: (answers: any) => answers.projectType === 'new'
     },
     {
       type: 'confirm',
       name: 'includeNotifications',
       message: 'Include multi-channel notifications?',
-      default: true
+      default: true,
+      when: (answers: any) => answers.projectType === 'new'
     },
     {
       type: 'list',
@@ -133,6 +181,14 @@ async function runInteractivePrompts(): Promise<ProjectConfig> {
       default: false
     }
   ]);
+
+  // Set defaults for migration projects
+  if (answers.projectType === 'migration') {
+    answers.includeAuth = false;
+    answers.includeSubscriptions = false;  
+    answers.includeNotifications = false;
+    answers.emailProvider = 'none';
+  }
 
   return {
     ...answers,
@@ -434,26 +490,703 @@ async function setupDatabase(config: ProjectConfig, spinner: Ora): Promise<void>
 }
 
 /**
+ * Create migration project structure with AI-assisted workflow
+ */
+async function createMigrationProject(config: ProjectConfig, spinner: Ora): Promise<void> {
+  spinner.text = 'Setting up migration project structure...';
+  
+  try {
+    // Create project directory
+    await fs.ensureDir(config.projectPath);
+    
+    // Create basic structure for migration project
+    const migrationDirs = [
+      'docs/analysis',
+      'docs/planning',
+      'docs/migration',
+      'tools/scripts',
+      'analysis/generated',
+      'planning/phases',
+      'target-architecture'
+    ];
+    
+    for (const dir of migrationDirs) {
+      await fs.ensureDir(path.join(config.projectPath, dir));
+    }
+    
+    // Copy migration templates
+    const templateDir = path.resolve(__dirname, '../..');
+    const migrationTemplatesDir = path.join(templateDir, 'generator/templates/migration');
+    const targetMigrationDir = path.join(config.projectPath, 'docs/migration');
+    
+    if (await fs.pathExists(migrationTemplatesDir)) {
+      await fs.copy(migrationTemplatesDir, targetMigrationDir);
+    }
+    
+    // Create package.json for migration project
+    const migrationPackageJson = {
+      name: config.projectName,
+      version: '1.0.0',
+      description: 'Legacy system migration project with AI assistance',
+      type: 'module',
+      scripts: {
+        'analyze': 'node tools/scripts/analyze-codebase.js',
+        'plan': 'node tools/scripts/create-migration-plan.js',
+        'validate': 'node tools/scripts/validate-migration.js'
+      },
+      devDependencies: {
+        '@types/node': '^20.0.0',
+        'typescript': '^5.0.0',
+        'ts-node': '^10.9.0'
+      }
+    };
+    
+    await fs.writeJson(path.join(config.projectPath, 'package.json'), migrationPackageJson, { spaces: 2 });
+    
+    // Create basic migration utility scripts
+    const analyzeScript = `#!/usr/bin/env node
+
+/**
+ * Codebase Analysis Utility
+ * 
+ * This script helps analyze legacy codebases to prepare for migration.
+ * Work with your AI assistant to customize this analysis for your specific needs.
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+console.log('🔍 AI-Assisted Codebase Analysis');
+console.log('==================================');
+
+// Configuration - modify these paths for your project
+const SOURCE_PATH = process.argv[2] || '${config.migrationSource || './legacy-source'}';
+const OUTPUT_DIR = './analysis/generated';
+
+console.log(\`Analyzing codebase at: \${SOURCE_PATH}\`);
+console.log(\`Output directory: \${OUTPUT_DIR}\`);
+
+// Ensure output directory exists
+if (!fs.existsSync(OUTPUT_DIR)) {
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+}
+
+// Basic file analysis
+function analyzeDirectory(dirPath, depth = 0) {
+  const maxDepth = 5; // Prevent infinite recursion
+  if (depth > maxDepth) return [];
+  
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    let analysis = [];
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        analysis = analysis.concat(analyzeDirectory(fullPath, depth + 1));
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name);
+        const size = fs.statSync(fullPath).size;
+        
+        analysis.push({
+          path: fullPath,
+          name: entry.name,
+          extension: ext,
+          size: size,
+          type: getFileType(ext)
+        });
+      }
+    }
+    
+    return analysis;
+  } catch (error) {
+    console.warn(\`Could not analyze directory: \${dirPath}\`);
+    return [];
+  }
+}
+
+function getFileType(extension) {
+  const typeMap = {
+    '.js': 'JavaScript',
+    '.ts': 'TypeScript', 
+    '.jsx': 'React JSX',
+    '.tsx': 'React TSX',
+    '.py': 'Python',
+    '.java': 'Java',
+    '.cs': 'C#',
+    '.php': 'PHP',
+    '.rb': 'Ruby',
+    '.go': 'Go',
+    '.rs': 'Rust',
+    '.cpp': 'C++',
+    '.c': 'C',
+    '.html': 'HTML',
+    '.css': 'CSS',
+    '.scss': 'SASS',
+    '.sql': 'SQL',
+    '.json': 'JSON',
+    '.xml': 'XML',
+    '.yaml': 'YAML',
+    '.yml': 'YAML'
+  };
+  
+  return typeMap[extension.toLowerCase()] || 'Other';
+}
+
+// Run analysis
+if (fs.existsSync(SOURCE_PATH)) {
+  const analysis = analyzeDirectory(SOURCE_PATH);
+  
+  // Generate summary
+  const summary = {
+    totalFiles: analysis.length,
+    fileTypes: {},
+    largestFiles: analysis.sort((a, b) => b.size - a.size).slice(0, 10),
+    directories: [...new Set(analysis.map(f => path.dirname(f.path)))],
+    generatedAt: new Date().toISOString()
+  };
+  
+  // Count file types
+  analysis.forEach(file => {
+    summary.fileTypes[file.type] = (summary.fileTypes[file.type] || 0) + 1;
+  });
+  
+  // Save results
+  fs.writeFileSync(
+    path.join(OUTPUT_DIR, 'codebase-analysis.json'),
+    JSON.stringify({ analysis, summary }, null, 2)
+  );
+  
+  // Generate readable report
+  let report = \`# Codebase Analysis Report
+
+Generated: \${new Date().toLocaleString()}
+Source: \${SOURCE_PATH}
+
+## Summary
+
+- **Total Files:** \${summary.totalFiles}
+- **Directories:** \${summary.directories.length}
+
+## File Types
+
+\`;
+  
+  Object.entries(summary.fileTypes).forEach(([type, count]) => {
+    report += \`- **\${type}:** \${count} files\\n\`;
+  });
+  
+  report += \`\\n## Largest Files
+
+\`;
+  
+  summary.largestFiles.forEach((file, i) => {
+    const sizeKB = Math.round(file.size / 1024);
+    report += \`\${i + 1}. \${file.name} (\${sizeKB} KB) - \${file.type}\\n\`;
+  });
+  
+  report += \`\\n## Next Steps
+
+1. **Review the analysis results** in \\\`analysis/generated/codebase-analysis.json\\\`
+2. **Work with your AI assistant** to interpret these results
+3. **Identify key components** for migration prioritization  
+4. **Plan your migration strategy** using the analysis insights
+
+## AI Assistant Prompt
+
+Use this prompt with your AI assistant to get deeper insights:
+
+\\\`\\\`\\\`
+I've analyzed my legacy codebase and here are the results:
+
+**File Types:** \${Object.entries(summary.fileTypes).map(([type, count]) => \`\${type}: \${count}\`).join(', ')}
+
+**Largest Files:** \${summary.largestFiles.slice(0, 5).map(f => f.name).join(', ')}
+
+**Total Files:** \${summary.totalFiles}
+
+Based on this analysis, help me:
+1. Identify the main technology stack and architecture patterns
+2. Prioritize components for migration (start with low-risk, high-value)
+3. Suggest a migration strategy (incremental vs big-bang)
+4. Identify potential challenges and risks
+
+Use the framework from docs/migration/ai-discovery-guide.md to structure your analysis.
+\\\`\\\`\\\`
+\`;
+
+  fs.writeFileSync(path.join(OUTPUT_DIR, 'analysis-report.md'), report);
+  
+  console.log('✅ Analysis complete!');
+  console.log(\`📊 Results saved to: \${OUTPUT_DIR}/\`);
+  console.log('📋 Review analysis-report.md and work with your AI assistant for next steps');
+  
+} else {
+  console.error(\`❌ Source path not found: \${SOURCE_PATH}\`);
+  console.log('Usage: npm run analyze [source-path]');
+}
+`;
+
+    const planScript = `#!/usr/bin/env node
+
+/**
+ * Migration Plan Generator
+ * 
+ * This utility helps create and manage migration plans.
+ * Use with your AI assistant for best results.
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+console.log('📋 AI-Assisted Migration Planning');
+console.log('=================================');
+
+const TEMPLATES_DIR = './docs/migration';
+const PLANNING_DIR = './planning/phases';
+
+// Ensure planning directory exists
+if (!fs.existsSync(PLANNING_DIR)) {
+  fs.mkdirSync(PLANNING_DIR, { recursive: true });
+}
+
+// Read existing analysis if available
+let analysisData = null;
+const analysisPath = './analysis/generated/codebase-analysis.json';
+
+if (fs.existsSync(analysisPath)) {
+  try {
+    analysisData = JSON.parse(fs.readFileSync(analysisPath, 'utf8'));
+    console.log('📊 Found existing codebase analysis');
+  } catch (error) {
+    console.warn('⚠️  Could not read analysis data');
+  }
+}
+
+// Generate phase templates
+const phases = [
+  {
+    id: 'phase-1',
+    name: 'Foundation & Setup',
+    description: 'Set up new architecture foundation and development environment'
+  },
+  {
+    id: 'phase-2', 
+    name: 'Core Business Logic Migration',
+    description: 'Migrate essential business logic and data models'
+  },
+  {
+    id: 'phase-3',
+    name: 'Integration & Services',
+    description: 'Implement integrations and external service connections'
+  },
+  {
+    id: 'phase-4',
+    name: 'UI/UX & Final Migration', 
+    description: 'Complete user interface migration and system cutover'
+  }
+];
+
+phases.forEach(phase => {
+  const phaseFile = path.join(PLANNING_DIR, \`\${phase.id}.md\`);
+  
+  if (!fs.existsSync(phaseFile)) {
+    const template = \`# \${phase.name}
+
+## Overview
+\${phase.description}
+
+## Objectives
+- [ ] Objective 1
+- [ ] Objective 2  
+- [ ] Objective 3
+
+## Components to Migrate
+- Component 1
+- Component 2
+- Component 3
+
+## Success Criteria
+- [ ] Criteria 1
+- [ ] Criteria 2
+- [ ] Criteria 3
+
+## Risks & Mitigations
+| Risk | Impact | Probability | Mitigation |
+|------|---------|-------------|------------|
+| Risk 1 | High | Low | Mitigation strategy |
+
+## Dependencies
+- [ ] Dependency 1
+- [ ] Dependency 2
+
+## Timeline Estimate
+**Duration:** X weeks  
+**Start Date:** TBD  
+**End Date:** TBD
+
+## Testing Strategy
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] User acceptance testing
+- [ ] Performance testing
+
+## Rollback Plan
+Describe how to rollback this phase if issues occur.
+
+## AI Assistant Notes
+*Use this section to document insights from AI-assisted planning sessions*
+
+---
+**Status:** Planning  
+**Last Updated:** \${new Date().toISOString().split('T')[0]}
+\`;
+
+    fs.writeFileSync(phaseFile, template);
+    console.log(\`📄 Created \${phase.id}.md\`);
+  } else {
+    console.log(\`✅ \${phase.id}.md already exists\`);
+  }
+});
+
+// Generate overall migration plan
+const overallPlanFile = path.join(PLANNING_DIR, 'migration-overview.md');
+
+if (!fs.existsSync(overallPlanFile)) {
+  const overallTemplate = \`# Migration Overview & Strategy
+
+## Project Context
+**Source System:** ${config.migrationSource || 'Legacy codebase'}  
+**Target Architecture:** ${config.migrationTarget || 'Modern application'}  
+**Migration Approach:** Incremental modernization
+
+\${analysisData ? \`## Codebase Analysis Summary
+
+**Total Files:** \${analysisData.summary.totalFiles}
+**Primary File Types:** \${Object.entries(analysisData.summary.fileTypes).map(([type, count]) => \`\${type} (\${count})\`).join(', ')}
+**Largest Components:** \${analysisData.summary.largestFiles.slice(0, 3).map(f => f.name).join(', ')}
+
+*Full analysis available in: analysis/generated/codebase-analysis.json*
+\` : '## Codebase Analysis\\n\\n*Run \`npm run analyze\` to generate codebase analysis*'}
+
+## Migration Strategy
+
+### Approach: Incremental Migration
+We will migrate the system incrementally to minimize risk and maintain system availability.
+
+### Phase Overview
+1. **Phase 1: Foundation & Setup** (2-3 weeks)
+2. **Phase 2: Core Business Logic** (4-6 weeks) 
+3. **Phase 3: Integration & Services** (3-4 weeks)
+4. **Phase 4: UI/UX & Final Migration** (3-4 weeks)
+
+**Total Estimated Duration:** 12-17 weeks
+
+## Success Metrics
+- [ ] Zero data loss during migration
+- [ ] < 4 hours total downtime across all phases
+- [ ] Performance improved by 50% or maintained
+- [ ] All business functionality preserved
+- [ ] Team trained on new architecture
+
+## Risk Management
+- Comprehensive testing at each phase
+- Rollback plans for each component
+- Gradual user migration (feature flags)
+- Performance monitoring throughout
+
+## AI Assistant Collaboration
+
+### Planning Prompts
+Use these prompts to work with your AI assistant:
+
+**Phase Planning:**
+\\\`\\\`\\\`
+Help me plan Phase [X] of my migration project.
+
+Context:
+- Source: ${config.migrationSource || '[source-system]'}
+- Target: ${config.migrationTarget || '[target-architecture]'}
+- Components identified: [list key components]
+
+I need help with:
+1. Breaking down the phase into specific tasks
+2. Identifying dependencies and risks
+3. Creating realistic timeline estimates
+4. Planning testing approach
+
+Reference: planning/phases/phase-[x].md
+\\\`\\\`\\\`
+
+**Risk Assessment:**
+\\\`\\\`\\\`
+Review my migration plan and help identify potential risks:
+
+[Include relevant context about your specific migration]
+
+Focus on:
+1. Technical risks (data loss, performance degradation)
+2. Business risks (downtime, user impact)  
+3. Team risks (knowledge gaps, resource constraints)
+4. Timeline risks (dependencies, complexity underestimation)
+
+Suggest specific mitigation strategies for each risk.
+\\\`\\\`\\\`
+
+---
+**Created:** \${new Date().toISOString().split('T')[0]}  
+**Status:** Planning  
+**Next Review:** TBD
+\`;
+
+  fs.writeFileSync(overallPlanFile, overallTemplate);
+  console.log('📋 Created migration-overview.md');
+}
+
+console.log('\\n✅ Migration planning templates created!');
+console.log('📂 Review files in: planning/phases/');  
+console.log('🤖 Work with your AI assistant to customize the plans');
+`;
+
+    const validateScript = `#!/usr/bin/env node
+
+/**
+ * Migration Validation Utility
+ * 
+ * Helps validate migration progress and system integrity.
+ */
+
+console.log('✅ Migration Validation');
+console.log('======================');
+
+// Check if planning files exist
+const planningFiles = [
+  'docs/migration/migration-plan.md',
+  'docs/migration/analysis-worksheet.md', 
+  'planning/phases/migration-overview.md'
+];
+
+console.log('📋 Planning Documentation Status:');
+planningFiles.forEach(file => {
+  const exists = require('fs').existsSync(file);
+  console.log(\`  \${exists ? '✅' : '❌'} \${file}\`);
+});
+
+console.log('\\n🤖 Next Steps:');
+console.log('1. Complete planning documentation');
+console.log('2. Work with AI assistant to validate plans');
+console.log('3. Begin Phase 1 implementation');
+console.log('4. Run validation after each phase');
+`;
+
+    // Write utility scripts
+    await fs.writeFile(path.join(config.projectPath, 'tools/scripts/analyze-codebase.js'), analyzeScript);
+    await fs.writeFile(path.join(config.projectPath, 'tools/scripts/create-migration-plan.js'), planScript);
+    await fs.writeFile(path.join(config.projectPath, 'tools/scripts/validate-migration.js'), validateScript);
+    
+    spinner.succeed('Migration project structure created');
+  } catch (error: any) {
+    spinner.fail('Failed to create migration project structure');
+    throw new Error(`Migration setup error: ${error.message}`);
+  }
+}
+
+/**
  * Copy GitHub Copilot instructions for AI-assisted development
  */
 async function setupCopilotInstructions(config: ProjectConfig, spinner: Ora): Promise<void> {
   spinner.text = 'Setting up AI assistant configuration...';
   
   try {
-    const templateDir = path.resolve(__dirname, '../..');
-    const sourceFile = path.join(templateDir, '.github/instructions/copilot-instructions.md');
     const targetDir = path.join(config.projectPath, '.github/instructions');
     const targetFile = path.join(targetDir, 'copilot-instructions.md');
     
     // Create .github/instructions directory
     await fs.ensureDir(targetDir);
     
-    // Copy the copilot instructions file
-    await fs.copy(sourceFile, targetFile);
+    if (config.projectType === 'migration') {
+      // Create migration-specific Copilot instructions
+      const migrationInstructions = `# Migration Project - AI Assistant Instructions
+
+## Project Context
+
+**Project Type:** Legacy System Migration  
+**Source System:** ${config.migrationSource || 'Legacy codebase'}  
+**Target Architecture:** ${config.migrationTarget || 'Modern full-stack application'}  
+**Migration Approach:** AI-assisted incremental modernization
+
+## Core Mission
+
+You are assisting with a **legacy system migration project**. Your role is to help analyze existing code, plan modernization strategies, and guide the implementation of modern architecture patterns while preserving business logic and data integrity.
+
+## Primary Responsibilities
+
+### 1. Codebase Analysis
+- **System Discovery**: Help analyze legacy code structure, dependencies, and architecture patterns
+- **Technical Debt Assessment**: Identify areas requiring modernization and technical debt
+- **Business Logic Extraction**: Help separate core business logic from infrastructure concerns
+- **Integration Mapping**: Document existing integrations and data flows
+
+### 2. Migration Planning
+- **Strategy Development**: Recommend incremental vs big-bang migration approaches
+- **Risk Assessment**: Identify migration risks and mitigation strategies  
+- **Phase Planning**: Break down migration into manageable phases
+- **Testing Strategy**: Design comprehensive testing approaches for each migration phase
+
+### 3. Architecture Modernization
+- **Pattern Recommendations**: Suggest modern architecture patterns (microservices, event-driven, etc.)
+- **Technology Stack**: Recommend modern technology choices based on requirements
+- **Data Migration**: Design data migration strategies and validation approaches
+- **Integration Design**: Plan modern integration patterns and APIs
+
+### 4. Implementation Guidance
+- **Code Generation**: Help generate modern code following best practices
+- **Refactoring Assistance**: Guide incremental refactoring of legacy components
+- **Testing Implementation**: Help create comprehensive test suites
+- **Documentation**: Generate technical documentation for new architecture
+
+## Migration Workflow Support
+
+### Phase 1: Discovery & Analysis
+**Files to Reference:** 
+- \`docs/migration/ai-discovery-guide.md\` - Interactive discovery framework
+- \`docs/migration/analysis-worksheet.md\` - Systematic analysis checklist
+
+**Key Activities:**
+- Analyze codebase structure and dependencies
+- Identify business-critical components
+- Assess technical debt and modernization opportunities
+- Document existing architecture and data flows
+
+### Phase 2: Planning & Strategy
+**Files to Reference:**
+- \`docs/migration/migration-plan.md\` - 4-phase migration strategy template
+
+**Key Activities:** 
+- Develop incremental migration roadmap
+- Plan target architecture design
+- Identify integration requirements
+- Create risk mitigation strategies
+
+### Phase 3: Architecture Design
+**Key Activities:**
+- Design modern system architecture
+- Plan database modernization approach
+- Design API and integration layers
+- Plan deployment and infrastructure architecture
+
+### Phase 4: Implementation & Validation
+**Key Activities:**
+- Guide incremental implementation
+- Support testing and validation
+- Help with deployment automation
+- Support monitoring and observability
+
+## Best Practices for Migration Projects
+
+### Code Analysis
+- Always analyze existing business logic before suggesting changes
+- Preserve critical business rules during modernization
+- Identify and document all external dependencies
+- Map data flows and transformation requirements
+
+### Migration Strategy
+- Prefer incremental migration over big-bang approaches
+- Maintain system availability during migration
+- Implement comprehensive testing at each phase
+- Plan rollback strategies for each migration phase
+
+### Modern Architecture Principles
+- Design for scalability and maintainability
+- Implement proper error handling and observability
+- Use modern security practices and patterns
+- Design for cloud-native deployment when applicable
+
+### Risk Management
+- Always validate business logic preservation
+- Implement comprehensive monitoring during transition
+- Plan for data integrity validation
+- Document all decisions and architectural changes
+
+## Technology Recommendations
+
+### Target Stack Options (Based on Migration Target)
+${config.migrationTarget === 'web' ? `
+**Web Application:**
+- Frontend: React 18 + TypeScript + Vite
+- Backend: Node.js/Express or Supabase Edge Functions
+- Database: PostgreSQL with modern ORM (Prisma/Supabase)
+- Hosting: Vercel, Netlify, or AWS` : 
+config.migrationTarget === 'mobile' ? `
+**Mobile Application:**
+- Framework: React Native + Expo or Flutter
+- Backend: Supabase or Firebase
+- State Management: Redux Toolkit or Zustand  
+- Navigation: React Navigation or Flutter Navigator` :
+config.migrationTarget === 'microservices' ? `
+**Microservices Architecture:**
+- Services: Node.js, Python FastAPI, or .NET Core
+- API Gateway: Kong, AWS API Gateway, or Azure API Management
+- Database: PostgreSQL, MongoDB, or service-specific databases
+- Messaging: RabbitMQ, Apache Kafka, or cloud-native solutions
+- Container Orchestration: Docker + Kubernetes` : `
+**Full-Stack Application:**
+- Frontend: React 18 + TypeScript + Vite
+- Mobile: React Native + Capacitor for native compilation
+- Backend: Supabase (PostgreSQL + Edge Functions + Auth)
+- Real-time: Supabase Realtime or Socket.io
+- Deployment: Vercel (web) + App Store/Play Store (mobile)`}
+
+### Integration Patterns
+- REST APIs with OpenAPI documentation
+- GraphQL for complex data requirements
+- Event-driven architecture for decoupled systems
+- Message queues for asynchronous processing
+
+## Communication Guidelines
+
+### When Analyzing Legacy Code
+1. **Ask clarifying questions** about business requirements and constraints
+2. **Identify critical vs non-critical** components early
+3. **Suggest incremental approaches** over complete rewrites
+4. **Document assumptions** and validate them with stakeholders
+
+### When Recommending Changes
+1. **Explain the benefits** of modern patterns vs legacy approaches
+2. **Provide specific examples** of how to implement recommended changes
+3. **Consider migration complexity** in all recommendations
+4. **Always include testing strategies** for recommended changes
+
+### When Supporting Implementation
+1. **Generate production-ready code** following modern best practices
+2. **Include comprehensive error handling** and logging
+3. **Provide clear documentation** for all new components
+4. **Suggest monitoring and observability** approaches
+
+Remember: The goal is successful modernization with minimal business disruption. Always prioritize **business continuity** and **data integrity** while introducing modern development practices and architecture patterns.
+
+---
+
+**Migration Target:** ${config.migrationTarget || 'Modern application'}  
+**Created:** ${new Date().toISOString().split('T')[0]}  
+**AI-Assisted Migration Ready** 🔄
+`;
+
+      await fs.writeFile(targetFile, migrationInstructions);
+    } else {
+      // Copy standard SGE Copilot instructions for new projects
+      const templateDir = path.resolve(__dirname, '../..');
+      const sourceFile = path.join(templateDir, '.github/instructions/copilot-instructions.md');
+      
+      if (await fs.pathExists(sourceFile)) {
+        await fs.copy(sourceFile, targetFile);
+      }
+    }
     
     spinner.succeed('AI assistant configuration ready');
   } catch (error: any) {
-    spinner.warn(`Could not copy AI instructions: ${error.message}`);
+    spinner.warn(`Could not setup AI instructions: ${error.message}`);
   }
 }
 
@@ -980,6 +1713,278 @@ Help me design the component structure and data flow.
 }
 
 /**
+ * Create migration-specific README
+ */
+async function createMigrationReadme(config: ProjectConfig, spinner: Ora): Promise<void> {
+  spinner.text = 'Creating migration project README...';
+  
+  try {
+    const readmeContent = `# ${config.projectName}
+
+> AI-Assisted Legacy System Migration Project
+
+## 🎯 Migration Overview
+
+**Source:** ${config.migrationSource || 'Your existing codebase'}  
+**Target:** ${config.migrationTarget || 'Modern web/mobile application'}  
+**Approach:** AI-guided analysis and incremental modernization
+
+## 🤖 AI-Assisted Migration Workflow
+
+This project provides a structured approach to modernizing legacy systems with AI assistance. Follow this workflow to systematically analyze, plan, and execute your migration:
+
+### Phase 1: Discovery & Analysis (Week 1-2) 🔍
+
+**Goal:** Understand your existing system and identify migration opportunities
+
+1. **System Analysis** → See \`docs/migration/ai-discovery-guide.md\`
+   - Automated codebase analysis
+   - Dependency mapping
+   - Architecture assessment
+   - Technical debt identification
+
+2. **Migration Planning** → Use \`docs/migration/migration-plan.md\`
+   - Define migration strategy (big-bang vs incremental)
+   - Identify critical components
+   - Plan data migration approach
+   - Risk assessment and mitigation
+
+3. **Requirements Analysis** → Complete \`docs/migration/analysis-worksheet.md\`
+   - Business requirements validation
+   - Technical requirements gathering
+   - Performance and scalability goals
+   - Integration requirements
+
+### Phase 2: Architecture Design (Week 2-3) 🏗️
+
+**Goal:** Design the target architecture using modern patterns
+
+1. **Work with AI to design:**
+   - Microservices architecture (if applicable)
+   - Database schema modernization
+   - API design and integration patterns
+   - Security and compliance framework
+
+2. **Create target architecture documentation:**
+   - System architecture diagrams
+   - Data flow documentation
+   - Integration specifications
+   - Deployment architecture
+
+### Phase 3: Incremental Migration (Week 4+) 🔄
+
+**Goal:** Execute migration in manageable phases
+
+1. **Start with low-risk components**
+2. **Implement new architecture patterns**
+3. **Migrate data incrementally**
+4. **Maintain system availability**
+5. **Validate each phase**
+
+## 📁 Project Structure
+
+\`\`\`
+${config.projectName}/
+├── docs/
+│   ├── analysis/                     # System analysis results
+│   ├── planning/                     # Migration planning documents
+│   └── migration/                    # Migration templates and guides
+│       ├── ai-discovery-guide.md     # AI-assisted system discovery
+│       ├── migration-plan.md         # 4-phase migration strategy
+│       └── analysis-worksheet.md     # Systematic analysis checklist
+├── analysis/
+│   └── generated/                    # AI-generated analysis reports
+├── planning/
+│   └── phases/                       # Phase-specific planning
+├── target-architecture/              # Target system design
+│   ├── schemas/                      # Database schemas
+│   ├── apis/                         # API specifications
+│   └── components/                   # Component designs
+└── tools/
+    └── scripts/                      # Migration utilities
+        ├── analyze-codebase.js       # Automated analysis
+        ├── create-migration-plan.js  # Planning utilities
+        └── validate-migration.js     # Validation tools
+\`\`\`
+
+## 🚀 Quick Start
+
+### 1. Set Up Analysis Environment
+
+\`\`\`bash
+${config.packageManager} install
+\`\`\`
+
+### 2. Begin AI-Assisted Discovery
+
+Start with the AI discovery guide:
+
+\`\`\`bash
+# Open the discovery guide
+code docs/migration/ai-discovery-guide.md
+
+# Begin interactive analysis session with your AI assistant
+\`\`\`
+
+**Example AI Prompt:**
+\`\`\`
+I'm migrating a legacy ${config.migrationTarget === 'web' ? 'web application' : 
+  config.migrationTarget === 'mobile' ? 'mobile app' : 
+  config.migrationTarget === 'microservices' ? 'monolith to microservices' : 'system'}.
+
+Source codebase: ${config.migrationSource || '[your-source-path]'}
+Target platform: ${config.migrationTarget || 'modern full-stack'}
+
+Help me analyze the codebase structure, identify key components, 
+and plan a migration strategy. Use the framework in docs/migration/ai-discovery-guide.md.
+\`\`\`
+
+### 3. Complete Analysis Worksheet
+
+Work through the systematic analysis:
+
+\`\`\`bash
+code docs/migration/analysis-worksheet.md
+\`\`\`
+
+### 4. Create Migration Plan
+
+Develop your phase-by-phase strategy:
+
+\`\`\`bash
+code docs/migration/migration-plan.md
+\`\`\`
+
+## 🛠️ Migration Tools
+
+### Analysis Scripts
+
+\`\`\`bash
+# Analyze codebase structure
+npm run analyze
+
+# Generate migration plan
+npm run plan
+
+# Validate migration progress
+npm run validate
+\`\`\`
+
+### AI Assistance Prompts
+
+#### For Codebase Analysis
+\`\`\`
+Analyze this ${config.migrationTarget === 'web' ? 'web application' : 'codebase'} located at: ${config.migrationSource || '[source-path]'}
+
+Please help me:
+1. Map the overall architecture and dependencies
+2. Identify core business logic vs infrastructure code
+3. Assess the current technology stack and versions
+4. Identify potential migration challenges and opportunities
+5. Suggest modernization priorities
+
+Use the analysis framework from docs/migration/analysis-worksheet.md
+\`\`\`
+
+#### For Migration Planning
+\`\`\`
+Based on my codebase analysis, help me create a detailed migration plan.
+
+Target architecture: ${config.migrationTarget === 'web' ? 'Modern web application (React + TypeScript + Supabase)' :
+  config.migrationTarget === 'mobile' ? 'Mobile application (React Native + Capacitor)' :
+  config.migrationTarget === 'fullstack' ? 'Full-stack application (React + TypeScript + Mobile)' :
+  config.migrationTarget === 'microservices' ? 'Microservices architecture' : 'Modern application'}
+
+Requirements:
+- Minimize downtime during migration
+- Maintain data integrity
+- Ensure performance improvements
+- Enable future scalability
+
+Use the 4-phase migration template from docs/migration/migration-plan.md
+\`\`\`
+
+#### For Implementation Guidance
+\`\`\`
+I'm ready to implement Phase [X] of my migration plan.
+
+Current component: [component-name]
+Target pattern: [modern-pattern]
+Requirements: [specific-requirements]
+
+Help me:
+1. Design the new component architecture
+2. Plan the data migration approach
+3. Ensure backward compatibility during transition
+4. Create testing strategy for the migrated component
+\`\`\`
+
+## 📊 Migration Success Metrics
+
+### Technical Metrics
+- [ ] **Performance**: Response times improved by X%
+- [ ] **Reliability**: Uptime improved to 99.9%+
+- [ ] **Maintainability**: Code complexity reduced
+- [ ] **Security**: Modern security practices implemented
+- [ ] **Scalability**: System can handle X% more load
+
+### Business Metrics  
+- [ ] **Development velocity**: Feature delivery accelerated
+- [ ] **Operational costs**: Infrastructure costs optimized
+- [ ] **User satisfaction**: User experience improved
+- [ ] **Compliance**: Security and regulatory requirements met
+
+## 📚 Documentation & Resources
+
+### Migration Templates
+- **AI Discovery Guide** - \`docs/migration/ai-discovery-guide.md\`
+- **Migration Plan Template** - \`docs/migration/migration-plan.md\`
+- **Analysis Worksheet** - \`docs/migration/analysis-worksheet.md\`
+
+### Best Practices
+- Start small with low-risk components
+- Maintain parallel systems during transition
+- Implement comprehensive testing at each phase
+- Document decisions and lessons learned
+- Use feature flags for gradual rollouts
+
+## 🎯 Next Steps
+
+1. **Complete Discovery Phase** (Week 1-2)
+   - Run AI-assisted codebase analysis
+   - Complete analysis worksheet
+   - Identify migration priorities
+
+2. **Design Target Architecture** (Week 2-3)
+   - Define modern architecture patterns
+   - Plan data migration strategy
+   - Design integration approach
+
+3. **Execute Migration** (Week 4+)
+   - Implement in small, manageable phases
+   - Test thoroughly at each step
+   - Monitor performance and user impact
+
+4. **Optimize & Scale** (Ongoing)
+   - Performance tuning
+   - Feature enhancements
+   - Team training on new architecture
+
+---
+
+**Migration Type:** ${config.migrationTarget || 'Full-stack modernization'}  
+**Created:** ${new Date().toISOString().split('T')[0]}  
+**AI-Assisted Development Ready** 🤖
+`;
+
+    await fs.writeFile(path.join(config.projectPath, 'README.md'), readmeContent);
+    spinner.succeed('Migration project README created');
+  } catch (error: any) {
+    spinner.warn(`Could not create migration README: ${error.message}`);
+  }
+}
+
+/**
  * Create the project README with AI-assisted workflow guide
  */
 async function createProjectReadme(config: ProjectConfig, spinner: Ora): Promise<void> {
@@ -1228,6 +2233,65 @@ See [deployment docs](docs/QUICKSTART.md#deployment) for detailed instructions.
 function showNextSteps(config: ProjectConfig): void {
   console.log(chalk.green.bold('\n✅ Project created successfully!\n'));
   
+  if (config.projectType === 'migration') {
+    // Migration project next steps
+    console.log(chalk.cyan.bold('🔄 AI-Assisted Migration Workflow:\n'));
+    console.log(chalk.yellow(`  Your migration project is ready for AI-assisted legacy system modernization.`));
+    console.log(chalk.yellow(`  Start by analyzing your existing codebase with AI assistance!\n`));
+    
+    console.log(chalk.cyan.bold('📂 Next steps:\n'));
+    
+    // Navigate to project
+    console.log(chalk.white(`  1. Navigate to your migration project:`));
+    console.log(chalk.gray(`     cd ${config.projectName}\n`));
+    
+    // Install dependencies if skipped
+    if (config.skipInstall) {
+      console.log(chalk.white(`  2. Install dependencies:`));
+      console.log(chalk.gray(`     ${config.packageManager} install\n`));
+    }
+    
+    // AI-assisted migration planning
+    console.log(chalk.white(`  ${config.skipInstall ? '3' : '2'}. 🔍 Begin AI-assisted discovery (START HERE):`));
+    console.log(chalk.gray(`     • Open docs/migration/ai-discovery-guide.md`));
+    console.log(chalk.gray(`     • Start an AI chat session (GitHub Copilot, ChatGPT, Claude)`));
+    console.log(chalk.gray(`     • Use this prompt template:\n`));
+    
+    console.log(chalk.cyan(`       "I'm migrating a ${config.migrationTarget === 'web' ? 'web application' : 
+      config.migrationTarget === 'mobile' ? 'mobile app' : 
+      config.migrationTarget === 'microservices' ? 'monolith to microservices' : 'system'}.`));
+    console.log(chalk.cyan(`       Source: ${config.migrationSource || '[your-source-path]'}`));
+    console.log(chalk.cyan(`       Target: ${config.migrationTarget || 'modern full-stack'}`));
+    console.log(chalk.cyan(`       Help me analyze the codebase and plan migration strategy.`));
+    console.log(chalk.cyan(`       Use docs/migration/ai-discovery-guide.md framework."\n`));
+    
+    console.log(chalk.white(`  ${config.skipInstall ? '4' : '3'}. 📋 Complete systematic analysis:`));
+    console.log(chalk.gray(`     • Work through docs/migration/analysis-worksheet.md`));
+    console.log(chalk.gray(`     • Fill out docs/migration/migration-plan.md`));
+    console.log(chalk.gray(`     • Document decisions and insights\n`));
+    
+    console.log(chalk.white(`  ${config.skipInstall ? '5' : '4'}. 🏗️ Design target architecture:`));
+    console.log(chalk.gray(`     • Use AI to design modern architecture patterns`));
+    console.log(chalk.gray(`     • Plan data migration approach`));
+    console.log(chalk.gray(`     • Design integration strategy\n`));
+    
+    console.log(chalk.white(`  ${config.skipInstall ? '6' : '5'}. 🔄 Execute incremental migration:`));
+    console.log(chalk.gray(`     • Start with low-risk components`));
+    console.log(chalk.gray(`     • Test thoroughly at each phase`));
+    console.log(chalk.gray(`     • Monitor and validate progress\n`));
+    
+    // Documentation links
+    console.log(chalk.cyan.bold('📚 Migration Documentation:\n'));
+    console.log(chalk.gray(`  • README.md - Migration project overview`));
+    console.log(chalk.gray(`  • docs/migration/ai-discovery-guide.md - AI-assisted system discovery`));
+    console.log(chalk.gray(`  • docs/migration/migration-plan.md - 4-phase migration strategy`));
+    console.log(chalk.gray(`  • docs/migration/analysis-worksheet.md - Systematic analysis checklist\n`));
+    
+    console.log(chalk.green(`Happy migrating! Your legacy system will be modern soon! 🚀\n`));
+    return;
+  }
+  
+  // New SGE app workflow
   console.log(chalk.cyan.bold('🤖 AI-Assisted Development:\n'));
   console.log(chalk.yellow(`  This project includes AI planning templates and Copilot configuration.`));
   console.log(chalk.yellow(`  Start by working with an AI assistant to complete your planning docs!\n`));
@@ -1317,31 +2381,40 @@ async function generateProject(config: ProjectConfig): Promise<void> {
   const spinner = ora('Setting up your project...').start();
   
   try {
-    // 1. Clone template
-    await cloneTemplate(config, spinner);
-    
-    // 2. Setup AI-assisted development files
-    await setupCopilotInstructions(config, spinner);
-    await createDocsFolder(config, spinner);
-    await createProjectReadme(config, spinner);
-    
-    // 3. Generate environment configuration
-    await generateEnvFile(config, spinner);
-    
-    // 4. Configure package.json
-    await configurePackageJson(config, spinner);
-    
-    // 5. Remove unused functions
-    await removeUnusedFunctions(config, spinner);
-    
-    // 6. Remove mobile package if not needed
-    await removeMobilePackage(config, spinner);
-    
-    // 7. Install dependencies
-    await installDependencies(config, spinner);
-    
-    // 8. Setup database
-    await setupDatabase(config, spinner);
+    if (config.projectType === 'migration') {
+      // Migration project workflow
+      await createMigrationProject(config, spinner);
+      await setupCopilotInstructions(config, spinner);
+      await createMigrationReadme(config, spinner);
+      await installDependencies(config, spinner);
+    } else {
+      // New SGE app workflow
+      // 1. Clone template
+      await cloneTemplate(config, spinner);
+      
+      // 2. Setup AI-assisted development files
+      await setupCopilotInstructions(config, spinner);
+      await createDocsFolder(config, spinner);
+      await createProjectReadme(config, spinner);
+      
+      // 3. Generate environment configuration
+      await generateEnvFile(config, spinner);
+      
+      // 4. Configure package.json
+      await configurePackageJson(config, spinner);
+      
+      // 5. Remove unused functions
+      await removeUnusedFunctions(config, spinner);
+      
+      // 6. Remove mobile package if not needed
+      await removeMobilePackage(config, spinner);
+      
+      // 7. Install dependencies
+      await installDependencies(config, spinner);
+      
+      // 8. Setup database
+      await setupDatabase(config, spinner);
+    }
     
     spinner.succeed('Project setup complete!');
     
@@ -1364,6 +2437,9 @@ program
   .version('1.0.0')
   .argument('[project-name]', 'Name of the project')
   .option('--skip-install', 'Skip dependency installation')
+  .option('--migration', 'Create a migration project instead of new app')
+  .option('--source <path>', 'Source codebase path (for migration projects)')
+  .option('--target <type>', 'Migration target (web|mobile|fullstack|microservices)')
   .option('--no-mobile', 'Exclude mobile app support')
   .option('--no-subscriptions', 'Exclude Stripe subscriptions')
   .option('--no-notifications', 'Exclude notification system')
@@ -1380,12 +2456,15 @@ program
           projectName,
           projectPath: path.resolve(process.cwd(), projectName),
           packageManager: options.pm || detectPackageManager(),
+          projectType: options.migration ? 'migration' : 'new',
           includeMobile: options.mobile !== false,
           includeSubscriptions: options.subscriptions !== false,
           includeNotifications: options.notifications !== false,
           includeAuth: options.auth !== false,
           emailProvider: options.email || 'resend',
-          skipInstall: options.skipInstall || false
+          skipInstall: options.skipInstall || false,
+          migrationSource: options.source,
+          migrationTarget: options.target || 'fullstack'
         };
       } else {
         // Interactive mode

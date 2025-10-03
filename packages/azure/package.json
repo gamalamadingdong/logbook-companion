@@ -1,0 +1,39 @@
+{
+  "name": "@sge/azure",
+  "version": "1.0.0",
+  "description": "Azure services integration for SGE template applications",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["azure", "ocr", "document-intelligence", "image-processing", "sge-template"],
+  "author": "SGE Template",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "exports": {
+    "./ocr-service": {
+      "import": "./ocr-service/index.js",
+      "require": "./ocr-service/index.js",
+      "types": "./ocr-service/index.d.ts"
+    },
+    "./image-processing": {
+      "import": "./image-processing/index.js", 
+      "require": "./image-processing/index.js",
+      "types": "./image-processing/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "ocr-service",
+    "image-processing",
+    "README.md"
+  ]
+}

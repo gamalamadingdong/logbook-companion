@@ -45,6 +45,45 @@ console.log(text.upgradeButton); // "Manage Subscription" on mobile, "Upgrade Pl
 
 **⚠️ Important**: Update the `baseUrl` in `mobileCompliance.ts` to your app's domain.
 
+#### `lib/serviceIntegration.ts`
+Service integration patterns for external APIs with retry logic, failover, and multi-backend support.
+
+```typescript
+import { HttpServiceClient, MultiBackendService, createServiceFromEnv } from '@sge/shared/lib/serviceIntegration';
+
+// Create HTTP client for external service
+const client = new HttpServiceClient({
+  baseUrl: 'https://api.example.com',
+  apiKey: 'your-api-key',
+  timeout: 30000,
+  retryAttempts: 3
+});
+
+// Make requests with automatic retry
+const response = await client.get('/users/123');
+if (response.success) {
+  console.log('User data:', response.data);
+}
+
+// Multi-backend setup with failover
+const multiService = new MultiBackendService();
+multiService.registerBackend({
+  type: 'azure',
+  priority: 1,
+  config: { baseUrl: 'https://primary-service.com', apiKey: 'key1' }
+});
+multiService.registerBackend({
+  type: 'aws', 
+  priority: 2,
+  config: { baseUrl: 'https://backup-service.com', apiKey: 'key2' }
+});
+
+// Execute with automatic failover
+const result = await multiService.executeWithFailover(async (client) => {
+  return client.get('/data');
+});
+```
+
 ### Hooks
 
 #### `hooks/use-mobile.tsx`

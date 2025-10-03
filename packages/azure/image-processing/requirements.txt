@@ -1,0 +1,16 @@
+# Azure Image Processing Function Requirements
+
+# Azure Functions runtime
+azure-functions>=1.11.0
+
+# Azure AI services
+azure-ai-documentintelligence>=1.0.0
+azure-core>=1.29.4
+
+# Image processing libraries
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Utilities
+requests>=2.31.0
