@@ -32,6 +32,37 @@
 - **Code Quality Issues:** [Areas needing refactoring]
 - **Testing Gaps:** [Missing test coverage areas]
 
+## Interactive Discovery Insights
+
+⚠️ **CRITICAL SECTION:** Document key insights from AI interactive discovery session
+
+### Business Logic Deep Dive
+<!-- Fill after interactive AI discovery session -->
+- **Critical Business Rules:** [Complex business logic not obvious from code]
+- **Edge Cases & Exceptions:** [Important edge cases and error handling requirements]
+- **User Workflow Insights:** [How users actually interact with critical features]
+- **Domain-Specific Requirements:** [Industry or business-specific needs]
+
+### Migration Risk Assessment
+<!-- Fill after interactive discovery session -->
+- **High-Risk Areas:** [Functionality requiring extra care during migration]
+- **Critical Dependencies:** [Systems or processes that cannot fail]
+- **Timing Constraints:** [Business cycles or deadlines affecting migration timing]
+- **User Impact Concerns:** [Areas where users are most sensitive to changes]
+
+### Strategic Migration Decisions
+<!-- Fill after interactive discovery session -->
+- **Feature Priority Adjustments:** [Changes to feature priorities based on discovery]
+- **Architecture Decisions:** [Key technical decisions influenced by business understanding]
+- **Integration Strategy:** [Approach for handling external systems based on discovered requirements]
+- **User Experience Strategy:** [UX improvements and migration approach based on user insights]
+
+### Discovery Session Summary
+- **Session Date:** [Date of interactive discovery]
+- **Key Participants:** [Who was involved in discovery]
+- **Major Insights:** [Top 3-5 insights that changed understanding]
+- **Strategy Adjustments:** [How discovery changed the original migration approach]
+
 ## Migration Strategy
 
 ### Phase 1: Foundation & Infrastructure

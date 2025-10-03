@@ -68,14 +68,27 @@ Focus AI analysis on these key files (in order of importance):
 6. **Frontend Components:** Main layouts, key user interface components
 7. **Integration Code:** External API clients, webhook handlers, queue processors
 
-## Phase 2: Interactive Discovery Session
+## Phase 2: Interactive AI Discovery Session
+
+🎯 **CRITICAL PHASE:** After automated code analysis, engage in detailed AI chat to understand business context, clarify complex functionality, and validate migration approach.
+
+### Why This Phase is Essential
+- **Code Analysis Limitations:** Automated analysis can identify structure and patterns but misses business context, edge cases, and domain-specific logic
+- **Risk Reduction:** Interactive discovery prevents costly mistakes from misunderstanding critical functionality
+- **Strategic Alignment:** Ensures migration strategy aligns with actual business needs and user workflows
+- **Knowledge Transfer:** Captures tribal knowledge and business rules that aren't evident in code
 
 ### Pre-Session Preparation
-Before starting the discovery session with the user, AI should:
-1. Complete initial codebase analysis
-2. Prepare specific questions based on findings
-3. Identify areas needing clarification
-4. Draft preliminary migration complexity assessment
+Before starting the discovery session, AI should:
+1. ✅ Complete initial codebase analysis using Phase 1 framework
+2. ✅ Fill out analysis-worksheet.md with technical findings
+3. ✅ Prepare specific questions based on code analysis findings
+4. ✅ Identify areas needing clarification or seeming overly complex
+5. ✅ Draft preliminary migration complexity assessment
+
+### Interactive Session Structure
+**Duration:** 30-60 minutes of focused AI conversation
+**Goal:** Deep understanding of business logic, user workflows, and migration requirements
 
 ### Discovery Questions Framework
 
@@ -198,6 +211,110 @@ At the end of the discovery session, AI should produce:
 2. Create technical architecture design for SGE template configuration
 3. Develop data migration strategy and scripts
 4. Set up project structure and development workflow
+```
+
+## Interactive Discovery Prompts
+
+### Starting the Interactive Session
+Use this prompt to begin your AI discovery conversation:
+
+```
+I've completed the automated analysis of my legacy system using the SGE migration framework. 
+
+ANALYSIS SUMMARY:
+- Technology Stack: [Summary from analysis-worksheet.md]
+- Key Business Entities: [List from analysis]
+- Main Functionality: [Core features identified]
+- Technical Challenges: [Issues found]
+
+Now I need to have a deeper discovery conversation to understand:
+1. Critical business logic that isn't obvious from code
+2. Edge cases and complex workflows
+3. User experience requirements and pain points
+4. Migration risks and dependencies
+5. Business context and domain-specific rules
+
+Let's start with the most critical functionality. Based on your analysis, what questions do you have about the business logic and user workflows?
+```
+
+### Follow-Up Discovery Questions
+During the interactive session, use these question frameworks:
+
+**Critical Functionality Deep Dive:**
+```
+Based on my code analysis, I found these complex areas: [SPECIFIC CODE AREAS]
+
+Help me understand:
+- What business scenarios trigger this functionality?
+- Are there edge cases or exception handling that's critical?
+- What happens if this process fails - what's the recovery procedure?
+- How do users typically interact with this feature?
+- Are there business rules that aren't enforced in code?
+```
+
+**User Workflow Clarification:**
+```
+I see these user roles in the system: [IDENTIFIED ROLES]
+
+For each role, help me understand:
+- What are their primary daily tasks with this system?
+- What workflows are most critical to get right in the migration?
+- Where do users typically encounter problems or confusion?
+- What would make their experience significantly better in the new system?
+```
+
+**Integration and Data Flow Questions:**
+```
+I identified these external integrations: [LIST INTEGRATIONS]
+
+For each integration:
+- How critical is real-time vs. batch processing?
+- What happens when the external system is unavailable?
+- Are there data consistency or timing requirements?
+- How is error handling and retry logic implemented?
+```
+
+**Migration Risk Assessment:**
+```
+Based on the complexity I see, these areas concern me most: [RISK AREAS]
+
+Help me understand:
+- Which areas absolutely cannot have downtime or data loss?
+- Where have you experienced problems with changes in the past?
+- What testing approaches work best for this type of functionality?
+- Are there seasonal or timing considerations for the migration?
+```
+
+### Session Documentation Template
+Document key insights from your interactive session:
+
+```markdown
+# Interactive Discovery Session - [DATE]
+
+## Critical Business Logic Insights
+- **Key Finding 1:** [What you learned about complex business rules]
+- **Key Finding 2:** [Important user workflow details]
+- **Key Finding 3:** [Critical integration requirements]
+
+## Migration Risk Assessment
+- **High Risk Areas:** [Functionality that needs extra care]
+- **Dependencies:** [Critical dependencies identified]
+- **Timing Constraints:** [Business timing requirements]
+
+## User Experience Requirements
+- **Critical Workflows:** [Must-preserve user workflows]
+- **Pain Points to Fix:** [Current UX issues to address]
+- **Enhancement Opportunities:** [Improvements to include]
+
+## Technical Decision Points
+- **Architecture Choices:** [Key technical decisions needed]
+- **Integration Approach:** [How to handle external systems]
+- **Data Migration Strategy:** [Approach for data migration]
+
+## Next Steps
+1. Update migration-plan.md with these insights
+2. Proceed to detailed technical architecture design
+3. Begin Phase 1 implementation planning
 ```
 
 ## Phase 3: Migration Plan Generation

@@ -1727,15 +1727,23 @@ function showNextSteps(config: ProjectConfig): void {
     
     console.log(chalk.white(`  ${config.skipInstall ? '4' : '3'}. 📋 Complete systematic analysis:`));
     console.log(chalk.gray(`     • Work through docs/migration/analysis-worksheet.md`));
-    console.log(chalk.gray(`     • Fill out docs/migration/migration-plan.md`));
-    console.log(chalk.gray(`     • Document decisions and insights\n`));
+    console.log(chalk.gray(`     • Document technical findings and patterns\n`));
     
-    console.log(chalk.white(`  ${config.skipInstall ? '5' : '4'}. 🏗️ Design target architecture:`));
-    console.log(chalk.gray(`     • Use AI to design modern architecture patterns`));
-    console.log(chalk.gray(`     • Plan data migration approach`));
-    console.log(chalk.gray(`     • Design integration strategy\n`));
+    console.log(chalk.white(`  ${config.skipInstall ? '5' : '4'}. 💬 INTERACTIVE AI DISCOVERY SESSION (CRITICAL):`));
+    console.log(chalk.yellow(`     🎯 After automated analysis, have detailed AI chat to:`));
+    console.log(chalk.gray(`     • Ask questions about critical business logic and edge cases`));
+    console.log(chalk.gray(`     • Clarify complex functionality and domain-specific rules`));
+    console.log(chalk.gray(`     • Understand user workflows that aren't obvious from code`));
+    console.log(chalk.gray(`     • Identify potential migration risks and dependencies`));
+    console.log(chalk.gray(`     • Validate AI's understanding of core system behavior`));
+    console.log(chalk.gray(`     • Document key insights in docs/migration/migration-plan.md\n`));
     
-    console.log(chalk.white(`  ${config.skipInstall ? '6' : '5'}. 🔄 Execute incremental migration:`));
+    console.log(chalk.white(`  ${config.skipInstall ? '6' : '5'}. 🏗️ Design target architecture:`));
+    console.log(chalk.gray(`     • Use AI + interactive insights to design modern patterns`));
+    console.log(chalk.gray(`     • Plan data migration approach based on deep understanding`));
+    console.log(chalk.gray(`     • Design integration strategy with validated requirements\n`));
+    
+    console.log(chalk.white(`  ${config.skipInstall ? '7' : '6'}. 🔄 Execute incremental migration:`));
     console.log(chalk.gray(`     • Start with low-risk components`));
     console.log(chalk.gray(`     • Test thoroughly at each phase`));
     console.log(chalk.gray(`     • Monitor and validate progress\n`));

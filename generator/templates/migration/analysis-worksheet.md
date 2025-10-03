@@ -150,39 +150,57 @@ ___________________________________________________________________________
 - **DevOps:** _____ FTE
 - **Project Manager:** _____ FTE
 
-## 🔍 Discovery Questions for User
+## 🔍 Areas Requiring Interactive Discovery
 
-### Business Context
-1. What type of business does this application support?
-2. Who are the primary users of the system?
-3. What are the most critical business processes?
-4. What's driving the need for migration/modernization?
+*These questions should be explored during the AI interactive discovery session (see ai-discovery-guide.md)*
 
-### Technical Requirements
-1. Are there specific performance requirements?
-2. What security/compliance requirements must be met?
-3. Are there infrastructure preferences or constraints?
-4. What's the acceptable downtime during migration?
+### Critical Business Logic ⚡
+- [ ] **Complex workflow identified:** ___________________________  
+  *Questions to explore in AI chat:* What business scenarios trigger this? What are the edge cases?
 
-### Feature Prioritization
-1. Which features are absolutely critical for day-one?
-2. Are there features you'd like to retire or change significantly?
-3. What new capabilities would you like to add?
-4. What are the biggest user pain points currently?
+- [ ] **Business rules not evident in code:** ___________________________  
+  *Questions to explore in AI chat:* Are there unwritten business rules? Validation logic?
 
-### Risk & Constraints
-1. What's the target timeline for completion?
-2. How much disruption to current operations is acceptable?
-3. What development resources can be allocated?
-4. Are there seasonal/business cycle considerations?
+- [ ] **User workflow complexity:** ___________________________  
+  *Questions to explore in AI chat:* How do users actually use this feature? Pain points?
 
-## ✅ Next Steps Checklist
+### Integration & Data Dependencies 🔗
+- [ ] **External system integration:** ___________________________  
+  *Questions to explore in AI chat:* Error handling? Timing requirements? Fallback procedures?
 
-### Immediate Actions
-- [ ] Complete codebase analysis using AI tools
-- [ ] Document findings in discovery session format
-- [ ] Schedule stakeholder interviews for business context
-- [ ] Create preliminary migration plan outline
+- [ ] **Data relationships and constraints:** ___________________________  
+  *Questions to explore in AI chat:* Critical data integrity rules? Migration dependencies?
+
+### Risk Areas Needing Clarification ⚠️
+- [ ] **High-risk functionality:** ___________________________  
+  *Questions to explore in AI chat:* What happens when this fails? Recovery procedures?
+
+- [ ] **Performance-critical areas:** ___________________________  
+  *Questions to explore in AI chat:* Usage patterns? Acceptable performance thresholds?
+
+## ✅ Analysis Workflow Checklist
+
+⚠️ **IMPORTANT:** Complete automated analysis BEFORE interactive discovery session
+
+### Phase 1: Automated Analysis
+- [ ] Complete technical codebase analysis using AI discovery guide
+- [ ] Fill out all technical assessment sections above
+- [ ] Identify areas needing clarification (mark in sections above)
+- [ ] Document findings and prepare questions for interactive session
+
+### Phase 2: Interactive AI Discovery Session (CRITICAL)
+- [ ] **Start AI chat session** using prompts from ai-discovery-guide.md
+- [ ] **Ask clarifying questions** about complex business logic and workflows
+- [ ] **Validate AI understanding** of critical system behavior and edge cases  
+- [ ] **Explore user experience** requirements and pain points
+- [ ] **Assess migration risks** and dependencies through discussion
+- [ ] **Document session insights** in migration-plan.md
+
+### Phase 3: Migration Planning  
+- [ ] Update migration-plan.md with interactive discovery insights
+- [ ] Generate detailed migration plan using AI with discovered context
+- [ ] Design SGE template configuration based on business understanding
+- [ ] Create implementation roadmap with validated requirements
 
 ### Planning Phase
 - [ ] Generate detailed migration plan using templates
