@@ -83,7 +83,7 @@ grep -r "co.scheduleboard" .
 
 ## Open Questions
 
-None! Template is complete.
+Decision: Proceed with a single expert role as default. We'll evaluate value of multi-role recruitment later and may add an optional "recruit specialist" function for security, architecture, UX, data, or domain reviews when warranted.
 
 ## Blockers
 
