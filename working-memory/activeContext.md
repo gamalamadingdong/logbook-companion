@@ -1,108 +1,112 @@
 # Active Context: Current Implementation State
 
-**Last Updated**: December 15, 2025  
-**Current Session Focus**: Renamed from "Memory Bank" to "Working Memory"!
+**Last Updated**: [DATE] - Update after every work session  
+**Current Session Focus**: [What are you working on right now?]
+
+> **INSTRUCTIONS FOR NEW PROJECTS:**
+> - Replace all [placeholders] with your actual project details
+> - Update "Last Updated" after every session
+> - Keep "Current Session Focus" pointing to immediate work
+> - This file is your project's "short-term memory"
 
 ## Current State Summary
 
 ### ✅ Completed
-1. **Working Memory Pattern**: 7 core files + 2 optional files - ALL NOW GENERIC TEMPLATES
-2. **Renamed to Working Memory**: Folder renamed from `memory-bank/` to `working-memory/`
-3. **All References Updated**: README.md, TEMPLATE_USAGE.md, START_HERE.md, copilot-instructions.md, package.json
-4. **Core Files Genericized**:
-   - ✅ `projectBrief.md` - Generic with helpful examples
-   - ✅ `productContext.md` - Generic template for any product type
-   - ✅ `activeContext.md` - This file (generic instructions)
-   - ✅ `systemPatterns.md` - Completely rewritten as generic template
-   - ✅ `techContext.md` - No specific versions, placeholder-driven
-   - ✅ `decisionLog.md` - Already generic (ADR template)
-   - ✅ `implementationLog.md` - Already generic (milestone tracking)
-5. **Optional Files**: `businessAnalysis.md`, `experimentLog.md` - Already generic
-6. **Copilot Instructions**: Fully generic, framework-agnostic
-7. **AI Assistant Documentation**: Covers Copilot, Cursor, Windsurf, Antigravity, ChatGPT, Claude
-8. **START_HERE.md**: Intelligent prompt that searches codebase first, then asks questions
-9. **Google Antigravity Support**: Documented `.agent/rules/*.md` configuration
+1. [What have you completed so far?]
+2. [Add completed items here as you build]
+
+**Example:**
+```
+1. ✅ Database schema designed (users, posts, comments tables)
+2. ✅ Authentication system implemented (email/password login)
+3. ✅ Basic UI components created (header, footer, navigation)
+```
 
 ### 🚧 In Progress
-- None! Template is complete and ready to use
+1. [What are you actively working on?]
+2. [What's partially done?]
 
-### ❌ Not Started (User Fills In)
-1. **Project Customization**: User updates Memory Bank with their project details
-2. **Tech Stack Definition**: User specifies their chosen technologies
-3. **Pattern Documentation**: User adds project-specific patterns as they emerge
-4. **AI Assistant Setup**: User configures their chosen AI assistant (Copilot/Cursor/Gemini/etc.)
+**Example:**
+```
+1. 🚧 Building user profile page (50% complete)
+2. 🚧 Implementing password reset flow (email sending works, reset page in progress)
+```
 
-## Key Changes This Session
+### ❌ Not Started (Planned)
+1. [What needs to be done next?]
+2. [What's in the backlog?]
 
-### What We Fixed
-1. **Removed ALL ScheduleBoard References**:
-   - No more HVAC, cleaning, multi-tenant service business patterns
-   - No more specific tech versions (React 18.3.1, etc.)
-   - No more scheduleboard.co domain references
-   - No more mobile-first, business-type flexibility specifics
+**Example:**
+```
+1. ❌ Admin dashboard
+2. ❌ Email notifications
+3. ❌ Mobile app version
+```
 
-2. **Made Everything Template-Based**:
-   - `projectBrief.md`: Now has generic categories with examples
-   - `productContext.md`: Works for ANY product type (B2C, B2B, open source, personal)
-   - `techContext.md`: Placeholder-driven, no hardcoded versions
-   - `systemPatterns.md`: Complete rewrite - helps users discover their own patterns
+## Key Decisions This Session
 
-3. **Added AI Assistant Support**:
-   - Documented how to use with GitHub Copilot (default)
-   - Documented how to use with Cursor AI (.cursorrules)
-   - Documented how to use with Windsurf (.windsurfrules)
-   - Documented how to use with Google AI Studio/Gemini (manual paste)
-   - Documented how Memory Bank works with ALL assistants
+### [Date]: [Decision Title]
+**What**: [What did you decide?]  
+**Why**: [Why did you make this choice?]  
+**Impact**: [What does this affect?]
+
+**Example:**
+```
+### Jan 15, 2026: Chose SQLite for MVP Database
+**What**: Using SQLite instead of PostgreSQL for initial development
+**Why**: Simpler setup, easier to migrate later, good for < 10K users
+**Impact**: Will need to migrate to PostgreSQL before scaling past beta
+```
 
 ## Immediate Next Steps
 
-### For Template Users:
-1. **Choose Your AI Assistant**: Copilot, Cursor, Gemini, etc.
-2. **Configure Instructions**: Copy to appropriate file (.cursorrules, etc.)
-3. **Fill Out Memory Bank**: Replace ALL [placeholders] with your actual project details
-4. **Start Building**: Use AI assistant with persistent context!
+1. [First thing to work on next session]
+2. [Second priority]
+3. [Third priority]
 
-### For Template Maintainers:
-- ✅ Template is COMPLETE and TRULY GENERIC
-- ✅ No ScheduleBoard artifacts remain
-- ✅ Works with multiple AI assistants
-- ✅ Ready to publish as public template
-
-## Validation Checklist
-
-Run these searches to confirm genericization:
-
-```bash
-# Should return ZERO results for:
-grep -r "ScheduleBoard" .
-grep -r "scheduleboard" .
-grep -r "HVAC" .
-grep -r "cleaning service" .
-grep -r "co.scheduleboard" .
+**Example:**
+```
+1. Complete user profile page (add bio, avatar upload)
+2. Test password reset flow end-to-end
+3. Update systemPatterns.md with form validation pattern we established
 ```
 
-## Open Questions
+## Open Questions / Blockers
 
-Decision: Proceed with a single expert role as default. We'll evaluate value of multi-role recruitment later and may add an optional "recruit specialist" function for security, architecture, UX, data, or domain reviews when warranted.
+- [ ] [Question or blocker #1]
+- [ ] [Question or blocker #2]
 
-## Blockers
-
-None! Ready to use.
+**Example:**
+```
+- [ ] Should we use Stripe or PayPal for payments? (need to research fees)
+- [ ] Waiting on design mockups for dashboard from designer
+- [ ] Need to decide: monorepo or separate repos for web/mobile?
+```
 
 ## Context for Next Session
 
-**This is NOW a TRULY GENERIC TEMPLATE!**
+[What should AI know when you start the next session? Any important context to remember?]
 
-If you're a user starting a new project:
-1. Choose your AI assistant (Copilot, Cursor, Gemini, etc.)
-2. Copy instructions to appropriate location
-3. Update ALL Memory Bank files with YOUR project specifics
-4. Replace [placeholders] with actual values
-5. Start building with AI assistance and persistent context!
+**Example:**
+```
+We're pivoting to focus on the user onboarding flow first, since user testing 
+showed new users were confused. Putting dashboard work on hold temporarily.
 
-The template supports:
-- ✅ Any tech stack (web, mobile, desktop, CLI, etc.)
-- ✅ Any project type (SaaS, marketplace, open source, personal, etc.)
-- ✅ Any AI assistant (Copilot, Cursor, Windsurf, Gemini, etc.)
-- ✅ Any development approach (solo, team, enterprise)
+The authentication pattern we settled on is documented in systemPatterns.md.
+All new forms should follow that pattern.
+```
+
+---
+
+## 📝 Notes for Template Users
+
+**How to use this file:**
+1. **Start of session**: Read this file to remember where you left off
+2. **During work**: Update as you complete tasks, make decisions
+3. **End of session**: Update "Completed", "In Progress", and "Next Steps"
+4. **AI reads this first**: AI will read this file at the start of every conversation
+
+**Keep it concise**: This isn't a complete project history (that's `implementationLog.md`)
+
+**Update frequently**: After every significant change or decision
 

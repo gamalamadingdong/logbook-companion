@@ -10,8 +10,12 @@ An **AI-assisted development framework** that provides structure, patterns, and 
 - 🧠 **Working Memory Pattern** - File-based persistent context across AI sessions
 - 📋 **Structured Instructions** - Clear guidance for AI assistants on architecture and patterns
 - 🎯 **"Plan & Act" Workflow** - Prevent AI drift by planning before implementation
+- 👥 **Four Interaction Modes** - Builder (concise/verbose), Domain Expert, Conversational
+- 🔄 **Mode Switching** - Seamlessly switch modes as you learn and grow comfortable
+- 🎓 **Simplicity Priority** - Non-builder modes use simple, maintainable tech stacks
+- 🔒 **Behavioral Enforcement** - Mandatory checks ensure AI follows working memory discipline
 - 📚 **Decision Tracking** - ADRs (Architectural Decision Records) document the "why"
-- 🔄 **Context Hygiene** - Maintain long-term project memory without chat bloat
+- 🧹 **Context Hygiene** - Maintain long-term project memory without chat bloat
 - 🛠️ **Generic Utilities** - Mobile build scripts and development tools
 
 **What you build:**
@@ -67,11 +71,104 @@ working-memory/
 
 Located in `.github/instructions/copilot-instructions.md`, this file provides:
 
+- **Four Interaction Modes**: Builder (standard/verbose), Domain Expert, Conversational
+- **Mode Switching**: Change modes as you learn and grow
+- **Technology Selection**: Simple stacks for non-software engineers
 - **Role Definition**: What the AI should act as (expert engineer, etc.)
 - **Methodology**: "Plan & Act" workflow to prevent drift
+- **Behavioral Enforcement**: Mandatory checks and verification protocols
 - **Code Standards**: Data-first design, YAGNI, type safety
 - **Anti-Patterns**: What to never do
 - **Project-Specific Context**: Your unique requirements
+
+### Choosing Your Interaction Mode
+
+**Builder Mode (Default):**
+- **For**: Software developers, engineers
+- **Behavior**: Code-first, concise technical explanations, fast iteration
+- **Tech Stack**: Best-fit technologies (scalable, performant, modern)
+- **Activate**: Default, or say "Use builder mode"
+
+**Builder Mode - Verbose:**
+- **For**: Software engineers who want more discussion with their code
+- **Behavior**: Code-first BUT with in-depth explanations of design decisions, trade-offs, alternatives
+- **Tech Stack**: Best-fit technologies
+- **Activate**: Say "Use verbose builder mode" or "I want more explanation"
+
+**Domain Expert Mode:**
+- **For**: Scientists, electrical engineers, chemical engineers, data analysts
+- **Behavior**: Teach software concepts with domain analogies, implement WITH educational annotations
+- **Domain Expertise**: UNLIMITED depth in your field (chemistry, physics, etc.)
+- **Software Stack**: SIMPLE and maintainable (Python + Flask, SQLite, vanilla JS)
+- **Focus**: "I'll handle software complexity so you can focus on your domain problem"
+- **Activate**: Say "Use domain expert mode" or "I'm a [field] engineer building a tool"
+
+**Conversational Mode:**
+- **For**: Product managers, designers, business users, learners
+- **Behavior**: Explain-first, plain language, ask clarifying questions
+- **Tech Stack**: Simple, easy to understand
+- **Focus**: Understanding and decision-making, code happens in background
+- **Activate**: Say "Use conversational mode" or "Explain this to me"
+
+### Mode Switching
+
+**You can switch at any time:**
+- "Switch to builder mode" → Faster iteration, less explanation
+- "Switch to verbose builder mode" → More technical discussion with code
+- "Switch to conversational mode" → More explanation, business focus
+- "Switch to domain expert mode" → Technical depth with software guidance
+
+**Common Workflow**:
+1. Start in Domain Expert mode (learn the patterns)
+2. Switch to Builder mode once comfortable (faster implementation)
+3. Switch to Verbose Builder when you need to understand trade-offs
+4. Switch back to Conversational mode when explaining to stakeholders
+
+### Example Interactions
+
+**Builder Mode:**
+```
+User: "Add user authentication"
+AI: [Reads working memory] → [Proposes technical plan] → [Implements code]
+```
+
+**Builder Mode - Verbose:**
+```
+User: "Add caching to this endpoint"
+AI: "Adding Redis caching because:
+     - Read-heavy endpoint (80/20 ratio from metrics)
+     - Redis TTL handles invalidation automatically
+     Alternatives: In-memory (doesn't scale), CDN (overkill)
+     Trade-off: Redis dependency vs 10x performance
+     [Implements Redis caching]"
+```
+
+**Domain Expert Mode:**
+```
+User: "I need to model chemical reactions with temperature"
+AI: "I'll build a reaction modeling system:
+     - Reaction equations → stored like lab notebook entries (SQLite)
+     - Temperature calculations → run like batch experiments (Python)
+     - Results → real-time graphs (simple web charts)
+     
+     Using Python (you can modify equations) and basic web interface.
+     Runs on your laptop - no cloud complexity.
+     
+     What kinetics? (Rate laws? Arrhenius? Equilibrium?)"
+     
+[NOTE: AI discusses chemistry at EXPERT depth. Simplicity = software stack only.]
+```
+
+**Conversational Mode:**
+```
+User: "Add user authentication"
+AI: "Let me explain authentication options:
+     1. Email/password (simple, users manage credentials)
+     2. Social login (Google, Apple - easier for users)
+     3. Magic links (no password needed)
+     
+     What's most important: ease of use, security, or privacy?"
+```
 
 ### The "Plan & Act" Workflow
 
@@ -142,6 +239,37 @@ The AI will:
 - ✅ Propose an implementation plan
 - ✅ Wait for your approval before coding
 - ✅ Update Working Memory files as work progresses
+
+### 5. Choose Your Interaction Mode
+
+**First time? Start with the right mode:**
+
+**If you're a software developer:**
+```
+> "Use builder mode" (fast, concise implementation)
+> "Use verbose builder mode" (detailed explanations of decisions)
+```
+
+**If you're a scientist/engineer from another field:**
+```
+> "Use domain expert mode - I'm a [chemical/electrical/data] engineer"
+```
+
+**If you're non-technical (PM, designer, business user):**
+```
+> "Use conversational mode"
+```
+
+**Switch anytime:**
+```
+> "Switch to [mode] mode"
+```
+
+**Ask for mode help:**
+```
+> "What interaction modes are available?"
+> "Explain the difference between builder and domain expert mode"
+```
 
 ## 📖 Using This Template
 
