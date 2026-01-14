@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Heart, Wind } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService'; // New Service
 // import { getResultDetail, getStrokes } from '../api/concept2'; // Removed

@@ -1,5 +1,5 @@
-import React, { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import type { User, Session, AuthError } from '@supabase/supabase-js'
+import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 
 interface AuthContextType {
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false)
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
-  const [c2Token, setC2Token] = useState<string | null>(localStorage.getItem('concept2_token'));
+  const [c2Token] = useState<string | null>(localStorage.getItem('concept2_token'));
 
   const createBasicProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 1. Check Initial Session
     const getInitialSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
           setSession(session)
           setUser(session.user)
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // --- Auth Actions ---
 
-  const signUp = async (email: string, password: string, displayName: string) => {
+  const signUp = async (email: string, password: string, _displayName: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
     if (data.user) {

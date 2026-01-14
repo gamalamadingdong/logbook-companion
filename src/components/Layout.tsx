@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LayoutDashboard, LogOut, Menu, X, Waves, Home, TrendingUp, Database } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
