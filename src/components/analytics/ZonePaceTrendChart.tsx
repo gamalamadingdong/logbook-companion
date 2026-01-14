@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { ZONES, classifyWorkout, formatSplit, wattsToSplit } from '../../utils/zones';
 import type { TrainingZone } from '../../utils/zones';
@@ -180,8 +180,7 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                                 />
                             )}
 
-                            {/* Actual Data */}
-                            <Line
+                            <Line // Actual Data
                                 data={chartData}
                                 type="monotone"
                                 dataKey="splitSeconds"
@@ -199,6 +198,14 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                                 }}
                                 animationDuration={500}
                                 connectNulls
+                            />
+                            <Brush
+                                dataKey="date"
+                                height={30}
+                                stroke="#525252"
+                                fill="#171717"
+                                tickFormatter={(unix: number) => new Date(unix).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                travellerWidth={10}
                             />
                         </LineChart>
                     </ResponsiveContainer>
