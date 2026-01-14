@@ -139,7 +139,7 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                        <LineChart margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
                             <XAxis
                                 dataKey="date"
