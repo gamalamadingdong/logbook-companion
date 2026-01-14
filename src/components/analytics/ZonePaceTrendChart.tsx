@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { ZONES, classifyWorkout, formatSplit, wattsToSplit } from '../../utils/zones';
 import type { TrainingZone } from '../../utils/zones';
 import { calculateLinearRegression } from '../../utils/math';
-import { Filter } from 'lucide-react';
+import { Filter, ZoomOut } from 'lucide-react';
 
 interface Props {
     workouts: any[];
@@ -14,6 +14,12 @@ interface Props {
 export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts }) => {
     const [selectedZone, setSelectedZone] = useState<TrainingZone>('UT2');
     const navigate = useNavigate();
+
+    // Zoom State
+    const [left, setLeft] = useState<number | null>(null);
+    const [right, setRight] = useState<number | null>(null);
+    const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
+    const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
 
     const chartData = useMemo(() => {
         if (!baselineWatts) return [];
@@ -53,6 +59,8 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
 
     // Calculate Trend Line
     const trendData = useMemo(() => {
+        // Only calculate trend for visible range if zoomed? (Optional, let's keep global trend for now or clip it)
+        // For simplicity, let's just show global trend for the selected zone
         const points = chartData.map(d => ({ x: d.date, y: d.splitSeconds }));
         const trend = calculateLinearRegression(points);
         if (!trend) return [];
@@ -61,13 +69,37 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
 
 
     // Determine Y-Axis domain (Min/Max split) to zoom in
+    // Note: We might want to clamp this based on visible data when zoomed, but global is safer/easier first
     const minSplit = Math.min(...chartData.map(d => d.splitSeconds)) - 5;
     const maxSplit = Math.max(...chartData.map(d => d.splitSeconds)) + 5;
 
     const currentZoneColor = ZONES.find(z => z.id === selectedZone)?.color || '#fff';
 
-    const CustomTooltip = ({ active, payload, label }: any) => {
+    const zoom = () => {
+        if (refAreaLeft === refAreaRight || refAreaRight === null || refAreaLeft === null) {
+            setRefAreaLeft(null);
+            setRefAreaRight(null);
+            return;
+        }
 
+        // Ensure correct order
+        let [l, r] = [refAreaLeft, refAreaRight];
+        if (l > r) [l, r] = [r, l];
+
+        setLeft(l);
+        setRight(r);
+        setRefAreaLeft(null);
+        setRefAreaRight(null);
+    };
+
+    const zoomOut = () => {
+        setLeft(null);
+        setRight(null);
+        setRefAreaLeft(null);
+        setRefAreaRight(null);
+    };
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             // Find the payload item that is the actual data point (not the trend line)
             const dataPoint = payload.find((p: any) => p.dataKey === 'splitSeconds');
@@ -105,30 +137,48 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
     };
 
     return (
-        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
+        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col select-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Filter size={18} className="text-indigo-400" />
                         Pace Trends: <span style={{ color: currentZoneColor }}>{selectedZone}</span>
                     </h3>
-                    <p className="text-xs text-neutral-500">Are you getting faster at the same intensity?</p>
+                    <p className="text-xs text-neutral-500">
+                        {left ? 'Zoomed View (Click Reset to Full)' : 'Click and drag to zoom'}
+                    </p>
                 </div>
 
-                {/* Zone Selector */}
-                <div className="flex bg-neutral-900 rounded-lg p-1 border border-neutral-800">
-                    {ZONES.map(z => (
+                <div className="flex items-center gap-4">
+                    {/* Zoom Out Button */}
+                    {left && (
                         <button
-                            key={z.id}
-                            onClick={() => setSelectedZone(z.id)}
-                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${selectedZone === z.id
-                                ? 'bg-neutral-800 text-white shadow-sm'
-                                : 'text-neutral-500 hover:text-neutral-300'
-                                }`}
+                            onClick={zoomOut}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
                         >
-                            {z.id}
+                            <ZoomOut size={14} />
+                            Reset Zoom
                         </button>
-                    ))}
+                    )}
+
+                    {/* Zone Selector */}
+                    <div className="flex bg-neutral-900 rounded-lg p-1 border border-neutral-800">
+                        {ZONES.map(z => (
+                            <button
+                                key={z.id}
+                                onClick={() => {
+                                    setSelectedZone(z.id);
+                                    zoomOut(); // Reset zoom on zone change
+                                }}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${selectedZone === z.id
+                                    ? 'bg-neutral-800 text-white shadow-sm'
+                                    : 'text-neutral-500 hover:text-neutral-300'
+                                    }`}
+                            >
+                                {z.id}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -139,12 +189,18 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
+                        <LineChart
+                            margin={{ top: 10, right: 30, left: 10, bottom: 20 }}
+                            onMouseDown={(e: any) => e && setRefAreaLeft(e.activeLabel)}
+                            onMouseMove={(e: any) => refAreaLeft && e && setRefAreaRight(e.activeLabel)}
+                            onMouseUp={zoom}
+                        >
                             <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
                             <XAxis
                                 dataKey="date"
                                 type="number"
-                                domain={['dataMin', 'dataMax']}
+                                allowDataOverflow
+                                domain={left && right ? [left, right] : ['dataMin', 'dataMax']}
                                 tickFormatter={(unix) => new Date(unix).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                                 stroke="#525252"
                                 fontSize={12}
@@ -199,14 +255,17 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                                 animationDuration={500}
                                 connectNulls
                             />
-                            <Brush
-                                dataKey="date"
-                                height={30}
-                                stroke="#525252"
-                                fill="#171717"
-                                tickFormatter={(unix: number) => new Date(unix).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                travellerWidth={10}
-                            />
+
+                            {/* Selection Box */}
+                            {refAreaLeft && refAreaRight ? (
+                                <ReferenceArea
+                                    x1={refAreaLeft}
+                                    x2={refAreaRight}
+                                    strokeOpacity={0.3}
+                                    fill={currentZoneColor}
+                                    fillOpacity={0.1}
+                                />
+                            ) : null}
                         </LineChart>
                     </ResponsiveContainer>
                 )}
