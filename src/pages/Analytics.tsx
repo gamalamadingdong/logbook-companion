@@ -2,11 +2,10 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { BaselineInput } from '../components/analytics/BaselineInput';
 import { ZonePaceTrendChart } from '../components/analytics/ZonePaceTrendChart';
-import { classifyWorkout, ZONES, formatSplit, wattsToSplit } from '../utils/zones';
+import { classifyWorkout, ZONES } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Loader2, TrendingUp, Activity, Ruler } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Loader2, Activity, Ruler } from 'lucide-react';
 
 export const Analytics: React.FC = () => {
     const [loading, setLoading] = useState(true);

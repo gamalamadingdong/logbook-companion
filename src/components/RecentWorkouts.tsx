@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 // import { getResults } from '../api/concept2'; // Removed
 import { workoutService } from '../services/workoutService';
-import type { C2Result } from '../api/concept2.types';
 
 interface RecentWorkoutsProps {
     userId?: number | string; // Optional now

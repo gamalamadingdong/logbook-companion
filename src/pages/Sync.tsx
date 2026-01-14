@@ -1,11 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
 import { initiateGoogleLogin, createSheet, appendData } from '../api/googleSheets';
 import { useAuth } from '../hooks/useAuth';
 import { getResults, getProfile, getResultDetail, getStrokes } from '../api/concept2';
 import { supabase, upsertWorkout } from '../services/supabase';
-import { Database, FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
+import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
-import { Link } from 'react-router-dom';
+
 
 export const Sync: React.FC = () => {
     const [googleToken, setGoogleToken] = useState<string | null>(localStorage.getItem('google_token'));
@@ -13,7 +14,7 @@ export const Sync: React.FC = () => {
     const [status, setStatus] = useState<string>('');
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
-    const { logout } = useAuth();
+    const { } = useAuth();
 
     useEffect(() => {
         // Handle Google OAuth Redirect
@@ -221,7 +222,7 @@ export const Sync: React.FC = () => {
                         <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-emerald-500 transition-all duration-300 ease-out"
-                                style={{ width: `${progress}%` }}
+                                style={{ width: `${progress}% ` }}
                             />
                         </div>
                     </div>
@@ -422,12 +423,12 @@ export const Sync: React.FC = () => {
                         >
                             <Check size={16} />
                             <span>Export to Sheets</span>
-                        </button>
+                        </button >
                     )}
-                </div>
+                </div >
 
                 {/* Maintenance Card */}
-                <div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity">
+                < div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity" >
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
                             <RefreshCw size={24} />
@@ -608,8 +609,8 @@ export const Sync: React.FC = () => {
                         <Microscope size={16} />
                         Reprocess History
                     </button>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 };

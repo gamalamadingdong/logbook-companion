@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Home, Activity, Database, LogOut, TrendingUp, Menu, X, Waves } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, X, Waves, Home, TrendingUp, Database } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
@@ -41,8 +41,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 key={link.path}
                                 to={link.path}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
-                                        ? 'bg-neutral-800 text-white font-medium shadow-sm'
-                                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+                                    ? 'bg-neutral-800 text-white font-medium shadow-sm'
+                                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
                                     }`}
                             >
                                 <Icon size={20} className={isActive ? 'text-indigo-400' : ''} />
@@ -91,8 +91,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     to={link.path}
                                     onClick={() => setMobileMenuOpen(false)}
                                     className={`flex items-center gap-4 px-4 py-4 rounded-xl text-lg ${location.pathname === link.path
-                                            ? 'bg-neutral-800 text-white font-bold'
-                                            : 'text-neutral-400'
+                                        ? 'bg-neutral-800 text-white font-bold'
+                                        : 'text-neutral-400'
                                         }`}
                                 >
                                     <Icon size={24} />

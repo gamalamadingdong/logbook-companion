@@ -22,7 +22,7 @@ export const BaselineInput: React.FC<Props> = ({ onUpdate }) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('user_baseline_metrics')
             .select('pr_2k_watts, pr_2k_time')
             .eq('user_id', user.id)
@@ -74,8 +74,8 @@ export const BaselineInput: React.FC<Props> = ({ onUpdate }) => {
             if (error) throw error;
             onUpdate();
 
-        } catch (err: any) {
-            setError(err.message);
+        } catch (_) {
+            console.error('Failed to parse baseline watts');
         } finally {
             setSaving(false);
         }

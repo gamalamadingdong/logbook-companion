@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile } from '../api/concept2';
 import { RecentWorkouts } from '../components/RecentWorkouts';
-import { Link } from 'react-router-dom';
-import { Waves, LogOut, Link as LinkIcon } from 'lucide-react';
+import { Waves, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 export const Dashboard: React.FC = () => {
