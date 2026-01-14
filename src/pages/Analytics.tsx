@@ -31,7 +31,7 @@ export const Analytics: React.FC = () => {
         // 2. Get Workouts (ALL TIME)
         const { data: logs } = await supabase
             .from('workout_logs')
-            .select('id, completed_at, training_zone, distance_meters, duration_minutes, duration_seconds, watts, workout_type, zone_distribution, workout_name')
+            .select('id, completed_at, training_zone, distance_meters, duration_minutes, duration_seconds, watts, workout_type, zone_distribution, workout_name, avg_split_500m')
             .order('completed_at', { ascending: true }); // Oldest first for charts
 
         setWorkouts(logs || []);
@@ -83,6 +83,12 @@ export const Analytics: React.FC = () => {
             if (!usedDistribution) {
                 // Fallback: Estimate from Average Watts
                 let watts = w.watts;
+
+                // Use Work Pace (avg_split_500m) if available to avoid including rest time
+                if (!watts && w.avg_split_500m) {
+                    watts = 2.8 / Math.pow(w.avg_split_500m / 500, 3);
+                }
+
                 const sec = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
 
                 if (!watts && w.distance_meters && sec > 0) {
@@ -106,6 +112,8 @@ export const Analytics: React.FC = () => {
         }));
     }, [filteredWorkouts, baselineWatts]);
 
+    const [volumeMetric, setVolumeMetric] = useState<'hours' | 'distance'>('hours');
+
     const weeklyVolume = useMemo(() => {
         // Aggregate by Week (ISO Week)
         const weeks: Record<string, any> = {};
@@ -119,22 +127,37 @@ export const Analytics: React.FC = () => {
             monday.setHours(0, 0, 0, 0);
             const key = monday.toISOString().split('T')[0]; // "2023-10-23"
 
+            // Initialize if new week
             if (!weeks[key]) {
-                weeks[key] = { date: key, UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0, total: 0 };
+                weeks[key] = {
+                    date: key,
+                    // Hours
+                    UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0, total: 0,
+                    // Distance (Meters)
+                    dist_UT2: 0, dist_UT1: 0, dist_AT: 0, dist_TR: 0, dist_AN: 0, totalDist: 0
+                };
             }
 
             let usedDistribution = false;
 
-            // Logic: Add TIME (Hours) to the week
+            // Logic: Add TIME (Hours) and DISTANCE to the week
             if (w.zone_distribution && Object.keys(w.zone_distribution).length > 0) {
                 const dist = w.zone_distribution;
                 const totalDistSeconds = (Object.values(dist) as number[]).reduce((a, b) => a + b, 0);
 
                 if (totalDistSeconds > 10) {
                     (Object.keys(dist) as TrainingZone[]).forEach(z => {
+                        const ratio = dist[z] / totalDistSeconds;
+
+                        // Hours
                         const hours = dist[z] / 3600;
                         weeks[key][z] += hours;
                         weeks[key].total += hours;
+
+                        // Distance (allocate proportional to time for now)
+                        const distance = (w.distance_meters || 0) * ratio;
+                        weeks[key][`dist_${z}`] += distance;
+                        weeks[key].totalDist += distance;
                     });
                     usedDistribution = true;
                 }
@@ -143,6 +166,12 @@ export const Analytics: React.FC = () => {
             if (!usedDistribution) {
                 // Fallback: Whole workout classification
                 let watts = w.watts;
+
+                // Use Work Pace (avg_split_500m) if available
+                if (!watts && w.avg_split_500m) {
+                    watts = 2.8 / Math.pow(w.avg_split_500m / 500, 3);
+                }
+
                 const sec = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
 
                 if (!watts && w.distance_meters && sec > 0) {
@@ -150,9 +179,16 @@ export const Analytics: React.FC = () => {
                     watts = 2.8 / Math.pow(split / 500, 3);
                 }
                 const zone = classifyWorkout(watts || 0, baselineWatts);
+
+                // Hours
                 const hours = sec / 3600;
                 weeks[key][zone] += hours;
                 weeks[key].total += hours;
+
+                // Distance
+                const distance = w.distance_meters || 0;
+                weeks[key][`dist_${zone}`] += distance;
+                weeks[key].totalDist += distance;
             }
         });
 
@@ -268,8 +304,24 @@ export const Analytics: React.FC = () => {
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-semibold flex items-center gap-2">
                                     <Ruler size={18} className="text-blue-400" />
-                                    Weekly Training Hours
+                                    Weekly Volume
                                 </h3>
+
+                                {/* Metric Toggle */}
+                                <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
+                                    {(['hours', 'distance'] as const).map(m => (
+                                        <button
+                                            key={m}
+                                            onClick={() => setVolumeMetric(m)}
+                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${volumeMetric === m
+                                                ? 'bg-neutral-800 text-white shadow-sm'
+                                                : 'text-neutral-500 hover:text-neutral-300'
+                                                }`}
+                                        >
+                                            {m === 'hours' ? 'Time (Hrs)' : 'Dist (km)'}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <ResponsiveContainer width="100%" height="100%">
@@ -287,22 +339,76 @@ export const Analytics: React.FC = () => {
                                         fontSize={12}
                                         tickLine={false}
                                         axisLine={false}
-                                        tickFormatter={(val) => `${val.toFixed(1)}h`}
+                                        tickFormatter={(val) => volumeMetric === 'hours' ? `${val.toFixed(1)}h` : `${(val / 1000).toFixed(0)}k`}
                                     />
                                     <Tooltip
                                         cursor={{ fill: '#262626', opacity: 0.5 }}
-                                        contentStyle={{ backgroundColor: '#0a0a0a', borderColor: '#262626', borderRadius: '8px' }}
-                                        itemStyle={{ color: '#fff' }}
-                                        labelStyle={{ color: '#a3a3a3', marginBottom: '8px' }}
-                                        labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                                        formatter={(val: any) => [`${Number(val).toFixed(2)} hrs`, '']}
+                                        content={({ active, payload, label }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                const total = volumeMetric === 'hours' ? data.total : data.totalDist;
+
+                                                // Calculate Week Range
+                                                const labelVal = label ?? 0; // Fallback to 0 if undefined
+                                                const startDate = new Date(labelVal);
+                                                const endDate = new Date(startDate);
+                                                endDate.setDate(startDate.getDate() + 6);
+
+                                                const dateRange = `${startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+                                                return (
+                                                    <div className="bg-neutral-950 border border-neutral-800 p-3 rounded-lg shadow-xl text-xs space-y-2 min-w-[200px]">
+                                                        <div className="border-b border-neutral-800 pb-2 mb-2">
+                                                            <p className="text-neutral-400 font-medium mb-1">
+                                                                {dateRange}
+                                                            </p>
+                                                            <div className="flex items-center justify-between gap-6">
+                                                                <span className="text-neutral-300 font-bold">Weekly Total:</span>
+                                                                <span className="text-white font-mono font-bold text-sm">
+                                                                    {volumeMetric === 'hours'
+                                                                        ? `${Number(total).toFixed(1)} hrs`
+                                                                        : `${(Number(total) / 1000).toFixed(1)} km`
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            {payload.slice().reverse().map((entry: any) => {
+                                                                const val = Number(entry.value);
+                                                                const pct = total > 0 ? ((val / total) * 100).toFixed(0) : '0';
+                                                                const unit = volumeMetric === 'hours' ? 'h' : 'k';
+                                                                const displayVal = volumeMetric === 'hours'
+                                                                    ? `${val.toFixed(1)}`
+                                                                    : `${(val / 1000).toFixed(1)}`;
+
+                                                                return (
+                                                                    <div key={entry.name} className="flex items-center justify-between gap-4">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                                                            <span className="text-neutral-400">{entry.display ?? entry.name}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-white font-mono">{displayVal}{unit}</span>
+                                                                            <span className="text-neutral-600 w-8 text-right">({pct}%)</span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                    <Bar dataKey="UT2" stackId="a" fill={ZONES[0].color} radius={[0, 0, 4, 4]} />
-                                    <Bar dataKey="UT1" stackId="a" fill={ZONES[1].color} />
-                                    <Bar dataKey="AT" stackId="a" fill={ZONES[2].color} />
-                                    <Bar dataKey="TR" stackId="a" fill={ZONES[3].color} />
-                                    <Bar dataKey="AN" stackId="a" fill={ZONES[4].color} radius={[4, 4, 0, 0]} />
+
+                                    {/* Dynamically render bars based on metric */}
+                                    <Bar dataKey={volumeMetric === 'hours' ? "UT2" : "dist_UT2"} name="UT2" stackId="a" fill={ZONES[0].color} radius={[0, 0, 4, 4]} />
+                                    <Bar dataKey={volumeMetric === 'hours' ? "UT1" : "dist_UT1"} name="UT1" stackId="a" fill={ZONES[1].color} />
+                                    <Bar dataKey={volumeMetric === 'hours' ? "AT" : "dist_AT"} name="AT" stackId="a" fill={ZONES[2].color} />
+                                    <Bar dataKey={volumeMetric === 'hours' ? "TR" : "dist_TR"} name="TR" stackId="a" fill={ZONES[3].color} />
+                                    <Bar dataKey={volumeMetric === 'hours' ? "AN" : "dist_AN"} name="AN" stackId="a" fill={ZONES[4].color} radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

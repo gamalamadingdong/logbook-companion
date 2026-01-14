@@ -27,6 +27,13 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
         return workouts
             .map(w => {
                 let watts = w.watts;
+
+                // 1. Try explicit average split (Most reliable for intervals, excludes rest)
+                if (!watts && w.avg_split_500m) {
+                    watts = 2.8 / Math.pow(w.avg_split_500m / 500, 3);
+                }
+
+                // 2. Fallback to Distance/Time (Includes rest time, less accurate for intervals)
                 if (!watts && w.distance_meters) {
                     const sec = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
 
@@ -143,6 +150,7 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Filter size={18} className="text-indigo-400" />
                         Pace Trends: <span style={{ color: currentZoneColor }}>{selectedZone}</span>
+                        <span className="text-neutral-500 text-sm font-normal">({chartData.length} workouts)</span>
                     </h3>
                     <p className="text-xs text-neutral-500">
                         {left ? 'Zoomed View (Click Reset to Full)' : 'Click and drag to zoom'}
