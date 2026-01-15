@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../../services/supabase';
-import { splitToWatts, wattsToSplit, formatSplit } from '../../utils/zones';
+import { splitToWatts, formatSplit } from '../../utils/zones';
 import { useAuth } from '../../hooks/useAuth';
 
 interface Props {

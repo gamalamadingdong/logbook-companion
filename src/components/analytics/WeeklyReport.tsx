@@ -1,7 +1,7 @@
 
 import React, { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Share2, X, Trophy, Activity, Calendar } from 'lucide-react';
+import { Download, X, Trophy, Activity, Calendar } from 'lucide-react';
 import { ZONES } from '../../utils/zones';
 
 interface WeeklyReportProps {
@@ -12,7 +12,7 @@ interface WeeklyReportProps {
     username?: string;
 }
 
-export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate, endDate, onClose, username }) => {
+export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate, endDate, onClose }) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [generating, setGenerating] = useState(false);
 

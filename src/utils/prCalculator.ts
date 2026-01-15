@@ -110,8 +110,10 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const timeVariance = workIntervals.every(i => Math.abs(i.time - first.time) < 10); // 1s tolerance for time
 
     // Check for Watts or Calories consistency
-    const wattsVariance = first.watts ? workIntervals.every(i => i.watts && Math.abs(i.watts - first.watts) <= 5) : false;
-    const calVariance = first.calories_total ? workIntervals.every(i => i.calories_total && Math.abs(i.calories_total - first.calories_total) <= 2) : false;
+    const firstWatts = first.watts;
+    const wattsVariance = firstWatts ? workIntervals.every(i => i.watts && Math.abs(i.watts - firstWatts) <= 5) : false;
+    const firstCalories = first.calories_total;
+    const calVariance = firstCalories ? workIntervals.every(i => i.calories_total && Math.abs(i.calories_total - firstCalories) <= 2) : false;
 
     // Calculate Rest (Look at rest_time from first INT, assuming consistent)
     // Concept2 API rest_time is in DECISECONDS (same as time).

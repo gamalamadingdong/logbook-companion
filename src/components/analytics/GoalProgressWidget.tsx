@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { type UserGoal, getUserGoals } from '../../services/supabase';
-import { calculateWatts, calculatePaceFromWatts, formatPace, formatWatts, calculatePRs, type PRRecord } from '../../utils/prCalculator';
+import { calculateWatts, calculatePaceFromWatts, formatPace, type PRRecord } from '../../utils/prCalculator';
 import { fetchUserPRs } from '../../utils/prDetection';
-import { Trophy, Target, Calendar, Clock, ArrowRight, CheckCircle2, Circle } from 'lucide-react';
+import { Trophy, Target, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 
 interface GoalProgressWidgetProps {
     userId: string;

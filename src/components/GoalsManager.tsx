@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getUserGoals, saveUserGoal, type UserGoal } from '../services/supabase';
-import { calculateWatts, calculatePaceFromWatts, formatPace, formatWatts, PR_DISTANCES } from '../utils/prCalculator';
-import { Target, Calendar, Clock, Trophy, Trash2, Plus, Save } from 'lucide-react';
+import { calculateWatts, calculatePaceFromWatts, formatPace } from '../utils/prCalculator';
+import { Target, Calendar, Trophy, Trash2, Plus, Save } from 'lucide-react';
 
 interface GoalsManagerProps {
     userId: string;
