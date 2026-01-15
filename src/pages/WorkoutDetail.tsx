@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { useAuth } from '../hooks/useAuth';
-import { calculateWatts } from '../utils/prCalculator';
+import { calculateWatts, calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/prCalculator';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 
@@ -82,6 +82,27 @@ export const WorkoutDetail: React.FC = () => {
 
         fetchBaseline();
     }, [profile]);
+
+    // Calculate Canonical Name (must be before early returns per Rules of Hooks)
+    const canonicalName = useMemo(() => {
+        if (!detail) return 'Workout';
+        const intervals = detail.workout?.intervals || [];
+        if (intervals.length > 0) {
+            return calculateCanonicalName(intervals);
+        }
+        // Try to detect from strokes if no explicit intervals
+        if (strokes.length > 0) {
+            const detected = detectIntervalsFromStrokes(strokes);
+            if (detected.length > 1) {
+                return calculateCanonicalName(detected);
+            }
+        }
+        // Fallback to distance if single piece
+        if (detail.distance) {
+            return `${detail.distance}m`;
+        }
+        return detail.workout_name || 'Workout';
+    }, [detail, strokes]);
 
     if (loading) return <div className="p-8 text-neutral-400">Loading workout details...</div>;
     if (!detail) return <div className="p-8 text-neutral-400">Workout not found.</div>;
@@ -207,6 +228,17 @@ export const WorkoutDetail: React.FC = () => {
     const avgPaceSecs = (avgPaceSeconds % 60).toFixed(1);
     const avgPaceFormatted = detail.distance ? `${avgPaceMins}:${avgPaceSecs.padStart(4, '0')}` : '-';
 
+    // Calculate Work vs Total metrics
+    const workIntervals = (detail.workout?.intervals || []).filter((i: C2Interval) => i.type !== 'rest');
+    const workDistance = workIntervals.length > 0
+        ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.distance, 0)
+        : detail.distance;
+    const workTime = workIntervals.length > 0
+        ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.time, 0) / 10
+        : totalSeconds;
+    const totalDistance = detail.distance + (detail.rest_distance || 0);
+    const restTime = totalSeconds - workTime;
+
 
 
     return (
@@ -220,7 +252,7 @@ export const WorkoutDetail: React.FC = () => {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-neutral-800">
                     <div>
                         <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">
-                            {detail.type} Workout
+                            {canonicalName}
                         </h1>
                         <div className="flex items-center gap-3 text-neutral-400 text-sm md:text-base font-medium">
                             <span className="px-3 py-1 bg-neutral-900 rounded-full border border-neutral-800">
@@ -237,21 +269,68 @@ export const WorkoutDetail: React.FC = () => {
                         >
                             View History
                         </Link>
-                        <div className="text-left md:text-right p-4 bg-neutral-900/50 rounded-xl border border-neutral-800 backdrop-blur-sm">
-                            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tighter">{detail.distance}m</div>
-                            <div className="text-xl font-mono text-emerald-400 font-medium">{formatTime(detail.time)}</div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Stats Grid */}
+            {/* Stats Grid - Row 1: Distance & Time Metrics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    {
+                        label: 'Work Distance',
+                        value: Math.round(workDistance),
+                        unit: 'm',
+                        icon: <Activity size={18} />,
+                        color: 'text-blue-400',
+                        subtext: workIntervals.length > 0 ? `${workIntervals.length} intervals` : null
+                    },
+                    {
+                        label: 'Total Distance',
+                        value: Math.round(totalDistance),
+                        unit: 'm',
+                        icon: <Activity size={18} />,
+                        color: 'text-neutral-400',
+                        subtext: detail.rest_distance ? `+${detail.rest_distance}m rest` : null
+                    },
+                    {
+                        label: 'Work Time',
+                        value: formatTime(workTime * 10),
+                        unit: '',
+                        icon: <Clock size={18} />,
+                        color: 'text-emerald-400',
+                        subtext: null
+                    },
+                    {
+                        label: 'Total Time',
+                        value: formatTime(detail.time),
+                        unit: '',
+                        icon: <Timer size={18} />,
+                        color: 'text-neutral-400',
+                        subtext: restTime > 0 ? `+${Math.round(restTime)}s rest` : null
+                    },
+                ].map((stat, i) => (
+                    <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
+                        <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
+                            {stat.icon}
+                            <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white tracking-tight">
+                            {stat.value || '-'} {stat.unit && <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>}
+                        </div>
+                        {stat.subtext && (
+                            <div className="text-xs text-neutral-500 mt-2 font-medium">{stat.subtext}</div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Stats Grid - Row 2: Performance Metrics */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                     { label: 'Avg Pace', value: avgPaceFormatted, unit: '/500m', icon: <Activity size={18} />, color: 'text-blue-400' },
                     { label: 'Avg Watts', value: detail.drag_factor || formatWatts(strokes.reduce((a, b) => a + b.p, 0) / strokes.length), unit: 'w', icon: <Zap size={18} />, color: 'text-yellow-400' },
                     { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
-                    { label: 'Rest Meters', value: detail.rest_distance, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
+                    { label: 'Rest Distance', value: detail.rest_distance || 0, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
                 ].map((stat, i) => (
                     <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
                         <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
