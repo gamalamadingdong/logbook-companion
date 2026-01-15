@@ -2,12 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../tb2/kb"
-		},
-		{
-			"path": "../train-better/app"
 		}
 	],
 	"settings": {}
