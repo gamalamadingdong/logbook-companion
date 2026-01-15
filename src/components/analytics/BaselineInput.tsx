@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { splitToWatts, wattsToSplit, formatSplit } from '../../utils/zones';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Props {
     onUpdate: () => void; // Trigger parent refresh
 }
 
 export const BaselineInput: React.FC<Props> = ({ onUpdate }) => {
+    const { profile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [watts, setWatts] = useState<number>(0);
@@ -16,21 +18,37 @@ export const BaselineInput: React.FC<Props> = ({ onUpdate }) => {
 
     useEffect(() => {
         fetchBaseline();
-    }, []);
+    }, [profile]);
 
     const fetchBaseline = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!profile?.user_id) return;
 
+        // Fetch from benchmark_preferences (same source as Analytics)
         const { data } = await supabase
-            .from('user_baseline_metrics')
-            .select('pr_2k_watts, pr_2k_time')
-            .eq('user_id', user.id)
+            .from('user_profiles')
+            .select('benchmark_preferences')
+            .eq('user_id', profile.user_id)
             .single();
 
-        if (data?.pr_2k_watts) {
-            setWatts(data.pr_2k_watts);
-            setSplitInput(formatSplit(wattsToSplit(data.pr_2k_watts)));
+        const workingBaseline = data?.benchmark_preferences?.['2k']?.working_baseline;
+
+        if (workingBaseline) {
+            // Parse "7:00.0" (2k time) -> 500m split
+            const parts = workingBaseline.split(':');
+            let totalSeconds = 0;
+            if (parts.length === 2) {
+                totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+            } else {
+                totalSeconds = parseFloat(workingBaseline);
+            }
+
+            if (totalSeconds > 0) {
+                // Convert 2k time to 500m split
+                const split500m = (totalSeconds / 2000) * 500;
+                const calculatedWatts = Math.round(splitToWatts(split500m));
+                setWatts(calculatedWatts);
+                setSplitInput(formatSplit(split500m));
+            }
         } else {
             // Default text if nothing set
             setSplitInput("2:00.0");
@@ -44,38 +62,56 @@ export const BaselineInput: React.FC<Props> = ({ onUpdate }) => {
         setError(null);
 
         try {
-            // Parse "1:45.5" or "105.5" -> Seconds
+            // Parse "1:45.5" or "105.5" -> Seconds (500m split)
             const parts = splitInput.split(':');
-            let totalSeconds = 0;
+            let split500mSeconds = 0;
             if (parts.length === 2) {
-                totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+                split500mSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
             } else {
-                totalSeconds = parseFloat(parts[0]); // assume purely seconds if no colon? Rare.
+                split500mSeconds = parseFloat(parts[0]); // assume purely seconds if no colon
             }
 
-            if (isNaN(totalSeconds) || totalSeconds < 80 || totalSeconds > 300) {
+            if (isNaN(split500mSeconds) || split500mSeconds < 80 || split500mSeconds > 300) {
                 throw new Error("Invalid split format. Use MM:SS.d (e.g. 1:45.0)");
             }
 
-            const calculatedWatts = Math.round(splitToWatts(totalSeconds));
+            const calculatedWatts = Math.round(splitToWatts(split500mSeconds));
             setWatts(calculatedWatts);
 
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error("Not logged in");
+            if (!profile?.user_id) throw new Error("Not logged in");
+
+            // Convert 500m split to 2k time for storage
+            const time2k = (split500mSeconds / 500) * 2000;
+            const minutes = Math.floor(time2k / 60);
+            const seconds = (time2k % 60).toFixed(1);
+            const time2kFormatted = `${minutes}:${seconds.padStart(4, '0')}`;
+
+            // Update benchmark_preferences (same field as Preferences page)
+            const { data: currentProfile } = await supabase
+                .from('user_profiles')
+                .select('benchmark_preferences')
+                .eq('user_id', profile.user_id)
+                .single();
+
+            const updatedPreferences = {
+                ...(currentProfile?.benchmark_preferences || {}),
+                '2k': {
+                    ...(currentProfile?.benchmark_preferences?.['2k'] || {}),
+                    working_baseline: time2kFormatted
+                }
+            };
 
             const { error } = await supabase
-                .from('user_baseline_metrics')
-                .upsert({
-                    user_id: user.id,
-                    pr_2k_watts: calculatedWatts,
-                    last_updated: new Date().toISOString()
-                });
+                .from('user_profiles')
+                .update({ benchmark_preferences: updatedPreferences })
+                .eq('user_id', profile.user_id);
 
             if (error) throw error;
             onUpdate();
 
-        } catch (_) {
-            console.error('Failed to parse baseline watts');
+        } catch (err: any) {
+            setError(err.message || 'Failed to save baseline');
+            console.error('Failed to save baseline:', err);
         } finally {
             setSaving(false);
         }

@@ -2,16 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Activity, Zap, Wind } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { workoutService } from '../services/workoutService'; // New Service
-// import { getResultDetail, getStrokes } from '../api/concept2'; // Removed
+import { workoutService } from '../services/workoutService';
+import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
+import { useAuth } from '../hooks/useAuth';
+import { calculateWatts } from '../utils/prCalculator';
+import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    const { profile } = useAuth();
     const [detail, setDetail] = useState<C2ResultDetail | null>(null);
     const [strokes, setStrokes] = useState<C2Stroke[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedInterval, setSelectedInterval] = useState<number | 'all'>('all');
+    const [buckets, setBuckets] = useState<Record<string, number> | null>(null);
+    const [baselineWatts, setBaselineWatts] = useState<number>(202); // Default 2:00 split
 
     useEffect(() => {
         if (!id) return;
@@ -19,12 +25,15 @@ export const WorkoutDetail: React.FC = () => {
         const fetchData = async () => {
             try {
                 // Fetch detail and strokes from Supabase via workoutService
-                const [detailData, strokeData] = await Promise.all([
+                const [detailData, strokeData, bucketsData] = await Promise.all([
                     workoutService.getWorkoutDetail(id),
-                    workoutService.getStrokes(id)
+                    workoutService.getStrokes(id),
+                    workoutService.getPowerBuckets(id)
                 ]);
                 setDetail(detailData);
                 setStrokes(strokeData);
+                console.log('Power Buckets for workout:', id, bucketsData);
+                setBuckets(bucketsData || null);
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
             } finally {
@@ -34,6 +43,45 @@ export const WorkoutDetail: React.FC = () => {
 
         fetchData();
     }, [id]);
+
+    // Fetch Baseline Watts from Profile
+    useEffect(() => {
+        const fetchBaseline = async () => {
+            if (!profile?.user_id) return;
+
+            let bWatts = 202; // Default
+
+            // Try working baseline from preferences
+            if (profile?.benchmark_preferences?.['2k']?.working_baseline) {
+                const timeStr = profile.benchmark_preferences['2k'].working_baseline;
+                const parts = timeStr.split(':');
+                let totalSeconds = 0;
+                if (parts.length === 2) {
+                    totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+                } else {
+                    totalSeconds = parseFloat(timeStr);
+                }
+                if (totalSeconds > 0) {
+                    const pace = (totalSeconds / 2000) * 500;
+                    bWatts = calculateWatts(pace);
+                }
+            }
+
+            // Fallback to legacy baseline
+            if (bWatts === 202) {
+                const { data: baseline } = await supabase
+                    .from('user_baseline_metrics')
+                    .select('pr_2k_watts')
+                    .eq('user_id', profile.user_id)
+                    .single();
+                if (baseline?.pr_2k_watts) bWatts = baseline.pr_2k_watts;
+            }
+
+            setBaselineWatts(bWatts);
+        };
+
+        fetchBaseline();
+    }, [profile]);
 
     if (loading) return <div className="p-8 text-neutral-400">Loading workout details...</div>;
     if (!detail) return <div className="p-8 text-neutral-400">Workout not found.</div>;
@@ -182,9 +230,17 @@ export const WorkoutDetail: React.FC = () => {
                             <span className="capitalize">{detail.workout_type.replace(/([A-Z])/g, ' $1').trim()}</span>
                         </div>
                     </div>
-                    <div className="text-left md:text-right p-4 bg-neutral-900/50 rounded-xl border border-neutral-800 backdrop-blur-sm">
-                        <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tighter">{detail.distance}m</div>
-                        <div className="text-xl font-mono text-emerald-400 font-medium">{formatTime(detail.time)}</div>
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <Link
+                            to={`/history/${encodeURIComponent(detail.workout_name || '')}`}
+                            className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"
+                        >
+                            View History
+                        </Link>
+                        <div className="text-left md:text-right p-4 bg-neutral-900/50 rounded-xl border border-neutral-800 backdrop-blur-sm">
+                            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-tighter">{detail.distance}m</div>
+                            <div className="text-xl font-mono text-emerald-400 font-medium">{formatTime(detail.time)}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -280,62 +336,80 @@ export const WorkoutDetail: React.FC = () => {
                         </ResponsiveContainer>
                     </div>
                 </div>
-            )}
+            )
+            }
+
+            {/* Power Distribution Chart */}
+            {
+                buckets && (
+                    <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                            <Zap size={18} className="text-yellow-400" />
+                            Power Distribution
+                        </h3>
+                        <div className="h-[300px] w-full">
+                            <PowerDistributionChart buckets={buckets} baselineWatts={baselineWatts} />
+                        </div>
+                    </div>
+                )
+            }
 
             {/* Splits / Intervals Table */}
-            {segments.length > 0 && (
-                <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl overflow-hidden">
-                    <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/60">
-                        <h3 className="text-lg font-bold text-white">{isInterval ? 'Interval Breakdown' : 'Split Breakdown'}</h3>
-                        <span className="text-xs font-mono text-neutral-500 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                            {segments.length} segments
-                        </span>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
-                                <tr>
-                                    <th className="p-4 pl-6 font-semibold">#</th>
-                                    <th className="p-4 font-semibold">Distance</th>
-                                    <th className="p-4 font-semibold">Time</th>
-                                    <th className="p-4 font-semibold">Pace</th>
-                                    <th className="p-4 font-semibold">SPM</th>
-                                    <th className="p-4 font-semibold">HR</th>
-                                    {isInterval && <th className="p-4 pr-6 font-semibold">Rest</th>}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-neutral-800/50 bg-neutral-900/20">
-                                {segments.map((seg: C2Interval | C2Split, i: number) => {
-                                    const seconds = seg.time / 10;
-                                    const paceSeconds = (seconds * 500) / seg.distance;
-                                    const paceMins = Math.floor(paceSeconds / 60);
-                                    const paceSecs = (paceSeconds % 60).toFixed(1);
-                                    const pace = `${paceMins}:${paceSecs.padStart(4, '0')}`;
+            {
+                segments.length > 0 && (
+                    <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl overflow-hidden">
+                        <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/60">
+                            <h3 className="text-lg font-bold text-white">{isInterval ? 'Interval Breakdown' : 'Split Breakdown'}</h3>
+                            <span className="text-xs font-mono text-neutral-500 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
+                                {segments.length} segments
+                            </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
+                                    <tr>
+                                        <th className="p-4 pl-6 font-semibold">#</th>
+                                        <th className="p-4 font-semibold">Distance</th>
+                                        <th className="p-4 font-semibold">Time</th>
+                                        <th className="p-4 font-semibold">Pace</th>
+                                        <th className="p-4 font-semibold">SPM</th>
+                                        <th className="p-4 font-semibold">HR</th>
+                                        {isInterval && <th className="p-4 pr-6 font-semibold">Rest</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-neutral-800/50 bg-neutral-900/20">
+                                    {segments.map((seg: C2Interval | C2Split, i: number) => {
+                                        const seconds = seg.time / 10;
+                                        const paceSeconds = (seconds * 500) / seg.distance;
+                                        const paceMins = Math.floor(paceSeconds / 60);
+                                        const paceSecs = (paceSeconds % 60).toFixed(1);
+                                        const pace = `${paceMins}:${paceSecs.padStart(4, '0')}`;
 
-                                    return (
-                                        <tr key={i} className="hover:bg-neutral-800/40 transition-colors group">
-                                            <td className="p-4 pl-6 font-mono text-neutral-500 group-hover:text-white transition-colors">{i + 1}</td>
-                                            <td className="p-4 font-medium text-white">{seg.distance}m</td>
-                                            <td className="p-4 font-mono text-neutral-300">{formatTime(seg.time)}</td>
-                                            <td className="p-4 font-mono text-blue-400 font-medium">{pace}</td>
-                                            <td className="p-4 text-emerald-400">{seg.stroke_rate}</td>
-                                            <td className="p-4 text-rose-400 font-medium">
-                                                {seg.heart_rate?.average || seg.heart_rate?.ending || '-'}
-                                            </td>
-                                            {isInterval && (
-                                                <td className="p-4 pr-6 text-neutral-500 font-mono text-xs">
-                                                    {(seg as C2Interval).rest_time ? formatTime((seg as C2Interval).rest_time!) + 'r' : '-'}
+                                        return (
+                                            <tr key={i} className="hover:bg-neutral-800/40 transition-colors group">
+                                                <td className="p-4 pl-6 font-mono text-neutral-500 group-hover:text-white transition-colors">{i + 1}</td>
+                                                <td className="p-4 font-medium text-white">{seg.distance}m</td>
+                                                <td className="p-4 font-mono text-neutral-300">{formatTime(seg.time)}</td>
+                                                <td className="p-4 font-mono text-blue-400 font-medium">{pace}</td>
+                                                <td className="p-4 text-emerald-400">{seg.stroke_rate}</td>
+                                                <td className="p-4 text-rose-400 font-medium">
+                                                    {seg.heart_rate?.average || seg.heart_rate?.ending || '-'}
                                                 </td>
-                                            )}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                {isInterval && (
+                                                    <td className="p-4 pr-6 text-neutral-500 font-mono text-xs">
+                                                        {(seg as C2Interval).rest_time ? formatTime((seg as C2Interval).rest_time!) + 'r' : '-'}
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 
 };

@@ -14,16 +14,22 @@ export const Dashboard: React.FC = () => {
 
     useEffect(() => {
         async function loadData() {
-            if (!c2Connected) {
-                setLoading(false);
-                return;
-            }
-
+            setLoading(true);
             try {
-                const data = await getProfile();
-                setProfile(data);
+                // Feature: Fetch Profile only if connected
+                if (c2Connected) {
+                    try {
+                        const data = await getProfile();
+                        setProfile(data);
+                    } catch (error: any) {
+                        if (error.response?.status === 401) {
+                            setC2Connected(false);
+                            localStorage.removeItem('concept2_token');
+                        }
+                    }
+                }
 
-                // Fetch Lifetime Meters from DB
+                // Fetch Lifetime Meters from DB (Always, if user exists)
                 if (user) {
                     const { data: logs, error } = await supabase
                         .from('workout_logs')
@@ -35,12 +41,8 @@ export const Dashboard: React.FC = () => {
                         setTotalMeters(total);
                     }
                 }
-            } catch (error: any) {
-                console.error(error);
-                if (error.response?.status === 401) {
-                    setC2Connected(false);
-                    localStorage.removeItem('concept2_token');
-                }
+            } catch (error) {
+                console.error("Dashboard Load Error:", error);
             } finally {
                 setLoading(false);
             }
@@ -58,7 +60,8 @@ export const Dashboard: React.FC = () => {
 
     if (loading) return <div className="p-8 text-white">Loading...</div>;
 
-    if (!c2Connected) {
+    // Only show "Connect Screen" if disconnected AND no data exists (New User)
+    if (!c2Connected && totalMeters === 0) {
         return (
             <div className="min-h-screen bg-neutral-950 text-white p-8 flex flex-col items-center justify-center">
                 <div className="max-w-md text-center space-y-8">

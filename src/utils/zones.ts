@@ -145,3 +145,41 @@ export const calculateZoneDistribution = (rawData: any, baseline2kWatts: number)
 
     return distribution;
 };
+
+/**
+ * Aggregates 5-watt power buckets into training zones based on baseline watts.
+ * Used for visualizing power distribution by zone in a donut chart.
+ * 
+ * @param buckets - Record of watts -> seconds (e.g., {"120": 230.4, "125": 483.9})
+ * @param baseline2kWatts - User's 2k baseline in watts
+ * @returns Zone distribution with seconds and metadata
+ */
+export const aggregateBucketsByZone = (
+    buckets: Record<string, number>,
+    baseline2kWatts: number
+): Array<{ zone: TrainingZone; seconds: number; color: string; label: string; wattsRange: string }> => {
+    const distribution: Record<TrainingZone, number> = { UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0 };
+
+    // Aggregate buckets into zones
+    Object.entries(buckets).forEach(([wattsStr, seconds]) => {
+        const watts = Number(wattsStr);
+        const zone = classifyWorkout(watts, baseline2kWatts);
+        distribution[zone] += seconds;
+    });
+
+    // Convert to array with metadata
+    return ZONES.map(zoneDef => {
+        const minW = Math.round(baseline2kWatts * zoneDef.minPct);
+        const maxW = zoneDef.maxPct >= 2
+            ? '∞'
+            : Math.round(baseline2kWatts * zoneDef.maxPct).toString();
+
+        return {
+            zone: zoneDef.id,
+            seconds: distribution[zoneDef.id],
+            color: zoneDef.color,
+            label: zoneDef.label,
+            wattsRange: maxW === '∞' ? `> ${minW}W` : `${minW}-${maxW}W`
+        };
+    }).filter(z => z.seconds > 0); // Only include zones with data
+};

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
@@ -17,6 +17,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/', label: 'Dashboard', icon: Home },
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync & Data', icon: Database },
+        { path: '/preferences', label: 'Settings', icon: Settings },
     ];
 
     return (
@@ -52,7 +53,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-neutral-800">
+                <div className="p-4 border-t border-neutral-800 space-y-2">
+                    {!localStorage.getItem('concept2_token') && (
+                        <button
+                            onClick={() => {
+                                const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
+                                const redirect_uri = `${window.location.origin}/callback`;
+                                const scope = 'user:read,results:read';
+                                window.location.href = `https://log.concept2.com/oauth/authorize?client_id=${client_id}&scope=${scope}&response_type=code&redirect_uri=${redirect_uri}`;
+                            }}
+                            className="flex items-center gap-3 px-4 py-3 w-full text-left text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all"
+                        >
+                            <LinkIcon size={20} />
+                            Connect Logbook
+                        </button>
+                    )}
                     <button
                         onClick={() => logout()}
                         className="flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"

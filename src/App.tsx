@@ -8,6 +8,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Sync } from './pages/Sync';
 import { Analytics } from './pages/Analytics';
 import { WorkoutDetail } from './pages/WorkoutDetail';
+import { WorkoutHistory } from './pages/WorkoutHistory';
+import { Preferences } from './pages/Preferences';
 
 import { Layout } from './components/Layout';
 
@@ -62,6 +64,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <WorkoutDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/preferences"
+            element={
+              <ProtectedRoute>
+                <Preferences />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/history/:name"
+            element={
+              <ProtectedRoute>
+                <WorkoutHistory />
               </ProtectedRoute>
             }
           />

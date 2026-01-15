@@ -45,7 +45,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = () => {
                             <th className="pb-4 pl-4">Date</th>
                             <th className="pb-4">Distance</th>
                             <th className="pb-4">Time</th>
-                            <th className="pb-4">Type</th>
+                            <th className="pb-4">Workout</th>
                             <th className="pb-4 pr-4 text-right">Action</th>
                         </tr>
                     </thead>
@@ -61,9 +61,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = () => {
                                     {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
                                 </td>
                                 <td className="py-4">
-                                    <span className="capitalize text-xs font-bold text-neutral-500 bg-neutral-900 border border-neutral-800 px-2 py-1 rounded-md group-hover:border-neutral-700 transition-colors">
-                                        {workout.type}
-                                    </span>
+                                    <div>
+                                        <div className="text-sm font-medium text-white">{workout.name}</div>
+                                        <div className="text-xs text-neutral-500 capitalize">{workout.type.replace(/([A-Z])/g, ' $1').trim()}</div>
+                                    </div>
                                 </td>
                                 <td className="py-4 pr-4 text-right">
                                     <Link

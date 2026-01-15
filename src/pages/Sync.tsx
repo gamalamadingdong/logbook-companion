@@ -6,6 +6,7 @@ import { getResults, getProfile, getResultDetail, getStrokes } from '../api/conc
 import { supabase, upsertWorkout } from '../services/supabase';
 import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
+import { calculateCanonicalName } from '../utils/prCalculator';
 
 
 export const Sync: React.FC = () => {
@@ -158,7 +159,32 @@ export const Sync: React.FC = () => {
                     max_heart_rate: detail.heart_rate?.max,
                     source: 'concept2',
                     raw_data: fullData,
-                    zone_distribution: distribution
+                    zone_distribution: distribution,
+                    canonical_name: (() => {
+                        const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                        if (calculated && calculated !== 'Unknown') return calculated;
+
+                        // Fallback logic
+                        const type = summary.workout_type || '';
+
+                        if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
+                            return `${Math.round(summary.distance)}m`;
+                        }
+                        if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
+                            const mins = Math.round(summary.time / 600);
+                            return `${mins}:00`;
+                        }
+                        if (['FixedCalorie', 'FixedCalorieInterval', 'FixedCalorieSplits', 'FixedCalorieNoSplits'].includes(type) || type === 'CalorieInterval') {
+                            return `${detail.calories_total} cal`;
+                        }
+                        if (['FixedWattMinute', 'FixedWattMinuteInterval', 'FixedWattSplits', 'FixedWattNoSplits'].includes(type) || type === 'WattInterval' || type === 'WattsInterval') {
+                            return `${Math.round(summary.watts || 0)}W`;
+                        }
+                        if (type === 'JustRow' || type.includes('Just Row')) {
+                            return `${Math.floor(summary.distance)}m JustRow`;
+                        }
+                        return calculated;
+                    })()
                 };
 
                 await upsertWorkout(record);

@@ -76,6 +76,7 @@ export interface C2ResultDetail extends C2Result {
         intervals?: C2Interval[]; // Added intervals based on user data
     };
     strokes?: C2Stroke[]; // Helper prop attached manually
+    workout_name?: string; // Canonical name from DB
 }
 
 export interface C2Pagination {
