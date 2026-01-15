@@ -9,7 +9,6 @@ interface WeeklyReportProps {
     startDate: Date;
     endDate: Date;
     onClose: () => void;
-    username?: string;
 }
 
 export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate, endDate, onClose }) => {
