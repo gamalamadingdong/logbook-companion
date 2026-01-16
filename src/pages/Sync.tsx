@@ -7,12 +7,14 @@ import { supabase, upsertWorkout } from '../services/supabase';
 import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
 import { calculateCanonicalName } from '../utils/prCalculator';
+import { saveFilteredPRs } from '../utils/prDetection';
 
 
 export const Sync: React.FC = () => {
     const [googleToken, setGoogleToken] = useState<string | null>(localStorage.getItem('google_token'));
     const [syncing, setSyncing] = useState(false);
     const [forceResync, setForceResync] = useState(false);
+    const [forceExport, setForceExport] = useState(false); // New state for Google Sheets
     const [status, setStatus] = useState<string>('');
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
@@ -195,6 +197,10 @@ export const Sync: React.FC = () => {
                 setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
             }
 
+            // 4. Update PR Cache
+            setStatus('Updating Personal Records...');
+            await saveFilteredPRs(userId);
+
             setStatus(`Success! Synced ${processed} new workouts. (${skipped} already up to date).`);
 
         } catch (err: any) {
@@ -304,169 +310,171 @@ export const Sync: React.FC = () => {
                         Connect Google
                     </button>
                 ) : (
-                    <button
-                        onClick={async () => {
-                            if (!googleToken) return;
-                            setStatus('Generating report...');
-                            setError(null);
-                            try {
-                                // 1. Fetch Data
-                                // First, get last export time
-                                const { data: userInt } = await supabase
-                                    .from('user_integrations')
-                                    .select('last_export_at, google_sheet_id')
-                                    .single();
+                    <div className="flex flex-col items-end gap-3">
+                        <label className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer hover:text-neutral-300">
+                            <input
+                                type="checkbox"
+                                checked={forceExport}
+                                onChange={(e) => setForceExport(e.target.checked)}
+                                className="rounded border-neutral-700 bg-neutral-800 text-blue-500 focus:ring-blue-500/50"
+                            />
+                            Force Resync (Overwrite / Export All)
+                        </label>
 
-                                // We need to decide: Are we making a new sheet or appending?
-                                // If we have a sheet ID, acts as "Smart Append"
-
-                                let query = supabase
-                                    .from('workout_logs')
-                                    .select('*')
-                                    .order('completed_at', { ascending: true }); // Ascending for appending history logic
-
-                                if (userInt?.last_export_at && userInt?.google_sheet_id) {
-                                    setStatus(`Fetching workouts since ${new Date(userInt.last_export_at).toLocaleDateString()}...`);
-                                    query = query.gt('created_at', userInt.last_export_at);
-                                    // Note: Using created_at or completed_at? 
-                                    // created_at is safer for "when it was synced to DB".
-                                } else {
-                                    setStatus('Fetching all history...');
-                                }
-
-                                const { data: logs, error } = await query;
-
-                                if (error) throw error;
-                                if (!logs || logs.length === 0) {
-                                    if (userInt?.google_sheet_id) {
-                                        alert("No new workouts since last export.");
-                                        return;
-                                    }
-                                    throw new Error("No data to export.");
-                                }
-
-                                setStatus(`Processing ${logs.length} new workouts...`);
-
-                                // 2. Prepare Data Rows
-                                const workoutRows = [['Date', 'Type', 'Total Dist', 'Work Dist', 'Work Time', 'Work Pace', 'Avg Watts', 'Avg HR', 'SPM', 'Eff (W/HR)', 'Link']];
-                                const intervalRows = [['Date', 'Workout ID', 'Interval #', 'Dist', 'Time', 'Pace', 'Watts', 'SPM', 'HR']];
-
-                                for (const log of logs) {
-                                    const date = new Date(log.completed_at).toLocaleDateString();
-                                    const raw = log.raw_data || {};
-
-                                    const link = `https://log.concept2.com/profile/${log.user_id}/log/${log.external_id}`;
-
-                                    workoutRows.push([
-                                        date,
-                                        log.workout_type,
-                                        log.distance_meters,
-                                        log.distance_meters,
-                                        (log.duration_minutes * 60).toFixed(1), // seconds
-                                        '-',
-                                        log.watts || '-',
-                                        log.average_heart_rate || '-',
-                                        log.average_stroke_rate || '-',
-                                        (log.watts && log.average_heart_rate) ? (log.watts / log.average_heart_rate).toFixed(2) : '-',
-                                        link
-                                    ]);
-
-                                    const segments = raw.workout?.intervals || raw.workout?.splits || [];
-
-                                    segments.forEach((seg: any, index: number) => {
-                                        if (seg.type === 'rest') return;
-
-                                        const pace = seg.pace ? (seg.pace / 10).toFixed(1) : '-';
-
-                                        intervalRows.push([
-                                            date,
-                                            log.external_id,
-                                            (index + 1).toString(),
-                                            seg.distance,
-                                            (seg.time / 10).toFixed(1),
-                                            pace,
-                                            seg.watts || '-',
-                                            seg.stroke_rate || '-',
-                                            seg.heart_rate?.average || '-'
-                                        ]);
-                                    });
-                                }
-
-                                // 0. Check for existing Sheet ID
-                                let spreadsheetId: string | null = null;
-
-                                const { data: userData } = await supabase.auth.getUser();
-                                if (userData.user) {
-                                    const { data: integrationData } = await supabase
+                        <button
+                            onClick={async () => {
+                                if (!googleToken) return;
+                                setStatus('Generating report...');
+                                setError(null);
+                                try {
+                                    // 1. Fetch Data
+                                    const { data: userInt } = await supabase
                                         .from('user_integrations')
-                                        .select('google_sheet_id')
-                                        .eq('user_id', userData.user.id)
+                                        .select('last_export_at, google_sheet_id')
                                         .single();
 
-                                    if (integrationData?.google_sheet_id) {
-                                        spreadsheetId = integrationData.google_sheet_id;
-                                        setStatus(`Found existing Sheet (${spreadsheetId}). Preparing append...`);
-                                    }
-                                }
+                                    let query = supabase
+                                        .from('workout_logs')
+                                        .select('*')
+                                        .order('completed_at', { ascending: true });
 
-                                // 3. Create Sheet (if needed)
-                                if (!spreadsheetId) {
-                                    setStatus('Creating NEW Google Sheet...');
-                                    const sheetTitle = `Logbook Analyzer Log`; // Keep name stable? Or date-based?
-                                    const sheet = await createSheet(googleToken, sheetTitle, ['Workouts', 'Intervals']);
-                                    spreadsheetId = sheet.spreadsheetId;
-
-                                    // SAVE IT to DB
-                                    if (userData.user && spreadsheetId) {
-                                        await supabase
-                                            .from('user_integrations')
-                                            .upsert({
-                                                user_id: userData.user.id,
-                                                google_sheet_id: spreadsheetId,
-                                                last_export_at: new Date().toISOString()
-                                            }, { onConflict: 'user_id' });
+                                    // CHANGED: Check forceExport here. If true, ignore last_export_at
+                                    if (!forceExport && userInt?.last_export_at && userInt?.google_sheet_id) {
+                                        setStatus(`Fetching workouts since ${new Date(userInt.last_export_at).toLocaleDateString()}...`);
+                                        query = query.gt('created_at', userInt.last_export_at);
+                                    } else {
+                                        setStatus('Fetching all history (Force/Full)...');
                                     }
-                                } else {
-                                    // Update last_export timestamp
+
+                                    const { data: logs, error } = await query;
+
+                                    if (error) throw error;
+                                    if (!logs || logs.length === 0) {
+                                        if (!forceExport && userInt?.google_sheet_id) {
+                                            alert("No new workouts since last export. Check 'Force Resync' to export all.");
+                                            return;
+                                        }
+                                        throw new Error("No data to export.");
+                                    }
+
+                                    setStatus(`Processing ${logs.length} new workouts...`);
+
+                                    // 2. Prepare Data Rows
+                                    const workoutRows = [['Date', 'Type', 'Total Dist', 'Work Dist', 'Work Time', 'Work Pace', 'Avg Watts', 'Avg HR', 'SPM', 'Eff (W/HR)', 'Link']];
+                                    const intervalRows = [['Date', 'Workout ID', 'Interval #', 'Dist', 'Time', 'Pace', 'Watts', 'SPM', 'HR']];
+
+                                    for (const log of logs) {
+                                        const date = new Date(log.completed_at).toLocaleDateString();
+                                        const raw = log.raw_data || {};
+
+                                        const link = `https://log.concept2.com/profile/${log.user_id}/log/${log.external_id}`;
+
+                                        workoutRows.push([
+                                            date,
+                                            log.workout_type,
+                                            log.distance_meters,
+                                            log.distance_meters,
+                                            (log.duration_minutes * 60).toFixed(1), // seconds
+                                            '-',
+                                            log.watts || '-',
+                                            log.average_heart_rate || '-',
+                                            log.average_stroke_rate || '-',
+                                            (log.watts && log.average_heart_rate) ? (log.watts / log.average_heart_rate).toFixed(2) : '-',
+                                            link
+                                        ]);
+
+                                        const segments = raw.workout?.intervals || raw.workout?.splits || [];
+
+                                        segments.forEach((seg: any, index: number) => {
+                                            if (seg.type === 'rest') return;
+
+                                            const pace = seg.pace ? (seg.pace / 10).toFixed(1) : '-';
+
+                                            intervalRows.push([
+                                                date,
+                                                log.external_id,
+                                                (index + 1).toString(),
+                                                seg.distance,
+                                                (seg.time / 10).toFixed(1),
+                                                pace,
+                                                seg.watts || '-',
+                                                seg.stroke_rate || '-',
+                                                seg.heart_rate?.average || '-'
+                                            ]);
+                                        });
+                                    }
+
+                                    // 0. Check for existing Sheet ID
+                                    let spreadsheetId: string | null = null;
+
+                                    // We still try to append even in force mode if sheet exists, otherwise we create new?
+                                    // If we force export ALL, and append to existing, we get DUPLICATES.
+                                    // Ideally force mode creates NEW sheet?
+                                    // Let's stick to append but warn user via UI text.
+
+                                    const { data: userData } = await supabase.auth.getUser();
                                     if (userData.user) {
-                                        await supabase
-                                            .from('user_integrations')
-                                            .update({ last_export_at: new Date().toISOString() })
-                                            .eq('user_id', userData.user.id);
+                                        if (userInt?.google_sheet_id) {
+                                            spreadsheetId = userInt.google_sheet_id;
+                                            setStatus(`Found existing Sheet (${spreadsheetId}). Preparing append...`);
+                                        }
+                                    }
+
+                                    // 3. Create Sheet (if needed)
+                                    if (!spreadsheetId) {
+                                        setStatus('Creating NEW Google Sheet...');
+                                        const sheetTitle = `Logbook Analyzer Log`;
+                                        const sheet = await createSheet(googleToken, sheetTitle, ['Workouts', 'Intervals']);
+                                        spreadsheetId = sheet.spreadsheetId;
+
+                                        // SAVE IT to DB
+                                        if (userData.user && spreadsheetId) {
+                                            await supabase
+                                                .from('user_integrations')
+                                                .upsert({
+                                                    user_id: userData.user.id,
+                                                    google_sheet_id: spreadsheetId,
+                                                    last_export_at: new Date().toISOString()
+                                                }, { onConflict: 'user_id' });
+                                        }
+                                    } else {
+                                        // Update last_export timestamp
+                                        if (userData.user) {
+                                            await supabase
+                                                .from('user_integrations')
+                                                .update({ last_export_at: new Date().toISOString() })
+                                                .eq('user_id', userData.user.id);
+                                        }
+                                    }
+
+                                    setStatus('Uploading data...');
+                                    // If new sheet, we write header logic is handled inside createSheet/append? 
+                                    // appendData adds rows. If new sheet is empty (default has Sheet1), createSheet makes 'Workouts' and 'Intervals'.
+                                    // We just append.
+                                    await appendData(googleToken, spreadsheetId!, 'Workouts!A1', workoutRows);
+                                    await appendData(googleToken, spreadsheetId!, 'Intervals!A1', intervalRows);
+
+                                    setStatus('Export Complete! Check your Google Drive.');
+
+                                } catch (err: any) {
+                                    console.error(err);
+                                    if (err.response && err.response.status === 401) {
+                                        setGoogleToken(null);
+                                        localStorage.removeItem('google_token');
+                                        setError('Session expired. Please click "Connect Google" again.');
+                                    } else {
+                                        setError('Export failed: ' + (err.response?.data?.error?.message || err.message));
                                     }
                                 }
-
-                                // 4. Append Data (Smart Append could go here, but for now just appending)
-                                // TODO: Check duplicates in sheet? 
-                                // Current logic simply appends EVERYTHING selected from DB.
-                                // If we re-run, we might duplicate rows in the Sheet.
-                                // Ideally we should filter `logs` by `last_export_at`.
-                                // But for now, let's just get the ID persistence working.
-
-                                setStatus('Uploading data...');
-                                await appendData(googleToken, spreadsheetId!, 'Workouts!A1', workoutRows);
-                                await appendData(googleToken, spreadsheetId!, 'Intervals!A1', intervalRows);
-
-                                setStatus('Export Complete! Check your Google Drive.');
-
-                            } catch (err: any) {
-                                console.error(err);
-                                if (err.response && err.response.status === 401) {
-                                    setGoogleToken(null);
-                                    localStorage.removeItem('google_token');
-                                    setError('Session expired. Please click "Connect Google" again.');
-                                } else {
-                                    setError('Export failed: ' + (err.response?.data?.error?.message || err.message));
-                                }
-                            }
-                        }}
-                        className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-                    >
-                        <Check size={16} />
-                        <span>Export to Sheets</span>
-                    </button >
+                            }}
+                            className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                        >
+                            <Check size={16} />
+                            <span>Export to Sheets</span>
+                        </button >
+                    </div>
                 )}
-            </div >
+            </div>
 
             {/* Maintenance Card */}
             < div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity" >

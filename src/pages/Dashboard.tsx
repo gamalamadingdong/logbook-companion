@@ -2,53 +2,87 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile } from '../api/concept2';
 import { RecentWorkouts } from '../components/RecentWorkouts';
+import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
+import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
+import { workoutService } from '../services/workoutService';
+import { getUserGoals, type UserGoal } from '../services/supabase';
 import { Waves, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 export const Dashboard: React.FC = () => {
-    const { user, logout } = useAuth();
-    const [profile, setProfile] = useState<any>(null);
+    const { user, profile: userProfile, logout } = useAuth();
+    const [c2Profile, setC2Profile] = useState<any>(null);
     const [totalMeters, setTotalMeters] = useState(0);
     const [loading, setLoading] = useState(true);
     const [c2Connected, setC2Connected] = useState(!!localStorage.getItem('concept2_token'));
 
+    // Hoisted Data State
+    const [userGoals, setUserGoals] = useState<UserGoal[]>([]);
+    const [recentWorkouts, setRecentWorkouts] = useState<any[]>([]);
+
+    // Pagination State
+    const [page, setPage] = useState(0);
+    const [workoutsLoading, setWorkoutsLoading] = useState(true);
+    const LIMIT = 10;
+
     useEffect(() => {
-        async function loadData() {
+        // Parallel Data Loading
+        async function loadDashboardData() {
             setLoading(true);
-            try {
-                // Feature: Fetch Profile only if connected
-                if (c2Connected) {
-                    try {
-                        const data = await getProfile();
-                        setProfile(data);
-                    } catch (error: any) {
-                        if (error.response?.status === 401) {
-                            setC2Connected(false);
-                            localStorage.removeItem('concept2_token');
-                        }
-                    }
-                }
 
-                // Fetch Lifetime Meters from DB (Always, if user exists)
-                if (user) {
-                    const { data: logs, error } = await supabase
-                        .from('workout_logs')
-                        .select('distance_meters')
-                        .eq('user_id', user.id);
-
-                    if (!error && logs) {
-                        const total = logs.reduce((sum, log) => sum + (log.distance_meters || 0), 0);
+            // 1. Fetch Local DB Data (Fast, Non-Blocking)
+            if (user) {
+                // Meters & Goals
+                Promise.all([
+                    supabase.from('workout_logs').select('distance_meters').eq('user_id', user.id),
+                    getUserGoals(user.id)
+                ]).then(([logsParams, goals]) => {
+                    // Meters
+                    if (!logsParams.error && logsParams.data) {
+                        const total = logsParams.data.reduce((sum, log) => sum + (log.distance_meters || 0), 0);
                         setTotalMeters(total);
                     }
-                }
-            } catch (error) {
-                console.error("Dashboard Load Error:", error);
-            } finally {
-                setLoading(false);
+                    // Goals
+                    if (goals) setUserGoals(goals);
+                }).catch(e => console.error("DB Load Error", e));
             }
+
+            // 2. Fetch Workouts (Pagination Aware)
+            fetchWorkouts(0);
+
+            // 3. Fetch C2 Profile (Slow, External)
+            if (c2Connected) {
+                getProfile().then(data => {
+                    setC2Profile(data);
+                }).catch((error: any) => {
+                    if (error.response?.status === 401) {
+                        setC2Connected(false);
+                        localStorage.removeItem('concept2_token');
+                    }
+                }).finally(() => {
+                    // We don't block main loading on C2 anymore, but we can unset global loading if we want Strict Mode
+                    // Actually, let's just turn off main loading immediately after DB fetch kicks off
+                });
+            }
+
+            setLoading(false); // Immediate render of skeleton/empty state while data pops in
         }
-        loadData();
+
+        loadDashboardData();
     }, [c2Connected, user]);
+
+    const fetchWorkouts = async (pageIndex: number) => {
+        setWorkoutsLoading(true);
+        try {
+            const data = await workoutService.getRecentWorkouts(LIMIT, pageIndex);
+            setRecentWorkouts(data);
+            setPage(pageIndex);
+        } catch (err) {
+            console.error("Failed to fetch workouts", err);
+        } finally {
+            setWorkoutsLoading(false);
+        }
+    };
 
     const handleConnect = () => {
         const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
@@ -58,10 +92,11 @@ export const Dashboard: React.FC = () => {
         window.location.href = url;
     };
 
-    if (loading) return <div className="p-8 text-white">Loading...</div>;
+    // Derived Logic for New User Splash status
+    // Only show if NOT connected AND NO local data (meters = 0) AND not loading
+    const showConnectSplash = !loading && !c2Connected && totalMeters === 0 && recentWorkouts.length === 0;
 
-    // Only show "Connect Screen" if disconnected AND no data exists (New User)
-    if (!c2Connected && totalMeters === 0) {
+    if (showConnectSplash) {
         return (
             <div className="min-h-screen bg-neutral-950 text-white p-8 flex flex-col items-center justify-center">
                 <div className="max-w-md text-center space-y-8">
@@ -96,17 +131,18 @@ export const Dashboard: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 text-white p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
-                    {/* Stats Cards */}
+                    {/* Top Stats Row */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
                             <div className="text-neutral-400 text-sm mb-1">Athlete</div>
-                            <div className="text-2xl font-bold">{profile?.username || 'Rower'}</div>
+                            <div className="text-2xl font-bold">{userProfile?.display_name || 'User'}</div>
+                            <div className="text-m font-italic">C2 Username: {c2Profile?.username || 'Connect to Concept2 logbook'}</div>
                         </div>
 
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
                             <div className="text-neutral-400 text-sm mb-1">Weight</div>
                             <div className="text-2xl font-bold">
-                                {profile?.weight ? (profile.weight / 100 * 2.20462).toFixed(1) : '-'} <span className="text-sm font-normal text-neutral-500">lbs</span>
+                                {c2Profile?.weight ? (c2Profile.weight / 100 * 2.20462).toFixed(1) : '-'} <span className="text-sm font-normal text-neutral-500">lbs</span>
                             </div>
                         </div>
 
@@ -120,7 +156,28 @@ export const Dashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    {profile && <RecentWorkouts userId={profile.id} />}
+                    {/* Goals & Recommendations */}
+                    {user && (
+                        <>
+                            <GoalProgressWidget userId={user.id} workouts={recentWorkouts} />
+                            <TrainingSuggestionsWidget
+                                recentWorkouts={recentWorkouts}
+                                userGoals={userGoals}
+                                userProfile={userProfile}
+                            />
+                        </>
+                    )}
+
+
+                    {/* Recent Workouts List (Paginated) */}
+                    {/* Render even if no profile, but need user ID for legacy or just consistency */}
+                    <RecentWorkouts
+                        workouts={recentWorkouts}
+                        currentPage={page}
+                        isLoading={workoutsLoading}
+                        hasMore={recentWorkouts.length === LIMIT}
+                        onPageChange={fetchWorkouts}
+                    />
                 </main>
             </div>
         </div>

@@ -5,10 +5,12 @@ import { getWorkoutTemplates } from '../../services/supabase';
 import type { WorkoutTemplate, WorkoutLog, UserGoal, UserProfile } from '../../services/supabase';
 import { getSuggestedWorkout } from '../../utils/recommendationEngine';
 
+import { supabase } from '../../services/supabase';
+
 interface TrainingSuggestionsWidgetProps {
     recentWorkouts: WorkoutLog[];
     userGoals: UserGoal[];
-    userProfile?: UserProfile;
+    userProfile?: UserProfile | null;
 }
 
 export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps> = ({
@@ -36,10 +38,49 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
     }, []);
 
     // Generate Suggestion Helper
-    const generateSuggestion = () => {
+    const generateSuggestion = async (force: boolean = false) => {
         if (templates.length > 0) {
-            const result = getSuggestedWorkout(recentWorkouts, userGoals, templates, userProfile);
-            setSuggestion(result);
+
+            const today = new Date().toISOString().split('T')[0];
+
+            // 1. Check for valid existing recommendation for TODAY if NOT forcing
+            if (!force) {
+                const savedRec = userProfile?.daily_recommendation;
+
+                if (savedRec && savedRec.date === today && savedRec.template_id) {
+                    // Try to find the template
+                    const savedTemplate = templates.find(t => t.id === savedRec.template_id);
+                    if (savedTemplate) {
+                        console.log("Using Persisted Recommendation:", savedTemplate.name);
+                        setSuggestion({
+                            template: savedTemplate,
+                            reason: savedRec.reason,
+                            targetPaceRange: savedRec.targetPaceRange
+                        });
+                        return;
+                    }
+                }
+            }
+
+            // 2. Generate NEW
+            console.log("Generating NEW Recommendation (Force: " + force + ")...");
+            const result = getSuggestedWorkout(recentWorkouts, userGoals, templates, userProfile || undefined);
+
+            if (result) {
+                setSuggestion(result);
+
+                // 3. Persist if we have a user
+                if (userProfile?.user_id) {
+                    await supabase.from('user_profiles').update({
+                        daily_recommendation: {
+                            date: today,
+                            template_id: result.template.id,
+                            reason: result.reason,
+                            targetPaceRange: result.targetPaceRange
+                        }
+                    }).eq('user_id', userProfile.user_id);
+                }
+            }
         }
     };
 
@@ -51,7 +92,7 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
     }, [loading, templates, recentWorkouts, userGoals, userProfile]);
 
     const handleRefresh = () => {
-        generateSuggestion();
+        generateSuggestion(true);
     };
 
     if (loading) {

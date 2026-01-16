@@ -1,33 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 // import { getResults } from '../api/concept2'; // Removed
-import { workoutService } from '../services/workoutService';
+import { workoutService } from '../services/workoutService'; // Kept for types if needed, though usually we'd import types separately
 
 interface RecentWorkoutsProps {
-    userId?: number | string; // Optional now
+    userId?: number | string; // Optional (legacy support/unused)
+    workouts: any[];
+    isLoading?: boolean;
+    currentPage: number;
+    hasMore: boolean;
+    onPageChange: (newPage: number) => void;
 }
 
-export const RecentWorkouts: React.FC<RecentWorkoutsProps> = () => {
-    const [workouts, setWorkouts] = useState<any[]>([]); // Relaxed type for mapped data
-    const [loading, setLoading] = useState(true);
+export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
+    workouts,
+    isLoading = false,
+    currentPage,
+    hasMore,
+    onPageChange
+}) => {
 
-    const loadWorkouts = async () => {
-        try {
-            const data = await workoutService.getRecentWorkouts(20);
-            setWorkouts(data);
-        } catch (err: any) {
-            console.error('Failed to load workouts from DB', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadWorkouts();
-    }, []);
-
-    if (loading) return <div className="text-neutral-400">Loading workouts...</div>;
-    // Removed error and no workouts checks, the table will just be empty if no workouts
+    if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
     return (
         <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6 md:p-8 backdrop-blur-sm">
@@ -79,11 +72,41 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = () => {
                     </tbody>
                 </table>
             </div>
-            {workouts.length === 0 && (
-                <div className="text-center py-12 text-neutral-500">
-                    No workouts found. Sync your logbook to get started.
-                </div>
-            )}
-        </div>
+
+            {/* Pagination Controls */}
+            {
+                workouts.length > 0 && (
+                    <div className="flex items-center justify-between mt-6 pt-6 border-t border-neutral-800">
+                        <p className="text-sm text-neutral-500">
+                            Page <span className="text-neutral-300 font-medium">{currentPage + 1}</span>
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onPageChange(currentPage - 1)}
+                                disabled={currentPage === 0 || isLoading}
+                                className="px-4 py-2 text-sm font-medium text-neutral-400 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                onClick={() => onPageChange(currentPage + 1)}
+                                disabled={!hasMore || isLoading}
+                                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+                            >
+                                {isLoading ? 'Loading...' : 'Next'}
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                workouts.length === 0 && !isLoading && (
+                    <div className="text-center py-12 text-neutral-500">
+                        No workouts found. Sync your logbook to get started.
+                    </div>
+                )
+            }
+        </div >
     );
 };

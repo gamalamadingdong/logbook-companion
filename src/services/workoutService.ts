@@ -4,13 +4,16 @@ import { calculateCanonicalName } from '../utils/prCalculator';
 
 export const workoutService = {
     // Fetch recent workouts list (Dashboard)
-    getRecentWorkouts: async (limit = 50) => {
+    getRecentWorkouts: async (limit = 50, page = 0) => {
+        const from = page * limit;
+        const to = from + limit - 1;
+
         const { data, error } = await supabase
             .from('workout_logs')
             .select('*')
             .eq('source', 'concept2') // Only C2 logs for now
             .order('completed_at', { ascending: false })
-            .limit(limit);
+            .range(from, to);
 
         if (error) throw error;
 

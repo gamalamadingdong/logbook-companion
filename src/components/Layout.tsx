@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const { logout } = useAuth();
+    const { logout, profile, user } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -25,11 +25,28 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Desktop Sidebar */}
             <aside className="hidden md:flex w-64 bg-neutral-900 border-r border-neutral-800 flex-col h-screen fixed left-0 top-0 z-50">
                 <div className="p-6 border-b border-neutral-800">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
                             <Waves size={24} />
                         </div>
                         <h1 className="text-xl font-bold tracking-tight">Logbook<br /><span className="text-neutral-500 font-medium">Analyzer</span></h1>
+                    </div>
+                </div>
+
+                <div className="px-6 pt-6 pb-2">
+                    <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Athlete</div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-lg border border-emerald-500/20">
+                            {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="overflow-hidden">
+                            <div className="text-sm font-medium text-white truncate">
+                                {profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                            </div>
+                            <Link to="/preferences" className="text-xs text-neutral-500 hover:text-emerald-400 block truncate transition-colors">
+                                Edit Profile
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
@@ -81,10 +98,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Mobile Header */}
             <div className="md:hidden flex items-center justify-between p-4 bg-neutral-900 border-b border-neutral-800 sticky top-0 z-50">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
-                        <Waves size={20} />
+                    <div className="w-8 h-8 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-sm border border-emerald-500/20">
+                        {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-bold text-lg">Logbook Analyzer</span>
+                    <span className="font-bold text-lg truncate max-w-[200px]">
+                        {profile?.display_name || 'Logbook Analyzer'}
+                    </span>
                 </div>
                 <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

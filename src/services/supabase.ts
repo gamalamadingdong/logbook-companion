@@ -34,6 +34,13 @@ export interface UserProfile {
     user_id: string;
     email: string;
     display_name?: string;
+    personal_records?: Record<string, number>; // Cached PRs (Tracked Only)
+    daily_recommendation?: {
+        date: string; // ISO Date "YYYY-MM-DD"
+        template_id: string;
+        reason: string;
+        targetPaceRange?: { low: string; high: string };
+    };
     skill_level?: string;
     profile_visibility?: string;
     share_workouts?: boolean;
@@ -42,7 +49,7 @@ export interface UserProfile {
     resting_heart_rate?: number;
     weight_lbs?: number;
     birth_date?: string;
-    benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string }>;
+    benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string; goal?: number }>;
     created_at?: string;
     updated_at?: string;
 }
