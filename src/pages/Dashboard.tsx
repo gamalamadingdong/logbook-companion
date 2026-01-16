@@ -8,6 +8,7 @@ import { workoutService } from '../services/workoutService';
 import { getUserGoals, type UserGoal } from '../services/supabase';
 import { Waves, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
 
 export const Dashboard: React.FC = () => {
     const { user, profile: userProfile, logout } = useAuth();
@@ -19,6 +20,7 @@ export const Dashboard: React.FC = () => {
     // Hoisted Data State
     const [userGoals, setUserGoals] = useState<UserGoal[]>([]);
     const [recentWorkouts, setRecentWorkouts] = useState<any[]>([]);
+    const [statsHistory, setStatsHistory] = useState<any[]>([]); // For WeekAtAGlance (~30 days)
 
     // Pagination State
     const [page, setPage] = useState(0);
@@ -35,8 +37,13 @@ export const Dashboard: React.FC = () => {
                 // Meters & Goals
                 Promise.all([
                     supabase.from('workout_logs').select('distance_meters').eq('user_id', user.id),
-                    getUserGoals(user.id)
-                ]).then(([logsParams, goals]) => {
+                    getUserGoals(user.id),
+                    // Fetch last 30 days for Week Glance (Lightweight)
+                    supabase.from('workout_logs')
+                        .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, watts, avg_split_500m')
+                        .eq('user_id', user.id)
+                        .gte('completed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+                ]).then(([logsParams, goals, historyData]) => {
                     // Meters
                     if (!logsParams.error && logsParams.data) {
                         const total = logsParams.data.reduce((sum, log) => sum + (log.distance_meters || 0), 0);
@@ -44,6 +51,8 @@ export const Dashboard: React.FC = () => {
                     }
                     // Goals
                     if (goals) setUserGoals(goals);
+                    // History
+                    if (historyData.data) setStatsHistory(historyData.data);
                 }).catch(e => console.error("DB Load Error", e));
             }
 
@@ -131,6 +140,11 @@ export const Dashboard: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 text-white p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
+                    {/* Week at a Glance */}
+                    <div className="mb-8">
+                        <WeekAtAGlanceWidget workouts={statsHistory} />
+                    </div>
+
                     {/* Top Stats Row */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">

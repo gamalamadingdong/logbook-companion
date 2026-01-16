@@ -27,6 +27,10 @@ export type WorkoutLog = {
     external_id?: string; // c2 result id
     source: string; // 'concept2'
     raw_data?: any; // full json
+
+    // Derived/Optional
+    duration_seconds?: number;
+    avg_split_500m?: number;
 }
 
 export interface UserProfile {
