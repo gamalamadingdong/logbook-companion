@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 // import { getResults } from '../api/concept2'; // Removed
-import { workoutService } from '../services/workoutService'; // Kept for types if needed, though usually we'd import types separately
 
 interface RecentWorkoutsProps {
     userId?: number | string; // Optional (legacy support/unused)
