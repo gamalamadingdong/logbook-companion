@@ -27,13 +27,16 @@ concept2Client.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // RETRY LOGIC for 500/502/503/504 or 429
-        if (error.response && [500, 502, 503, 504, 429].includes(error.response.status)) {
+        const isNetworkError = !error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK');
+        const isserverError = error.response && [500, 502, 503, 504, 429].includes(error.response.status);
+
+        // RETRY LOGIC for 5xx, 429, or Network Errors (CORS/Drop)
+        if (isserverError || isNetworkError) {
             originalRequest._retryCount = originalRequest._retryCount || 0;
             if (originalRequest._retryCount < 3) {
                 originalRequest._retryCount++;
                 const delay = Math.pow(2, originalRequest._retryCount) * 1000; // 2s, 4s, 8s
-                console.log(`API Error ${error.response.status}. Retrying in ${delay}ms (Attempt ${originalRequest._retryCount}/3)...`);
+                console.log(`API Error (Status: ${error.response?.status || 'Network'}). Retrying in ${delay}ms (Attempt ${originalRequest._retryCount}/3)...`);
 
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return concept2Client(originalRequest);

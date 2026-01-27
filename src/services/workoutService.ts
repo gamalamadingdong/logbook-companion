@@ -23,10 +23,11 @@ export const workoutService = {
             // Try to use DB canonical name, fallback to calculating it, then fallback to DB workout name
             let canonicalName = log.canonical_name;
 
-            // If missing, try to generate from raw (and backfill)
-            if (!canonicalName && raw && raw.workout && raw.workout.intervals) {
+            // If missing OR "Unstructured", try to generate from raw (and backfill)
+            if ((!canonicalName || canonicalName === 'Unstructured') && raw && raw.workout && raw.workout.intervals) {
                 const generated = calculateCanonicalName(raw.workout.intervals);
-                if (generated && generated !== 'Unknown') {
+                // Accept new name if it's better (not Unknown/Unstructured)
+                if (generated && generated !== 'Unknown' && generated !== 'Unstructured') {
                     canonicalName = generated;
                     // Fire & Forget update
                     supabase.from('workout_logs').update({ canonical_name: canonicalName }).eq('id', log.id).then();
