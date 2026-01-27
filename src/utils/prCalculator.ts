@@ -149,6 +149,32 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     // Variable / Pyramid
     const dists = workIntervals.map(i => Math.round(i.distance));
 
+    // CHECK FOR REPEATING PATTERNS (Generic)
+    // Try chunk sizes from 2 up to count/2
+    for (let k = 2; k <= count / 2; k++) {
+        if (count % k === 0) {
+            // Potential pattern of length k
+            const chunk = dists.slice(0, k);
+            let matches = true;
+
+            // Verify all subsequent chunks match the first chunk
+            for (let i = k; i < count; i += k) {
+                for (let j = 0; j < k; j++) {
+                    if (dists[i + j] !== chunk[j]) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (!matches) break;
+            }
+
+            if (matches) {
+                const sets = count / k;
+                return `${sets}x ${chunk.join('/')}m${restString}`;
+            }
+        }
+    }
+
     // Check Pyramid (A, B, C, B, A)
     const isPyramid = count >= 3 && dists[0] === dists[count - 1] && dists[Math.floor(count / 2)] > dists[0];
     if (isPyramid) return `v${dists[0]}m... Pyramid`;
