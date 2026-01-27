@@ -63,7 +63,7 @@ export const useConcept2Sync = () => {
 
             const userId = await findSupabaseUser(profile.email);
             if (!userId) {
-                throw new Error(`Could not find a Supabase user for email: ${profile.email}. Please ensure your "Train Better" account email matches your Concept2 logbook email.`);
+                throw new Error(`Could not find a Supabase user for email: ${profile.email}. Please ensure your "Logbook Companion" account email matches your Concept2 logbook email.`);
             }
             console.log('Matched Supabase User:', userId);
 

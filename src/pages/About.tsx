@@ -13,11 +13,10 @@ export const About: React.FC = () => {
                         <Activity className="text-emerald-500" size={32} />
                     </div>
                     <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-gradient-to-br from-white via-neutral-200 to-neutral-500 bg-clip-text text-transparent">
-                        Logbook Analyzer
+                        Logbook Companion
                     </h1>
                     <p className="text-xl text-neutral-400 max-w-2xl mx-auto leading-relaxed">
                         A dedicated analysis layer for the Concept2 Logbook.
-                        Go beyond simple summaries with physics-based metrics and deep performance insights.
                     </p>
                     <div className="pt-8 flex justify-center gap-4">
                         <Link to="/login" className="px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-all transform hover:scale-105">
@@ -40,8 +39,8 @@ export const About: React.FC = () => {
                     <FeatureCard
                         icon={Zap}
                         color="yellow"
-                        title="Physics-Based Power"
-                        description="We recalculate true power output (Watts) from stroke pace data, fixing common discrepancies in raw log data to give you accurate intensity metrics."
+                        title="Accurate Power Data"
+                        description="We recalculate Watts from stroke pace data to fix common discrepancies in raw log data, giving you the true intensity of every interval."
                     />
                     <FeatureCard
                         icon={BarChart3}
@@ -55,6 +54,96 @@ export const About: React.FC = () => {
                         title="Head-to-Head Compare"
                         description="Overlay any two workouts to analyze pacing strategies, stroke rate differences, and power output stroke-by-stroke."
                     />
+                </section>
+
+                {/* Screenshots / Visuals */}
+                {/* Screenshots / Visuals Showcase */}
+                <section className="space-y-24">
+
+                    {/* Dashboard */}
+                    <div className="space-y-8 text-center">
+                        <div className="max-w-3xl mx-auto space-y-4">
+                            <h2 className="text-3xl font-bold text-white">Your Training Command Center</h2>
+                            <p className="text-neutral-400">
+                                A clean, dark-mode dashboard that highlights your weekly volume, recent sessions, and actionable insights immediately upon login.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl bg-neutral-900/50">
+                            <img src="/screenshots/dashboard.png" alt="Dashboard" className="w-full opacity-90 hover:opacity-100 transition-opacity" />
+                        </div>
+                    </div>
+
+                    {/* Workout Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                        <div className="space-y-6">
+                            <h2 className="text-3xl font-bold text-white">Deep Dive Analysis</h2>
+                            <p className="text-neutral-400 text-lg leading-relaxed">
+                                Don't just see the summary. Analyze every split, stroke by stroke.
+                                We visualize your pace consistency, power output, and stroke rate to help you find your most efficient rhythm.
+                            </p>
+                            <div className="p-4 bg-neutral-900/50 rounded-xl border border-neutral-800">
+                                <h4 className="font-medium text-white mb-2">Accurate Watts</h4>
+                                <p className="text-sm text-neutral-500">
+                                    We recalculate power from pace to fix rounding errors, giving you the true intensity of every interval.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="rounded-xl overflow-hidden border border-neutral-800 shadow-lg">
+                                <img src="/screenshots/workout-detail-1.png" alt="Workout Detail Summary" className="w-full" />
+                            </div>
+                            <div className="rounded-xl overflow-hidden border border-neutral-800 shadow-lg">
+                                <img src="/screenshots/workout-detail-2.png" alt="Workout Detail Graphs" className="w-full" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Comparison */}
+                    <div className="space-y-8">
+                        <div className="text-center max-w-3xl mx-auto">
+                            <h2 className="text-3xl font-bold text-white">Head-to-Head Comparison</h2>
+                            <p className="text-neutral-400 mt-4">
+                                Overlay any two workouts to visualize exactly where you gained or lost time.
+                                Perfect for comparing today's effort against your PB ghost boat.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl">
+                            <img src="/screenshots/comparison.png" alt="Head to Head Comparison" className="w-full" />
+                        </div>
+                    </div>
+
+                    {/* Trends & History */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                        <div className="order-2 md:order-1 space-y-6">
+                            <div className="rounded-xl overflow-hidden border border-neutral-800 shadow-lg">
+                                <img src="/screenshots/trends.png" alt="Benchmark Trends" className="w-full" />
+                            </div>
+                            <div className="rounded-xl overflow-hidden border border-neutral-800 shadow-lg">
+                                <img src="/screenshots/history.png" alt="Workout History Trend" className="w-full" />
+                            </div>
+                        </div>
+                        <div className="order-1 md:order-2 space-y-6">
+                            <h2 className="text-3xl font-bold text-white">Long-Term Trends</h2>
+                            <p className="text-neutral-400 text-lg leading-relaxed">
+                                Automatically track your performance on standard ranked pieces (2k, 5k, 30:00).
+                                See your progress visually with trend lines and historical averages, without needing a spreadsheet.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Sync */}
+                    <div className="bg-neutral-900/30 border border-neutral-800 rounded-3xl p-8 md:p-12 text-center space-y-8">
+                        <div className="max-w-2xl mx-auto space-y-4">
+                            <h2 className="text-3xl font-bold text-white">Automated Sync</h2>
+                            <p className="text-neutral-400">
+                                Your data belongs to you. We pull your full history from the Concept2 Logbook API and store it in a dedicated database for analysis.
+                            </p>
+                        </div>
+                        <div className="rounded-xl overflow-hidden shadow-2xl max-w-4xl mx-auto border border-neutral-800">
+                            <img src="/screenshots/SyncAndData.png" alt="Sync Page" className="w-full" />
+                        </div>
+                    </div>
+
                 </section>
 
                 {/* What it Doesn't Do */}
@@ -91,7 +180,7 @@ export const About: React.FC = () => {
                         <ArrowLeft size={14} />
                         Back to Application
                     </Link>
-                    <p>© {new Date().getFullYear()} Logbook Analyzer. Not affiliated with Concept2.</p>
+                    <p>© {new Date().getFullYear()} Logbook Companion. Not affiliated with Concept2.</p>
                 </footer>
             </div>
         </div>

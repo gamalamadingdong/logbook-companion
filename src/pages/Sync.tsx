@@ -112,7 +112,7 @@ export const Sync: React.FC = () => {
                         <RefreshCw size={24} />
                     </div>
                     <div>
-                        <h2 className="text-xl font-semibold text-white">Archive to Train Better</h2>
+                        <h2 className="text-xl font-semibold text-white">Archive to Logbook Companion</h2>
                         <p className="text-neutral-400 mt-1 max-w-lg">
                             Pull your latest workouts from Concept2 (including stroke-by-stroke data) and archive them to your private database for deep analysis.
                         </p>
@@ -373,7 +373,7 @@ export const Sync: React.FC = () => {
                                     // 3. Create Sheet (if needed)
                                     if (!spreadsheetId) {
                                         setLocalStatus('Creating NEW Google Sheet...');
-                                        const sheetTitle = `Logbook Analyzer Log`;
+                                        const sheetTitle = `Logbook Companion Log`;
                                         const sheet = await createSheet(googleToken, sheetTitle, ['Workouts', 'Intervals']);
                                         spreadsheetId = sheet.spreadsheetId;
 

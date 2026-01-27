@@ -60,7 +60,7 @@ export const Login: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-6 mt-8 text-sm font-medium">
-                    <span className="text-neutral-500">&copy; 2024 Logbook Analyzer</span>
+                    <span className="text-neutral-500">&copy; 2024 Logbook Companion</span>
                     <a href="/about" className="text-emerald-500 hover:text-emerald-400 transition-colors">
                         About Application &rarr;
                     </a>

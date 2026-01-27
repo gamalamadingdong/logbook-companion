@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile } from '../api/concept2';
 import { RecentWorkouts } from '../components/RecentWorkouts';
@@ -9,6 +9,7 @@ import { getUserGoals, type UserGoal } from '../services/supabase';
 import { Waves, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
+import { splitToWatts } from '../utils/zones';
 
 export const Dashboard: React.FC = () => {
     const { user, profile: userProfile, logout } = useAuth();
@@ -101,6 +102,27 @@ export const Dashboard: React.FC = () => {
         window.location.href = url;
     };
 
+    // Derive Baseline Watts for Zones
+    // 1. PR (Best 2k)
+    // 2. Goal (Target 2k)
+    // 3. Default (200W ~ 2:00/500m)
+    const derivedBaselineWatts = useMemo(() => {
+        // Priority 1: Actual 2k PR
+        if (userProfile?.personal_records?.['2k']) {
+            const timeSeconds = userProfile.personal_records['2k'];
+            const pace = timeSeconds / 4; // 2000m / 500m = 4 segments
+            return Math.round(splitToWatts(pace));
+        }
+
+        // Priority 2: Active Goal
+        const wattGoal = userGoals.find(g => g.type === 'target_2k_watts' && g.is_active);
+        if (wattGoal) {
+            return wattGoal.target_value;
+        }
+
+        return 200;
+    }, [userProfile, userGoals]);
+
     // Derived Logic for New User Splash status
     // Only show if NOT connected AND NO local data (meters = 0) AND not loading
     const showConnectSplash = !loading && !c2Connected && totalMeters === 0 && recentWorkouts.length === 0;
@@ -158,7 +180,7 @@ export const Dashboard: React.FC = () => {
 
                     {/* Week at a Glance */}
                     <div className="mb-8">
-                        <WeekAtAGlanceWidget workouts={statsHistory} />
+                        <WeekAtAGlanceWidget workouts={statsHistory} baselineWatts={derivedBaselineWatts} />
                     </div>
 
                     {/* Goals & Recommendations */}

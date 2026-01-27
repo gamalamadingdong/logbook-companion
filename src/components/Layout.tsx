@@ -102,7 +102,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                     </div>
                     <span className="font-bold text-lg truncate max-w-[200px]">
-                        {profile?.display_name || 'Logbook Analyzer'}
+                        {profile?.display_name || 'Logbook Companion'}
                     </span>
                 </div>
                 <button

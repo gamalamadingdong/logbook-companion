@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
-import { startOfWeek, endOfWeek, subWeeks, isWithinInterval, format } from 'date-fns';
-import { Activity, TrendingUp, TrendingDown, Minus, Calendar } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { startOfWeek, endOfWeek, subWeeks, addWeeks, isWithinInterval, format, isAfter } from 'date-fns';
+import { Activity, TrendingUp, TrendingDown, Minus, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { WorkoutLog } from '../../services/supabase';
 import { classifyWorkout, ZONES } from '../../utils/zones';
@@ -14,12 +14,23 @@ interface WeekAtAGlanceWidgetProps {
 export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workouts, baselineWatts = 200 }) => {
 
     // 1. Determine Date Ranges
-    const now = new Date();
-    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-    const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
-    const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-    const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+    const currentWeekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
+    const currentWeekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
+
+    const lastWeekStart = startOfWeek(subWeeks(selectedDate, 1), { weekStartsOn: 1 });
+    const lastWeekEnd = endOfWeek(subWeeks(selectedDate, 1), { weekStartsOn: 1 });
+
+    const handlePrevWeek = () => setSelectedDate(prev => subWeeks(prev, 1));
+    const handleNextWeek = () => {
+        const next = addWeeks(selectedDate, 1);
+        if (!isAfter(next, new Date())) {
+            setSelectedDate(next);
+        }
+    };
+
+    const isCurrentWeek = isWithinInterval(new Date(), { start: currentWeekStart, end: currentWeekEnd });
 
     // 2. Filter Workouts
     const thisWeekWorkouts = useMemo(() => {
@@ -97,9 +108,21 @@ export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workou
                         <Calendar size={18} className="text-emerald-500" />
                         Week at a Glance
                     </h3>
-                    <p className="text-neutral-500 text-xs mt-1">
-                        {format(currentWeekStart, 'MMM d')} - {format(currentWeekEnd, 'MMM d')}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <button onClick={handlePrevWeek} className="p-1 hover:bg-neutral-800 rounded transition-colors text-neutral-400 hover:text-white">
+                            <ChevronLeft size={14} />
+                        </button>
+                        <p className="text-neutral-500 text-xs tabular-nums">
+                            {format(currentWeekStart, 'MMM d')} - {format(currentWeekEnd, 'MMM d')}
+                        </p>
+                        <button
+                            onClick={handleNextWeek}
+                            disabled={isCurrentWeek}
+                            className={`p-1 rounded transition-colors ${isCurrentWeek ? 'text-neutral-700 cursor-not-allowed' : 'hover:bg-neutral-800 text-neutral-400 hover:text-white'}`}
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Comparison Badge */}
