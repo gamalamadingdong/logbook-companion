@@ -33,6 +33,12 @@ export const Dashboard: React.FC = () => {
         async function loadDashboardData() {
             setLoading(true);
 
+            // Guard: If logging out (user is null), stop.
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+
             // 1. Fetch Local DB Data (Fast, Non-Blocking)
             if (user) {
                 // Meters & Goals
