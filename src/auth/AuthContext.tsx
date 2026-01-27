@@ -140,15 +140,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-    // Clear C2 Tokens
-    localStorage.removeItem('concept2_token');
-    localStorage.removeItem('concept2_refresh_token');
-    localStorage.removeItem('concept2_expires_at');
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      // Clear C2 Tokens
+      localStorage.removeItem('concept2_token');
+      localStorage.removeItem('concept2_refresh_token');
+      localStorage.removeItem('concept2_expires_at');
 
-    setSession(null)
-    setUser(null)
-    setProfile(null)
+      setSession(null)
+      setUser(null)
+      setProfile(null)
+    }
   }
 
   const resetPassword = async (email: string) => {
