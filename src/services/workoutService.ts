@@ -214,5 +214,65 @@ export const workoutService = {
         });
 
         return aggregated;
+    },
+
+    // Search Workouts (Comparison Picker)
+    searchWorkouts: async (term: string) => {
+        // Search by name or distance or type
+        // This is a simple LIKE search
+        const { data, error } = await supabase
+            .from('workout_logs')
+            .select('id, external_id, completed_at, workout_name, distance_meters, duration_seconds, duration_minutes, completed_at, canonical_name')
+            .or(`workout_name.ilike.%${term}%,canonical_name.ilike.%${term}%`)
+            .order('completed_at', { ascending: false })
+            .limit(20);
+
+        if (error) throw error;
+        return data.map(log => ({
+            id: log.external_id,
+            db_id: log.id,
+            date: log.completed_at,
+            name: log.canonical_name || log.workout_name,
+            distance: log.distance_meters,
+            time_formatted: log.duration_seconds ? new Date(log.duration_seconds * 1000).toISOString().substr(11, 8) : `${log.duration_minutes}m`
+        }));
+    },
+
+    // Get "Smart" comparison options (PR, Previous) for a specific workout
+    getSimilarWorkouts: async (targetId: string) => {
+        // 1. Get Target Workout
+        const target = await workoutService.getWorkoutDetail(targetId);
+        if (!target) throw new Error("Target workout not found");
+
+        const canonicalName = target.workout_name || '';
+
+        // 2. Get History
+        const history = await workoutService.getWorkoutHistory(canonicalName);
+
+        // 3. Find PR (Best Watts implies best pace usually, or lowest time for distance)
+        // Sort by Watts Descending (Power PR)
+        // Or if Time/Distance type, sort by Splits?
+        // Let's use Watts as a universal "Best Effort" proxy for now, or Split.
+        const pr = [...history].sort((a, b) => (b.watts || 0) - (a.watts || 0))[0];
+
+        // 4. Find Previous (Most recent before this one)
+        // History is sorted by Date Ascending.
+        // Find index of target (using db_id or external_id)
+        const targetIndex = history.findIndex(h => h.id === target.id || h.db_id === target.id); // target.id from getDetail is external_id?
+        // Wait, getDetail returns C2ResultDetail, which doesn't have `id` or `db_id` at top level easily?
+        // Actually getDetail returns the spread raw_data + `workout_name`. 
+        // We might need to ensure we have the ID to match.
+
+        let previous = null;
+        if (targetIndex > 0) {
+            previous = history[targetIndex - 1];
+        }
+
+        return {
+            target,
+            pr: pr?.id !== target.id ? pr : null, // Don't suggest itself if it IS the PR
+            previous,
+            history
+        };
     }
 };

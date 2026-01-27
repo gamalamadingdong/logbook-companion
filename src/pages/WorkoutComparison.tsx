@@ -1,0 +1,233 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy } from 'lucide-react';
+import { workoutService } from '../services/workoutService';
+import { formatPace } from '../utils/prDetection';
+import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
+import type { C2Stroke } from '../api/concept2.types';
+
+// Helper Components
+const StatBox = ({ label, value, unit, icon: Icon, color }: any) => (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col items-center justify-center gap-2">
+        <div className={`text-${color}-500 opacity-80`}>
+            <Icon size={16} />
+        </div>
+        <div className="text-2xl font-bold font-mono text-white">{value}<span className="text-xs text-neutral-500 font-sans ml-1">{unit}</span></div>
+        <div className="text-xs text-neutral-500 uppercase tracking-wider">{label}</div>
+    </div>
+);
+
+export const WorkoutComparison: React.FC = () => {
+    const { aId, bId } = useParams();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+
+    // Workout A Data
+    const [workoutA, setWorkoutA] = useState<any>(null);
+    const [statsA, setStatsA] = useState<C2Stroke[]>([]);
+
+    // Workout B Data
+    const [workoutB, setWorkoutB] = useState<any>(null);
+    const [statsB, setStatsB] = useState<C2Stroke[]>([]);
+
+    // Smart Picker Data
+    const [similar, setSimilar] = useState<any>(null);
+
+    useEffect(() => {
+        const load = async () => {
+            if (!aId) return;
+            setLoading(true);
+            try {
+                // 1. Load Workout A (Target) and its strokes
+                const [data, strokesA] = await Promise.all([
+                    workoutService.getSimilarWorkouts(aId),
+                    workoutService.getStrokes(aId)
+                ]);
+
+                setWorkoutA(data.target);
+                setStatsA(strokesA);
+                setSimilar(data);
+
+                // 2. Load Workout B if present
+                if (bId) {
+                    const [b, strokesB] = await Promise.all([
+                        workoutService.getWorkoutDetail(bId),
+                        workoutService.getStrokes(bId)
+                    ]);
+                    setWorkoutB(b);
+                    setStatsB(strokesB);
+                } else {
+                    setWorkoutB(null);
+                    setStatsB([]);
+                }
+            } catch (err) {
+                console.error("Failed to load comparison data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, [aId, bId]);
+
+    const handleSelectB = (id: string) => {
+        navigate(`/compare/${aId}/${id}`);
+    };
+
+    if (loading) return <div className="p-8 text-neutral-500">Loading comparison...</div>;
+
+    if (!workoutA) return <div className="p-8 text-neutral-500">Workout not found.</div>;
+
+    return (
+        <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+            {/* Header */}
+            <header className="flex items-center gap-4">
+                <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-800 rounded-full text-neutral-400 transition-colors">
+                    <ArrowLeft size={20} />
+                </button>
+                <div>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <SplitSquareHorizontal className="text-blue-500" />
+                        Workout Comparison
+                    </h1>
+                    <p className="text-neutral-500 text-sm">Head-to-Head Analysis</p>
+                </div>
+            </header>
+
+            {/* Split View */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left: Workout A (Fixed) */}
+                <div className="space-y-6">
+                    <WorkoutSummaryCard workout={workoutA} title="Base Workout" />
+                </div>
+
+                {/* Right: Workout B (Selector or Content) */}
+                <div className="space-y-6">
+                    {workoutB ? (
+                        <>
+                            <WorkoutSummaryCard workout={workoutB} title="Comparison" onClear={() => navigate(`/compare/${aId}`)} />
+                        </>
+                    ) : (
+                        <div className="bg-neutral-900/30 border border-neutral-800 border-dashed rounded-2xl p-8 h-full flex flex-col items-center justify-start gap-6">
+                            <h3 className="text-lg font-medium text-neutral-400">Select comparison workout</h3>
+
+                            {/* Smart Suggestions */}
+                            <div className="w-full space-y-4">
+                                {similar?.pr && (
+                                    <button
+                                        onClick={() => handleSelectB(similar.pr.id || similar.pr.db_id)}
+                                        className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg group-hover:scale-110 transition-transform">
+                                                <Trophy size={18} />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="text-sm font-bold text-white">Personal Best</div>
+                                                <div className="text-xs text-neutral-500">
+                                                    {new Date(similar.pr.date).toLocaleDateString()} • {similar.pr.watts}w
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-emerald-400 text-sm font-mono font-bold">
+                                            Select
+                                        </div>
+                                    </button>
+                                )}
+
+                                {similar?.previous && (
+                                    <button
+                                        onClick={() => handleSelectB(similar.previous.id || similar.previous.db_id)}
+                                        className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg group-hover:scale-110 transition-transform">
+                                                <Calendar size={18} />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="text-sm font-bold text-white">Previous Attempt</div>
+                                                <div className="text-xs text-neutral-500">
+                                                    {new Date(similar.previous.date).toLocaleDateString()} • {similar.previous.watts}w
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-emerald-400 text-sm font-mono font-bold">
+                                            Select
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="w-full border-t border-neutral-800 pt-4">
+                                <p className="text-xs text-neutral-600 text-center uppercase tracking-widest mb-2">History Match</p>
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                                    {similar?.history?.slice(0, 10).map((h: any) => (
+                                        <button
+                                            key={h.id}
+                                            onClick={() => handleSelectB(h.id || h.db_id)}
+                                            className="w-full flex items-center justify-between p-3 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                                        >
+                                            <span className="text-sm text-neutral-300">{new Date(h.date).toLocaleDateString()}</span>
+                                            <span className="text-sm font-mono text-neutral-500">{h.watts}w</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Comparison Charts Area - Only if B is selected */}
+            {workoutB && (
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <Zap size={18} className="text-yellow-400" />
+                        Power Overlay
+                    </h3>
+                    <div className="flex-1 w-full min-h-0">
+                        <DualWorkoutChart
+                            workoutA={workoutA}
+                            strokesA={statsA}
+                            workoutB={workoutB}
+                            strokesB={statsB}
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const WorkoutSummaryCard = ({ workout, title, onClear }: any) => {
+    // Basic stats extraction
+    const dist = workout.distance_meters || workout.distance;
+    const time = workout.duration_seconds || (typeof workout.time === 'number' ? workout.time / 10 : 0);
+    const watts = workout.watts;
+    const pace = (time / dist) * 500;
+
+    return (
+        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative">
+            {onClear && (
+                <button onClick={onClear} className="absolute top-4 right-4 text-neutral-500 hover:text-white">
+                    Close
+                </button>
+            )}
+            <div className="mb-6">
+                <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">{title}</h4>
+                <div className="text-xl font-bold text-white">{workout.workout_name || 'Unknown Workout'}</div>
+                <div className="text-sm text-neutral-400 flex items-center gap-2">
+                    <Calendar size={12} />
+                    {new Date(workout.completed_at || workout.date).toLocaleDateString()}
+                    <span className="text-neutral-600">•</span>
+                    {new Date(workout.completed_at || workout.date).toLocaleTimeString()}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <StatBox label="Avg Split" value={formatPace(pace)} unit="/500m" icon={Gauge} color="blue" />
+                <StatBox label="Avg Watts" value={watts} unit="w" icon={Zap} color="emerald" />
+                {/* <StatBox label="Time" value={formatTime(time)} unit="" icon={Timer} color="neutral" /> */}
+            </div>
+        </div>
+    );
+};

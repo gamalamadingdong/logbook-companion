@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind, Clock, Timer } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
@@ -268,6 +268,13 @@ export const WorkoutDetail: React.FC = () => {
                             className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"
                         >
                             View History
+                        </Link>
+                        <Link
+                            to={`/compare/${id}`}
+                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                            <SplitSquareHorizontal size={16} />
+                            Compare
                         </Link>
                     </div>
                 </div>

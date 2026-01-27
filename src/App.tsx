@@ -9,6 +9,7 @@ import { Sync } from './pages/Sync';
 import { Analytics } from './pages/Analytics';
 import { WorkoutDetail } from './pages/WorkoutDetail';
 import { WorkoutHistory } from './pages/WorkoutHistory';
+import { WorkoutComparison } from './pages/WorkoutComparison';
 import { Preferences } from './pages/Preferences';
 
 import { Layout } from './components/Layout';
@@ -85,9 +86,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/compare/:aId/:bId?"
+            element={
+              <ProtectedRoute>
+                {/* Lazy load or direct import comparison page */}
+                <WorkoutComparison />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
+    </AuthProvider >
   );
 }
 
