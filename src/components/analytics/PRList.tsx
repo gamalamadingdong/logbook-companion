@@ -138,19 +138,21 @@ const PRCard: React.FC<{ pr: PRRecord, unit: Unit, workingBaseline?: string }> =
         subValue = '';
     }
 
-    // If working baseline exists, we might want to override the main display or show it prominently?
-    // User said: "entering in one manually as a working pr is probably more reasonable"
-    // So let's show the Working Baseline as the MAIN value if it exists, and label the PR as "All-Time Best"
-
     const showBaseline = !!workingBaseline;
     const displayValue = showBaseline ? workingBaseline : mainValue;
     const secondaryValue = showBaseline ? mainValue : null; // Validation/Comparison
 
+    // Calculate History Link Name
+    // Intervals: Use label (e.g. "4x500m")
+    // Distances: Use "2000m" format
+    const historyName = pr.isInterval ? pr.label : `${pr.distance}m`;
+
     return (
-        <Link
-            to={`/workout/${pr.workoutId}`}
-            className={`block bg-neutral-900/50 border ${showBaseline ? 'border-emerald-500/30' : 'border-neutral-800'} hover:border-neutral-700 hover:bg-neutral-900 transition-all rounded-xl p-4 flex flex-col gap-3 group relative overflow-hidden`}
-        >
+        <div className={`relative group flex flex-col bg-neutral-900/50 border ${showBaseline ? 'border-emerald-500/30' : 'border-neutral-800'} hover:border-neutral-700 hover:bg-neutral-900 transition-all rounded-xl p-4 gap-3 overflow-hidden`}>
+
+            {/* Main Link Area (Goes to History) */}
+            <Link to={`/history/${encodeURIComponent(historyName)}`} className="absolute inset-0 z-10" />
+
             {/* Background Glow for Splits */}
             {isSplit && (
                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 blur-xl rounded-full -translate-y-1/2 translate-x-1/2"></div>
@@ -158,12 +160,12 @@ const PRCard: React.FC<{ pr: PRRecord, unit: Unit, workingBaseline?: string }> =
 
             {/* Working Baseline Indicator */}
             {showBaseline && (
-                <div className="absolute top-0 right-0 px-2 py-1 bg-emerald-500/20 rounded-bl-lg z-10">
+                <div className="absolute top-0 right-0 px-2 py-1 bg-emerald-500/20 rounded-bl-lg z-0">
                     <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Target</span>
                 </div>
             )}
 
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start relative z-20 pointer-events-none">
                 <div>
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide flex items-center gap-1">
                         {pr.label}
@@ -171,15 +173,12 @@ const PRCard: React.FC<{ pr: PRRecord, unit: Unit, workingBaseline?: string }> =
                     </div>
                 </div>
                 {!showBaseline && <div className="flex gap-2">
-                    <ExternalLink size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Activity Icon - Visual only */}
                     <Trophy size={14} className={`${isSplit ? 'text-blue-500/50' : 'text-amber-500/50'} group-hover:scale-110 transition-transform`} />
                 </div>}
-                {showBaseline && (
-                    <ExternalLink size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4" />
-                )}
             </div>
 
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-2 relative z-20 pointer-events-none">
                 <span className={`text-2xl font-bold font-mono ${showBaseline ? 'text-emerald-400' : 'text-white'}`}>
                     {displayValue}
                 </span>
@@ -188,8 +187,8 @@ const PRCard: React.FC<{ pr: PRRecord, unit: Unit, workingBaseline?: string }> =
                 </span>
             </div>
 
-            <div className="border-t border-neutral-800 pt-3 flex flex-col gap-1 text-xs text-neutral-500">
-                <div className="flex items-center justify-between">
+            <div className="border-t border-neutral-800 pt-3 flex flex-col gap-1 text-xs text-neutral-500 relative z-20">
+                <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-1.5">
                         <Calendar size={12} />
                         {new Date(pr.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
@@ -203,17 +202,30 @@ const PRCard: React.FC<{ pr: PRRecord, unit: Unit, workingBaseline?: string }> =
                     )}
                 </div>
 
-                {!showBaseline && unit !== 'pace' && (
-                    <div className="font-mono text-neutral-600 text-right">
-                        {formatPace(pr.isInterval ? pr.pace : (pr.time / pr.distance) * 500)}/500m
-                    </div>
-                )}
-                {!showBaseline && unit === 'pace' && (
-                    <div className="font-mono text-neutral-600 text-right">
-                        {formatWatts(calculateWatts(pr.isInterval ? pr.pace : (pr.time / pr.distance) * 500))}
-                    </div>
-                )}
+                <div className="flex justify-between items-end mt-1">
+                    {/* Secondary Metric Display */}
+                    {!showBaseline && unit !== 'pace' && (
+                        <div className="font-mono text-neutral-600 pointer-events-none break-keep">
+                            {formatPace(pr.isInterval ? pr.pace : (pr.time / pr.distance) * 500)}/500m
+                        </div>
+                    )}
+                    {!showBaseline && unit === 'pace' && (
+                        <div className="font-mono text-neutral-600 pointer-events-none">
+                            {formatWatts(calculateWatts(pr.isInterval ? pr.pace : (pr.time / pr.distance) * 500))}
+                        </div>
+                    )}
+
+                    {/* Specific Workout Link (Clickable above the main link) */}
+                    <Link
+                        to={`/workout/${pr.workoutId}`}
+                        className="pointer-events-auto relative z-30 text-neutral-600 hover:text-white transition-colors flex items-center gap-1"
+                        title="View specific workout file"
+                    >
+                        <span className="text-[10px]">View File</span>
+                        <ExternalLink size={10} />
+                    </Link>
+                </div>
             </div>
-        </Link>
+        </div>
     );
 };

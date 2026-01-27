@@ -112,23 +112,33 @@ export const WorkoutHistory: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-neutral-800/50">
                             {history.map((h) => {
-                                const paceM = Math.floor((h.avg_split / 10) / 60);
-                                const paceS = ((h.avg_split / 10) % 60).toFixed(1);
-                                const pace = `${paceM}:${paceS.padStart(4, '0')}`;
 
                                 return (
                                     <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
                                         <td className="p-4 pl-6 text-white font-medium">
+                                            {/* Date */}
                                             {new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                         </td>
                                         <td className="p-4 text-neutral-300 font-mono">
-                                            {h.distance}m / {(h.time / 60).toFixed(1)}m
+                                            {/* Result: Matches Detail Header format */}
+                                            {h.distance}m / {(() => {
+                                                const totalSeconds = h.time;
+                                                const m = Math.floor(totalSeconds / 60);
+                                                const s = (totalSeconds % 60).toFixed(1);
+                                                return `${m}:${s.padStart(4, '0')}`;
+                                            })()}
                                         </td>
                                         <td className="p-4 text-emerald-400 font-bold font-mono">
                                             {h.watts}w
                                         </td>
                                         <td className="p-4 text-blue-400 font-mono">
-                                            {pace}/500m
+                                            {/* Pace: h.avg_split is in SECONDS per 500m */}
+                                            {(() => {
+                                                const val = h.avg_split || 0;
+                                                const m = Math.floor(val / 60);
+                                                const s = (val % 60).toFixed(1);
+                                                return `${m}:${s.padStart(4, '0')}`;
+                                            })()}/500m
                                         </td>
                                         <td className="p-4 pr-6 text-right">
                                             <Link

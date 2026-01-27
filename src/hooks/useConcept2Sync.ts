@@ -205,8 +205,29 @@ export const useConcept2Sync = () => {
                             return `${Math.floor(summary.distance)}m JustRow`;
                         }
                         return calculated;
+                    })(),
+                    avg_split_500m: (() => {
+                        // Calculate Average Split (Seconds per 500m)
+                        // Time is in deciseconds
+                        const seconds = summary.time / 10;
+                        const meters = summary.distance;
+                        if (meters > 0) {
+                            const val = (seconds / meters) * 500;
+                            return Math.min(val, 999.9); // Clamp to DB numeric(5,2) limit
+                        }
+                        return undefined;
                     })()
                 };
+
+                // Fallback for Watts if missing (Estimate from Pace)
+                if (!record.watts && record.avg_split_500m) {
+                    // Power = 2.80 * (velocity ^ 3)
+                    // Velocity = 500 / Pace
+                    const velocity = 500 / record.avg_split_500m;
+                    const calculated = Math.round(2.80 * Math.pow(velocity, 3));
+                    record.watts = Math.min(calculated, 3000);
+                }
+
 
                 await upsertWorkout(record);
 

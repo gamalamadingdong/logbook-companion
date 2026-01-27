@@ -544,7 +544,7 @@ export const Sync: React.FC = () => {
                             // We specifically need raw_data here.
                             const { data: allLogs, error } = await supabase
                                 .from('workout_logs')
-                                .select('id, raw_data, duration_seconds, workout_name, workout_type, completed_at')
+                                .select('id, raw_data, duration_seconds, workout_name, workout_type, completed_at, watts')
                                 .eq('user_id', user.id)
                                 .not('raw_data', 'is', null);
 
@@ -566,15 +566,24 @@ export const Sync: React.FC = () => {
 
                                 const distribution = calculateZoneDistribution(raw, baseWatts);
 
-                                // If we failed to get distribution (empty), maybe default to "All in UT2" using duration?
-                                // Use duration_seconds
-                                const sumDist = Object.values(distribution).reduce((a, b) => a + b, 0);
-                                if (sumDist === 0 && log.duration_seconds > 0) {
-                                    // Fallback: If no intervals/splits, classify the WHOLE workout
-                                    // But we lack average watts here unless we fetch it. 
-                                    // For now, let's just stick to what calculateZoneDistribution returns.
-                                    // Or we can rely on the fact that the Analytics page falls back to duration_minutes if distribution is empty?
-                                    // Let's just save what we found.
+                                // Backfill Average Split & Watts if missing
+                                let avgSplit = undefined;
+                                let watts = raw.watts || (log.watts ? log.watts : undefined);
+
+                                if (raw.time && raw.distance && raw.distance > 0) {
+                                    const seconds = raw.time / 10;
+                                    const calculatedSplit = (seconds / raw.distance) * 500;
+                                    // Sanity check: Clamp to 999.9 (DB limit for numeric(5,2))
+                                    // 999.9s/500m is ~33 minutes/500m, which is effectively "stopped"
+                                    avgSplit = Math.min(calculatedSplit, 999.9);
+
+                                    // Fallback Watts
+                                    if (!watts && avgSplit) {
+                                        const velocity = 500 / avgSplit;
+                                        const calculated = Math.round(2.80 * Math.pow(velocity, 3));
+                                        // Sanity check: Clamp to max 3000W to prevent DB Integer overflow on bad data
+                                        watts = Math.min(calculated, 3000);
+                                    }
                                 }
 
                                 updatedCount++;
@@ -584,7 +593,9 @@ export const Sync: React.FC = () => {
                                     workout_name: log.workout_name, // REQUIRED for Not-Null
                                     workout_type: log.workout_type, // REQUIRED for Not-Null
                                     completed_at: log.completed_at, // REQUIRED for Not-Null
-                                    zone_distribution: distribution
+                                    zone_distribution: distribution,
+                                    avg_split_500m: avgSplit,
+                                    watts: watts
                                 };
                             });
 
