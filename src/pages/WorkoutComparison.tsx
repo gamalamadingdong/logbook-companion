@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy } from 'lucide-react';
+import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
 import { formatPace } from '../utils/prDetection';
 import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
@@ -32,6 +32,31 @@ export const WorkoutComparison: React.FC = () => {
 
     // Smart Picker Data
     const [similar, setSimilar] = useState<any>(null);
+
+    // Search State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    useEffect(() => {
+        const delaySearch = setTimeout(async () => {
+            if (searchTerm.length > 2) {
+                setIsSearching(true);
+                try {
+                    const results = await workoutService.searchWorkouts(searchTerm);
+                    setSearchResults(results);
+                } catch (err) {
+                    console.error("Search failed", err);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setSearchResults([]);
+            }
+        }, 500);
+
+        return () => clearTimeout(delaySearch);
+    }, [searchTerm]);
 
     useEffect(() => {
         const load = async () => {
@@ -175,26 +200,32 @@ export const WorkoutComparison: React.FC = () => {
                         </div>
                     )}
                 </div>
+
             </div>
 
+
+
+
             {/* Comparison Charts Area - Only if B is selected */}
-            {workoutB && (
-                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                        <Zap size={18} className="text-yellow-400" />
-                        Power Overlay
-                    </h3>
-                    <div className="flex-1 w-full min-h-0">
-                        <DualWorkoutChart
-                            workoutA={workoutA}
-                            strokesA={statsA}
-                            workoutB={workoutB}
-                            strokesB={statsB}
-                        />
+            {
+                workoutB && (
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <Zap size={18} className="text-yellow-400" />
+                            Power Overlay
+                        </h3>
+                        <div className="flex-1 w-full min-h-0">
+                            <DualWorkoutChart
+                                workoutA={workoutA}
+                                strokesA={statsA}
+                                workoutB={workoutB}
+                                strokesB={statsB}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

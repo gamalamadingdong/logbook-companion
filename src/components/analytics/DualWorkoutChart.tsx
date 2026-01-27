@@ -20,7 +20,6 @@ export const DualWorkoutChart: React.FC<DualWorkoutChartProps> = ({
     // 1. Determine X-Axis Basis (Distance or Time)
     // For rowing, Distance is usually the best normalizer unless it's a fixed time pieces.
     // Let's default to Distance.
-    const axis = 'distance';
 
     // 2. Prepare Data
     // We need a single array of objects for Recharts if we want a shared tooltip easily, 
