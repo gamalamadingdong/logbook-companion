@@ -21,6 +21,64 @@ concept2Client.interceptors.request.use((config) => {
     return config;
 });
 
+// Interceptor to handle 401s (Token Refresh)
+concept2Client.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If 401 and not already retrying
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+            const refreshToken = localStorage.getItem('concept2_refresh_token');
+
+            if (refreshToken) {
+                try {
+                    console.log('Concept2 Token expired. Refreshing...');
+
+                    const params = new URLSearchParams();
+                    params.append('client_id', import.meta.env.VITE_CONCEPT2_CLIENT_ID);
+                    params.append('client_secret', import.meta.env.VITE_CONCEPT2_CLIENT_SECRET);
+                    params.append('grant_type', 'refresh_token');
+                    params.append('refresh_token', refreshToken);
+
+                    // Note: We use a fresh axios instance to avoid circular interceptor logic if this fails
+                    const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    });
+
+                    const newToken = response.data.access_token;
+                    const newRefreshToken = response.data.refresh_token;
+
+                    localStorage.setItem('concept2_token', newToken);
+                    // Update refresh token if provided (Rotation)
+                    if (newRefreshToken) {
+                        localStorage.setItem('concept2_refresh_token', newRefreshToken);
+                    }
+                    if (response.data.expires_in) {
+                        const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
+                        localStorage.setItem('concept2_expires_at', expiresAt);
+                    }
+
+                    console.log('Token refresh successful.');
+
+                    // Update header and retry
+                    originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                    return concept2Client(originalRequest);
+
+                } catch (refreshError) {
+                    console.error("Token refresh failed:", refreshError);
+                    // Clear tokens to force re-login
+                    localStorage.removeItem('concept2_token');
+                    localStorage.removeItem('concept2_refresh_token');
+                    localStorage.removeItem('concept2_expires_at');
+                }
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const getProfile = async (): Promise<C2Profile> => {
     const response = await concept2Client.get<any>('/users/me');
     console.log('Profile Response:', response.data);

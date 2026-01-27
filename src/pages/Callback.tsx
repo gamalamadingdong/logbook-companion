@@ -42,6 +42,8 @@ export const Callback: React.FC = () => {
 
             // Store in LocalStorage for legacy fallback
             localStorage.setItem('concept2_token', token);
+            localStorage.setItem('concept2_refresh_token', refreshToken);
+            localStorage.setItem('concept2_expires_at', expiresAt);
 
             // Store in Supabase if logged in
             const { data: { user } } = await supabase.auth.getUser();
