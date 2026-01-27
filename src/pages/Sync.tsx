@@ -33,7 +33,7 @@ export const Sync: React.FC = () => {
 
     // Local state for non-sync actions (Google, Maintenance)
     const [localStatus, setLocalStatus] = useState<string>('');
-    const [localProgress, setLocalProgress] = useState(0);
+    const [localProgress] = useState(0);
     const [localError, setLocalError] = useState<string | null>(null);
 
     // Derived state

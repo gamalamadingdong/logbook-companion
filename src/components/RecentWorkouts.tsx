@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bike, Snowflake, Waves, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface RecentWorkoutsProps {
     userId?: number | string;
