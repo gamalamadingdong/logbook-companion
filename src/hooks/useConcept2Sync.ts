@@ -234,6 +234,9 @@ export const useConcept2Sync = () => {
 
                     processed++;
                     setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
+
+                    // Rate Limit Throttle: Wait 500ms between items to be polite
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 } catch (innerErr) {
                     console.error(`Failed to process workout ${summary.id}:`, innerErr);
                     // Just continue to next
