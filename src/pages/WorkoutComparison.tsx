@@ -17,6 +17,47 @@ const StatBox = ({ label, value, unit, icon: Icon, color }: any) => (
     </div>
 );
 
+const WorkoutSummaryCard = ({ workout, title, onClear }: any) => {
+    // Basic stats extraction
+    if (!workout) return null;
+
+    const dist = workout.distance_meters || workout.distance;
+    const time = workout.duration_seconds || (typeof workout.time === 'number' ? workout.time / 10 : 0);
+    const paceSeconds = dist > 0 ? (time / dist) * 500 : 0;
+    const pace = workout.formatted_pace || formatPace(paceSeconds);
+    const watts = workout.watts || (time > 0 ? Math.round(2.8 / Math.pow((time / dist) * 500 / 500, 3)) : 0);
+    const date = new Date(workout.date || workout.completed_at || Date.now()).toLocaleDateString();
+
+    return (
+        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative group">
+            <div className="flex justify-between items-start mb-6">
+                <div>
+                    <div className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">{title}</div>
+                    <div className="text-2xl font-bold text-white">{workout.workout_name || `${(dist / 1000).toFixed(1)}k Row`}</div>
+                    <div className="flex items-center gap-2 text-neutral-400 text-sm mt-1">
+                        <Calendar size={12} />
+                        {date}
+                    </div>
+                </div>
+                {onClear && (
+                    <button
+                        onClick={onClear}
+                        className="text-neutral-600 hover:text-red-500 transition-colors p-2"
+                        title="Remove comparison"
+                    >
+                        <ArrowLeft size={16} />
+                    </button>
+                )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <StatBox label="Avg Split" value={pace} unit="/500m" icon={Gauge} color="blue" />
+                <StatBox label="Avg Watts" value={watts || '-'} unit="w" icon={Zap} color="emerald" />
+            </div>
+        </div>
+    );
+};
+
 export const WorkoutComparison: React.FC = () => {
     const { aId, bId } = useParams();
     const navigate = useNavigate();
@@ -275,38 +316,6 @@ export const WorkoutComparison: React.FC = () => {
             }
         </div >
     );
+    // End of component
 };
-
-const WorkoutSummaryCard = ({ workout, title, onClear }: any) => {
-    // Basic stats extraction
-    const dist = workout.distance_meters || workout.distance;
-    const time = workout.duration_seconds || (typeof workout.time === 'number' ? workout.time / 10 : 0);
-    const watts = workout.watts;
-    const pace = (time / dist) * 500;
-
-    return (
-        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative">
-            {onClear && (
-                <button onClick={onClear} className="absolute top-4 right-4 text-neutral-500 hover:text-white">
-                    Close
-                </button>
-            )}
-            <div className="mb-6">
-                <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">{title}</h4>
-                <div className="text-xl font-bold text-white">{workout.workout_name || 'Unknown Workout'}</div>
-                <div className="text-sm text-neutral-400 flex items-center gap-2">
-                    <Calendar size={12} />
-                    {new Date(workout.completed_at || workout.date).toLocaleDateString()}
-                    <span className="text-neutral-600">•</span>
-                    {new Date(workout.completed_at || workout.date).toLocaleTimeString()}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-                <StatBox label="Avg Split" value={formatPace(pace)} unit="/500m" icon={Gauge} color="blue" />
-                <StatBox label="Avg Watts" value={watts} unit="w" icon={Zap} color="emerald" />
-                {/* <StatBox label="Time" value={formatTime(time)} unit="" icon={Timer} color="neutral" /> */}
-            </div>
-        </div>
-    );
-};
+export default WorkoutComparison;

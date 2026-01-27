@@ -59,8 +59,11 @@ export const Login: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="text-neutral-500 text-sm">
-                    &copy; 2024 Logbook Analyzer
+                <div className="flex items-center gap-6 mt-8 text-sm font-medium">
+                    <span className="text-neutral-500">&copy; 2024 Logbook Analyzer</span>
+                    <a href="/about" className="text-emerald-500 hover:text-emerald-400 transition-colors">
+                        About Application &rarr;
+                    </a>
                 </div>
             </div>
 
