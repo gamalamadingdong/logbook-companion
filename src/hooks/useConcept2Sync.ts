@@ -151,88 +151,93 @@ export const useConcept2Sync = () => {
                     continue;
                 }
 
-                // Fetch full details (strokes, splits)
-                const detail = await getResultDetail(summary.id);
-                const strokes = await getStrokes(summary.id);
+                try {
+                    // Fetch full details (strokes, splits)
+                    const detail = await getResultDetail(summary.id);
+                    const strokes = await getStrokes(summary.id);
 
-                const fullData = {
-                    ...detail,
-                    strokes
-                };
+                    const fullData = {
+                        ...detail,
+                        strokes
+                    };
 
-                // Granular Calc
-                const distribution = calculateZoneDistribution(fullData, baseWatts);
+                    // Granular Calc
+                    const distribution = calculateZoneDistribution(fullData, baseWatts);
 
-                // Map to DB Schema
-                const record = {
-                    external_id: summary.id.toString(),
-                    user_id: userId,
-                    workout_name: summary.workout_type || 'Workout',
-                    workout_type: summary.type || 'rower',
-                    completed_at: summary.date,
-                    distance_meters: summary.distance,
-                    duration_minutes: Math.round(summary.time / 600),
-                    duration_seconds: summary.time / 10,
-                    watts: summary.watts ? Math.round(summary.watts) : undefined,
-                    average_stroke_rate: summary.stroke_rate ? Math.round(summary.stroke_rate) : undefined,
-                    calories_burned: detail.calories_total,
-                    average_heart_rate: detail.heart_rate?.average,
-                    max_heart_rate: detail.heart_rate?.max,
-                    source: 'concept2',
-                    raw_data: fullData,
-                    zone_distribution: distribution,
-                    canonical_name: (() => {
-                        const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
-                        if (calculated && calculated !== 'Unknown') return calculated;
+                    // Map to DB Schema
+                    const record = {
+                        external_id: summary.id.toString(),
+                        user_id: userId,
+                        workout_name: summary.workout_type || 'Workout',
+                        workout_type: summary.type || 'rower',
+                        completed_at: summary.date,
+                        distance_meters: summary.distance,
+                        duration_minutes: Math.round(summary.time / 600),
+                        duration_seconds: summary.time / 10,
+                        watts: summary.watts ? Math.round(summary.watts) : undefined,
+                        average_stroke_rate: summary.stroke_rate ? Math.round(summary.stroke_rate) : undefined,
+                        calories_burned: detail.calories_total,
+                        average_heart_rate: detail.heart_rate?.average,
+                        max_heart_rate: detail.heart_rate?.max,
+                        source: 'concept2',
+                        raw_data: fullData,
+                        zone_distribution: distribution,
+                        canonical_name: (() => {
+                            const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                            if (calculated && calculated !== 'Unknown') return calculated;
 
-                        // Fallback logic
-                        const type = summary.workout_type || '';
+                            // Fallback logic
+                            const type = summary.workout_type || '';
 
-                        if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
-                            return `${Math.round(summary.distance)}m`;
-                        }
-                        if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
-                            const mins = Math.round(summary.time / 600);
-                            return `${mins}:00`;
-                        }
-                        if (['FixedCalorie', 'FixedCalorieInterval', 'FixedCalorieSplits', 'FixedCalorieNoSplits'].includes(type) || type === 'CalorieInterval') {
-                            return `${detail.calories_total} cal`;
-                        }
-                        if (['FixedWattMinute', 'FixedWattMinuteInterval', 'FixedWattSplits', 'FixedWattNoSplits'].includes(type) || type === 'WattInterval' || type === 'WattsInterval') {
-                            return `${Math.round(summary.watts || 0)}W`;
-                        }
-                        if (type === 'JustRow' || type.includes('Just Row')) {
-                            return `${Math.floor(summary.distance)}m JustRow`;
-                        }
-                        return calculated;
-                    })(),
-                    avg_split_500m: (() => {
-                        // Calculate Average Split (Seconds per 500m)
-                        // Time is in deciseconds
-                        const seconds = summary.time / 10;
-                        const meters = summary.distance;
-                        if (meters > 0) {
-                            const val = (seconds / meters) * 500;
-                            return Math.min(val, 999.9); // Clamp to DB numeric(5,2) limit
-                        }
-                        return undefined;
-                    })()
-                };
+                            if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
+                                return `${Math.round(summary.distance)}m`;
+                            }
+                            if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
+                                const mins = Math.round(summary.time / 600);
+                                return `${mins}:00`;
+                            }
+                            if (['FixedCalorie', 'FixedCalorieInterval', 'FixedCalorieSplits', 'FixedCalorieNoSplits'].includes(type) || type === 'CalorieInterval') {
+                                return `${detail.calories_total} cal`;
+                            }
+                            if (['FixedWattMinute', 'FixedWattMinuteInterval', 'FixedWattSplits', 'FixedWattNoSplits'].includes(type) || type === 'WattInterval' || type === 'WattsInterval') {
+                                return `${Math.round(summary.watts || 0)}W`;
+                            }
+                            if (type === 'JustRow' || type.includes('Just Row')) {
+                                return `${Math.floor(summary.distance)}m JustRow`;
+                            }
+                            return calculated;
+                        })(),
+                        avg_split_500m: (() => {
+                            // Calculate Average Split (Seconds per 500m)
+                            // Time is in deciseconds
+                            const seconds = summary.time / 10;
+                            const meters = summary.distance;
+                            if (meters > 0) {
+                                const val = (seconds / meters) * 500;
+                                return Math.min(val, 999.9); // Clamp to DB numeric(5,2) limit
+                            }
+                            return undefined;
+                        })()
+                    };
 
-                // Fallback for Watts if missing (Estimate from Pace)
-                if (!record.watts && record.avg_split_500m) {
-                    // Power = 2.80 * (velocity ^ 3)
-                    // Velocity = 500 / Pace
-                    const velocity = 500 / record.avg_split_500m;
-                    const calculated = Math.round(2.80 * Math.pow(velocity, 3));
-                    record.watts = Math.min(calculated, 3000);
+                    // Fallback for Watts if missing (Estimate from Pace)
+                    if (!record.watts && record.avg_split_500m) {
+                        // Power = 2.80 * (velocity ^ 3)
+                        // Velocity = 500 / Pace
+                        const velocity = 500 / record.avg_split_500m;
+                        const calculated = Math.round(2.80 * Math.pow(velocity, 3));
+                        record.watts = Math.min(calculated, 3000);
+                    }
+
+
+                    await upsertWorkout(record);
+
+                    processed++;
+                    setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
+                } catch (innerErr) {
+                    console.error(`Failed to process workout ${summary.id}:`, innerErr);
+                    // Just continue to next
                 }
-
-
-                await upsertWorkout(record);
-
-                processed++;
-                setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
             }
 
             // 4. Update PR Cache

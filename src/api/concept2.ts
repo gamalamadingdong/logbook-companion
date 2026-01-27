@@ -21,11 +21,24 @@ concept2Client.interceptors.request.use((config) => {
     return config;
 });
 
-// Interceptor to handle 401s (Token Refresh)
+// Interceptor to handle 401s (Token Refresh) and 5xx (Retry)
 concept2Client.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+
+        // RETRY LOGIC for 500/502/503/504 or 429
+        if (error.response && [500, 502, 503, 504, 429].includes(error.response.status)) {
+            originalRequest._retryCount = originalRequest._retryCount || 0;
+            if (originalRequest._retryCount < 3) {
+                originalRequest._retryCount++;
+                const delay = Math.pow(2, originalRequest._retryCount) * 1000; // 2s, 4s, 8s
+                console.log(`API Error ${error.response.status}. Retrying in ${delay}ms (Attempt ${originalRequest._retryCount}/3)...`);
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return concept2Client(originalRequest);
+            }
+        }
 
         // If 401 and not already retrying
         if (error.response?.status === 401 && !originalRequest._retry) {
