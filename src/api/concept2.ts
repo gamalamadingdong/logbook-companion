@@ -31,11 +31,22 @@ export const getProfile = async (): Promise<C2Profile> => {
     return response.data;
 };
 
-export const getResults = async (userId: number | string = 'me', page?: number): Promise<C2Response<C2Result[]>> => {
-    // Construct URL based on presence of page param
+export const getResults = async (userId: number | string = 'me', page?: number, params: Record<string, any> = {}): Promise<C2Response<C2Result[]>> => {
+    // Construct URL
     let url = `/users/${userId}/results`;
-    if (page) {
-        url += `?page=${page}`;
+
+    // Build Query Params
+    const query = new URLSearchParams();
+    if (page) query.append('page', page.toString());
+
+    // Add optional filters (from, to, type)
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to); // Docs: 'to' is inclusive or exclusive? Usually inclusive ISO or date
+    if (params.type) query.append('type', params.type);
+
+    const queryString = query.toString();
+    if (queryString) {
+        url += `?${queryString}`;
     }
 
     const response = await concept2Client.get<C2Response<C2Result[]>>(url);

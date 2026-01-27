@@ -12,6 +12,7 @@ import { WorkoutHistory } from './pages/WorkoutHistory';
 import { Preferences } from './pages/Preferences';
 
 import { Layout } from './components/Layout';
+import { AutoSync } from './components/AutoSync';
 
 // ... (previous imports)
 
@@ -31,6 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 function App() {
   return (
     <AuthProvider>
+      <AutoSync />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

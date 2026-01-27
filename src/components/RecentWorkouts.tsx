@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-// import { getResults } from '../api/concept2'; // Removed
+import { Bike, Snowflake, Waves, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface RecentWorkoutsProps {
-    userId?: number | string; // Optional (legacy support/unused)
+    userId?: number | string;
     workouts: any[];
     isLoading?: boolean;
     currentPage: number;
@@ -20,6 +20,21 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
 }) => {
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
+
+    const getMachineIcon = (type: string) => {
+        const t = type.toLowerCase();
+        if (t.includes('bike')) return <Bike size={16} className="text-amber-400" />;
+        if (t.includes('ski')) return <Snowflake size={16} className="text-cyan-400" />;
+        return <Waves size={16} className="text-emerald-400" />;
+    };
+
+    const formatMachineType = (type: string) => {
+        // Concept2 returns "rower", "bike", "skierg"
+        if (type === 'rower') return 'RowErg';
+        if (type === 'bike') return 'BikeErg';
+        if (type === 'skierg') return 'SkiErg';
+        return type.replace(/([A-Z])/g, ' $1').trim();
+    };
 
     return (
         <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6 md:p-8 backdrop-blur-sm">
@@ -49,13 +64,17 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 </td>
                                 <td className="py-4 font-mono text-white text-base">{workout.distance}m</td>
                                 <td className="py-4 font-mono text-emerald-400 font-medium">
-                                    {/* Use pre-formatted time from service if available, else standard fallback */}
                                     {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
                                 </td>
                                 <td className="py-4">
-                                    <div>
-                                        <div className="text-sm font-medium text-white">{workout.name}</div>
-                                        <div className="text-xs text-neutral-500 capitalize">{workout.type.replace(/([A-Z])/g, ' $1').trim()}</div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-neutral-800 rounded-lg">
+                                            {getMachineIcon(workout.type || 'rower')}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-medium text-white">{workout.name}</div>
+                                            <div className="text-xs text-neutral-500">{formatMachineType(workout.type || '')}</div>
+                                        </div>
                                     </div>
                                 </td>
                                 <td className="py-4 pr-4 text-right">
@@ -83,16 +102,17 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                             <button
                                 onClick={() => onPageChange(currentPage - 1)}
                                 disabled={currentPage === 0 || isLoading}
-                                className="px-4 py-2 text-sm font-medium text-neutral-400 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                className="px-4 py-2 text-sm font-medium text-neutral-400 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1"
                             >
+                                <ChevronLeft size={14} />
                                 Previous
                             </button>
                             <button
                                 onClick={() => onPageChange(currentPage + 1)}
                                 disabled={!hasMore || isLoading}
-                                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1"
                             >
-                                {isLoading ? 'Loading...' : 'Next'}
+                                {isLoading ? 'Loading...' : <>Next <ChevronRight size={14} /></>}
                             </button>
                         </div>
                     </div>

@@ -2,23 +2,61 @@
 import React, { useEffect, useState } from 'react';
 import { initiateGoogleLogin, createSheet, appendData } from '../api/googleSheets';
 import { useAuth } from '../hooks/useAuth';
-import { getResults, getProfile, getResultDetail, getStrokes } from '../api/concept2';
-import { supabase, upsertWorkout } from '../services/supabase';
+import { useConcept2Sync, type SyncRange } from '../hooks/useConcept2Sync';
+import { supabase } from '../services/supabase';
 import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
-import { calculateCanonicalName } from '../utils/prCalculator';
-import { saveFilteredPRs } from '../utils/prDetection';
-
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 export const Sync: React.FC = () => {
+    const {
+        syncing,
+        progress: syncProgress,
+        status: syncStatus,
+        error: syncError,
+        startSync
+    } = useConcept2Sync();
+
     const [googleToken, setGoogleToken] = useState<string | null>(localStorage.getItem('google_token'));
-    const [syncing, setSyncing] = useState(false);
+    // Note: syncing state is now managed by hook
     const [forceResync, setForceResync] = useState(false);
-    const [forceExport, setForceExport] = useState(false); // New state for Google Sheets
-    const [status, setStatus] = useState<string>('');
-    const [progress, setProgress] = useState(0);
-    const [error, setError] = useState<string | null>(null);
+    const [forceExport, setForceExport] = useState(false);
+    const [syncRange, setSyncRange] = useState<SyncRange>('30days');
+    const [machineTypes, setMachineTypes] = useState<Record<string, boolean>>({
+        'rower': true,
+        'bike': true,
+        'skierg': true
+    });
+    const [startDate, setStartDate] = useState<Date | null>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    const [endDate, setEndDate] = useState<Date | null>(new Date());
+
+    // Local state for non-sync actions (Google, Maintenance)
+    const [localStatus, setLocalStatus] = useState<string>('');
+    const [localProgress, setLocalProgress] = useState(0);
+    const [localError, setLocalError] = useState<string | null>(null);
+
+    // Derived state
+    // If syncing, use hook state. Otherwise use local state.
+    // We update local state when sync finishes to persist the success message.
+    const status = syncing ? syncStatus : localStatus;
+    const progress = syncing ? syncProgress : localProgress;
+    const error = syncing ? syncError : localError;
+
+    useEffect(() => {
+        if (!syncing && syncStatus) {
+            setLocalStatus(syncStatus);
+        }
+    }, [syncing, syncStatus]);
+
+    useEffect(() => {
+        if (!syncing && syncError) {
+            setLocalError(syncError);
+        }
+    }, [syncing, syncError]);
+
     const { } = useAuth();
+
 
     useEffect(() => {
         // Handle Google OAuth Redirect
@@ -30,7 +68,7 @@ export const Sync: React.FC = () => {
                 localStorage.setItem('google_token', token);
                 setGoogleToken(token);
                 window.location.hash = '';
-                setStatus('Google Account Connected!');
+                setLocalStatus('Google Account Connected!');
             }
         }
     }, []);
@@ -39,177 +77,18 @@ export const Sync: React.FC = () => {
         initiateGoogleLogin();
     };
 
-    const findSupabaseUser = async (email: string) => {
-        // Find user profile by email
-        const { data, error } = await supabase
-            .from('user_profiles')
-            .select('user_id')
-            .eq('email', email)
-            .single();
-
-        if (error || !data) {
-            console.error("User lookup failed:", error);
-            return null;
-        }
-        return data.user_id;
-    }
-
     const handleSyncToDatabase = async () => {
-        setSyncing(true);
-        setError(null);
-        setStatus('Initializing sync...');
-        setProgress(0);
+        // Reset local error/status before starting
+        setLocalError(null);
+        // We don't set local status because hook status will take over immediately
 
-        try {
-            // 1. Get C2 Profile & Match to Supabase User
-            setStatus('Matching user profile...');
-            const profile = await getProfile();
-            console.log('C2 Profile:', profile);
-
-            const userId = await findSupabaseUser(profile.email);
-            if (!userId) {
-                throw new Error(`Could not find a Supabase user for email: ${profile.email}. Please ensure your "Train Better" account email matches your Concept2 logbook email.`);
-            }
-            console.log('Matched Supabase User:', userId);
-
-            // 1b. Get Baseline for ongoing calculations
-            const { data: baseline } = await supabase
-                .from('user_baseline_metrics')
-                .select('pr_2k_watts')
-                .eq('user_id', userId)
-                .single();
-            const baseWatts = baseline?.pr_2k_watts || 202;
-
-            // 2. Fetch All C2 Workouts (Pagination Loop)
-            setStatus('Fetching workout history from Concept2...');
-
-            let allSummaries: any[] = [];
-            let page = 1;
-            let hasMore = true;
-
-            while (hasMore) {
-                setStatus(`Fetching page ${page}...`);
-                const response = await getResults('me', page);
-                const pageData = Array.isArray(response.data) ? response.data : [];
-
-                if (pageData.length === 0) {
-                    hasMore = false;
-                } else {
-                    allSummaries = [...allSummaries, ...pageData];
-                    page++;
-                }
-            }
-
-            if (allSummaries.length === 0) {
-                setStatus('No workouts found.');
-                setSyncing(false);
-                return;
-            }
-
-            setStatus(`Processing ${allSummaries.length} workouts...`);
-
-            // 2b. Optimize: Fetch existing IDs to avoid re-processing
-            setStatus('Checking existing database records...');
-            const { data: existingRecords } = await supabase
-                .from('workout_logs')
-                .select('external_id')
-                .eq('user_id', userId);
-
-            const existingIds = new Set(existingRecords?.map(r => r.external_id) || []);
-            console.log(`Found ${existingIds.size} existing workouts in DB.`);
-
-            // 3. Process & Upsert
-            let processed = 0;
-            let skipped = 0;
-            for (const summary of allSummaries) {
-                // SKIP if already exists (unless Forced)
-                if (!forceResync && existingIds.has(summary.id.toString())) {
-                    skipped++;
-                    // Optional: Update progress even for skips so the bar moves? 
-                    // Or usually we just want to focus on well.
-                    // Let's just log it and move on quickly.
-                    continue;
-                }
-
-                // Fetch full details (strokes, splits)
-                const detail = await getResultDetail(summary.id);
-                const strokes = await getStrokes(summary.id);
-
-                // ... (rest of processing)
-                const fullData = {
-                    ...detail,
-                    strokes // Attach strokes array
-                };
-
-                // Granular Calc
-                const distribution = calculateZoneDistribution(fullData, baseWatts);
-
-                // Map to DB Schema
-                const record = {
-                    external_id: summary.id.toString(),
-                    user_id: userId,
-                    workout_name: summary.workout_type || 'Workout', // Fallback
-                    workout_type: summary.type || 'rower',
-                    completed_at: summary.date,
-                    distance_meters: summary.distance,
-                    duration_minutes: Math.round(summary.time / 600), // Round deciseconds -> minutes
-                    duration_seconds: summary.time / 10, // Exact seconds
-                    watts: summary.watts ? Math.round(summary.watts) : undefined,
-                    average_stroke_rate: summary.stroke_rate ? Math.round(summary.stroke_rate) : undefined,
-                    calories_burned: detail.calories_total,
-                    average_heart_rate: detail.heart_rate?.average,
-                    max_heart_rate: detail.heart_rate?.max,
-                    source: 'concept2',
-                    raw_data: fullData,
-                    zone_distribution: distribution,
-                    canonical_name: (() => {
-                        const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
-                        if (calculated && calculated !== 'Unknown') return calculated;
-
-                        // Fallback logic
-                        const type = summary.workout_type || '';
-
-                        if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
-                            return `${Math.round(summary.distance)}m`;
-                        }
-                        if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
-                            const mins = Math.round(summary.time / 600);
-                            return `${mins}:00`;
-                        }
-                        if (['FixedCalorie', 'FixedCalorieInterval', 'FixedCalorieSplits', 'FixedCalorieNoSplits'].includes(type) || type === 'CalorieInterval') {
-                            return `${detail.calories_total} cal`;
-                        }
-                        if (['FixedWattMinute', 'FixedWattMinuteInterval', 'FixedWattSplits', 'FixedWattNoSplits'].includes(type) || type === 'WattInterval' || type === 'WattsInterval') {
-                            return `${Math.round(summary.watts || 0)}W`;
-                        }
-                        if (type === 'JustRow' || type.includes('Just Row')) {
-                            return `${Math.floor(summary.distance)}m JustRow`;
-                        }
-                        return calculated;
-                    })()
-                };
-
-                await upsertWorkout(record);
-
-                processed++;
-                setProgress((processed / (allSummaries.length - skipped)) * 100); // Progress relative to NEW items? Or total?
-                // Let's just simply show count
-                setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
-            }
-
-            // 4. Update PR Cache
-            setStatus('Updating Personal Records...');
-            await saveFilteredPRs(userId);
-
-            setStatus(`Success! Synced ${processed} new workouts. (${skipped} already up to date).`);
-
-        } catch (err: any) {
-            console.error(err);
-            setError(err.message || "Sync failed.");
-            setStatus('Sync failed.');
-        } finally {
-            setSyncing(false);
-        }
+        await startSync({
+            range: syncRange,
+            startDate,
+            endDate,
+            forceResync,
+            machineTypes
+        });
     };
 
     return (
@@ -272,6 +151,77 @@ export const Sync: React.FC = () => {
                         />
                         Force Resync (Overwrite existing data)
                     </label>
+                    {/* Sync Range Selector */}
+                    <div className="flex flex-col gap-4 mb-4">
+                        <label className="text-sm font-medium text-neutral-400">Sync Range</label>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
+                                {(['30days', 'season', 'all', 'custom'] as const).map(r => (
+                                    <button
+                                        key={r}
+                                        onClick={() => {
+                                            setSyncRange(r);
+                                            if (r === '30days') {
+                                                setStartDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+                                                setEndDate(new Date());
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${syncRange === r
+                                            ? 'bg-neutral-800 text-white shadow-sm'
+                                            : 'text-neutral-500 hover:text-neutral-300'
+                                            }`}
+                                    >
+                                        {r === '30days' ? 'Last 30d' : r === 'all' ? 'All Time' : r === 'season' ? 'This Season' : 'Custom'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {syncRange === 'custom' && (
+                                <div className="flex items-center gap-2">
+                                    <DatePicker
+                                        selected={startDate}
+                                        onChange={(date: Date | null) => setStartDate(date)}
+                                        selectsStart
+                                        startDate={startDate}
+                                        endDate={endDate}
+                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24"
+                                    />
+                                    <span className="text-neutral-500">-</span>
+                                    <DatePicker
+                                        selected={endDate}
+                                        onChange={(date: Date | null) => setEndDate(date)}
+                                        selectsEnd
+                                        startDate={startDate}
+                                        endDate={endDate}
+                                        minDate={startDate || undefined}
+                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Machine Type Selector */}
+                    <div className="flex flex-col gap-2 mb-6">
+                        <label className="text-sm font-medium text-neutral-400">Machine Types</label>
+                        <div className="flex items-center gap-4">
+                            {[
+                                { id: 'rower', label: 'RowErg' },
+                                { id: 'bike', label: 'BikeErg' },
+                                { id: 'skierg', label: 'SkiErg' }
+                            ].map(m => (
+                                <label key={m.id} className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer hover:text-white">
+                                    <input
+                                        type="checkbox"
+                                        checked={machineTypes[m.id]}
+                                        onChange={(e) => setMachineTypes(prev => ({ ...prev, [m.id]: e.target.checked }))}
+                                        className="rounded border-neutral-700 bg-neutral-800 text-emerald-500 focus:ring-emerald-500/20"
+                                    />
+                                    {m.label}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
 
                     <button
                         onClick={handleSyncToDatabase}
@@ -324,8 +274,8 @@ export const Sync: React.FC = () => {
                         <button
                             onClick={async () => {
                                 if (!googleToken) return;
-                                setStatus('Generating report...');
-                                setError(null);
+                                setLocalStatus('Generating report...');
+                                setLocalError(null);
                                 try {
                                     // 1. Fetch Data
                                     const { data: userInt } = await supabase
@@ -340,10 +290,10 @@ export const Sync: React.FC = () => {
 
                                     // CHANGED: Check forceExport here. If true, ignore last_export_at
                                     if (!forceExport && userInt?.last_export_at && userInt?.google_sheet_id) {
-                                        setStatus(`Fetching workouts since ${new Date(userInt.last_export_at).toLocaleDateString()}...`);
+                                        setLocalStatus(`Fetching workouts since ${new Date(userInt.last_export_at).toLocaleDateString()}...`);
                                         query = query.gt('created_at', userInt.last_export_at);
                                     } else {
-                                        setStatus('Fetching all history (Force/Full)...');
+                                        setLocalStatus('Fetching all history (Force/Full)...');
                                     }
 
                                     const { data: logs, error } = await query;
@@ -357,7 +307,7 @@ export const Sync: React.FC = () => {
                                         throw new Error("No data to export.");
                                     }
 
-                                    setStatus(`Processing ${logs.length} new workouts...`);
+                                    setLocalStatus(`Processing ${logs.length} new workouts...`);
 
                                     // 2. Prepare Data Rows
                                     const workoutRows = [['Date', 'Type', 'Total Dist', 'Work Dist', 'Work Time', 'Work Pace', 'Avg Watts', 'Avg HR', 'SPM', 'Eff (W/HR)', 'Link']];
@@ -416,13 +366,13 @@ export const Sync: React.FC = () => {
                                     if (userData.user) {
                                         if (userInt?.google_sheet_id) {
                                             spreadsheetId = userInt.google_sheet_id;
-                                            setStatus(`Found existing Sheet (${spreadsheetId}). Preparing append...`);
+                                            setLocalStatus(`Found existing Sheet (${spreadsheetId}). Preparing append...`);
                                         }
                                     }
 
                                     // 3. Create Sheet (if needed)
                                     if (!spreadsheetId) {
-                                        setStatus('Creating NEW Google Sheet...');
+                                        setLocalStatus('Creating NEW Google Sheet...');
                                         const sheetTitle = `Logbook Analyzer Log`;
                                         const sheet = await createSheet(googleToken, sheetTitle, ['Workouts', 'Intervals']);
                                         spreadsheetId = sheet.spreadsheetId;
@@ -447,23 +397,24 @@ export const Sync: React.FC = () => {
                                         }
                                     }
 
-                                    setStatus('Uploading data...');
+                                    setLocalStatus('Uploading data...');
                                     // If new sheet, we write header logic is handled inside createSheet/append? 
                                     // appendData adds rows. If new sheet is empty (default has Sheet1), createSheet makes 'Workouts' and 'Intervals'.
                                     // We just append.
                                     await appendData(googleToken, spreadsheetId!, 'Workouts!A1', workoutRows);
                                     await appendData(googleToken, spreadsheetId!, 'Intervals!A1', intervalRows);
 
-                                    setStatus('Export Complete! Check your Google Drive.');
+                                    setLocalStatus('Export Complete! Check your Google Drive.');
 
                                 } catch (err: any) {
                                     console.error(err);
                                     if (err.response && err.response.status === 401) {
+                                        // setSyncing not needed for local ops or handled via hook
                                         setGoogleToken(null);
                                         localStorage.removeItem('google_token');
-                                        setError('Session expired. Please click "Connect Google" again.');
+                                        setLocalError('Session expired. Please click "Connect Google" again.');
                                     } else {
-                                        setError('Export failed: ' + (err.response?.data?.error?.message || err.message));
+                                        setLocalError('Export failed: ' + (err.response?.data?.error?.message || err.message));
                                     }
                                 }
                             }}
@@ -471,13 +422,13 @@ export const Sync: React.FC = () => {
                         >
                             <Check size={16} />
                             <span>Export to Sheets</span>
-                        </button >
+                        </button>
                     </div>
                 )}
             </div>
 
             {/* Maintenance Card */}
-            < div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity" >
+            <div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
                         <RefreshCw size={24} />
@@ -492,7 +443,7 @@ export const Sync: React.FC = () => {
                     onClick={async () => {
                         if (!window.confirm("This will scan for duplicate workouts (same Concept2 ID) and remove extra copies. Continue?")) return;
 
-                        setStatus('Scanning database...');
+                        setLocalStatus('Scanning database...');
                         try {
                             const { data: { user } } = await supabase.auth.getUser();
                             if (!user) {
@@ -510,7 +461,7 @@ export const Sync: React.FC = () => {
                             if (error) throw error;
                             if (!allLogs || allLogs.length === 0) {
                                 alert("No workouts found in database.");
-                                setStatus('No workouts found.');
+                                setLocalStatus('No workouts found.');
                                 return;
                             }
 
@@ -542,11 +493,11 @@ export const Sync: React.FC = () => {
                             if (idsToDelete.length === 0) {
                                 const msg = `Scan complete. Checked ${allLogs.length} workouts, no duplicates found.`;
                                 alert(msg);
-                                setStatus('Database is clean.');
+                                setLocalStatus('Database is clean.');
                                 return;
                             }
 
-                            setStatus(`Removing ${idsToDelete.length} duplicates...`);
+                            setLocalStatus(`Removing ${idsToDelete.length} duplicates...`);
                             console.log('Deleting IDs:', idsToDelete);
 
                             const { error: delError } = await supabase
@@ -557,12 +508,12 @@ export const Sync: React.FC = () => {
                             if (delError) throw delError;
 
                             const msg = `Success! Cleaned ${idsToDelete.length} duplicate records.`;
-                            setStatus(msg);
+                            setLocalStatus(msg);
                             alert(msg);
 
                         } catch (err: any) {
                             console.error(err);
-                            setError(err.message);
+                            setLocalError(err.message);
                         }
                     }}
                     className="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-medium rounded-lg transition-colors text-sm whitespace-nowrap"
@@ -574,7 +525,7 @@ export const Sync: React.FC = () => {
                     onClick={async () => {
                         if (!window.confirm("This will scan ALL your existing workouts, fetch their raw stroke data (if saved), and re-calculate precise Zone Distributions based on your current 2k Power. This may take a moment. Continue?")) return;
 
-                        setStatus('Starting Deep Analysis...');
+                        setLocalStatus('Starting Deep Analysis...');
                         try {
                             const { data: { user } } = await supabase.auth.getUser();
                             if (!user) throw new Error("Not logged in");
@@ -587,7 +538,7 @@ export const Sync: React.FC = () => {
                                 .single();
 
                             const baseWatts = baseline?.pr_2k_watts || 202;
-                            setStatus(`Using Baseline: ${baseWatts} Watts`);
+                            setLocalStatus(`Using Baseline: ${baseWatts} Watts`);
 
                             // 2. Fetch Workouts with RAW DATA
                             // We specifically need raw_data here.
@@ -603,7 +554,7 @@ export const Sync: React.FC = () => {
                                 return;
                             }
 
-                            setStatus(`Analyzing ${allLogs.length} workouts...`);
+                            setLocalStatus(`Analyzing ${allLogs.length} workouts...`);
 
                             let updatedCount = 0;
                             const updates = allLogs.map(log => {
@@ -645,12 +596,12 @@ export const Sync: React.FC = () => {
                             if (upsertError) throw upsertError;
 
                             const msg = `Deep Analysis Complete! Updated ${updatedCount} workouts with granular zone data.`;
-                            setStatus(msg);
+                            setLocalStatus(msg);
                             alert(msg);
 
                         } catch (err: any) {
                             console.error(err);
-                            setError(err.message);
+                            setLocalError(err.message);
                         }
                     }}
                     className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors text-sm whitespace-nowrap flex items-center gap-2"

@@ -140,34 +140,25 @@ export const Dashboard: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 text-white p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
+                    {/* Top Stats Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
+                            <div className="text-neutral-400 text-sm mb-1">Hello,</div>
+                            <div className="text-3xl font-bold text-white">{userProfile?.display_name || user?.email?.split('@')[0]}</div>
+                            <div className="text-sm text-neutral-500 mt-1">C2: {c2Profile?.username || 'Not Connected'}</div>
+                        </div>
+
+                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
+                            <div className="text-neutral-400 text-sm mb-1">Lifetime Meters</div>
+                            <div className="text-4xl font-bold text-emerald-400">
+                                {totalMeters.toLocaleString()} <span className="text-lg font-normal text-neutral-500">m</span>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Week at a Glance */}
                     <div className="mb-8">
                         <WeekAtAGlanceWidget workouts={statsHistory} />
-                    </div>
-
-                    {/* Top Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
-                            <div className="text-neutral-400 text-sm mb-1">Athlete</div>
-                            <div className="text-2xl font-bold">{userProfile?.display_name || 'User'}</div>
-                            <div className="text-m font-italic">C2 Username: {c2Profile?.username || 'Connect to Concept2 logbook'}</div>
-                        </div>
-
-                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
-                            <div className="text-neutral-400 text-sm mb-1">Weight</div>
-                            <div className="text-2xl font-bold">
-                                {c2Profile?.weight ? (c2Profile.weight / 100 * 2.20462).toFixed(1) : '-'} <span className="text-sm font-normal text-neutral-500">lbs</span>
-                            </div>
-                        </div>
-
-                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
-                            <div className="total-meters">
-                                <div className="text-neutral-400 text-sm mb-1">Lifetime Meters</div>
-                                <div className="text-2xl font-bold text-emerald-400">
-                                    {totalMeters.toLocaleString()} <span className="text-sm font-normal text-neutral-500">m</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     {/* Goals & Recommendations */}
