@@ -135,72 +135,120 @@ export const WorkoutComparison: React.FC = () => {
                         <div className="bg-neutral-900/30 border border-neutral-800 border-dashed rounded-2xl p-8 h-full flex flex-col items-center justify-start gap-6">
                             <h3 className="text-lg font-medium text-neutral-400">Select comparison workout</h3>
 
-                            {/* Smart Suggestions */}
-                            <div className="w-full space-y-4">
-                                {similar?.pr && (
-                                    <button
-                                        onClick={() => handleSelectB(similar.pr.id || similar.pr.db_id)}
-                                        className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg group-hover:scale-110 transition-transform">
-                                                <Trophy size={18} />
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="text-sm font-bold text-white">Personal Best</div>
-                                                <div className="text-xs text-neutral-500">
-                                                    {new Date(similar.pr.date).toLocaleDateString()} • {similar.pr.watts}w
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-emerald-400 text-sm font-mono font-bold">
-                                            Select
-                                        </div>
-                                    </button>
-                                )}
-
-                                {similar?.previous && (
-                                    <button
-                                        onClick={() => handleSelectB(similar.previous.id || similar.previous.db_id)}
-                                        className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg group-hover:scale-110 transition-transform">
-                                                <Calendar size={18} />
-                                            </div>
-                                            <div className="text-left">
-                                                <div className="text-sm font-bold text-white">Previous Attempt</div>
-                                                <div className="text-xs text-neutral-500">
-                                                    {new Date(similar.previous.date).toLocaleDateString()} • {similar.previous.watts}w
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-emerald-400 text-sm font-mono font-bold">
-                                            Select
-                                        </div>
-                                    </button>
+                            {/* Search Bar */}
+                            <div className="w-full relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Search workouts..."
+                                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                {isSearching && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <div className="animate-spin h-4 w-4 border-2 border-neutral-600 border-t-transparent rounded-full"></div>
+                                    </div>
                                 )}
                             </div>
 
-                            <div className="w-full border-t border-neutral-800 pt-4">
-                                <p className="text-xs text-neutral-600 text-center uppercase tracking-widest mb-2">History Match</p>
-                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                                    {similar?.history?.slice(0, 10).map((h: any) => (
-                                        <button
-                                            key={h.id}
-                                            onClick={() => handleSelectB(h.id || h.db_id)}
-                                            className="w-full flex items-center justify-between p-3 hover:bg-neutral-800 rounded-lg transition-colors text-left"
-                                        >
-                                            <span className="text-sm text-neutral-300">{new Date(h.date).toLocaleDateString()}</span>
-                                            <span className="text-sm font-mono text-neutral-500">{h.watts}w</span>
-                                        </button>
-                                    ))}
+                            {/* Search Results */}
+                            {searchTerm.length > 2 && (
+                                <div className="w-full flex-1 overflow-y-auto min-h-[200px] -mt-2">
+                                    {searchResults.length === 0 && !isSearching ? (
+                                        <div className="text-center text-neutral-500 py-8">No workouts found</div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {searchResults.map((res) => (
+                                                <button
+                                                    key={res.id}
+                                                    onClick={() => handleSelectB(res.id || res.db_id)}
+                                                    className="w-full flex items-center justify-between p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg transition-colors text-left"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-white font-medium text-sm">{res.name}</span>
+                                                        <span className="text-xs text-neutral-500">{new Date(res.date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-xs font-mono text-neutral-400">{res.distance}m</span>
+                                                        <span className="text-xs font-mono text-neutral-400">{res.time_formatted}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Smart Suggestions (Hide if searching) */}
+                            {searchTerm.length <= 2 && (
+                                <>
+                                    <div className="w-full space-y-4">
+                                        {similar?.pr && (
+                                            <button
+                                                onClick={() => handleSelectB(similar.pr.id || similar.pr.db_id)}
+                                                className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg group-hover:scale-110 transition-transform">
+                                                        <Trophy size={18} />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <div className="text-sm font-bold text-white">Personal Best</div>
+                                                        <div className="text-xs text-neutral-500">
+                                                            {new Date(similar.pr.date).toLocaleDateString()} • {similar.pr.watts}w
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-emerald-400 text-sm font-mono font-bold">
+                                                    Select
+                                                </div>
+                                            </button>
+                                        )}
+
+                                        {similar?.previous && (
+                                            <button
+                                                onClick={() => handleSelectB(similar.previous.id || similar.previous.db_id)}
+                                                className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg group-hover:scale-110 transition-transform">
+                                                        <Calendar size={18} />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <div className="text-sm font-bold text-white">Previous Attempt</div>
+                                                        <div className="text-xs text-neutral-500">
+                                                            {new Date(similar.previous.date).toLocaleDateString()} • {similar.previous.watts}w
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-emerald-400 text-sm font-mono font-bold">
+                                                    Select
+                                                </div>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="w-full border-t border-neutral-800 pt-4">
+                                        <p className="text-xs text-neutral-600 text-center uppercase tracking-widest mb-2">History Match</p>
+                                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                                            {similar?.history?.slice(0, 10).map((h: any) => (
+                                                <button
+                                                    key={h.id}
+                                                    onClick={() => handleSelectB(h.id || h.db_id)}
+                                                    className="w-full flex items-center justify-between p-3 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                                                >
+                                                    <span className="text-sm text-neutral-300">{new Date(h.date).toLocaleDateString()}</span>
+                                                    <span className="text-sm font-mono text-neutral-500">{h.watts}w</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
-
             </div>
 
 

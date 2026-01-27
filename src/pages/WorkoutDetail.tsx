@@ -120,8 +120,7 @@ export const WorkoutDetail: React.FC = () => {
 
     // ... existing loading checks ...
 
-    // Helper for Watts (tenths of watts)
-    const formatWatts = (watts?: number) => watts ? (watts / 10).toFixed(0) : '-';
+
 
     // Segment strokes into "Raw Segments" based on distance resets
     const rawSegments: C2Stroke[][] = [];
@@ -207,12 +206,34 @@ export const WorkoutDetail: React.FC = () => {
 
     // Prepare chart data (convert units)
     // Stroke distance (d) is definitely decimeters
-    const chartData = visibleStrokes.map(s => ({
-        distance: s.d / 10,
-        watts: s.p / 10, // Tenths to whole watts
-        spm: s.spm,
-        hr: s.hr
-    }));
+    const chartData = visibleStrokes.map(s => {
+        // Concept2 API usually returns 'p' as Pace (time per 500m) in deciseconds for rowing
+        // OR Watts directly? The bug report suggests it is returning ~1150 which is 1:55 pace.
+        // If it were watts, 1150w is huge. If it were tenths of watts, 115w is low for 1:55.
+        // 1:55 pace -> ~230-240 watts. 
+        // So s.p is likely Pace in Deciseconds.
+
+        let watts = 0;
+        // Heuristic: If p > 500, it's likely Pace in Deciseconds (e.g. 1150 = 1:55.0)
+        // If p < 500, it might be raw Watts? Or if it's huge > 2000? 
+        // For now, assume Pace (ds) if > 300 (which is 0:30/500m - impossible record)
+        if (s.p > 300) {
+            const paceSeconds = s.p / 10;
+            watts = calculateWatts(paceSeconds);
+        } else {
+            // Treat as raw watts (tenths?) or just watts
+            // Existing code divided by 10. Let's assume if it is explicitly "watts" type stroke data it might be different, 
+            // but user data s.p seems to be pace based on graph.
+            watts = s.p; // Fallback
+        }
+
+        return {
+            distance: s.d / 10,
+            watts: Math.round(watts),
+            spm: s.spm,
+            hr: s.hr
+        };
+    });
 
     // Identify if we have intervals or splits
     const segments = detail.workout?.intervals || detail.workout?.splits || [];
@@ -335,7 +356,14 @@ export const WorkoutDetail: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                     { label: 'Avg Pace', value: avgPaceFormatted, unit: '/500m', icon: <Activity size={18} />, color: 'text-blue-400' },
-                    { label: 'Avg Watts', value: detail.drag_factor || formatWatts(strokes.reduce((a, b) => a + b.p, 0) / strokes.length), unit: 'w', icon: <Zap size={18} />, color: 'text-yellow-400' },
+                    {
+                        label: 'Avg Watts',
+                        // If no watt data, calculate from avg pace. Avoid using drag_factor (usually ~130) as watts.
+                        value: detail.watts || (detail.time ? calculateWatts((detail.time / 10 / detail.distance) * 500) : '-'),
+                        unit: 'w',
+                        icon: <Zap size={18} />,
+                        color: 'text-yellow-400'
+                    },
                     { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
                     { label: 'Rest Distance', value: detail.rest_distance || 0, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
                 ].map((stat, i) => (

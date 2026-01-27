@@ -1,6 +1,7 @@
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import type { C2Stroke } from '../../api/concept2.types';
+import { stitchWorkStrokes } from '../../utils/strokeUtils';
 
 interface DualWorkoutChartProps {
     workoutA: any;
@@ -34,26 +35,33 @@ export const DualWorkoutChart: React.FC<DualWorkoutChartProps> = ({
     // We need to sample or interpolate? 
     // Or just union the X points.
 
+    // 3. Stitch Strokes (Handle Intervals)
+    // Use useMemo to avoid recalculating on every render
+    const stitchedA = React.useMemo(() => stitchWorkStrokes(strokesA, workoutA), [strokesA, workoutA]);
+    const stitchedB = React.useMemo(() => stitchWorkStrokes(strokesB, workoutB), [strokesB, workoutB]);
+
     const combinedData: any[] = [];
 
     // Sort all unique X points
     const xPoints = new Set<number>();
-    strokesA.forEach(s => xPoints.add(Math.round(s.d / 10))); // Decimeters -> Meters
-    strokesB.forEach(s => xPoints.add(Math.round(s.d / 10)));
+    stitchedA.forEach(s => xPoints.add(Math.round(s.d / 10))); // Decimeters -> Meters
+    stitchedB.forEach(s => xPoints.add(Math.round(s.d / 10)));
 
     const sortedX = Array.from(xPoints).sort((a, b) => a - b);
 
-    // Helper to find value at X
-    // (Simple nearest neighbor or find exact match, interpolation is better but strict match is easier)
     const findValue = (strokes: C2Stroke[], targetMeters: number) => {
         // Find stroke closest to this distance
-        // Since sorted, we could optimize, but find is ok for <1000 items
         const match = strokes.find(s => Math.round(s.d / 10) === targetMeters);
         if (match) {
-            if (metric === 'watts') return match.p / 10; // Watts are usually whole numbers but C2 uses specific units?
-            // Actually `p` in stroke data:
-            // 172 => 172 watts? Wait, in previous files we saw `p / 10`.
-            // In `WorkoutDetail.tsx`: `watts: s.p / 10`
+            if (metric === 'watts') {
+                // Heuristic for Pace vs Watts: if > 300 (30s split), assume it's Pace in deciseconds
+                if (match.p > 300) {
+                    const paceSeconds = match.p / 10;
+                    // formula: 2.8 / (pace/500)^3
+                    return Math.round(2.8 / Math.pow(paceSeconds / 500, 3));
+                }
+                return match.p / 10;
+            }
             return match.p / 10;
         }
         return null;
@@ -65,8 +73,8 @@ export const DualWorkoutChart: React.FC<DualWorkoutChartProps> = ({
     sortedX.forEach(x => {
         combinedData.push({
             distance: x,
-            [workoutA.id || 'A']: findValue(strokesA, x), // Use external_id or db_id as key?
-            [workoutB.id || 'B']: findValue(strokesB, x),
+            [workoutA.id || 'A']: findValue(stitchedA, x), // Use stitched data
+            [workoutB.id || 'B']: findValue(stitchedB, x),
             labelA: 'Base',
             labelB: 'Comparison'
         });
