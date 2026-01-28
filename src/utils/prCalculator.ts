@@ -65,10 +65,6 @@ export function calculateWatts(paceSeconds: number): number {
 // Inverse: Watts to Pace (seconds per 500m)
 export function calculatePaceFromWatts(watts: number): number {
     if (!watts) return 0;
-    // watts = 2.80 / (pace/500)^3
-    // (pace/500)^3 = 2.80 / watts
-    // pace/500 = (2.80 / watts)^(1/3)
-    // pace = 500 * (2.80/watts)^(1/3)
     return 500 * Math.pow(2.80 / watts, 1.0 / 3.0);
 }
 
@@ -109,25 +105,48 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const distVariance = workIntervals.every(i => Math.abs(i.distance - first.distance) < 5);
     const timeVariance = workIntervals.every(i => Math.abs(i.time - first.time) < 10); // 1s tolerance for time
 
-    // Check for Watts or Calories consistency
+    // Rest and Watts consistency
+    const restTimeDeci = first.rest_time || 0;
+    const restSeconds = restTimeDeci / 10;
+    const restString = restSeconds > 0 ? `/${formatRest(restSeconds)}r` : '';
+
     const firstWatts = first.watts;
     const wattsVariance = firstWatts ? workIntervals.every(i => i.watts && Math.abs(i.watts - firstWatts) <= 5) : false;
     const firstCalories = first.calories_total;
     const calVariance = firstCalories ? workIntervals.every(i => i.calories_total && Math.abs(i.calories_total - firstCalories) <= 2) : false;
 
-    // Calculate Rest (Look at rest_time from first INT, assuming consistent)
-    // Concept2 API rest_time is in DECISECONDS (same as time).
-    const restTimeDeci = first.rest_time || 0;
-    const restSeconds = restTimeDeci / 10;
+    // SPECIAL CASE: Single Interval (e.g. 30:00)
+    // Both distVariance and timeVariance are TRUE.
+    if (distVariance && timeVariance && count === 1) {
+        const timeSec = first.time / 10;
+        // e.g. 20:00=1200, 30:00=1800, 40:00=2400, 60:00=3600
+        const isStandardTime = [1200, 1800, 2400, 3600].includes(timeSec);
 
-    const restString = restSeconds > 0 ? `/${formatRest(restSeconds)}r` : '';
+        const isCleanTime = (timeSec % 1 === 0);
+        const isStandardDist = [2000, 5000, 6000, 10000, 21097, 42195].includes(Math.round(first.distance));
+        const isCleanDist = first.distance % 500 === 0;
+
+        // Prioritize:
+        // 1. If logic says it's a Standard Distance (e.g. 2000m), prefer Distance.
+        // 2. Else if it's a Standard Time (30:00), prefer Time.
+        // 3. Else if it's Clean Time but not Clean Distance, prefer Time.
+
+        if (isStandardDist) {
+            // Do nothing, fall through to distance check
+        } else if (isStandardTime || (!isCleanDist && isCleanTime)) {
+            const m = Math.floor(timeSec / 60);
+            const s = timeSec % 60;
+            const timeLabel = s === 0 ? `${m}:00` : `${m}:${s}`;
+            return `${count}x${timeLabel}${restString}`;
+        }
+    }
 
     if (distVariance) {
-        return `${count}x${Math.round(first.distance)}m${restString}`;
+        const avgDist = workIntervals.reduce((s, i) => s + i.distance, 0) / count;
+        return `${count}x${Math.round(avgDist)}m${restString}`;
     }
 
     if (timeVariance) {
-        // Time is deciseconds in C2Interval
         const timeSec = first.time / 10;
         const m = Math.floor(timeSec / 60);
         const s = timeSec % 60;
@@ -140,9 +159,6 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     }
 
     if (wattsVariance && first.watts) {
-        // Interval at fixed watts usually implies a specific time/dist duration too, but maybe that varies?
-        // Canonical name: 10x200W/2:00r ? 
-        // If distance/time varied but watts stayed same, it's a "Watts Interval".
         return `${count}x${Math.round(first.watts)}W${restString}`;
     }
 
@@ -179,6 +195,23 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const isPyramid = count >= 3 && dists[0] === dists[count - 1] && dists[Math.floor(count / 2)] > dists[0];
     if (isPyramid) return `v${dists[0]}m... Pyramid`;
 
+    // Check Ladder (Ascending/Descending)
+    // Only check if count >= 3 to avoid false positives on simple variable
+    if (count >= 3) {
+        let isAscending = true;
+        let isDescending = true;
+        for (let i = 0; i < count - 1; i++) {
+            if (dists[i + 1] <= dists[i]) isAscending = false;
+            if (dists[i + 1] >= dists[i]) isDescending = false;
+        }
+
+        if (isAscending || isDescending) {
+            // Check for linear steps? Not strictly required, but nice.
+            // Just return start...end
+            return `v${dists[0]}...${dists[count - 1]}m Ladder`;
+        }
+    }
+
     // Check for "Clean" intervals to determine formatting
     const isCleanDist = dists.every(d => d % 10 === 0);
     const isCleanTime = workIntervals.every(i => (i.time / 10) % 1 === 0);
@@ -201,11 +234,7 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     }
 
     // Fallback for "Unknown" or Messy Variable
-    // If we have intervals but they aren't clean, give a summary
-    // User requested these be "Unstructured" so they don't show up as benchmarks.
     return 'Unstructured';
-
-    return 'Variable Intervals';
 }
 
 /**

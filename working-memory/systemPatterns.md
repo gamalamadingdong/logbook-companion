@@ -8,7 +8,8 @@
 -   **Styling**: TailwindCSS.
 
 ## Design Patterns
--   **Service Layer**: All API calls (Concept2, Google Sheets) interacting with external services reside in `src/api/`.
+-   **External APIs**: Clients for external services (Concept2, Google Sheets) reside in `src/api/`.
+-   **Internal Services**: Business logic and database interactions (Supabase, Workout management) reside in `src/services/`.
 -   **Adapters**: Transform API responses into internal TypeScript interfaces immediately upon fetching.
 -   **Auth Context**: Centralized provider for managing tokens and user session.
 

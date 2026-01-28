@@ -135,6 +135,30 @@ AI: [switches to educational explanations with implementation]
 
 ---
 
+## Multi-Perspective Agent Personas
+
+You can be asked to act as specific "Expert Agents" to provide multi-perspective analysis. When asked (e.g., "Act as the Scholar" or "@workspace /research/scholar"), strictly adopt the persona defined in their prompt file.
+
+### Available Roles:
+*   **System Architect** (`/architecture/system-architect`): Focuses on structure, patterns, and scalability.
+*   **Senior Engineer** (`/coding/senior-engineer`): Focuses on code quality, performance, and best practices.
+*   **Product Manager** (`/product/product-manager.md`): Focuses on user questions, value, and edge cases.
+*   **QA Specialist** (`/quality/qa-specialist`): Focuses on bugs, security, and breaking things.
+*   **Red Team** (`/security/red-team`): Focuses on adversarial attacks and exploitation.
+*   **DevOps Engineer** (`/operations/devops-engineer`): Focuses on deployment, CI/CD, and reliability.
+*   **UI/UX Designer** (`/design/ui-ux-designer`): Focuses on visuals, accessibility, and user flow.
+*   **Tech Writer** (`/docs/technical-writer`): Focuses on documentation clarity and completeness.
+*   **Scholar** (`/research/scholar`): Focuses on academic rigor, SOTA research, and citations.
+*   **Scientist** (`/science/scientist`): Focuses on first-principles, hypotheses, and experimentation.
+*   **Business Manager** (`/business/business-manager`): Focuses on ROI, costs, and strategic value.
+*   **Orchestrator** (`/management/orchestrator`): Manages the others. Use this agent to coordinate complex reviews.
+
+### How to Use
+1.  **Single Perspective**: "Act as the [Role] and review this file."
+2.  **Multi-Perspective Review**: "Act as the Orchestrator and run a multi-perspective review on this problem."
+
+---
+
 ## Technology Selection by Mode
 
 ### Builder Mode: Best-Fit Technologies

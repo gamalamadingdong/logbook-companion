@@ -294,3 +294,35 @@
 - **Lines of Code**: [Estimate]
 - **Files Changed**: [Count]
 ```
+
+---
+
+# 🚀 LogbookAnalyzer Project Progress
+
+*Separate from template history above.*
+
+## Phase 1: Core Logic & Analytics (In Progress)
+
+**Status**: 🚧 In Progress
+
+### What Was Built
+1.  **Workout Naming Engine**
+    -   Canonical naming logic (`750/500/250...`)
+    -   **Polish**: Added Fuzzy matching (avg distance), Ladder detection (`v100...1000m`), and Pyramid detection.
+    -   **Refinement**: Prioritized Standard Time naming (e.g. `1x30:00`) over distance for single intervals.
+    -   Handling of variable intervals and repeating patterns.
+    -   Fixes for "Unstructured" misclassification.
+
+2.  **Analytics Foundation**
+    -   "Time in Zone" chart using aggregated power buckets (percentages).
+    -   `PRList` component for displaying Personal Records.
+    -   Raw data parsing for PR detection.
+
+3.  **Sync Reliability**
+    -   Retry logic and error handling for 500/CORS errors.
+    -   Date handling fixes.
+
+### Key Learnings
+-   **Date Parsing**: Concept2 dates can be tricky; standardized on specific parsing logic.
+-   **Interval Detection**: `rest_time` vs `rest_distance` requires careful handling for variable identifiers.
+
