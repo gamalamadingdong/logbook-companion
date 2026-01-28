@@ -9,7 +9,7 @@ import { Waves } from 'lucide-react';
 type AuthMode = 'login' | 'signup' | 'forgot-password';
 
 export const Login: React.FC = () => {
-    const { user } = useAuth();
+    const { user, loginAsGuest } = useAuth();
     const [mode, setMode] = useState<AuthMode>('login');
 
     if (user) {
@@ -69,8 +69,25 @@ export const Login: React.FC = () => {
 
             {/* Right Side: Auth Forms */}
             <div className="md:w-1/2 flex items-center justify-center p-8 bg-neutral-950">
-                <div className="w-full max-w-md">
+                <div className="w-full max-w-md space-y-6">
                     {renderAuthForm()}
+
+                    {/* Guest Mode Entry */}
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-neutral-800" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-neutral-950 text-neutral-500">Or experience without signing up</span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => loginAsGuest && loginAsGuest()}
+                        className="w-full py-3 px-4 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium rounded-lg transition-colors border border-neutral-700 flex items-center justify-center gap-2"
+                    >
+                        Try Demo Mode
+                    </button>
                 </div>
             </div>
         </div>

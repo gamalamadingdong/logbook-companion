@@ -8,10 +8,11 @@ import { useAuth } from '../hooks/useAuth';
 import { calculateWatts, calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/prCalculator';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
+import { DEMO_WORKOUTS } from '../data/demoData';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { profile } = useAuth();
+    const { profile, isGuest } = useAuth();
     const [detail, setDetail] = useState<C2ResultDetail | null>(null);
     const [strokes, setStrokes] = useState<C2Stroke[]>([]);
     const [loading, setLoading] = useState(true);
@@ -24,16 +25,31 @@ export const WorkoutDetail: React.FC = () => {
 
         const fetchData = async () => {
             try {
-                // Fetch detail and strokes from Supabase via workoutService
-                const [detailData, strokeData, bucketsData] = await Promise.all([
-                    workoutService.getWorkoutDetail(id),
-                    workoutService.getStrokes(id),
-                    workoutService.getPowerBuckets(id)
-                ]);
-                setDetail(detailData);
-                setStrokes(strokeData);
-                console.log('Power Buckets for workout:', id, bucketsData);
-                setBuckets(bucketsData || null);
+                if (isGuest) {
+                    const mockDetail = DEMO_WORKOUTS.find(w => w.id === id || w.external_id === id) as any;
+                    if (mockDetail) {
+                        // Cast to C2ResultDetail - demo data has similar shape
+                        setDetail(mockDetail);
+                        // Mock strokes if available in raw_data, otherwise empty
+                        // strokes are usually fetched separately. For demo, we might not have full stroke data.
+                        // We can generate fake strokes or just use empty.
+                        // For the charts to work, we need strokes.
+                        // Let's create a minimal mock for strokes if needed, or leave empty.
+                        setStrokes([]);
+                        setBuckets({});
+                    }
+                } else {
+                    // Fetch detail and strokes from Supabase via workoutService
+                    const [detailData, strokeData, bucketsData] = await Promise.all([
+                        workoutService.getWorkoutDetail(id),
+                        workoutService.getStrokes(id),
+                        workoutService.getPowerBuckets(id)
+                    ]);
+                    setDetail(detailData);
+                    setStrokes(strokeData);
+                    console.log('Power Buckets for workout:', id, bucketsData);
+                    setBuckets(bucketsData || null);
+                }
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
             } finally {
@@ -42,7 +58,7 @@ export const WorkoutDetail: React.FC = () => {
         };
 
         fetchData();
-    }, [id]);
+    }, [id, isGuest]);
 
     // Fetch Baseline Watts from Profile
     useEffect(() => {
@@ -81,7 +97,7 @@ export const WorkoutDetail: React.FC = () => {
         };
 
         fetchBaseline();
-    }, [profile]);
+    }, [profile, isGuest]);
 
     // Calculate Canonical Name (must be before early returns per Rules of Hooks)
     const canonicalName = useMemo(() => {

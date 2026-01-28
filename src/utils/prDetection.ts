@@ -1,6 +1,7 @@
 import { supabase } from '../services/supabase';
 import { calculatePRs, PR_DISTANCES, BENCHMARK_PATTERNS, formatTime, formatPace, formatRest, calculateCanonicalName, calculateWatts, formatWatts } from './prCalculator';
 import type { PRRecord } from './prCalculator';
+import { DEMO_WORKOUTS } from '../data/demoData';
 
 export type { PRRecord };
 export { PR_DISTANCES, BENCHMARK_PATTERNS, formatTime, formatPace, formatRest, calculateCanonicalName, calculateWatts, formatWatts };
@@ -9,6 +10,10 @@ export { PR_DISTANCES, BENCHMARK_PATTERNS, formatTime, formatPace, formatRest, c
  * Fetch all PRs for a user
  */
 export async function fetchUserPRs(userId: string): Promise<PRRecord[]> {
+    if (userId === 'guest_user_123') {
+        return calculatePRs(DEMO_WORKOUTS as any[]);
+    }
+
     // 1. Fetch all workouts with raw_data
     const { data: workouts, error } = await supabase
         .from('workout_logs')
@@ -30,6 +35,8 @@ export async function fetchUserPRs(userId: string): Promise<PRRecord[]> {
  * to keep the profile lightweight.
  */
 export async function saveFilteredPRs(userId: string): Promise<void> {
+    if (userId === 'guest_user_123') return;
+
     console.log(`Analyzing PRs for persistence (User: ${userId})...`);
 
     // 1. Calculate All PRs from raw history

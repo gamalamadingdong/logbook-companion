@@ -6,15 +6,15 @@ import { Trophy, Target, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 
 interface GoalProgressWidgetProps {
     userId: string;
-    workouts: any[]; // All workouts (for PR calc) or recent workouts? 
-    // Ideally we pass ALL workouts so we can calculate PRs on the fly 
-    // OR we rely on the `fetchUserPRs` which queries DB/Cache.
+    workouts: any[];
+    initialGoals?: UserGoal[];
+    initialPRs?: PRRecord[];
 }
 
-export const GoalProgressWidget: React.FC<GoalProgressWidgetProps> = ({ userId, workouts }) => {
-    const [goals, setGoals] = useState<UserGoal[]>([]);
-    const [prs, setPrs] = useState<PRRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+export const GoalProgressWidget: React.FC<GoalProgressWidgetProps> = ({ userId, workouts, initialGoals, initialPRs }) => {
+    const [goals, setGoals] = useState<UserGoal[]>(initialGoals || []);
+    const [prs, setPrs] = useState<PRRecord[]>(initialPRs || []);
+    const [loading, setLoading] = useState(!initialGoals);
 
     // Get current week's workouts
     const currentWeekWorkouts = useMemo(() => {
@@ -38,6 +38,7 @@ export const GoalProgressWidget: React.FC<GoalProgressWidgetProps> = ({ userId, 
 
     useEffect(() => {
         const load = async () => {
+            if (userId === 'guest_user_123') return; // Handled by parent
             setLoading(true);
             try {
                 const [g, p] = await Promise.all([

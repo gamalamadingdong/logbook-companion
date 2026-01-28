@@ -16,6 +16,7 @@ import { WeeklyReport } from '../components/analytics/WeeklyReport';
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts } from '../utils/prCalculator';
 import { workoutService } from '../services/workoutService';
+import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
 
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
@@ -23,7 +24,7 @@ import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSugge
 type TimeRangePreset = 'thisMonth' | 'lastMonth' | 'ytd' | '3m' | '6m' | '1y' | 'all' | 'custom';
 
 export const Analytics: React.FC = () => {
-    const { profile, loading: authLoading } = useAuth();
+    const { profile, loading: authLoading, isGuest } = useAuth();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
@@ -37,12 +38,23 @@ export const Analytics: React.FC = () => {
 
     const fetchData = async () => {
         setLoading(true);
+
+        if (isGuest) {
+            setUserId('guest_user_123');
+            setGoals(GUEST_USER_GOALS);
+            setBaselineWatts(202);
+            setWorkouts(DEMO_WORKOUTS);
+            setLoading(false);
+            return;
+        }
+
         if (!profile?.user_id) return;
         setUserId(profile.user_id);
 
         // Fetch Active Goals
         const activeGoals = await getUserGoals(profile.user_id);
-        setGoals(activeGoals || []);
+        const userGoals = activeGoals ? activeGoals.filter(g => g.is_active) : [];
+        setGoals(userGoals);
 
         // 1. Determine Baseline Watts
         // Priority:
@@ -103,10 +115,10 @@ export const Analytics: React.FC = () => {
     };
 
     useEffect(() => {
-        if (!authLoading && profile) {
+        if (!authLoading && (profile || isGuest)) {
             fetchData();
         }
-    }, [authLoading, profile]);
+    }, [authLoading, profile, isGuest]);
 
     // Filter Logic
     const filteredWorkouts = useMemo(() => {
@@ -304,7 +316,17 @@ export const Analytics: React.FC = () => {
                         </div>
 
                         {/* Goals Widget */}
-                        {userId && <GoalProgressWidget userId={userId} workouts={workouts} />}
+                        {userId && (
+                            <GoalProgressWidget
+                                userId={userId}
+                                workouts={workouts}
+                                initialGoals={isGuest ? goals : undefined}
+                                initialPRs={isGuest ? [
+                                    { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance' },
+                                    { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
+                                ] : undefined}
+                            />
+                        )}
 
                         {/* Header (Local Controls) */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-neutral-800 pb-6 mt-6">

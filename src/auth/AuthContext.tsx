@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 
@@ -16,6 +16,8 @@ interface AuthContextType {
   token: string | null // Added for compatibility
   login: () => void // Deprecated compatibility stub
   logout: () => void // Deprecated compatibility stub
+  loginAsGuest?: () => Promise<void>
+  isGuest?: boolean
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null)
@@ -26,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
+  const isGuestMode = useRef(false);
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
   const [c2Token] = useState<string | null>(localStorage.getItem('concept2_token'));
@@ -107,14 +110,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
+          isGuestMode.current = false; // Real login overrides guest
           setSession(session)
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
         } else {
-          setSession(null)
-          setUser(null)
-          setProfile(null)
+          // Only clear if NOT in guest mode
+          if (!isGuestMode.current) {
+            setSession(null)
+            setUser(null)
+            setProfile(null)
+          }
           setLoading(false)
         }
       }
@@ -153,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null)
       setUser(null)
       setProfile(null)
+      isGuestMode.current = false;
     }
   }
 
@@ -168,6 +176,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = () => { /* no-op, use signIn */ };
   const logout = signOut;
 
+  // --- Guest Mode ---
+  const loginAsGuest = useCallback(async () => {
+    setLoading(true);
+    // Simulate network delay
+    await new Promise(r => setTimeout(r, 800));
+
+    isGuestMode.current = true;
+
+    // Mock Session/User
+    const guestUser = {
+      id: 'guest_user_123',
+      email: 'guest@demo.co',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString()
+    } as User;
+
+    setUser(guestUser);
+
+    // Mock Profile
+    setProfile({
+      id: 'guest_profile_123',
+      user_id: 'guest_user_123',
+      email: 'guest@demo.co',
+      display_name: 'Guest Rower',
+      created_at: new Date().toISOString(),
+      onboarding_completed: true,
+      skill_level: 'intermediate',
+      profile_visibility: 'public',
+      share_workouts: true,
+      share_progress: true
+    } as any);
+
+    setSession({
+      access_token: 'mock_token',
+      refresh_token: 'mock_refresh',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: guestUser
+    } as Session);
+
+    setLoading(false);
+  }, []);
+
   const value = {
     user,
     profile,
@@ -178,9 +231,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     resetPassword,
+    loginAsGuest,
+    isGuest: user?.id === 'guest_user_123',
     // Compat
     isAuthenticated: !!session,
-    token, // Keeping this for C2 calls if needed
+    token,
     login,
     logout
   }

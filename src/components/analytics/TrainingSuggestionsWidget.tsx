@@ -69,8 +69,8 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
             if (result) {
                 setSuggestion(result);
 
-                // 3. Persist if we have a user
-                if (userProfile?.user_id) {
+                // 3. Persist if we have a user (and not guest)
+                if (userProfile?.user_id && userProfile.user_id !== 'guest_user_123') {
                     await supabase.from('user_profiles').update({
                         daily_recommendation: {
                             date: today,
