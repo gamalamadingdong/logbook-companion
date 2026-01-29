@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
 import { FeedbackModal } from './FeedbackModal';
+import { supabase } from '../services/supabase';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -14,8 +14,31 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [feedbackOpen, setFeedbackOpen] = useState(false);
+    const [newFeedbackCount, setNewFeedbackCount] = useState(0);
 
     const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
+
+    // Fetch new feedback count for admin
+    useEffect(() => {
+        if (isAdmin) {
+            const fetchNewFeedbackCount = async () => {
+                const { count, error } = await supabase
+                    .from('user_feedback')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'new');
+
+                if (!error && count !== null) {
+                    setNewFeedbackCount(count);
+                }
+            };
+
+            fetchNewFeedbackCount();
+
+            // Poll every 30 seconds for new feedback
+            const interval = setInterval(fetchNewFeedbackCount, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [isAdmin]);
 
     const links = [
         { path: '/', label: 'Dashboard', icon: Home },
@@ -69,7 +92,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     }`}
                             >
                                 <Icon size={20} className={isActive ? 'text-indigo-400' : ''} />
-                                {link.label}
+                                <span className="flex-1">{link.label}</span>
+                                {link.path === '/feedback' && newFeedbackCount > 0 && (
+                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                        {newFeedbackCount}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
