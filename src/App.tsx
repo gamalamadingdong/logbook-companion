@@ -11,6 +11,7 @@ import { WorkoutDetail } from './pages/WorkoutDetail';
 import { WorkoutHistory } from './pages/WorkoutHistory';
 import { WorkoutComparison } from './pages/WorkoutComparison';
 import { Preferences } from './pages/Preferences';
+import { Feedback } from './pages/Feedback';
 import { About } from './pages/About';
 
 import { Layout } from './components/Layout';
@@ -94,6 +95,14 @@ function App() {
               <ProtectedRoute>
                 {/* Lazy load or direct import comparison page */}
                 <WorkoutComparison />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/feedback"
+            element={
+              <ProtectedRoute>
+                <Feedback />
               </ProtectedRoute>
             }
           />

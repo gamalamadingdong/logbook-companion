@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
+import { FeedbackModal } from './FeedbackModal';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -12,12 +13,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const { logout, profile, user } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+    const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
     const links = [
         { path: '/', label: 'Dashboard', icon: Home },
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync & Data', icon: Database },
         { path: '/preferences', label: 'Settings', icon: Settings },
+        ...(isAdmin ? [{ path: '/feedback', label: 'Feedback', icon: MessageSquare }] : [])
     ];
 
     return (
@@ -152,6 +157,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <main className="flex-1 md:ml-64 min-h-screen">
                 {children}
             </main>
+
+            {/* Floating Feedback Button */}
+            <button
+                onClick={() => setFeedbackOpen(true)}
+                className="fixed bottom-6 right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center gap-2 group"
+                title="Send Feedback"
+            >
+                <MessageSquare size={24} />
+                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 whitespace-nowrap">
+                    Feedback
+                </span>
+            </button>
+
+            {/* Feedback Modal */}
+            <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
         </div>
     );
 };
