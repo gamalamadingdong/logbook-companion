@@ -87,6 +87,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.email, createBasicProfile])
 
+  // Restore C2 tokens from database to localStorage
+  const restoreC2Tokens = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_integrations')
+        .select('concept2_token, concept2_refresh_token, concept2_expires_at')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        // No integrations row or other error - that's fine, user just hasn't connected C2 yet
+        if (error.code !== 'PGRST116') {
+          console.error('Error fetching C2 tokens:', error);
+        }
+        return;
+      }
+
+      if (data?.concept2_token) {
+        localStorage.setItem('concept2_token', data.concept2_token);
+        console.log('Restored C2 token from database');
+      }
+      if (data?.concept2_refresh_token) {
+        localStorage.setItem('concept2_refresh_token', data.concept2_refresh_token);
+      }
+      if (data?.concept2_expires_at) {
+        localStorage.setItem('concept2_expires_at', data.concept2_expires_at);
+      }
+    } catch (err) {
+      console.error('Exception restoring C2 tokens:', err);
+    }
+  }, []);
+
   useEffect(() => {
     // 1. Check Initial Session
     const getInitialSession = async () => {
@@ -97,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
+          restoreC2Tokens(session.user.id)
         } else {
           setLoading(false)
         }
@@ -115,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
+          restoreC2Tokens(session.user.id)
         } else {
           // Only clear if NOT in guest mode
           if (!isGuestMode.current) {
@@ -128,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     return () => subscription.unsubscribe()
-  }, [fetchProfile])
+  }, [fetchProfile, restoreC2Tokens])
 
   // --- Auth Actions ---
 
@@ -152,10 +186,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
-      // Clear C2 Tokens
-      localStorage.removeItem('concept2_token');
-      localStorage.removeItem('concept2_refresh_token');
-      localStorage.removeItem('concept2_expires_at');
+      // NOTE: We intentionally do NOT clear C2 tokens here.
+      // The Concept2 connection is independent of the app login.
+      // Users who sign out and sign back in should remain connected to C2.
+      // Tokens are stored per-user in the DB and restored on login.
 
       setSession(null)
       setUser(null)
