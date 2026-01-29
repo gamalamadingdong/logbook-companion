@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
@@ -300,6 +300,15 @@ export const WorkoutDetail: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <a
+                            href={`https://log.concept2.com/profile/${detail.user_id}/log/${detail.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
+                        >
+                            <ExternalLink size={16} />
+                            View on Logbook
+                        </a>
                         <Link
                             to={`/history/${encodeURIComponent(detail.workout_name || '')}`}
                             className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"
