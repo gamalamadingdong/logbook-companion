@@ -322,6 +322,11 @@
     -   Retry logic and error handling for 500/CORS errors.
     -   Date handling fixes.
 
+4.  **Guest Mode / Public Demo**
+    -   Frontend-only implementation using curated mock data (`demoData.ts`).
+    -   Bypassed Supabase calls for `isGuest` users to ensure security and prevent errors.
+    -   Implemented in AuthContext, Analytics, Dashboard, and WorkoutDetail.
+
 ### Key Learnings
 -   **Date Parsing**: Concept2 dates can be tricky; standardized on specific parsing logic.
 -   **Interval Detection**: `rest_time` vs `rest_distance` requires careful handling for variable identifiers.

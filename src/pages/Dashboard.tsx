@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { RecentWorkouts } from '../components/RecentWorkouts';
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
-import { Waves, Link as LinkIcon } from 'lucide-react';
+import { Waves, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
 import { splitToWatts } from '../utils/zones';
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -99,6 +99,25 @@ export const Dashboard: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 text-white p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
+                    {/* Disconnected Alert (Partial State) */}
+                    {!c2Connected && !showConnectSplash && !isGuest && (
+                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 text-red-200">
+                                <AlertCircle size={24} className="text-red-500 shrink-0" />
+                                <div>
+                                    <h3 className="font-semibold">Concept2 Connection Lost</h3>
+                                    <p className="text-sm text-red-200/70">Reconnect to sync new workouts.</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleConnect}
+                                className="bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                                Reconnect
+                            </button>
+                        </div>
+                    )}
+
                     {/* Top Stats Row */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">

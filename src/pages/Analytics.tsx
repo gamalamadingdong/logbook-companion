@@ -25,7 +25,7 @@ type TimeRangePreset = 'thisMonth' | 'lastMonth' | 'ytd' | '3m' | '6m' | '1y' | 
 
 export const Analytics: React.FC = () => {
     const { profile, loading: authLoading, isGuest } = useAuth();
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'overview' | 'records'>('overview');
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
     const [showReport, setShowReport] = useState(false);
@@ -291,10 +291,10 @@ export const Analytics: React.FC = () => {
                 {/* Tabs */}
                 <div className="flex space-x-6 border-b border-neutral-800">
                     <button
-                        onClick={() => setActiveTab('dashboard')}
-                        className={`pb-3 px-1 text-lg font-medium transition-colors ${activeTab === 'dashboard' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-neutral-400 hover:text-neutral-200'}`}
+                        onClick={() => setActiveTab('overview')}
+                        className={`pb-3 px-1 text-lg font-medium transition-colors ${activeTab === 'overview' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-neutral-400 hover:text-neutral-200'}`}
                     >
-                        Dashboard
+                        Overview
                     </button>
                     <button
                         onClick={() => setActiveTab('records')}
@@ -304,7 +304,7 @@ export const Analytics: React.FC = () => {
                     </button>
                 </div>
 
-                {activeTab === 'dashboard' && (
+                {activeTab === 'overview' && (
                     <>
                         {/* Suggestions Widget */}
                         <div className="mb-6">
@@ -440,7 +440,7 @@ export const Analytics: React.FC = () => {
                 )}
             </div>
 
-            {activeTab === 'dashboard' && (
+            {activeTab === 'overview' && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 

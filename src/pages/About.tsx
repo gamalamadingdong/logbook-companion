@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const About: React.FC = () => {
@@ -144,6 +144,50 @@ export const About: React.FC = () => {
                         </div>
                     </div>
 
+                </section>
+
+                {/* Security & Privacy */}
+                <section className="space-y-12">
+                    <div className="text-center max-w-3xl mx-auto space-y-4">
+                        <div className="inline-flex items-center justify-center p-3 bg-blue-500/10 rounded-2xl mb-4 border border-blue-500/20">
+                            <ShieldAlert className="text-blue-500" size={32} />
+                        </div>
+                        <h2 className="text-4xl font-bold text-white">Security First Design</h2>
+                        <p className="text-neutral-400 text-lg">
+                            We use the official Concept2 connection process. Your credentials are safe.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                        <div className="space-y-8">
+                            <FeatureCard
+                                icon={ShieldAlert}
+                                color="blue"
+                                title="No Concept2 Password Sharing"
+                                description="You log in directly on concept2.com. We never see, store, or touch your username or password. We receive a temporary, limited-access token."
+                            />
+                            <FeatureCard
+                                icon={Database}
+                                color="emerald"
+                                title="Read-Only Access"
+                                description="Our permissions are strictly limited. We can read your workout log to build analysis, but we cannot modify your profile or post on your behalf."
+                            />
+                            <FeatureCard
+                                icon={ShieldCheck}
+                                color="purple"
+                                title="Separate App Account"
+                                description="Your login for this app is unique and used only to secure your personal database. It is completely separate from your Concept2 credentials."
+                            />
+                        </div>
+                        <div className="rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl bg-neutral-900">
+                            <img src="/screenshots/concept2connect.png" alt="Official Concept2 Data Connection Screen" className="w-full opacity-90" />
+                            <div className="p-4 bg-neutral-900 border-t border-neutral-800">
+                                <p className="text-xs text-neutral-500 text-center">
+                                    The official authorization screen you will see on concept2.com
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 {/* What it Doesn't Do */}

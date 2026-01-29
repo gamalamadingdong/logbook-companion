@@ -4,7 +4,7 @@ import { initiateGoogleLogin, createSheet, appendData } from '../api/googleSheet
 import { useAuth } from '../hooks/useAuth';
 import { useConcept2Sync, type SyncRange } from '../hooks/useConcept2Sync';
 import { supabase } from '../services/supabase';
-import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope } from 'lucide-react';
+import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope, ShieldCheck } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -55,7 +55,30 @@ export const Sync: React.FC = () => {
         }
     }, [syncing, syncError]);
 
+
     const { } = useAuth();
+
+    // CHECK CONNECTION STATUS
+    const [isConnected, setIsConnected] = useState(!!localStorage.getItem('concept2_token'));
+
+    useEffect(() => {
+        const checkConnection = () => setIsConnected(!!localStorage.getItem('concept2_token'));
+        window.addEventListener('concept2-auth-error', checkConnection);
+        // Also listen to storage events if multiple tabs (optional but good)
+        window.addEventListener('storage', checkConnection);
+
+        return () => {
+            window.removeEventListener('concept2-auth-error', checkConnection);
+            window.removeEventListener('storage', checkConnection);
+        };
+    }, []);
+
+    const handleC2Connect = () => {
+        const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
+        const redirect_uri = `${window.location.origin}/callback`;
+        const scope = 'user:read,results:read';
+        window.location.href = `https://log.concept2.com/oauth/authorize?client_id=${client_id}&scope=${scope}&response_type=code&redirect_uri=${redirect_uri}`;
+    };
 
 
     useEffect(() => {
@@ -108,16 +131,33 @@ export const Sync: React.FC = () => {
             {/* Database Sync Card */}
             <div className="bg-neutral-900/50 rounded-2xl border border-neutral-800 p-8 space-y-6">
                 <div className="flex items-start gap-4">
-                    <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-500">
-                        <RefreshCw size={24} />
+                    <div className={`p-3 rounded-xl transition-colors ${isConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {isConnected ? <RefreshCw size={24} /> : <AlertCircle size={24} />}
                     </div>
                     <div>
-                        <h2 className="text-xl font-semibold text-white">Archive to Logbook Companion</h2>
+                        <h2 className="text-xl font-semibold text-white flex items-center gap-3">
+                            Archive to Logbook Companion
+                            {!isConnected && <span className="text-xs bg-red-500/20 text-red-500 px-2 py-1 rounded-full border border-red-500/30">Disconnected</span>}
+                            {isConnected && <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full border border-emerald-500/30">Connected</span>}
+                        </h2>
                         <p className="text-neutral-400 mt-1 max-w-lg">
                             Pull your latest workouts from Concept2 (including stroke-by-stroke data) and archive them to your private database for deep analysis.
                         </p>
                     </div>
                 </div>
+
+                {!isConnected && (
+                    <div className="bg-red-900/10 border border-red-900/30 rounded-xl p-6 flex flex-col items-center justify-center gap-4 text-center">
+                        <h3 className="text-red-200 font-medium">Connection Lost</h3>
+                        <p className="text-sm text-red-300/70 max-w-sm">Your secure token has expired or is invalid. Please reconnect to Concept2 to resume syncing.</p>
+                        <button
+                            onClick={handleC2Connect}
+                            className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-lg transition-all flex items-center gap-2"
+                        >
+                            Connect Concept2 Logbook
+                        </button>
+                    </div>
+                )}
 
                 {error && (
                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-200 text-sm">
@@ -225,7 +265,7 @@ export const Sync: React.FC = () => {
 
                     <button
                         onClick={handleSyncToDatabase}
-                        disabled={syncing}
+                        disabled={syncing || !isConnected}
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
                     >
                         {syncing ? (
@@ -233,10 +273,17 @@ export const Sync: React.FC = () => {
                                 <Loader2 className="animate-spin" />
                                 Syncing... {Math.round(progress)}%
                             </>
+                        ) : !isConnected ? (
+                            'Logbook Disconnected - Reconnect Required'
                         ) : (
                             'Start Database Sync'
                         )}
                     </button>
+
+                    <div className="flex items-center justify-center gap-2 text-xs text-neutral-500 pt-2">
+                        <ShieldCheck size={14} className="text-emerald-500/80" />
+                        <span>Authenticated securely via Concept2. Tokens differ from passwords.</span>
+                    </div>
                 </div>
             </div>
 

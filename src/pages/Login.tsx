@@ -59,6 +59,11 @@ export const Login: React.FC = () => {
                     </p>
                 </div>
 
+                <div className="mb-8 flex items-center gap-2 text-sm text-neutral-400 bg-neutral-900/50 w-fit px-4 py-2 rounded-full border border-neutral-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Secure, read-only connection via official Concept2 API.
+                </div>
+
                 <div className="flex items-center gap-6 mt-8 text-sm font-medium">
                     <span className="text-neutral-500">&copy; 2024 Logbook Companion</span>
                     <a href="/about" className="text-emerald-500 hover:text-emerald-400 transition-colors">

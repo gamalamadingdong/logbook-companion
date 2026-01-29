@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { C2Profile, C2Response, C2Result, C2ResultDetail, C2Stroke } from './concept2.types';
 
 const BASE_URL = 'https://log.concept2.com/api';
+import { supabase } from '../services/supabase';
 
 export const concept2Client = axios.create({
     baseURL: BASE_URL,
@@ -76,7 +77,28 @@ concept2Client.interceptors.response.use(
                         localStorage.setItem('concept2_expires_at', expiresAt);
                     }
 
+
                     console.log('Token refresh successful.');
+
+                    // SYNC TO DB
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) {
+                            console.log('Persisting new token to Supabase...');
+                            await supabase.from('user_integrations').upsert({
+                                user_id: user.id,
+                                concept2_token: newToken,
+                                concept2_refresh_token: newRefreshToken, // Might be undefined if not rotated
+                                concept2_expires_at: response.data.expires_in
+                                    ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
+                                    : undefined
+                            }, { onConflict: 'user_id' });
+                            console.log('DB Token Update Success');
+                        }
+                    } catch (dbErr) {
+                        console.error('Failed to persist token to DB:', dbErr);
+                        // Don't block the request though, local auth is what matters for immediate retry
+                    }
 
                     // Update header and retry
                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -88,6 +110,7 @@ concept2Client.interceptors.response.use(
                     localStorage.removeItem('concept2_token');
                     localStorage.removeItem('concept2_refresh_token');
                     localStorage.removeItem('concept2_expires_at');
+                    window.dispatchEvent(new Event('concept2-auth-error'));
                 }
             }
         }
