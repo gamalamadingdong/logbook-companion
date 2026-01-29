@@ -54,9 +54,12 @@ export const Login: React.FC = () => {
                     <h1 className="text-5xl font-bold mb-6 tracking-tight">
                         Master your <span className="text-emerald-500">rowing data.</span>
                     </h1>
-                    <p className="text-xl text-neutral-400 mb-8 leading-relaxed">
+                    <p className="text-xl text-neutral-400 mb-4 leading-relaxed">
                         Connect your Concept2 logbook, analyze interval performance, and export deep-dive reports to Google Sheets.
                     </p>
+                    <a href="/about" className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors font-medium text-base">
+                        Learn more about the Logbook Companion &rarr;
+                    </a>
                 </div>
 
                 <div className="mb-8 flex items-center gap-2 text-sm text-neutral-400 bg-neutral-900/50 w-fit px-4 py-2 rounded-full border border-neutral-800">
@@ -65,10 +68,7 @@ export const Login: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-6 mt-8 text-sm font-medium">
-                    <span className="text-neutral-500">&copy; 2024 Logbook Companion</span>
-                    <a href="/about" className="text-emerald-500 hover:text-emerald-400 transition-colors">
-                        About Application &rarr;
-                    </a>
+                    <span className="text-neutral-500">&copy; 2025 Logbook Companion</span>
                 </div>
             </div>
 
