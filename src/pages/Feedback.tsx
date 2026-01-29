@@ -41,13 +41,22 @@ export const Feedback: React.FC = () => {
             const userIds = [...new Set(data?.map(f => f.user_id) || [])];
             const profiles: Record<string, UserProfile> = {};
 
-            for (const userId of userIds) {
-                const { data: authData } = await supabase.auth.admin.getUserById(userId);
-                if (authData?.user) {
-                    profiles[userId] = {
-                        email: authData.user.email,
-                        display_name: authData.user.user_metadata?.display_name
-                    };
+            // Query profiles table for user information
+            if (userIds.length > 0) {
+                const { data: profileData, error: profileError } = await supabase
+                    .from('user_profiles')
+                    .select('user_id, display_name, email')
+                    .in('user_id', userIds);
+
+                if (profileError) {
+                    console.error('Failed to fetch user profiles:', profileError);
+                } else if (profileData) {
+                    profileData.forEach(profile => {
+                        profiles[profile.user_id] = {
+                            display_name: profile.display_name,
+                            email: profile.email
+                        };
+                    });
                 }
             }
 
