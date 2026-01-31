@@ -3,8 +3,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useNavigate } from 'react-router-dom';
 import { ZONES, classifyWorkout, formatSplit, wattsToSplit } from '../../utils/zones';
 import type { TrainingZone } from '../../utils/zones';
-import { calculateLinearRegression } from '../../utils/math';
-import { Filter, ZoomOut } from 'lucide-react';
+import { calculateLinearRegression, getLinearRegressionStats } from '../../utils/math';
+import { Filter, ZoomOut, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface Props {
     workouts: any[];
@@ -72,6 +72,20 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
         const trend = calculateLinearRegression(points);
         if (!trend) return [];
         return trend.map(p => ({ date: p.x, trendSeconds: p.y }));
+    }, [chartData]);
+
+    // Calculate Trend Metrics
+    const trendMetrics = useMemo(() => {
+        const points = chartData.map(d => ({ x: d.date, y: d.splitSeconds }));
+        const stats = getLinearRegressionStats(points);
+        if (!stats) return null;
+
+        // Convert slope (seconds/ms) to seconds/month
+        const secondsPerMonth = stats.slope * (1000 * 60 * 60 * 24 * 30.44);
+        return {
+            changePerMonth: secondsPerMonth,
+            isImproving: secondsPerMonth < 0 // Lower split is better
+        };
     }, [chartData]);
 
 
@@ -156,6 +170,23 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                         {left ? 'Zoomed View (Click Reset to Full)' : 'Click and drag to zoom'}
                     </p>
                 </div>
+
+                {trendMetrics && (
+                    <div className="bg-neutral-800/50 rounded-lg px-4 py-2 border border-neutral-700/50 flex items-center gap-3">
+                        <div className={`p-1.5 rounded-full ${Math.abs(trendMetrics.changePerMonth) < 0.1 ? 'bg-neutral-700 text-neutral-400' : trendMetrics.isImproving ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                            {Math.abs(trendMetrics.changePerMonth) < 0.1 ? <Minus size={16} /> :
+                                trendMetrics.isImproving ? <TrendingDown size={16} /> : <TrendingUp size={16} />}
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Trend</div>
+                            <div className={`text-sm font-mono font-bold ${Math.abs(trendMetrics.changePerMonth) < 0.1 ? 'text-neutral-300' : trendMetrics.isImproving ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {Math.abs(trendMetrics.changePerMonth) < 0.1
+                                    ? 'Flat'
+                                    : `${Math.abs(trendMetrics.changePerMonth).toFixed(1)}s / mo`}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-4">
                     {/* Zoom Out Button */}
@@ -278,6 +309,6 @@ export const ZonePaceTrendChart: React.FC<Props> = ({ workouts, baselineWatts })
                     </ResponsiveContainer>
                 )}
             </div>
-        </div>
+        </div >
     );
 };

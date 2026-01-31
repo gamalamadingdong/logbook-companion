@@ -183,3 +183,49 @@ export const aggregateBucketsByZone = (
         };
     }).filter(z => z.seconds > 0); // Only include zones with data
 };
+
+/**
+ * Calculates 5-watt power buckets directly from stroke data.
+ * Used for client-side distribution analysis of specific intervals (Work only).
+ */
+export const calculateBucketsFromStrokes = (strokes: any[]): Record<string, number> => {
+    const buckets: Record<string, number> = {};
+
+    strokes.forEach(s => {
+        // Calculate Watts
+        let watts = 0;
+        if (s.watts) {
+            watts = s.watts;
+        } else if (s.p) {
+            // Heuristic: if p > 500, assume pace in deciseconds
+            if (s.p > 300) {
+                watts = splitToWatts(s.p / 10);
+            } else {
+                watts = s.p;
+            }
+        }
+
+        // Calculate Duration (approximate from stroke data if not available, usually use difference in time)
+        // But s.t is cumulative time. We don't have per-stroke duration easily without next/prev.
+        // Wait, calculateZoneDistribution iterates and diffs `t`. We can do the same if we have the list.
+        // The `strokes` passed here might be "stitched" or filtered, so `t` might not be continuous?
+        // Actually `intervalsData` stitching (lines 203-206 in WorkoutDetail) modifies `d`. It keeps `t` as is?
+        // No, `t` is relative to the start of the workout usually.
+        // If we filter intervals, we lose the 'next' stroke to calc duration.
+        // HOWEVER, Concept2 strokes usually represent ONE stroke cycle. 
+        // We can estimate duration from SPM? 60 / SPM = Duration (seconds).
+
+        let duration = 0;
+        if (s.spm && s.spm > 0) {
+            duration = 60 / s.spm;
+        }
+
+        if (watts > 0 && duration > 0) {
+            // Round to nearest 5
+            const bucket = Math.floor(watts / 5) * 5;
+            buckets[bucket] = (buckets[bucket] || 0) + duration;
+        }
+    });
+
+    return buckets;
+};

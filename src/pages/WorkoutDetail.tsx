@@ -6,6 +6,7 @@ import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts, calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/prCalculator';
+import { calculateBucketsFromStrokes } from '../utils/zones';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 import { DEMO_WORKOUTS } from '../data/demoData';
@@ -47,8 +48,7 @@ export const WorkoutDetail: React.FC = () => {
                     ]);
                     setDetail(detailData);
                     setStrokes(strokeData);
-                    console.log('Power Buckets for workout:', id, bucketsData);
-                    setBuckets(bucketsData || null);
+                    setBuckets(bucketsData);
                 }
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
@@ -276,6 +276,15 @@ export const WorkoutDetail: React.FC = () => {
     const totalDistance = detail.distance + (detail.rest_distance || 0);
     const restTime = totalSeconds - workTime;
 
+    // Calculate Dynamic Buckets from Visible Strokes (Work Only)
+    // This solves the bug where Rest was included in DB-generated buckets!
+    const activeBuckets = useMemo(() => {
+        if (visibleStrokes.length > 0) {
+            return calculateBucketsFromStrokes(visibleStrokes);
+        }
+        return buckets || {}; // Fallback to DB buckets if no strokes (unlikely if we have detail)
+    }, [visibleStrokes, buckets]);
+
 
 
     return (
@@ -480,14 +489,14 @@ export const WorkoutDetail: React.FC = () => {
 
             {/* Power Distribution Chart */}
             {
-                buckets && (
+                Object.keys(activeBuckets).length > 0 && (
                     <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
                         <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                             <Zap size={18} className="text-yellow-400" />
                             Power Distribution
                         </h3>
                         <div className="h-[300px] w-full">
-                            <PowerDistributionChart buckets={buckets} baselineWatts={baselineWatts} />
+                            <PowerDistributionChart buckets={activeBuckets} baselineWatts={baselineWatts} />
                         </div>
                     </div>
                 )

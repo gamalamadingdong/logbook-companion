@@ -135,6 +135,7 @@ export const useConcept2Sync = () => {
             // 3. Process & Upsert
             let processed = 0;
             let skipped = 0;
+            let failed = 0;
 
             // Default machine types if not provided
             const machineTypes = options.machineTypes || { 'rower': true, 'bike': true, 'skierg': true };
@@ -147,7 +148,9 @@ export const useConcept2Sync = () => {
                 }
 
                 // FILTER: Check Machine Type
-                if (!machineTypes[summary.type]) {
+                const type = summary.type || 'rower'; // Default to rower if missing
+                if (!machineTypes[type]) {
+                    // console.log(`Skipping ${summary.id} due to type mismatch (${type})`);
                     continue;
                 }
 
@@ -239,6 +242,7 @@ export const useConcept2Sync = () => {
                     await new Promise(resolve => setTimeout(resolve, 500));
                 } catch (innerErr) {
                     console.error(`Failed to process workout ${summary.id}:`, innerErr);
+                    failed++;
                     // Just continue to next
                 }
             }
@@ -247,7 +251,8 @@ export const useConcept2Sync = () => {
             setStatus('Updating Personal Records...');
             await saveFilteredPRs(userId);
 
-            setStatus(`Success! Synced ${processed} new workouts. (${skipped} already up to date).`);
+            const failureMsg = failed > 0 ? `, ${failed} failed` : '';
+            setStatus(`Success! Synced ${processed} new workouts (${skipped} skipped${failureMsg}).`);
 
             // SAVE LOCALSTORAGE TIMESTAMP
             localStorage.setItem('last_c2_sync_timestamp', Date.now().toString());
