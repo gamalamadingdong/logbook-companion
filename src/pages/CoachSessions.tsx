@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../services/supabase';
-import { Plus, Power, Trash2, Activity, UserMinus, Users, LayoutGrid, List as ListIcon, GripVertical, X } from 'lucide-react';
+import { Plus, Trash2, Activity, UserMinus, LayoutGrid, List as ListIcon, GripVertical, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import {
     DndContext,
@@ -14,7 +14,6 @@ import {
     type DragEndEvent,
 } from '@dnd-kit/core';
 import {
-    arrayMove,
     SortableContext,
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
@@ -195,7 +194,7 @@ export const CoachSessions: React.FC = () => {
         if (!user) return;
         setLoading(true);
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const { data, error } = await supabase.from('erg_sessions').insert({ join_code: code, status: 'active', created_by: user.id } as any).select().single();
+        const { data } = await supabase.from('erg_sessions').insert({ join_code: code, status: 'active', created_by: user.id } as any).select().single();
         if (data) {
             setSessions(prev => [data as any, ...prev]);
             setSelectedSessionId(data.id);
