@@ -13,6 +13,7 @@ import { WorkoutComparison } from './pages/WorkoutComparison';
 import { Preferences } from './pages/Preferences';
 import { Feedback } from './pages/Feedback';
 import { About } from './pages/About';
+import { CoachSessions } from './pages/CoachSessions';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -103,6 +104,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Feedback />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/coach/sessions"
+            element={
+              <ProtectedRoute>
+                <CoachSessions />
               </ProtectedRoute>
             }
           />

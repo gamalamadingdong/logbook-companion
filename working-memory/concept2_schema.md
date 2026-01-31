@@ -1,5 +1,9 @@
 # Concept2 Workout Schema Reference
 
+> **Logbook API Documentation:** https://log.concept2.com/developers/documentation/
+>
+> Reference for future direct Logbook integration (uploading workouts from Erg-Link).
+
 ## Top Level Fields
 
 | Name | Required | Type | Description | Example |

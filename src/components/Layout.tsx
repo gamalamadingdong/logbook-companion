@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Activity } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { supabase } from '../services/supabase';
 
@@ -45,7 +45,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync & Data', icon: Database },
         { path: '/preferences', label: 'Settings', icon: Settings },
-        ...(isAdmin ? [{ path: '/feedback', label: 'Feedback', icon: MessageSquare }] : [])
+        ...(isAdmin ? [
+            { path: '/feedback', label: 'Feedback', icon: MessageSquare },
+            { path: '/coach/sessions', label: 'Coach', icon: Activity }
+        ] : [])
     ];
 
     return (

@@ -9,6 +9,8 @@ interface FeedbackItem {
     message: string;
     status: 'new' | 'reviewed' | 'resolved';
     created_at: string;
+    admin_response?: string;
+    admin_response_at?: string;
 }
 
 interface UserProfile {
@@ -82,6 +84,35 @@ export const Feedback: React.FC = () => {
             console.error('Failed to update status:', error);
         }
     };
+
+    const updateResponse = async (id: string, response: string) => {
+        try {
+            const { error } = await supabase
+                .from('user_feedback')
+                .update({
+                    admin_response: response,
+                    admin_response_at: new Date().toISOString(),
+                    status: 'reviewed' // Auto-mark as reviewed if replied
+                })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setFeedback(prev => prev.map(f => f.id === id ? {
+                ...f,
+                admin_response: response,
+                admin_response_at: new Date().toISOString(),
+                status: 'reviewed'
+            } : f));
+            setReplyingTo(null);
+        } catch (error) {
+            console.error('Failed to save response:', error);
+            alert('Failed to save response');
+        }
+    };
+
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
 
     const filteredFeedback = filter === 'all'
         ? feedback
@@ -189,34 +220,85 @@ export const Feedback: React.FC = () => {
 
                                 <p className="text-neutral-300 mb-4 whitespace-pre-wrap">{item.message}</p>
 
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => updateStatus(item.id, 'new')}
-                                        disabled={item.status === 'new'}
-                                        className="px-3 py-1.5 bg-neutral-800 hover:bg-red-500/20 text-red-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        New
-                                    </button>
-                                    <button
-                                        onClick={() => updateStatus(item.id, 'reviewed')}
-                                        disabled={item.status === 'reviewed'}
-                                        className="px-3 py-1.5 bg-neutral-800 hover:bg-yellow-500/20 text-yellow-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        Reviewed
-                                    </button>
-                                    <button
-                                        onClick={() => updateStatus(item.id, 'resolved')}
-                                        disabled={item.status === 'resolved'}
-                                        className="px-3 py-1.5 bg-neutral-800 hover:bg-emerald-500/20 text-emerald-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        Resolved
-                                    </button>
-                                </div>
+
+
+                                {
+                                    item.admin_response && (
+                                        <div className="mt-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl p-4 ml-8">
+                                            <div className="flex items-center gap-2 mb-2 text-xs text-emerald-400 font-medium">
+                                                <CheckCircle size={12} />
+                                                Admin Response • {new Date(item.admin_response_at!).toLocaleString()}
+                                            </div>
+                                            <p className="text-emerald-100 text-sm">{item.admin_response}</p>
+                                        </div>
+                                    )
+                                }
+
+                                {replyingTo === item.id ? (
+                                    <div className="mt-4 ml-8">
+                                        <textarea
+                                            value={replyText}
+                                            onChange={(e) => setReplyText(e.target.value)}
+                                            placeholder="Write a response..."
+                                            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-emerald-500/50 min-h-[100px]"
+                                            autoFocus
+                                        />
+                                        <div className="flex justify-end gap-2 mt-2">
+                                            <button
+                                                onClick={() => setReplyingTo(null)}
+                                                className="px-3 py-1.5 text-neutral-400 text-xs hover:text-white transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => updateResponse(item.id, replyText)}
+                                                disabled={!replyText.trim()}
+                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg disabled:opacity-50"
+                                            >
+                                                Save Response
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2 mt-4 pt-4 border-t border-neutral-800/50">
+                                        <button
+                                            onClick={() => updateStatus(item.id, 'new')}
+                                            disabled={item.status === 'new'}
+                                            className="px-3 py-1.5 bg-neutral-800 hover:bg-red-500/20 text-red-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            New
+                                        </button>
+                                        <button
+                                            onClick={() => updateStatus(item.id, 'reviewed')}
+                                            disabled={item.status === 'reviewed'}
+                                            className="px-3 py-1.5 bg-neutral-800 hover:bg-yellow-500/20 text-yellow-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            Reviewed
+                                        </button>
+                                        <button
+                                            onClick={() => updateStatus(item.id, 'resolved')}
+                                            disabled={item.status === 'resolved'}
+                                            className="px-3 py-1.5 bg-neutral-800 hover:bg-emerald-500/20 text-emerald-400 text-sm rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            Resolved
+                                        </button>
+                                        <div className="flex-1"></div>
+                                        <button
+                                            onClick={() => {
+                                                setReplyingTo(item.id);
+                                                setReplyText(item.admin_response || '');
+                                            }}
+                                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm rounded-lg transition-colors"
+                                        >
+                                            {item.admin_response ? 'Edit Response' : 'Reply'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
