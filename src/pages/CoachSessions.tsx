@@ -27,7 +27,7 @@ interface Session {
     status: 'active' | 'finished';
     created_at: string;
     active_workout?: {
-        type: 'just_row' | 'fixed_distance' | 'fixed_time';
+        type: 'just_row' | 'fixed_distance' | 'fixed_time' | 'interval_distance' | 'interval_time' | 'interval';
         value: number;
         split_value?: number;
     };
@@ -292,7 +292,7 @@ export const CoachSessions: React.FC = () => {
 
     // ... existing workout modal logic ...
     const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
-    const [workoutType, setWorkoutType] = useState<'just_row' | 'fixed_distance' | 'fixed_time'>('fixed_distance');
+    const [workoutType, setWorkoutType] = useState<'just_row' | 'fixed_distance' | 'fixed_time' | 'interval_distance' | 'interval_time' | 'interval'>('fixed_distance');
     const [workoutValue, setWorkoutValue] = useState(2000);
     const [startType, setStartType] = useState<'immediate' | 'synchronized'>('immediate');
 
@@ -320,36 +320,85 @@ export const CoachSessions: React.FC = () => {
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-6">
                         <h3 className="text-xl font-bold text-white">Set Session Workout</h3>
                         <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-2">
-                                {[{ id: 'just_row', label: 'Just Row' }, { id: 'fixed_distance', label: 'Distance' }, { id: 'fixed_time', label: 'Time' }].map(type => (
-                                    <button key={type.id} onClick={() => setWorkoutType(type.id as any)} className={`p-3 rounded-lg text-sm font-medium transition-colors ${workoutType === type.id ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>{type.label}</button>
-                                ))}
-                            </div>
-                            {workoutType !== 'just_row' && (
-                                <div>
-                                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{workoutType === 'fixed_distance' ? 'Meters' : 'Seconds'}</label>
-                                    <input type="number" value={workoutValue} onChange={(e) => setWorkoutValue(Number(e.target.value))} className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500" />
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-4 gap-2">
+                                    {[{ id: 'just_row', label: 'Just Row' }, { id: 'fixed_distance', label: 'Distance' }, { id: 'fixed_time', label: 'Time' }, { id: 'interval', label: 'Interval' }].map(type => (
+                                        <button key={type.id} onClick={() => setWorkoutType(type.id as any)} className={`p-2 rounded-lg text-xs font-medium transition-colors ${workoutType === type.id || (workoutType.startsWith('interval') && type.id === 'interval') ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>{type.label}</button>
+                                    ))}
                                 </div>
-                            )}
 
-                            <div>
-                                <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Start Type</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={() => setStartType('immediate')} className={`p-3 rounded-lg text-sm font-medium transition-colors ${startType === 'immediate' ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>
-                                        Self-Paced
-                                    </button>
-                                    <button onClick={() => setStartType('synchronized')} className={`p-3 rounded-lg text-sm font-medium transition-colors ${startType === 'synchronized' ? 'bg-purple-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>
-                                        Group Start
-                                    </button>
+                                {/* Configuration Fields */}
+                                {workoutType !== 'just_row' && (
+                                    <div className="space-y-4">
+                                        {/* Work Duration */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                                                {workoutType === 'fixed_distance' || workoutType === 'interval_distance' ? 'Work Distance (m)' : 'Work Time (s)'}
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <input type="number" value={workoutValue} onChange={(e) => setWorkoutValue(Number(e.target.value))} className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="e.g. 2000" />
+                                                {/* Toggle Work Type for Intervals */}
+                                                {(workoutType === 'interval_distance' || workoutType === 'interval_time' || workoutType === 'interval') && (
+                                                    <button
+                                                        onClick={() => setWorkoutType(workoutType === 'interval_distance' ? 'interval_time' : 'interval_distance')}
+                                                        className="px-3 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-400 font-bold uppercase hover:bg-neutral-700 transition-colors"
+                                                    >
+                                                        {workoutType === 'interval_distance' ? 'Dist' : 'Time'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Rest Duration (Interval Only) */}
+                                        {(workoutType === 'interval_distance' || workoutType === 'interval_time' || workoutType === 'interval') && (
+                                            <div>
+                                                <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Rest Time (s)</label>
+                                                <input type="number" defaultValue={60} id="restDuration" className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="e.g. 60" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Start Type</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => setStartType('immediate')} className={`p-3 rounded-lg text-sm font-medium transition-colors ${startType === 'immediate' ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>
+                                            Self-Paced
+                                        </button>
+                                        <button onClick={() => setStartType('synchronized')} className={`p-3 rounded-lg text-sm font-medium transition-colors ${startType === 'synchronized' ? 'bg-purple-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>
+                                            Group Start
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-neutral-500 mt-2">
+                                        {startType === 'immediate' ? 'Rowers start whenever they are ready.' : 'Coach controls the "Set" and "Go" signal.'}
+                                    </p>
                                 </div>
-                                <p className="text-xs text-neutral-500 mt-2">
-                                    {startType === 'immediate' ? 'Rowers start whenever they are ready.' : 'Coach controls the "Set" and "Go" signal.'}
-                                </p>
                             </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button onClick={() => setWorkoutModalOpen(false)} className="flex-1 px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-medium">Cancel</button>
-                            <button onClick={setSessionWorkout} className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Set Workout</button>
+                            <div className="flex gap-3">
+                                <button onClick={() => setWorkoutModalOpen(false)} className="flex-1 px-4 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-medium">Cancel</button>
+                                <button onClick={async () => {
+                                    // Capture logic here because modifying state in render is bad, and we added uncontrolled inputs
+                                    if (!selectedSessionId) return;
+
+                                    let finalType: any = workoutType;
+                                    // Handle generic 'interval' selection defaulting
+                                    if (finalType === 'interval') finalType = 'interval_distance';
+
+                                    const restInput = document.getElementById('restDuration') as HTMLInputElement;
+                                    const restValue = restInput ? Number(restInput.value) : undefined;
+
+                                    const workoutConfig = {
+                                        type: finalType,
+                                        value: workoutValue,
+                                        split_value: finalType.includes('distance') ? 500 : 300,
+                                        rest: restValue,
+                                        start_type: startType
+                                    };
+                                    await supabase.from('erg_sessions').update({ active_workout: workoutConfig as any, race_state: 0 }).eq('id', selectedSessionId);
+                                    setWorkoutModalOpen(false);
+                                    setSessions(prev => prev.map(s => s.id === selectedSessionId ? { ...s, active_workout: workoutConfig } : s));
+                                }} className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Set Workout</button>
+                            </div>
                         </div>
                     </div>
                 </div>
