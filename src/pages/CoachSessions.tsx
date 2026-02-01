@@ -128,8 +128,6 @@ export const CoachSessions: React.FC = () => {
     const [groups, setGroups] = useState<string[]>([]); // Dynamic groups
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-    // Hardcoded admin check (same as Layout.tsx)
-    const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -139,10 +137,10 @@ export const CoachSessions: React.FC = () => {
     );
 
     useEffect(() => {
-        if (isAdmin) {
+        if (user) {
             fetchSessions();
         }
-    }, [isAdmin]);
+    }, [user]);
 
     useEffect(() => {
         if (!selectedSessionId) return;
@@ -307,7 +305,6 @@ export const CoachSessions: React.FC = () => {
 
     const selectedSession = sessions.find(s => s.id === selectedSessionId);
 
-    if (!isAdmin) return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-500">Access Restricted</div>;
 
     return (
         <div className="min-h-screen bg-neutral-950 p-6 md:p-12">
@@ -355,7 +352,7 @@ export const CoachSessions: React.FC = () => {
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white mb-2">Coach Dashboard</h1>
+                        <h1 className="text-3xl font-bold text-white mb-2">Live Sessions</h1>
                         <p className="text-neutral-400">Manage live sessions & groups</p>
                     </div>
                     <button onClick={createSession} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">

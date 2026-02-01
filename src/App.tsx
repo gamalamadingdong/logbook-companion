@@ -108,7 +108,7 @@ function App() {
             }
           />
           <Route
-            path="/coach/sessions"
+            path="/live"
             element={
               <ProtectedRoute>
                 <CoachSessions />

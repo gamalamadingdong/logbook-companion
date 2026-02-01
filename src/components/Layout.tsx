@@ -45,9 +45,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync & Data', icon: Database },
         { path: '/preferences', label: 'Settings', icon: Settings },
+        { path: '/live', label: 'Live Sessions', icon: Activity },
         ...(isAdmin ? [
-            { path: '/feedback', label: 'Feedback', icon: MessageSquare },
-            { path: '/coach/sessions', label: 'Coach', icon: Activity }
+            { path: '/feedback', label: 'Feedback', icon: MessageSquare }
         ] : [])
     ];
 
