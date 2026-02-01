@@ -169,7 +169,13 @@ export const CoachSessions: React.FC = () => {
     }, [participants]);
 
     const fetchSessions = async () => {
-        const { data, error } = await supabase.from('erg_sessions').select('*').eq('status', 'active').order('created_at', { ascending: false });
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('erg_sessions')
+            .select('*')
+            .eq('status', 'active')
+            .eq('created_by', user.id)
+            .order('created_at', { ascending: false });
         if (!error && data) setSessions(data as any);
     };
 
