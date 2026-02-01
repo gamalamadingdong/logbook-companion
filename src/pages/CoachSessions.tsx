@@ -296,18 +296,7 @@ export const CoachSessions: React.FC = () => {
     const [workoutValue, setWorkoutValue] = useState(2000);
     const [startType, setStartType] = useState<'immediate' | 'synchronized'>('immediate');
 
-    const setSessionWorkout = async () => {
-        if (!selectedSessionId) return;
-        const workoutConfig = {
-            type: workoutType,
-            value: workoutValue,
-            split_value: workoutType === 'fixed_distance' ? 500 : 300,
-            start_type: startType
-        };
-        await supabase.from('erg_sessions').update({ active_workout: workoutConfig as any, race_state: 0 }).eq('id', selectedSessionId);
-        setWorkoutModalOpen(false);
-        setSessions(prev => prev.map(s => s.id === selectedSessionId ? { ...s, active_workout: workoutConfig } : s));
-    };
+
 
     const selectedSession = sessions.find(s => s.id === selectedSessionId);
 
