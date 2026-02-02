@@ -20,7 +20,7 @@ A core goal of the system is to automatically match **Logs** back to **Templates
 
 ---
 
-## 2. RWN: Rowing Workout Notation
+## 2. RWN: Rowers Workout Notation
 
 **RWN** is the "language" we use to describe workout structures. It is a standardized, text-based shorthand that is both human-readable and machine-parseable.
 

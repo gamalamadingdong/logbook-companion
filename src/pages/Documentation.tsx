@@ -78,7 +78,7 @@ export const Documentation: React.FC = () => {
                                 <Code size={24} className="text-emerald-400" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold text-white mb-2">2. RWN: Rowing Workout Notation</h2>
+                                <h2 className="text-xl font-semibold text-white mb-2">2. RWN: Rowers Workout Notation</h2>
                                 <p className="text-neutral-400 mb-4 leading-relaxed">
                                     RWN is the "language" we use to describe workout structures. It is a standardized, text-based shorthand that is both human-readable and machine-parseable.
                                 </p>
@@ -217,7 +217,7 @@ export const Documentation: React.FC = () => {
                     <div className="p-6 border-b border-neutral-800 bg-neutral-900/50">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h2 className="text-xl font-bold text-white">Rowing Workout Notation (RWN)</h2>
+                                <h2 className="text-xl font-bold text-white">Rowers Workout Notation (RWN)</h2>
                                 <p className="text-sm text-neutral-400 mt-1">Version 0.1.0-draft • Request for Comment</p>
                             </div>
                             <div className="px-3 py-1 bg-emerald-900/30 border border-emerald-900/50 rounded-full text-xs font-medium text-emerald-400">
@@ -304,14 +304,78 @@ export const Documentation: React.FC = () => {
                             <div className="space-y-3">
                                 <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
                                     <h4 className="text-sm font-medium text-neutral-300 mb-1">Segmented (Compound) Workouts</h4>
-                                    <p className="text-xs text-neutral-500 mb-2">Linked by <code>+</code> operator</p>
-                                    <code className="text-sm text-emerald-400 block">2000m + 1000m</code>
-                                    <code className="text-sm text-emerald-400 block mt-1">10:00 (3:00@r18 + 3:00@r20 + 4:00@r22)</code>
+                                    <p className="text-xs text-neutral-500 mb-3">Linked by <code>+</code> operator. Used for complex pieces with internal changes.</p>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <div className="text-xs text-neutral-400 font-semibold mb-1">Simple Segments</div>
+                                            <code className="text-sm text-emerald-400 block">2000m + 1000m</code>
+                                            <span className="text-xs text-neutral-600 block mt-1">Continuous 3k row, recorded as two distinct intervals.</span>
+                                        </div>
+
+                                        <div>
+                                            <div className="text-xs text-neutral-400 font-semibold mb-1">Rate Progressions / Steps</div>
+                                            <code className="text-sm text-emerald-400 block">10:00@r22 + 5:00@r26</code>
+                                            <code className="text-sm text-emerald-400 block mt-1">15:00 (5:00@r20 + 5:00@r24 + 5:00@r28)</code>
+                                            <span className="text-xs text-neutral-600 block mt-1">Maps to Variable Intervals with 0 rest. Monitor advances automatically at each step.</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
                                     <h4 className="text-sm font-medium text-neutral-300 mb-1">PM5 Splits</h4>
                                     <p className="text-xs text-neutral-500 mb-2">Defined in <code>[]</code></p>
                                     <code className="text-sm text-emerald-400 block">10000m [2000m]</code>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h3 className="text-lg font-semibold text-white mb-3">5. Machine Types & Mixed Modalities</h3>
+                            <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
+                                <p className="text-sm text-neutral-400 mb-4">
+                                    RWN supports non-rowing activities using a <code>Type:</code> prefix.
+                                </p>
+
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 className="text-xs font-semibold text-white uppercase mb-2">Supported Types</h4>
+                                            <ul className="text-sm text-neutral-400 space-y-1">
+                                                <li><code className="text-emerald-400">Row</code>, <code className="text-emerald-400">Ski</code>, <code className="text-emerald-400">Bike</code> (Ergs)</li>
+                                                <li><code className="text-blue-400">Run</code> (Running)</li>
+                                                <li><code className="text-fuchsia-400">Other</code> (Generic)</li>
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-semibold text-white uppercase mb-2">Parsing Logic</h4>
+                                            <ul className="text-sm text-neutral-400 space-y-1">
+                                                <li><strong>Ergs:</strong> Strict RWN syntax (dist/time/rest).</li>
+                                                <li><strong>Run/Other:</strong> Flexible mode. Leading quantities parsed as work; rest is label.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-white uppercase mb-2">Examples</h4>
+                                        <div className="space-y-2 font-mono text-sm">
+                                            <div className="flex gap-3">
+                                                <span className="text-blue-400">Run: 400m</span>
+                                                <span className="text-neutral-600">→ Type: Run, Dist: 400m</span>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                <span className="text-blue-400">Run: 15:00 Tempo</span>
+                                                <span className="text-neutral-600">→ Type: Run, Time: 15:00, Note: "Tempo"</span>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                <span className="text-fuchsia-400">Other: 10 Burpees</span>
+                                                <span className="text-neutral-600">→ Type: Other, Note: "10 Burpees"</span>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                <span className="text-emerald-400">Row: 2k + Other: Plank + Row: 2k</span>
+                                                <span className="text-neutral-600">→ Compound Mixed</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </section>

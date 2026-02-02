@@ -1,10 +1,10 @@
-# Rowing Workout Notation (RWN) Specification
+# Rowers Workout Notation (RWN) Specification
 **Version:** 0.1.0-draft
 **Status:** Request for Comment (RFC)
 
 ## 1. Introduction
 
-Rowing Workout Notation (RWN) is a standardized text-based format for describing rowing workouts. It is design to be:
+Rowers Workout Notation (RWN) is a standardized text-based format for describing rowing workouts. It is design to be:
 - **Human-readable**: Easy to read and write by coaches and athletes.
 - **Machine-parseable**: Unambiguous structure for software (logbooks, erg monitors).
 - **Universal**: Applicable to both indoor machine (ergometer) and on-water rowing.
@@ -50,6 +50,7 @@ Rest components define the recovery phase. In RWN, rest is strictly **time-based
 
 **Undefined Rest:** Use `/...r` or `/ur` to denote indefinite rest intervals (PM5 "Undefined Rest").
 - `4x2000m/...r` (2k repeats with undefined rest)
+- `10x500m/...r` (Relay format: Row 500m, wait for partner to finish their leg)
 
 ## 4. Extended Syntax (Guidance)
 
@@ -87,9 +88,23 @@ Workouts composed of distinct segments without rest (e.g., warmups, rate steps) 
 
 **Syntax:** `[Segment1] + [Segment2] + ...`
 
-**Examples:**
-- `10:00 warmup (3:00@r18 + 3:00@r20 + 4:00@r22)`
-- `2000m + 1000m` (Continuous 3k row)
+### 5.1 Simple segments
+- `2000m + 1000m` (Continuous 3k row, recorded as two distinct intervals on PM5)
+
+### 5.2 Rate Progressions / Steps
+For complex pieces with internal rate changes (e.g., "10min at 22, 5min at 26"):
+- `10:00@r22 + 5:00@r26` 
+- `15:00 (5:00@r20 + 5:00@r24 + 5:00@r28)`
+
+> **PM5 Note:** These map to **Variable Interval** workouts with **Undefined (0) Rest**. This ensures the monitor advances precisely at the segment boundary, capturing split data for each specific rate step.
+
+### 5.3 Complex Repeats (Parenthesis Grouping)
+To repeat a compound segment, wrap it in parentheses.
+- `3 x (10:00@UT2 + 5:00@UT1) / 2:00r`
+- `2 x (2000m + 1000m) / 5:00r`
+
+This describes the user's "3 blocks of 15 minutes" scenario:
+`3 x (10:00@UT2 + 5:00@UT1)` (Continuous if no rest specified) or `3 x (10:00@UT2 + 5:00@UT1) / ...r` (if undefined rest).
 
 ## 6. Split Resolution (PM5)
 To specify how the monitor should record data splits (the "Splits" setting on a PM5), use square brackets `[]`.
@@ -129,5 +144,26 @@ distance        = integer , "m" ;
 time            = integer , ":" , integer ;
 calories        = integer , "cal" ;
 
-guidance        = { "@" , ( rate | pace | zone ) } ;
 ```
+
+## 9. Machine Types & Mixed Modalities
+RWN supports non-rowing activities using a `Type:` prefix.
+
+**Syntax:** `[Type]: [Content]`
+
+### 9.1 Supported Types
+*   `Row`, `Ski`, `Bike` (Standard C2 Ergs - standard RWN parsing applies)
+*   `Run` (Running)
+*   `Other` (Generic)
+
+### 9.2 Parsing Logic
+*   **Strict Mode (Ergs):** `Row`, `Ski`, `Bike` expect standard RWN syntax (distance/time/rest).
+*   **Flexible Mode (Run/Other):**
+    *   **Leading Quantities:** If the text starts with a standard quantity (e.g., `400m`, `10:00`), it is parsed as a Work Component.
+    *   **Free Text:** Any remaining text is treated as a description/label.
+
+**Examples:**
+*   `Run: 400m` -> Type: Run, Distance: 400
+*   `Run: 15:00 Tempo` -> Type: Run, Time: 15:00, Note: "Tempo"
+*   `Other: 10 Burpees` -> Type: Other, Note: "10 Burpees" (Initial number captured if possible, else raw text)
+*   `Row: 2000m + Other: 2:00 Plank + Row: 2000m` (Compound mixed workout)

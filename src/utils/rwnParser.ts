@@ -1,0 +1,224 @@
+import type { WorkoutStructure, WorkoutStep } from '../types/workoutStructure.types';
+
+/**
+ * RWN Parser
+ * Parses Rowers Workout Notation strings into WorkoutStructure objects.
+ */
+
+// Key mapping for Steady State units
+function mapToSteadyUnit(type: 'distance' | 'time' | 'calories'): 'meters' | 'seconds' | 'calories' {
+    if (type === 'distance') return 'meters';
+    if (type === 'time') return 'seconds';
+    return 'calories';
+}
+
+// Helper: Parse Duration ("30:00", "1:30", "45") -> seconds
+function parseTime(str: string): number | null {
+    if (!str) return null;
+    const parts = str.split(':');
+    if (parts.length === 2) {
+        return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+    } else if (parts.length === 1) {
+        return parseFloat(parts[0]);
+    }
+    return null;
+}
+
+// Helper: Parse Component ("2000m", "30:00", "500cal")
+interface ParsedComponent {
+    type: 'distance' | 'time' | 'calories';
+    value: number;
+    guidance?: {
+        target_rate?: number;
+        target_pace?: string;
+    };
+}
+
+function parseComponent(str: string): ParsedComponent | null {
+    const clean = str.trim();
+
+    // Extract guidance first (@r20, @2:00)
+    let guidanceText = '';
+    let coreText = clean;
+
+    const atIndex = clean.indexOf('@');
+    if (atIndex !== -1) {
+        coreText = clean.substring(0, atIndex).trim();
+        guidanceText = clean.substring(atIndex + 1).trim();
+    }
+
+    // Parse Guidance
+    const guidance: ParsedComponent['guidance'] = {};
+    if (guidanceText) {
+        // Rate: r20, 20spm, or just 20 (if ambiguous, prefer rate if integer < 100?)
+        // Pace: 2:00
+
+        // Regex for Rate: r(\d+) or (\d+)spm
+        const rateMatch = guidanceText.match(/(?:^|r)(\d+)(?:spm)?$/i);
+        if (rateMatch) {
+            guidance.target_rate = parseInt(rateMatch[1]);
+        }
+
+        // Regex for Pace: (\d+:\d+)
+        const paceMatch = guidanceText.match(/(\d+:\d+(?:\.\d+)?)/);
+        if (paceMatch && !guidance.target_rate) { // If it looks like time, it's pace
+            guidance.target_pace = paceMatch[1];
+        }
+    }
+
+    // Parse Modality/Unit
+    // Distance: 2000m
+    if (/^\d+m$/i.test(coreText)) {
+        return {
+            type: 'distance',
+            value: parseInt(coreText.replace(/m/i, '')),
+            guidance
+        };
+    }
+
+    // Calories: 500cal or 500c
+    if (/^\d+(?:cal|c)$/i.test(coreText)) {
+        return {
+            type: 'calories',
+            value: parseInt(coreText.replace(/(?:cal|c)/i, '')),
+            guidance
+        };
+    }
+
+    // Time: 30:00 or 120s
+    if (coreText.includes(':')) {
+        const sec = parseTime(coreText);
+        if (sec !== null) {
+            return { type: 'time', value: sec, guidance };
+        }
+    }
+
+    // Bare number defaults? Avoid for now strictly.
+    // 3000 -> assume meters?
+    // rwn spec says [Number]m is required for distance.
+
+    return null;
+}
+
+// Helper: Parse Rest ("2:00r", "90s", "1:00")
+function parseRest(str: string): number {
+    const clean = str.toLowerCase().replace(/r$/, '').replace(/s$/, '').trim(); // Remove trailing 'r' or 's'
+    const val = parseTime(clean);
+    return val !== null ? val : 0;
+}
+
+export function parseRWN(input: string): WorkoutStructure | null {
+    if (!input || !input.trim()) return null;
+
+    const text = input.trim();
+
+    // 1. Check for Complex/Segmented (contains '+')
+    if (text.includes('+')) {
+        return parseVariableWorkout(text);
+    }
+
+    // 2. Check for Intervals (contains 'x' AND 'r') - strict check for repeats
+    // Regex: (\d+)x\s*(.+)
+    const intervalMatch = text.match(/^(\d+)\s*x\s*(.+)$/i);
+
+    if (intervalMatch) {
+        const repeats = parseInt(intervalMatch[1]);
+        const remainder = intervalMatch[2].trim();
+
+        // Split remainder into Work and Rest
+        // Standard syntax: Work/Rest
+        const parts = remainder.split('/');
+
+        if (parts.length >= 1) {
+            const workStr = parts[0].trim();
+            const restStr = parts.length > 1 ? parts[1].trim() : '0r';
+
+            const workComp = parseComponent(workStr);
+            if (workComp) {
+                // Determine if strict Interval or standard Rest logic
+                const restVal = parseRest(restStr);
+
+                return {
+                    type: 'interval',
+                    repeats,
+                    work: {
+                        type: workComp.type,
+                        value: workComp.value,
+                        target_rate: workComp.guidance?.target_rate,
+                        target_pace: workComp.guidance?.target_pace
+                    },
+                    rest: {
+                        type: 'time',
+                        value: restVal
+                    }
+                };
+            }
+        }
+    }
+
+    // 3. Steady State (Single component)
+    const singleComp = parseComponent(text);
+    if (singleComp) {
+        return {
+            type: 'steady_state',
+            value: singleComp.value,
+            unit: mapToSteadyUnit(singleComp.type),
+            target_rate: singleComp.guidance?.target_rate,
+            target_pace: singleComp.guidance?.target_pace
+        };
+    }
+
+    // Fallback: Try parsing as single component if it failed regex but might be valid?
+
+    return null;
+}
+
+function parseVariableWorkout(text: string): WorkoutStructure {
+    // 2000m + 1000m + ...
+    const segments = text.split('+').map(s => s.trim());
+    const steps: WorkoutStep[] = [];
+
+    segments.forEach(seg => {
+        // Handle parenthesis grouping (Simple support: just flatten?)
+        // "3 x ( ... )" is hard. 
+        // For now, support simple "A + B + C"
+
+        const comp = parseComponent(seg);
+        if (comp) {
+            steps.push({
+                type: 'work',
+                duration_type: comp.type,
+                value: comp.value,
+                target_rate: comp.guidance?.target_rate,
+                target_pace: comp.guidance?.target_pace
+            });
+
+            // Note: Variable intervals in C2 usually need undefined rest if they are continuous.
+            // But if user wrote "2000m + 1000m", they imply continuous.
+            // If they want rest, they'd use "2000m/2:00r + 1000m" (Mixed Interval Syntax)
+        }
+
+        // Check if segment has rest attached: "2000m/2:00r"
+        if (seg.includes('/')) {
+            // Re-parse with rest logic?
+            // Simple hack: split by /
+            const parts = seg.split('/');
+            if (parts.length === 2) {
+                // If the FIRST part was already parsed as work, we just add a rest step
+                const restVal = parseRest(parts[1]);
+                if (restVal > 0) {
+                    steps.push({
+                        type: 'rest',
+                        duration_type: 'time',
+                        value: restVal
+                    });
+                }
+            }
+        }
+    });
+
+    return {
+        type: 'variable',
+        steps
+    };
+}

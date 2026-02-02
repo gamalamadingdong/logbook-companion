@@ -4,6 +4,7 @@ import { fetchTemplateById, updateTemplate, createTemplate } from '../services/t
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/prCalculator';
+import { parseRWN } from '../utils/rwnParser';
 
 interface TemplateEditorProps {
     templateId: string | null; // null = new template
@@ -36,6 +37,44 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
     const [workTargetPace, setWorkTargetPace] = useState<string | undefined>(undefined);
     const [restValue, setRestValue] = useState(60); // Rest is always time (seconds)
     const [variableSteps, setVariableSteps] = useState<WorkoutStep[]>([]);
+
+    // Quick Create State
+    const [rwnInput, setRwnInput] = useState('');
+    const [rwnError, setRwnError] = useState<string | null>(null);
+
+    const handleQuickCreate = () => {
+        setRwnError(null);
+        const structure = parseRWN(rwnInput);
+
+        if (!structure) {
+            setRwnError("Could not parse workout. Check syntax (e.g., '4x500m/1:00r').");
+            return;
+        }
+
+        // Populate State
+        setStructureType(structure.type);
+
+        if (structure.type === 'steady_state') {
+            setSteadyValue(structure.value);
+            setSteadyUnit(structure.unit);
+            setSteadyTargetRate(structure.target_rate);
+            setSteadyTargetPace(structure.target_pace);
+        } else if (structure.type === 'interval') {
+            setIntervalRepeats(structure.repeats);
+            setWorkType(structure.work.type);
+            setWorkValue(structure.work.value);
+            setWorkTargetRate(structure.work.target_rate);
+            setWorkTargetPace(structure.work.target_pace);
+            setRestValue(structure.rest.value);
+        } else if (structure.type === 'variable') {
+            setVariableSteps(structure.steps);
+        }
+
+        // Auto-fill name if empty
+        if (!template.name) {
+            setTemplate(prev => ({ ...prev, name: rwnInput }));
+        }
+    };
 
     useEffect(() => {
         if (templateId) {
@@ -200,6 +239,32 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                         <>
                             {/* Basic Info */}
                             <div className="space-y-4">
+                                {/* Quick Create Section */}
+                                <div className="bg-gradient-to-r from-emerald-900/10 to-transparent p-4 rounded-lg border border-emerald-900/30">
+                                    <label className="block text-xs font-bold text-emerald-500 uppercase tracking-wide mb-2">
+                                        ⚡ Quick Create from RWN
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={rwnInput}
+                                            onChange={e => setRwnInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleQuickCreate()}
+                                            className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                            placeholder="e.g. 30:00, 4x500m/1:00r, 2k+1k"
+                                        />
+                                        <button
+                                            onClick={handleQuickCreate}
+                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                    {rwnError && (
+                                        <p className="text-xs text-red-400 mt-2">{rwnError}</p>
+                                    )}
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-400 mb-1">Name</label>
                                     <input

@@ -17,7 +17,7 @@ Workout Template Editor and Standardized Naming (RWN).
 
 ## Immediate Next Steps
 1.  **Test Template Editor**: Create/edit templates, verify canonical name generation matches synced logs.
-2.  **RWN Spec**: Draft Rowing Workout Notation spec (grammar for `5x500m/1:00r` etc.).
+2.  **RWN Spec**: Draft Rowers Workout Notation spec (grammar for `5x500m/1:00r` etc.).
 3.  **Goals UI**: Add goal setting UI (Weekly distance & Interval Targets).
 
 ## Active Issues
