@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2, Eye } from 'lucide-react';
 import { fetchTemplateById, updateTemplate, createTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
+import { structureToIntervals } from '../utils/structureAdapter';
+import { calculateCanonicalName } from '../utils/prCalculator';
 
 interface TemplateEditorProps {
     templateId: string | null; // null = new template
@@ -116,38 +118,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         const struct = buildStructure();
         if (!struct) return '—';
 
-        if (struct.type === 'steady_state') {
-            if (struct.unit === 'meters') {
-                return struct.value >= 1000 ? `${struct.value / 1000}k` : `${struct.value}m`;
-            } else if (struct.unit === 'calories') {
-                return `${struct.value}cal`;
-            } else {
-                const mins = Math.floor(struct.value / 60);
-                return `${mins}min`;
-            }
-        }
+        // Use the real canonical name calculator via the adapter
+        const intervals = structureToIntervals(struct);
+        if (intervals.length === 0) return '—';
 
-        if (struct.type === 'interval') {
-            const workStr = struct.work.type === 'distance'
-                ? `${struct.work.value}m`
-                : struct.work.type === 'calories'
-                    ? `${struct.work.value}cal`
-                    : formatTime(struct.work.value);
-            const restStr = formatTime(struct.rest.value) + 'r';
-            return `${struct.repeats}x${workStr}/${restStr}`;
-        }
-
-        if (struct.type === 'variable') {
-            return 'Variable workout';
-        }
-
-        return '—';
-    };
-
-    const formatTime = (seconds: number): string => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins}:00`;
+        return calculateCanonicalName(intervals);
     };
 
     const handleSave = async () => {

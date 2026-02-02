@@ -44,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const links = [
         { path: '/', label: 'Dashboard', icon: Home },
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
-        { path: '/sync', label: 'Sync & Data', icon: Database },
+        { path: '/sync', label: 'Sync Data', icon: Database },
         { path: '/templates', label: 'Workouts', icon: Dumbbell },
         { path: '/preferences', label: 'Settings', icon: Settings },
         { path: '/live', label: 'Live Sessions', icon: Activity },

@@ -56,7 +56,7 @@ export const TemplateLibrary: React.FC = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-white">Template Library</h1>
                     <p className="text-neutral-400 text-sm mt-1">
-                        Manage workout templates and add programmable structures
+                        Manage workout templates and add standardized structures
                     </p>
                 </div>
                 <button
@@ -103,7 +103,7 @@ export const TemplateLibrary: React.FC = () => {
                         className="bg-transparent py-2 text-white focus:outline-none"
                     >
                         <option value="all">All Status</option>
-                        <option value="has">✓ Programmable</option>
+                        <option value="has">✓ Standardized</option>
                         <option value="missing">✗ Needs Structure</option>
                     </select>
                 </div>
@@ -115,7 +115,7 @@ export const TemplateLibrary: React.FC = () => {
                     {templates.length} templates
                 </span>
                 <span className="text-emerald-400">
-                    {templates.filter(t => t.workout_structure).length} programmable
+                    {templates.filter(t => t.workout_structure).length} standardized
                 </span>
                 <span className="text-amber-400">
                     {templates.filter(t => !t.workout_structure).length} need structure
@@ -145,7 +145,7 @@ export const TemplateLibrary: React.FC = () => {
                                     <td className="px-4 py-3">
                                         {template.workout_structure ? (
                                             <span className="flex items-center gap-1 text-emerald-400 text-sm">
-                                                <Check size={16} /> Programmable
+                                                <Check size={16} /> Standardized
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-1 text-amber-400 text-sm">
@@ -159,10 +159,10 @@ export const TemplateLibrary: React.FC = () => {
                                     <td className="px-4 py-3">
                                         {template.training_zone ? (
                                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${template.training_zone === 'UT2' ? 'bg-blue-900/50 text-blue-300' :
-                                                    template.training_zone === 'UT1' ? 'bg-cyan-900/50 text-cyan-300' :
-                                                        template.training_zone === 'AT' ? 'bg-yellow-900/50 text-yellow-300' :
-                                                            template.training_zone === 'TR' ? 'bg-orange-900/50 text-orange-300' :
-                                                                'bg-red-900/50 text-red-300'
+                                                template.training_zone === 'UT1' ? 'bg-cyan-900/50 text-cyan-300' :
+                                                    template.training_zone === 'AT' ? 'bg-yellow-900/50 text-yellow-300' :
+                                                        template.training_zone === 'TR' ? 'bg-orange-900/50 text-orange-300' :
+                                                            'bg-red-900/50 text-red-300'
                                                 }`}>
                                                 {template.training_zone}
                                             </span>
