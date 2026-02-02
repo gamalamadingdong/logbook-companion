@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, type UserProfile } from '../services/supabase';
@@ -210,6 +209,24 @@ export const Preferences: React.FC = () => {
                                 />
                             </div>
 
+                        </div>
+
+                        {/* Concept2 Sync Settings */}
+                        <div className="mt-6 pt-6 border-t border-neutral-800">
+                            <h3 className="font-medium text-neutral-200 mb-3">Concept2 Sync</h3>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={(formData as any).preferences?.auto_sync !== false}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        preferences: { ...(formData as any).preferences, auto_sync: e.target.checked }
+                                    } as any)}
+                                    className="w-4 h-4 rounded border-gray-600 bg-neutral-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-neutral-900"
+                                />
+                                <span className="text-neutral-300">Automatically sync workouts on login</span>
+                            </label>
+                            <p className="text-xs text-neutral-500 mt-1 ml-7">When disabled, sync only runs manually from the Sync page.</p>
                         </div>
                     </div>
                 )}

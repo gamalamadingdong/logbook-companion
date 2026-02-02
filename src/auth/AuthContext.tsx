@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   profileLoading: boolean
+  tokensReady: boolean // True after C2 tokens have been restored from DB
   signOut: () => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, displayName: string) => Promise<void>
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [tokensReady, setTokensReady] = useState(false)
   const isGuestMode = useRef(false);
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
@@ -129,8 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
-          restoreC2Tokens(session.user.id)
+          restoreC2Tokens(session.user.id).finally(() => setTokensReady(true))
         } else {
+          setTokensReady(true) // No user, no tokens to restore
           setLoading(false)
         }
       } catch {
@@ -148,7 +151,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
-          restoreC2Tokens(session.user.id)
+          setTokensReady(false) // Reset while restoring
+          restoreC2Tokens(session.user.id).finally(() => setTokensReady(true))
         } else {
           // Only clear if NOT in guest mode
           if (!isGuestMode.current) {
@@ -261,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     profileLoading,
+    tokensReady,
     signUp,
     signIn,
     signOut,

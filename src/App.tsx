@@ -14,6 +14,7 @@ import { Preferences } from './pages/Preferences';
 import { Feedback } from './pages/Feedback';
 import { About } from './pages/About';
 import { CoachSessions } from './pages/CoachSessions';
+import { TemplateLibrary } from './pages/TemplateLibrary';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -112,6 +113,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CoachSessions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/templates"
+            element={
+              <ProtectedRoute>
+                <TemplateLibrary />
               </ProtectedRoute>
             }
           />
