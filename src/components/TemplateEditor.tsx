@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2, Eye } from 'lucide-react';
+import { X, Save, Loader2, Eye, HelpCircle } from 'lucide-react';
 import { fetchTemplateById, updateTemplate, createTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
 import { structureToIntervals } from '../utils/structureAdapter';
@@ -241,9 +241,21 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                             <div className="space-y-4">
                                 {/* Quick Create Section */}
                                 <div className="bg-gradient-to-r from-emerald-900/10 to-transparent p-4 rounded-lg border border-emerald-900/30">
-                                    <label className="block text-xs font-bold text-emerald-500 uppercase tracking-wide mb-2">
-                                        ⚡ Quick Create from RWN
-                                    </label>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-xs font-bold text-emerald-500 uppercase tracking-wide">
+                                            ⚡ Quick Create from RWN
+                                        </label>
+                                        <a
+                                            href="/docs"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-emerald-600 hover:text-emerald-400 flex items-center gap-1 transition-colors"
+                                            title="View Rowing Workout Notation Spec"
+                                        >
+                                            <HelpCircle size={12} />
+                                            Syntax Guide
+                                        </a>
+                                    </div>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"

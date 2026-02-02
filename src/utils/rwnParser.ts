@@ -59,9 +59,16 @@ function parseComponent(str: string): ParsedComponent | null {
             guidance.target_rate = parseInt(rateMatch[1]);
         }
 
-        // Regex for Pace: (\d+:\d+)
+        // Regex for Relative Pace: 2k+10, 6k-5, 2k + 18
+        // Matches: (Start or space)(Base)(+/-)(Seconds)
+        const relPaceMatch = guidanceText.match(/(?:^|\s)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)/i);
+        if (relPaceMatch) {
+            guidance.target_pace = relPaceMatch[1].replace(/\s+/g, ''); // Normalize to "2k+18"
+        }
+
+        // Regex for Time Pace: (\d+:\d+) - only if we didn't find relative pace
         const paceMatch = guidanceText.match(/(\d+:\d+(?:\.\d+)?)/);
-        if (paceMatch && !guidance.target_rate) { // If it looks like time, it's pace
+        if (paceMatch && !guidance.target_rate && !guidance.target_pace) {
             guidance.target_pace = paceMatch[1];
         }
     }

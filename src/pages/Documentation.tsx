@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, Database, ArrowRight, Code } from 'lucide-react';
+import { RWNPlayground } from '../components/RWNPlayground';
 
 export const Documentation: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics'>('concepts');
@@ -227,6 +228,9 @@ export const Documentation: React.FC = () => {
                     </div>
 
                     <div className="p-6 space-y-8">
+                        {/* Interactive Validator */}
+                        <RWNPlayground />
+
                         <section>
                             <h3 className="text-lg font-semibold text-white mb-3">1. Basic Structure</h3>
                             <div className="grid gap-4 md:grid-cols-2">
