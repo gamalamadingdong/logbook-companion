@@ -23,7 +23,9 @@ This notation allows us to universally identify workouts across different platfo
 
 👉 **[Read the RWN Specification](src/docs/RWN_spec.md)**
 
-### 3. Live Sessions & Connectivity
+### 3. Live Sessions & Connectivity (Experimental)
+> **⚠️ Note:** Live Sessions and Group Workouts are currently under active development and considered experimental. Use with caution.
+
 Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature connects your browser directly to your Concept2 PM5 monitor via Bluetooth.
 - **Program**: Send your structured workout directly to the PM5.
 - **Race**: Host synchronized sessions where you control the "Set" and "Go" for connected machines.
