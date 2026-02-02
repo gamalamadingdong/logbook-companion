@@ -1,23 +1,23 @@
 # Active Context
 
 ## Current Focus
-Workout Template Editor and Standardized Naming (RWN).
+Open Source Preparation & RWN Standardization.
 
 ## Recent Changes
--   **Completed**: Implemented **Workout Template Editor** (`/templates` route, Workouts nav item).
-    - `TemplateLibrary.tsx` — Filterable list of templates with Standardized/Needs Structure indicators.
-    - `TemplateEditor.tsx` — Modal with structure builder for Steady State, Fixed Interval, Variable workouts.
-    - Types include calories, time-only rest (PM5 compliant), optional `target_rate` and `target_pace` guidance.
--   **Completed**: Created `structureAdapter.ts` to convert `workout_structure` JSON → `C2Interval[]` for canonical naming.
--   **Completed**: Editor now uses real `calculateCanonicalName()` for preview consistency.
--   **Completed**: Renamed "Coach Sessions" to **"Live Sessions"** and removed Admin restrictions.
--   **Completed**: Implemented Race Control UI and Set Workout Modal with interval support.
--   **Completed**: Fixed Canonical Workout Naming logic (repeating patterns, variable intervals).
--   **Completed**: Implemented Guest Mode with mock data for safe exploring.
+-   **Completed**: Implemented **Rowers Workout Notation (RWN)** parser and UI integration.
+    - `rwnParser.ts` — Full parser supporting intervals, steady state, variable workouts.
+    - `RWNPlayground.tsx` — Interactive validator embedded in documentation.
+    - `TemplateEditor.tsx` — "Quick Create" feature for RWN input.
+    - **New Syntax**: Relative pace (`@2k+10`), Modalities (`Bike:`, `Ski:`).
+-   **Completed**: Moved RWN spec to dedicated `rwn/` directory for potential future extraction.
+-   **Completed**: Applied **MIT License** and added copyright notice to UI.
+-   **Completed**: Cleaned repo for public release (removed `.agent/`, timestamped schema snapshots).
+-   **Completed**: Renamed GitHub repo from `better-training` to `logbook-companion`.
+-   **Completed**: Fixed routing error for `/templates` and Concept2 token refresh infinite loop.
 
 ## Immediate Next Steps
-1.  **Test Template Editor**: Create/edit templates, verify canonical name generation matches synced logs.
-2.  **RWN Spec**: Draft Rowers Workout Notation spec (grammar for `5x500m/1:00r` etc.).
+1.  **Prepare erg-link for public release**: Apply MIT license, clean repo structure.
+2.  **Community Outreach**: Post RWN spec to r/Rowing and Concept2 forums for feedback.
 3.  **Goals UI**: Add goal setting UI (Weekly distance & Interval Targets).
 
 ## Active Issues
@@ -25,6 +25,7 @@ Workout Template Editor and Standardized Naming (RWN).
 - **Template Matching**: Need to test matching synced logs to standardized templates.
 
 ## Architecture Notes
+- **RWN Directory**: `rwn/` contains spec and may be extracted to standalone repo.
 - **Workout Structure Types**: `SteadyStateStructure`, `IntervalStructure`, `VariableStructure` in `workoutStructure.types.ts`.
 - **Adapter Pattern**: `structureToIntervals()` converts template JSON to C2Interval format for consistent naming.
 - **Canonical Naming**: Single source of truth via `calculateCanonicalName()` in `prCalculator.ts`.
