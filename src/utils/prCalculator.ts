@@ -230,8 +230,19 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const isCleanTime = workIntervals.every(i => (i.time / 10) % 1 === 0);
 
     // Short variable list (longer fallback)
-    if (count > 0 && count < 10 && isCleanDist) {
-        return `v${dists.join('/')}m`;
+    if (count > 0 && count < 10) {
+        if (isCleanDist) {
+            return `v${dists.join('/')}m`;
+        }
+        if (isCleanTime) {
+            const times = workIntervals.map(i => {
+                const totalSec = i.time / 10;
+                const m = Math.floor(totalSec / 60);
+                const s = totalSec % 60;
+                return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
+            });
+            return `v${times.join('/')}`;
+        }
     }
 
     // Fallback for "Unknown" or Messy Variable
