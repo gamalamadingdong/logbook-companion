@@ -117,11 +117,19 @@ function parseRest(str: string): number {
 export function parseRWN(input: string): WorkoutStructure | null {
     if (!input || !input.trim()) return null;
 
-    const text = input.trim();
+    let text = input.trim();
+    let modality: WorkoutStructure['modality'] = undefined;
+
+    // 0. Check for Modality Prefix (e.g., "Bike: 4x500m")
+    const modalityMatch = text.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
+    if (modalityMatch) {
+        modality = modalityMatch[1].toLowerCase() as any;
+        text = modalityMatch[2].trim();
+    }
 
     // 1. Check for Complex/Segmented (contains '+')
     if (text.includes('+')) {
-        return parseVariableWorkout(text);
+        return parseVariableWorkout(text, modality);
     }
 
     // 2. Check for Intervals (contains 'x' AND 'r') - strict check for repeats
@@ -147,6 +155,7 @@ export function parseRWN(input: string): WorkoutStructure | null {
 
                 return {
                     type: 'interval',
+                    modality,
                     repeats,
                     work: {
                         type: workComp.type,
@@ -168,6 +177,7 @@ export function parseRWN(input: string): WorkoutStructure | null {
     if (singleComp) {
         return {
             type: 'steady_state',
+            modality,
             value: singleComp.value,
             unit: mapToSteadyUnit(singleComp.type),
             target_rate: singleComp.guidance?.target_rate,
@@ -180,7 +190,7 @@ export function parseRWN(input: string): WorkoutStructure | null {
     return null;
 }
 
-function parseVariableWorkout(text: string): WorkoutStructure {
+function parseVariableWorkout(text: string, modality?: WorkoutStructure['modality']): WorkoutStructure {
     // 2000m + 1000m + ...
     const segments = text.split('+').map(s => s.trim());
     const steps: WorkoutStep[] = [];
@@ -226,6 +236,7 @@ function parseVariableWorkout(text: string): WorkoutStructure {
 
     return {
         type: 'variable',
+        modality,
         steps
     };
 }

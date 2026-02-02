@@ -146,10 +146,28 @@ calories        = integer , "cal" ;
 
 ```
 
+
 ## 9. Machine Types & Mixed Modalities
 RWN supports non-rowing activities using a `Type:` prefix.
 
 **Syntax:** `[Type]: [Content]`
+
+### 9.1 Supported Types
+*   `Row`, `Ski`, `Bike` (Standard C2 Ergs - standard RWN parsing applies)
+*   `Run` (Running)
+*   `Other` (Generic)
+
+### 9.2 Parsing Logic
+*   **Strict Mode (Ergs):** `Row`, `Ski`, `Bike` expect standard RWN syntax (distance/time/rest).
+*   **Flexible Mode (Run/Other):**
+    *   **Leading Quantities:** If the text starts with a standard quantity (e.g., `400m`, `10:00`), it is parsed as a Work Component.
+    *   **Free Text:** Any remaining text is treated as a description/label.
+
+**Examples:**
+*   `Bike: 15000m` -> Type: Bike, Distance: 15000
+*   `Ski: 8x500m/3:30r` -> Type: Ski, Interval Workout
+*   `Run: 5k @20:00` -> Type: Run, Distance: 5000
+
 
 ### 9.1 Supported Types
 *   `Row`, `Ski`, `Bike` (Standard C2 Ergs - standard RWN parsing applies)

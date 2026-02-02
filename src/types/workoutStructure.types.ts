@@ -14,6 +14,7 @@ export type WorkoutStructure =
 // Steady state: Just Row / Single Distance / Single Time / Single Calories
 export interface SteadyStateStructure {
     type: 'steady_state';
+    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     value: number;
     unit: 'meters' | 'seconds' | 'calories';
     target_rate?: number;  // Optional SPM guidance
@@ -23,6 +24,7 @@ export interface SteadyStateStructure {
 // Fixed intervals: Repeating distance/time/calories with time-based rest
 export interface IntervalStructure {
     type: 'interval';
+    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     repeats: number;
     work: IntervalStep;
     rest: RestStep; // Rest is always time on PM5
@@ -31,6 +33,7 @@ export interface IntervalStructure {
 // Variable intervals: Complex/mixed patterns (pyramids, ladders, etc.)
 export interface VariableStructure {
     type: 'variable';
+    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     steps: WorkoutStep[];
 }
 

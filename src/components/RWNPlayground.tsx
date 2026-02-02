@@ -15,6 +15,7 @@ export const RWNPlayground: React.FC = () => {
         { label: 'Distance', value: '10000m', desc: 'Steady State' },
         { label: 'Time', value: '30:00', desc: 'Duration' },
         { label: 'Relative', value: '30:00 @2k+18', desc: 'Split Target' },
+        { label: 'Multi-Erg', value: 'Bike: 15000m', desc: 'Modality Prefix' },
         { label: 'Rate Cap', value: '2000m @r24', desc: 'Rate Limit' },
         { label: 'Mixed', value: '2000m+1000m+500m', desc: 'Variable' },
         { label: 'Complex', value: '3x(4:00/2:00r)', desc: 'Time Intervals' },
