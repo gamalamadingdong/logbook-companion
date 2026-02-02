@@ -15,6 +15,7 @@ import { Feedback } from './pages/Feedback';
 import { About } from './pages/About';
 import { CoachSessions } from './pages/CoachSessions';
 import { TemplateLibrary } from './pages/TemplateLibrary';
+import { Documentation } from './pages/Documentation';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -117,10 +118,17 @@ function App() {
             }
           />
           <Route
-            path="/templates"
             element={
               <ProtectedRoute>
                 <TemplateLibrary />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/docs"
+            element={
+              <ProtectedRoute>
+                <Documentation />
               </ProtectedRoute>
             }
           />
