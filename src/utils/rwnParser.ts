@@ -129,7 +129,22 @@ export function parseRWN(input: string): WorkoutStructure | null {
 
     // 1. Check for Complex/Segmented (contains '+')
     if (text.includes('+')) {
-        return parseVariableWorkout(text, modality);
+        const variableStruct = parseVariableWorkout(text, modality);
+
+        // Safety: If it resulted in just 1 Work step, treat as Steady State
+        if (variableStruct.type === 'variable' && variableStruct.steps.length === 1 && variableStruct.steps[0].type === 'work') {
+            const step = variableStruct.steps[0];
+            return {
+                type: 'steady_state',
+                modality,
+                value: step.value,
+                unit: mapToSteadyUnit(step.duration_type),
+                target_rate: step.target_rate,
+                target_pace: step.target_pace
+            };
+        }
+
+        return variableStruct;
     }
 
     // 2. Check for Intervals (contains 'x' AND 'r') - strict check for repeats

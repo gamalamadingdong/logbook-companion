@@ -198,3 +198,23 @@ RWN supports non-rowing activities using a `Type:` prefix.
 *   `Run: 15:00 Tempo` -> Type: Run, Time: 15:00, Note: "Tempo"
 *   `Other: 10 Burpees` -> Type: Other, Note: "10 Burpees" (Initial number captured if possible, else raw text)
 *   `Row: 2000m + Other: 2:00 Plank + Row: 2000m` (Compound mixed workout)
+
+
+## 10. Tags & Metadata
+RWN supports metadata tagging for workout segments using the `#` symbol.
+
+### 10.1 Standard Tags
+Tags are used to annotate the purpose of a segment.
+-   `#warmup`: Denotes a warmup segment. `erg-link` may eventually treat this as a separate program or unverified segment.
+-   `#cooldown`: Denotes a cooldown segment.
+
+### 10.2 Syntax
+Tags are appended to the component description.
+-   `2000m #warmup`
+-   `10:00 #cooldown`
+-   `2000m #warmup + 4x500m/2r + 1000m #cooldown`
+
+### 10.3 Parsing Behavior
+-   Tags are stripped from the core component parsing (e.g. `2000m` is still parsed as Distance).
+-   Tags are stored in the workout structure's metadata.
+

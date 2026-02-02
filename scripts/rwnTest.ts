@@ -11,6 +11,7 @@ const TEST_CASES = [
     { input: '2000m + 1000m + 500m', label: 'Variable Continuous' },
     { input: '2000m/2r + 1000m/1r', label: 'Variable Mixed' },
     { input: 'v500m/1:00r... Ladder', label: 'Explicit Variable' },
+    { input: '10000m', label: 'Steady State 10k' },
 ];
 
 async function runTests() {
