@@ -1,5 +1,12 @@
 # AI-Assisted Development Template
 
+## 📚 Logbook Companion Documentation
+> **New to the project? Start here!**
+
+- **[Core Concepts](src/docs/CORE_CONCEPTS.md)**: Understand **Workouts**, **Live Sessions**, and the data model.
+- **[Rowing Workout Notation (RWN)](src/docs/RWN_spec.md)**: The standardized syntax for workouts (e.g., `4x500m/1:00r`).
+- **[Getting Started](START_HERE.md)**: Setup and initialization guide.
+
 > **Context-driven development with persistent memory.** A structured instruction system that helps AI assistants (like GitHub Copilot) maintain context across sessions and guide high-quality implementation.
 
 ## 🎯 What is this?
