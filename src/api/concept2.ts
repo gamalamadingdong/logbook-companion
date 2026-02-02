@@ -21,60 +21,74 @@ function clearLocalTokens() {
 }
 
 // Helper: Refresh the access token using the refresh token
+let refreshPromise: Promise<string> | null = null;
+
 async function refreshAccessToken(refreshToken: string): Promise<string> {
-    const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-    const clientSecret = import.meta.env.VITE_CONCEPT2_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-        throw new Error("Missing Concept2 Client ID or Secret in environment variables.");
+    if (refreshPromise) {
+        console.log('Refresh already in progress, attaching to existing promise...');
+        return refreshPromise;
     }
 
-    const params = new URLSearchParams();
-    params.append('client_id', clientId);
-    params.append('client_secret', clientSecret);
-    params.append('grant_type', 'refresh_token');
-    params.append('refresh_token', refreshToken);
+    refreshPromise = (async () => {
+        const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
+        const clientSecret = import.meta.env.VITE_CONCEPT2_CLIENT_SECRET;
 
-    try {
-        const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-
-        const newToken = response.data.access_token;
-        const newRefreshToken = response.data.refresh_token;
-
-        localStorage.setItem('concept2_token', newToken);
-        if (newRefreshToken) {
-            localStorage.setItem('concept2_refresh_token', newRefreshToken);
-        }
-        if (response.data.expires_in) {
-            const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
-            localStorage.setItem('concept2_expires_at', expiresAt);
+        if (!clientId || !clientSecret) {
+            throw new Error("Missing Concept2 Client ID or Secret in environment variables.");
         }
 
-        // Persist to DB async (don't block)
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) {
-                supabase.from('user_integrations').upsert({
-                    user_id: user.id,
-                    concept2_token: newToken,
-                    concept2_refresh_token: newRefreshToken,
-                    concept2_expires_at: response.data.expires_in
-                        ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
-                        : undefined
-                }, { onConflict: 'user_id' }).then(() => console.log('DB Token Update Success'));
+        const params = new URLSearchParams();
+        params.append('client_id', clientId);
+        params.append('client_secret', clientSecret);
+        params.append('grant_type', 'refresh_token');
+        params.append('refresh_token', refreshToken);
+
+        try {
+            console.log('Initiating unique token refresh request...');
+            const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+
+            const newToken = response.data.access_token;
+            const newRefreshToken = response.data.refresh_token;
+
+            localStorage.setItem('concept2_token', newToken);
+            if (newRefreshToken) {
+                localStorage.setItem('concept2_refresh_token', newRefreshToken);
             }
-        });
+            if (response.data.expires_in) {
+                const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
+                localStorage.setItem('concept2_expires_at', expiresAt);
+            }
 
-        return newToken;
-    } catch (error: any) {
-        if (error.response && error.response.status === 400) {
-            console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
-            clearLocalTokens();
-            throw new Error("FATAL_REFRESH_ERROR");
+            // Persist to DB async (don't block)
+            supabase.auth.getUser().then(({ data: { user } }) => {
+                if (user) {
+                    supabase.from('user_integrations').upsert({
+                        user_id: user.id,
+                        concept2_token: newToken,
+                        concept2_refresh_token: newRefreshToken,
+                        concept2_expires_at: response.data.expires_in
+                            ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
+                            : undefined
+                    }, { onConflict: 'user_id' }).then(() => console.log('DB Token Update Success'));
+                }
+            });
+
+            return newToken;
+        } catch (error: any) {
+            if (error.response && error.response.status === 400) {
+                console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
+                clearLocalTokens();
+                throw new Error("FATAL_REFRESH_ERROR");
+            }
+            throw error;
+        } finally {
+            refreshPromise = null;
         }
-        throw error;
-    }
+    })();
+
+    return refreshPromise;
 }
 
 // Interceptor to add Authorization header if token exists (with proactive refresh)
