@@ -141,6 +141,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <LogOut size={20} />
                         Sign Out
                     </button>
+
+                    <div className="pt-4 mt-2 border-t border-neutral-800 text-[10px] text-neutral-600 text-center">
+                        <p>© 2024 Sam Gammon</p>
+                        <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-500 transition-colors">
+                            MIT Licensed
+                        </a>
+                    </div>
                 </div>
             </aside>
 

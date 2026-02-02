@@ -9,6 +9,19 @@ Rowers Workout Notation (RWN) is a standardized text-based format for describing
 - **Machine-parseable**: Unambiguous structure for software (logbooks, erg monitors).
 - **Universal**: Applicable to both indoor machine (ergometer) and on-water rowing.
 
+### 1.1 Motivation
+
+While the rowing community has developed informal conventions for describing workouts (e.g., `4x500m/1:00r`, `3x20' @UT2`), **no formal, machine-parseable standard exists**. This leads to:
+- **Inconsistency**: Training plans use varying notation styles, making automation difficult.
+- **Limited tooling**: Apps and logbooks cannot reliably parse workout descriptions.
+- **Fragmentation**: Coaches and athletes must manually translate workouts between platforms.
+
+RWN aims to provide a **lightweight, unambiguous syntax** that:
+- Preserves the readability of existing conventions.
+- Enables software to programmatically generate, validate, and execute workouts.
+- Supports modern training methodologies (relative pace targets, multi-erg workouts).
+
+
 ## 2. Basic Structure
 
 A workout is defined as a sequence of **Work Intervals** and optional **Rest Intervals**.

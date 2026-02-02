@@ -1,0 +1,4465 @@
+{
+    "data": [
+        {
+            "id": 111196043,
+            "user_id": 831361,
+            "date": "2026-01-13 16:15:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-13 21:15:00",
+            "distance": 17500,
+            "type": "rower",
+            "time": 45597,
+            "time_formatted": "1:15:59.7",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1071,
+            "drag_factor": 138,
+            "stroke_count": 1432,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 78,
+                "average": 134,
+                "max": 149,
+                "ending": 135
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 9022,
+                        "distance": 3500,
+                        "calories_total": 218,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 119,
+                            "average": 128,
+                            "max": 136,
+                            "ending": 131
+                        }
+                    },
+                    {
+                        "time": 9009,
+                        "distance": 3500,
+                        "calories_total": 216,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 126,
+                            "average": 132,
+                            "max": 137,
+                            "ending": 133
+                        }
+                    },
+                    {
+                        "time": 9110,
+                        "distance": 3500,
+                        "calories_total": 214,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 133,
+                            "average": 136,
+                            "max": 141,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 9209,
+                        "distance": 3500,
+                        "calories_total": 212,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 131,
+                            "average": 136,
+                            "max": 143,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 9246,
+                        "distance": 3500,
+                        "calories_total": 211,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 132,
+                            "average": 137,
+                            "max": 149,
+                            "ending": 135
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 111192486,
+            "user_id": 831361,
+            "date": "2026-01-13 14:57:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-13 19:57:00",
+            "distance": 741,
+            "type": "rower",
+            "time": 3332,
+            "time_formatted": "5:33.2",
+            "workout_type": "FixedTimeSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 46,
+            "drag_factor": 140,
+            "stroke_count": 62,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 90,
+                "average": 125,
+                "max": 124,
+                "ending": 125
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 3332,
+                        "distance": 741,
+                        "calories_total": 46,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 62,
+                            "average": 107,
+                            "max": 125,
+                            "ending": 125
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 111132208,
+            "user_id": 831361,
+            "date": "2026-01-12 15:38:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-12 20:38:00",
+            "distance": 6000,
+            "type": "rower",
+            "time": 16428,
+            "time_formatted": "27:22.8",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 349,
+            "drag_factor": 139,
+            "stroke_count": 508,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 120,
+                "average": 142,
+                "max": 147,
+                "ending": 142
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 3319,
+                        "distance": 1200,
+                        "calories_total": 69,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 115,
+                            "average": 137,
+                            "max": 146,
+                            "ending": 144
+                        }
+                    },
+                    {
+                        "time": 3272,
+                        "distance": 1200,
+                        "calories_total": 70,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 143,
+                            "average": 144,
+                            "max": 147,
+                            "ending": 144
+                        }
+                    },
+                    {
+                        "time": 3277,
+                        "distance": 1200,
+                        "calories_total": 70,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 140,
+                            "average": 143,
+                            "max": 146,
+                            "ending": 140
+                        }
+                    },
+                    {
+                        "time": 3279,
+                        "distance": 1200,
+                        "calories_total": 70,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 138,
+                            "average": 141,
+                            "max": 145,
+                            "ending": 140
+                        }
+                    },
+                    {
+                        "time": 3281,
+                        "distance": 1200,
+                        "calories_total": 70,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 139,
+                            "average": 141,
+                            "max": 146,
+                            "ending": 142
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 111130916,
+            "user_id": 831361,
+            "date": "2026-01-12 15:10:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-12 20:10:00",
+            "distance": 9664,
+            "type": "rower",
+            "time": 21600,
+            "time_formatted": "51:00.0",
+            "workout_type": "FixedTimeInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 1366,
+            "rest_time": 9000,
+            "calories_total": 696,
+            "drag_factor": 137,
+            "stroke_count": 1080,
+            "stroke_rate": 26,
+            "heart_rate": {
+                "min": 86,
+                "average": 179,
+                "max": 189,
+                "ending": 187
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1130
+                },
+                "intervals": [
+                    {
+                        "type": "time",
+                        "time": 7200,
+                        "distance": 3219,
+                        "calories_total": 232,
+                        "stroke_rate": 26,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 80,
+                            "average": 149,
+                            "max": 172,
+                            "ending": 171
+                        }
+                    },
+                    {
+                        "type": "time",
+                        "time": 7200,
+                        "distance": 3217,
+                        "calories_total": 231,
+                        "stroke_rate": 26,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 102,
+                            "average": 156,
+                            "max": 182,
+                            "ending": 180
+                        }
+                    },
+                    {
+                        "type": "time",
+                        "time": 7200,
+                        "distance": 3228,
+                        "calories_total": 233,
+                        "stroke_rate": 26,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 118,
+                            "average": 165,
+                            "max": 189,
+                            "ending": 187
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 111127664,
+            "user_id": 831361,
+            "date": "2026-01-12 14:16:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-12 19:16:00",
+            "distance": 3000,
+            "type": "rower",
+            "time": 7819,
+            "time_formatted": "13:01.9",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 181,
+            "drag_factor": 139,
+            "stroke_count": 269,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 72,
+                "average": 122,
+                "max": 147,
+                "ending": 119
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 1475,
+                        "distance": 600,
+                        "calories_total": 38,
+                        "stroke_rate": 23,
+                        "heart_rate": {
+                            "min": 72,
+                            "average": 109,
+                            "max": 133,
+                            "ending": 122
+                        }
+                    },
+                    {
+                        "time": 1626,
+                        "distance": 600,
+                        "calories_total": 35,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 102,
+                            "average": 111,
+                            "max": 122,
+                            "ending": 117
+                        }
+                    },
+                    {
+                        "time": 1447,
+                        "distance": 600,
+                        "calories_total": 39,
+                        "stroke_rate": 24,
+                        "heart_rate": {
+                            "min": 117,
+                            "average": 137,
+                            "max": 147,
+                            "ending": 134
+                        }
+                    },
+                    {
+                        "time": 1659,
+                        "distance": 600,
+                        "calories_total": 34,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 115,
+                            "average": 119,
+                            "max": 134,
+                            "ending": 119
+                        }
+                    },
+                    {
+                        "time": 1611,
+                        "distance": 600,
+                        "calories_total": 35,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 117,
+                            "average": 120,
+                            "max": 125,
+                            "ending": 119
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 111071774,
+            "user_id": 831361,
+            "date": "2026-01-11 13:41:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-11 18:41:00",
+            "distance": 22000,
+            "type": "rower",
+            "time": 56151,
+            "time_formatted": "1:33:35.1",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1370,
+            "drag_factor": 130,
+            "stroke_count": 1817,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 71,
+                "average": 151,
+                "max": 164,
+                "ending": 158
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 14087,
+                        "distance": 5500,
+                        "calories_total": 341,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 64,
+                            "average": 116,
+                            "max": 139,
+                            "ending": 134
+                        }
+                    },
+                    {
+                        "time": 14027,
+                        "distance": 5500,
+                        "calories_total": 343,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 125,
+                            "average": 134,
+                            "max": 152,
+                            "ending": 150
+                        }
+                    },
+                    {
+                        "time": 14022,
+                        "distance": 5500,
+                        "calories_total": 343,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 134,
+                            "average": 142,
+                            "max": 163,
+                            "ending": 162
+                        }
+                    },
+                    {
+                        "time": 14015,
+                        "distance": 5500,
+                        "calories_total": 343,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 141,
+                            "average": 149,
+                            "max": 164,
+                            "ending": 158
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110977308,
+            "user_id": 831361,
+            "date": "2026-01-09 16:05:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-09 21:05:00",
+            "distance": 15000,
+            "type": "rower",
+            "time": 38115,
+            "time_formatted": "1:03:31.5",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 936,
+            "drag_factor": 139,
+            "stroke_count": 1242,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 69,
+                "average": 141,
+                "max": 166,
+                "ending": 149
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 3827,
+                        "distance": 1500,
+                        "calories_total": 93,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 69,
+                            "average": 114,
+                            "max": 128,
+                            "ending": 127
+                        }
+                    },
+                    {
+                        "time": 3784,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 116,
+                            "average": 127,
+                            "max": 138,
+                            "ending": 130
+                        }
+                    },
+                    {
+                        "time": 3790,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 118,
+                            "average": 134,
+                            "max": 143,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 3806,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 129,
+                            "average": 137,
+                            "max": 149,
+                            "ending": 139
+                        }
+                    },
+                    {
+                        "time": 3846,
+                        "distance": 1500,
+                        "calories_total": 93,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 128,
+                            "average": 137,
+                            "max": 145,
+                            "ending": 139
+                        }
+                    },
+                    {
+                        "time": 3807,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 129,
+                            "average": 142,
+                            "max": 156,
+                            "ending": 143
+                        }
+                    },
+                    {
+                        "time": 3794,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 138,
+                            "average": 147,
+                            "max": 156,
+                            "ending": 148
+                        }
+                    },
+                    {
+                        "time": 3818,
+                        "distance": 1500,
+                        "calories_total": 93,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 141,
+                            "average": 152,
+                            "max": 166,
+                            "ending": 144
+                        }
+                    },
+                    {
+                        "time": 3791,
+                        "distance": 1500,
+                        "calories_total": 94,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 144,
+                            "average": 149,
+                            "max": 161,
+                            "ending": 156
+                        }
+                    },
+                    {
+                        "time": 3851,
+                        "distance": 1500,
+                        "calories_total": 93,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 145,
+                            "average": 149,
+                            "max": 160,
+                            "ending": 149
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110974389,
+            "user_id": 831361,
+            "date": "2026-01-09 14:42:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-09 19:42:00",
+            "distance": 181,
+            "type": "rower",
+            "time": 481,
+            "time_formatted": "0:48.1",
+            "workout_type": "JustRow",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 10,
+            "drag_factor": 139,
+            "stroke_count": 15,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 112,
+                "average": 116,
+                "max": 125,
+                "ending": 116
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 481,
+                        "distance": 181,
+                        "calories_total": 10,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 112,
+                            "average": 117,
+                            "max": 129,
+                            "ending": 116
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110974221,
+            "user_id": 831361,
+            "date": "2026-01-09 14:37:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-09 19:37:00",
+            "distance": 128,
+            "type": "rower",
+            "time": 464,
+            "time_formatted": "0:46.4",
+            "workout_type": "JustRow",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 6,
+            "drag_factor": 137,
+            "stroke_count": 10,
+            "stroke_rate": 13,
+            "heart_rate": {
+                "min": 75,
+                "average": 96,
+                "max": 95,
+                "ending": 96
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1280
+                },
+                "splits": [
+                    {
+                        "time": 464,
+                        "distance": 128,
+                        "calories_total": 6,
+                        "stroke_rate": 13,
+                        "heart_rate": {
+                            "min": 91,
+                            "average": 94,
+                            "max": 102,
+                            "ending": 96
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110922719,
+            "user_id": 831361,
+            "date": "2026-01-08 15:39:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-08 20:39:00",
+            "distance": 7000,
+            "type": "rower",
+            "time": 18182,
+            "time_formatted": "30:18.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 426,
+            "drag_factor": 130,
+            "stroke_count": 564,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 100,
+                "average": 137,
+                "max": 150,
+                "ending": 139
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 2588,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 95,
+                            "average": 128,
+                            "max": 140,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 2584,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 133,
+                            "average": 136,
+                            "max": 140,
+                            "ending": 140
+                        }
+                    },
+                    {
+                        "time": 2606,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 135,
+                            "average": 138,
+                            "max": 150,
+                            "ending": 138
+                        }
+                    },
+                    {
+                        "time": 2608,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 134,
+                            "average": 137,
+                            "max": 141,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 2615,
+                        "distance": 1000,
+                        "calories_total": 60,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 135,
+                            "average": 138,
+                            "max": 142,
+                            "ending": 138
+                        }
+                    },
+                    {
+                        "time": 2607,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 133,
+                            "average": 137,
+                            "max": 142,
+                            "ending": 136
+                        }
+                    },
+                    {
+                        "time": 2574,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 134,
+                            "average": 138,
+                            "max": 141,
+                            "ending": 139
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110921198,
+            "user_id": 831361,
+            "date": "2026-01-08 15:05:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-08 20:05:00",
+            "distance": 14107,
+            "type": "rower",
+            "time": 36748,
+            "time_formatted": "1:01:14.8",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 862,
+            "drag_factor": 129,
+            "stroke_count": 1111,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 67,
+                "average": 134,
+                "max": 144,
+                "ending": 137
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1310
+                },
+                "splits": [
+                    {
+                        "time": 13001,
+                        "distance": 5000,
+                        "calories_total": 306,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 66,
+                            "average": 114,
+                            "max": 132,
+                            "ending": 128
+                        }
+                    },
+                    {
+                        "time": 13002,
+                        "distance": 5000,
+                        "calories_total": 306,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 122,
+                            "average": 132,
+                            "max": 141,
+                            "ending": 138
+                        }
+                    },
+                    {
+                        "time": 10737,
+                        "distance": 4107,
+                        "calories_total": 250,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 132,
+                            "average": 137,
+                            "max": 144,
+                            "ending": 137
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110695198,
+            "user_id": 831361,
+            "date": "2026-01-04 17:19:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-04 22:19:00",
+            "distance": 15000,
+            "type": "rower",
+            "time": 38791,
+            "time_formatted": "1:04:39.1",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 930,
+            "drag_factor": 146,
+            "stroke_count": 1251,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 8111,
+                        "distance": 3000,
+                        "calories_total": 185,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 7710,
+                        "distance": 3000,
+                        "calories_total": 185,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 7667,
+                        "distance": 3000,
+                        "calories_total": 186,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 7656,
+                        "distance": 3000,
+                        "calories_total": 187,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 7648,
+                        "distance": 3000,
+                        "calories_total": 187,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110649225,
+            "user_id": 831361,
+            "date": "2026-01-03 17:51:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-03 22:51:00",
+            "distance": 11054,
+            "type": "rower",
+            "time": 30000,
+            "time_formatted": "50:00.0",
+            "workout_type": "FixedTimeSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 654,
+            "drag_factor": 168,
+            "stroke_count": 1026,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 104,
+                "average": 134,
+                "max": 158,
+                "ending": 136
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 6000,
+                        "distance": 2200,
+                        "calories_total": 131,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 123,
+                            "average": 126,
+                            "max": 131,
+                            "ending": 129
+                        }
+                    },
+                    {
+                        "time": 6000,
+                        "distance": 2248,
+                        "calories_total": 135,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 133,
+                            "average": 134,
+                            "max": 138,
+                            "ending": 134
+                        }
+                    },
+                    {
+                        "time": 6000,
+                        "distance": 2178,
+                        "calories_total": 127,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 125,
+                            "average": 128,
+                            "max": 132,
+                            "ending": 128
+                        }
+                    },
+                    {
+                        "time": 6000,
+                        "distance": 2209,
+                        "calories_total": 130,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 145,
+                            "average": 148,
+                            "max": 153,
+                            "ending": 145
+                        }
+                    },
+                    {
+                        "time": 6000,
+                        "distance": 2220,
+                        "calories_total": 131,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 131,
+                            "average": 136,
+                            "max": 146,
+                            "ending": 136
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110647495,
+            "user_id": 831361,
+            "date": "2026-01-03 16:54:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-03 21:54:00",
+            "distance": 6000,
+            "type": "rower",
+            "time": 16025,
+            "time_formatted": "26:42.5",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 357,
+            "drag_factor": 200,
+            "stroke_count": 501,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 73,
+                "average": 122,
+                "max": 144,
+                "ending": 133
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 3204,
+                        "distance": 1200,
+                        "calories_total": 71,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 101,
+                            "average": 117,
+                            "max": 145,
+                            "ending": 117
+                        }
+                    },
+                    {
+                        "time": 3271,
+                        "distance": 1200,
+                        "calories_total": 70,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 105,
+                            "average": 114,
+                            "max": 124,
+                            "ending": 115
+                        }
+                    },
+                    {
+                        "time": 3220,
+                        "distance": 1200,
+                        "calories_total": 71,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 112,
+                            "average": 120,
+                            "max": 132,
+                            "ending": 125
+                        }
+                    },
+                    {
+                        "time": 3219,
+                        "distance": 1200,
+                        "calories_total": 72,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 111,
+                            "average": 121,
+                            "max": 128,
+                            "ending": 122
+                        }
+                    },
+                    {
+                        "time": 3111,
+                        "distance": 1200,
+                        "calories_total": 73,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 120,
+                            "average": 129,
+                            "max": 136,
+                            "ending": 133
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110595348,
+            "user_id": 831361,
+            "date": "2026-01-02 16:31:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-02 21:31:00",
+            "distance": 5611,
+            "type": "rower",
+            "time": 15849,
+            "time_formatted": "26:24.9",
+            "workout_type": "JustRow",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 318,
+            "drag_factor": 124,
+            "stroke_count": 477,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 120,
+                "average": 145,
+                "max": 153,
+                "ending": 142
+            },
+            "workout": {
+                "splits": [
+                    {
+                        "time": 3000,
+                        "distance": 1033,
+                        "calories_total": 57,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 115,
+                            "average": 136,
+                            "max": 148,
+                            "ending": 145
+                        }
+                    },
+                    {
+                        "time": 3000,
+                        "distance": 1076,
+                        "calories_total": 62,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 145,
+                            "average": 148,
+                            "max": 154,
+                            "ending": 148
+                        }
+                    },
+                    {
+                        "time": 3000,
+                        "distance": 1059,
+                        "calories_total": 60,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 142,
+                            "average": 145,
+                            "max": 150,
+                            "ending": 147
+                        }
+                    },
+                    {
+                        "time": 3000,
+                        "distance": 1067,
+                        "calories_total": 61,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 141,
+                            "average": 145,
+                            "max": 148,
+                            "ending": 145
+                        }
+                    },
+                    {
+                        "time": 3000,
+                        "distance": 1073,
+                        "calories_total": 61,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 140,
+                            "average": 143,
+                            "max": 149,
+                            "ending": 146
+                        }
+                    },
+                    {
+                        "time": 849,
+                        "distance": 303,
+                        "calories_total": 17,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 142,
+                            "average": 144,
+                            "max": 147,
+                            "ending": 142
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110594184,
+            "user_id": 831361,
+            "date": "2026-01-02 16:03:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-02 21:03:00",
+            "distance": 7500,
+            "type": "rower",
+            "time": 16269,
+            "time_formatted": "52:06.9",
+            "workout_type": "FixedDistanceInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 3013,
+            "rest_time": 15000,
+            "calories_total": 560,
+            "drag_factor": 125,
+            "stroke_count": 1034,
+            "stroke_rate": 27,
+            "heart_rate": {
+                "min": 95,
+                "average": 181,
+                "max": 192,
+                "ending": 190
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1090,
+                    "stroke_rate": 26
+                },
+                "intervals": [
+                    {
+                        "type": "distance",
+                        "time": 3244,
+                        "distance": 1500,
+                        "calories_total": 112,
+                        "stroke_rate": 27,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 79,
+                            "average": 148,
+                            "max": 170,
+                            "ending": 169
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 3236,
+                        "distance": 1500,
+                        "calories_total": 113,
+                        "stroke_rate": 27,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 98,
+                            "average": 147,
+                            "max": 180,
+                            "ending": 180
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 3252,
+                        "distance": 1500,
+                        "calories_total": 112,
+                        "stroke_rate": 27,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 108,
+                            "average": 152,
+                            "max": 186,
+                            "ending": 183
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 3262,
+                        "distance": 1500,
+                        "calories_total": 112,
+                        "stroke_rate": 27,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 117,
+                            "average": 156,
+                            "max": 190,
+                            "ending": 187
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 3275,
+                        "distance": 1500,
+                        "calories_total": 111,
+                        "stroke_rate": 27,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "min": 116,
+                            "average": 161,
+                            "max": 192,
+                            "ending": 190
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110592160,
+            "user_id": 831361,
+            "date": "2026-01-02 15:06:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-02 20:06:00",
+            "distance": 5000,
+            "type": "rower",
+            "time": 13562,
+            "time_formatted": "22:36.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 294,
+            "drag_factor": 125,
+            "stroke_count": 436,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 75,
+                "average": 110,
+                "max": 136,
+                "ending": 121
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 2766,
+                        "distance": 1000,
+                        "calories_total": 58,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 62,
+                            "average": 97,
+                            "max": 105,
+                            "ending": 101
+                        }
+                    },
+                    {
+                        "time": 2698,
+                        "distance": 1000,
+                        "calories_total": 59,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 99,
+                            "average": 109,
+                            "max": 130,
+                            "ending": 107
+                        }
+                    },
+                    {
+                        "time": 2701,
+                        "distance": 1000,
+                        "calories_total": 59,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 106,
+                            "average": 113,
+                            "max": 129,
+                            "ending": 109
+                        }
+                    },
+                    {
+                        "time": 2707,
+                        "distance": 1000,
+                        "calories_total": 59,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 106,
+                            "average": 114,
+                            "max": 133,
+                            "ending": 115
+                        }
+                    },
+                    {
+                        "time": 2690,
+                        "distance": 1000,
+                        "calories_total": 59,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 109,
+                            "average": 117,
+                            "max": 136,
+                            "ending": 121
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110541717,
+            "user_id": 831361,
+            "date": "2026-01-01 14:46:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2026-01-01 19:46:00",
+            "distance": 24000,
+            "type": "rower",
+            "time": 60822,
+            "time_formatted": "1:41:22.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1505,
+            "drag_factor": 125,
+            "stroke_count": 2012,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "max": 147,
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1315
+                },
+                "splits": [
+                    {
+                        "time": 15238,
+                        "distance": 6000,
+                        "calories_total": 375,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "average": 90,
+                            "min": 54,
+                            "max": 147
+                        }
+                    },
+                    {
+                        "time": 15340,
+                        "distance": 6000,
+                        "calories_total": 373,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 15145,
+                        "distance": 6000,
+                        "calories_total": 378,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 15099,
+                        "distance": 6000,
+                        "calories_total": 379,
+                        "stroke_rate": 21,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110347520,
+            "user_id": 831361,
+            "date": "2025-12-27 15:45:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-27 20:45:00",
+            "distance": 21097,
+            "type": "rower",
+            "time": 51229,
+            "time_formatted": "1:25:22.9",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1381,
+            "drag_factor": 125,
+            "stroke_count": 1819,
+            "stroke_rate": 21,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1305
+                },
+                "splits": [
+                    {
+                        "time": 9707,
+                        "distance": 4000,
+                        "calories_total": 262,
+                        "stroke_rate": 21,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 9767,
+                        "distance": 4000,
+                        "calories_total": 260,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 9797,
+                        "distance": 4000,
+                        "calories_total": 260,
+                        "stroke_rate": 21,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 9615,
+                        "distance": 4000,
+                        "calories_total": 265,
+                        "stroke_rate": 22,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 9670,
+                        "distance": 4000,
+                        "calories_total": 263,
+                        "stroke_rate": 22,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 2672,
+                        "distance": 1097,
+                        "calories_total": 71,
+                        "stroke_rate": 23,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110242814,
+            "user_id": 831361,
+            "date": "2025-12-24 08:29:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-24 13:29:00",
+            "distance": 6000,
+            "type": "rower",
+            "time": 15383,
+            "time_formatted": "25:38.3",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 370,
+            "drag_factor": 126,
+            "stroke_count": 491,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 3090,
+                        "distance": 1200,
+                        "calories_total": 74,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 3080,
+                        "distance": 1200,
+                        "calories_total": 74,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 3081,
+                        "distance": 1200,
+                        "calories_total": 74,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 3073,
+                        "distance": 1200,
+                        "calories_total": 74,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 3059,
+                        "distance": 1200,
+                        "calories_total": 74,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110217655,
+            "user_id": 831361,
+            "date": "2025-12-23 15:26:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-23 20:26:00",
+            "distance": 500,
+            "type": "rower",
+            "time": 1381,
+            "time_formatted": "2:18.1",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 26,
+            "drag_factor": 125,
+            "stroke_count": 43,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 82,
+                "average": 112,
+                "max": 117,
+                "ending": 117
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 294,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 81,
+                            "average": 93,
+                            "max": 114,
+                            "ending": 109
+                        }
+                    },
+                    {
+                        "time": 278,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 108,
+                            "average": 108,
+                            "max": 109,
+                            "ending": 109
+                        }
+                    },
+                    {
+                        "time": 274,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 103,
+                            "average": 109,
+                            "max": 113,
+                            "ending": 112
+                        }
+                    },
+                    {
+                        "time": 271,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 113,
+                            "average": 114,
+                            "max": 116,
+                            "ending": 114
+                        }
+                    },
+                    {
+                        "time": 263,
+                        "distance": 100,
+                        "calories_total": 6,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 113,
+                            "average": 115,
+                            "max": 117,
+                            "ending": 117
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110217491,
+            "user_id": 831361,
+            "date": "2025-12-23 15:21:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-23 20:21:00",
+            "distance": 5505,
+            "type": "rower",
+            "time": 13943,
+            "time_formatted": "23:14.3",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 340,
+            "drag_factor": 115,
+            "stroke_count": 460,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 63,
+                "average": 125,
+                "max": 143,
+                "ending": 129
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 1276,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 62,
+                            "average": 96,
+                            "max": 113,
+                            "ending": 109
+                        }
+                    },
+                    {
+                        "time": 1286,
+                        "distance": 500,
+                        "calories_total": 30,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 108,
+                            "average": 112,
+                            "max": 120,
+                            "ending": 112
+                        }
+                    },
+                    {
+                        "time": 1264,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 112,
+                            "average": 118,
+                            "max": 128,
+                            "ending": 119
+                        }
+                    },
+                    {
+                        "time": 1225,
+                        "distance": 500,
+                        "calories_total": 32,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 119,
+                            "average": 127,
+                            "max": 135,
+                            "ending": 129
+                        }
+                    },
+                    {
+                        "time": 1245,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 124,
+                            "average": 127,
+                            "max": 132,
+                            "ending": 128
+                        }
+                    },
+                    {
+                        "time": 1238,
+                        "distance": 500,
+                        "calories_total": 32,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 128,
+                            "average": 130,
+                            "max": 134,
+                            "ending": 134
+                        }
+                    },
+                    {
+                        "time": 1231,
+                        "distance": 500,
+                        "calories_total": 32,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 130,
+                            "average": 133,
+                            "max": 137,
+                            "ending": 137
+                        }
+                    },
+                    {
+                        "time": 1296,
+                        "distance": 500,
+                        "calories_total": 30,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 123,
+                            "average": 128,
+                            "max": 138,
+                            "ending": 123
+                        }
+                    },
+                    {
+                        "time": 1287,
+                        "distance": 500,
+                        "calories_total": 30,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 121,
+                            "average": 127,
+                            "max": 140,
+                            "ending": 127
+                        }
+                    },
+                    {
+                        "time": 1284,
+                        "distance": 500,
+                        "calories_total": 30,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 125,
+                            "average": 128,
+                            "max": 132,
+                            "ending": 127
+                        }
+                    },
+                    {
+                        "time": 1270,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 127,
+                            "average": 132,
+                            "max": 144,
+                            "ending": 131
+                        }
+                    },
+                    {
+                        "time": 24,
+                        "distance": 5,
+                        "calories_total": 0,
+                        "stroke_rate": 0,
+                        "heart_rate": {
+                            "min": 129,
+                            "average": 129,
+                            "max": 129,
+                            "ending": 129
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110169397,
+            "user_id": 831361,
+            "date": "2025-12-22 15:11:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-22 20:11:00",
+            "distance": 20000,
+            "type": "rower",
+            "time": 50212,
+            "time_formatted": "1:23:41.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1266,
+            "drag_factor": 145,
+            "stroke_count": 1693,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1305
+                },
+                "splits": [
+                    {
+                        "time": 12734,
+                        "distance": 5000,
+                        "calories_total": 312,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 12636,
+                        "distance": 5000,
+                        "calories_total": 314,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 12450,
+                        "distance": 5000,
+                        "calories_total": 319,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 12392,
+                        "distance": 5000,
+                        "calories_total": 321,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110076932,
+            "user_id": 831361,
+            "date": "2025-12-20 12:57:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-20 17:57:00",
+            "distance": 5459,
+            "type": "rower",
+            "time": 12600,
+            "time_formatted": "27:00.0",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 1185,
+            "rest_time": 3600,
+            "calories_total": 377,
+            "drag_factor": 126,
+            "stroke_count": 607,
+            "stroke_rate": 23,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 600,
+                        "distance": 259,
+                        "calories_total": 17,
+                        "stroke_rate": 24,
+                        "rest_distance": 201,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1190
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 1200,
+                        "distance": 523,
+                        "calories_total": 36,
+                        "stroke_rate": 24,
+                        "rest_distance": 210,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1188
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 1800,
+                        "distance": 772,
+                        "calories_total": 53,
+                        "stroke_rate": 23,
+                        "rest_distance": 203,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1184
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 2400,
+                        "distance": 1025,
+                        "calories_total": 70,
+                        "stroke_rate": 22,
+                        "rest_distance": 189,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1185
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 3000,
+                        "distance": 1306,
+                        "calories_total": 91,
+                        "stroke_rate": 24,
+                        "rest_distance": 192,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1172
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 3600,
+                        "distance": 1574,
+                        "calories_total": 110,
+                        "stroke_rate": 24,
+                        "rest_distance": 190,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {
+                            "pace": 1156
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110075553,
+            "user_id": 831361,
+            "date": "2025-12-20 12:27:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-20 17:27:00",
+            "distance": 5363,
+            "type": "rower",
+            "time": 12600,
+            "time_formatted": "27:00.0",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 1254,
+            "rest_time": 3600,
+            "calories_total": 362,
+            "drag_factor": 126,
+            "stroke_count": 575,
+            "stroke_rate": 21,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 600,
+                        "distance": 252,
+                        "calories_total": 16,
+                        "stroke_rate": 23,
+                        "rest_distance": 198,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 1200,
+                        "distance": 505,
+                        "calories_total": 33,
+                        "stroke_rate": 22,
+                        "rest_distance": 211,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 1800,
+                        "distance": 760,
+                        "calories_total": 51,
+                        "stroke_rate": 21,
+                        "rest_distance": 207,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 2400,
+                        "distance": 1012,
+                        "calories_total": 68,
+                        "stroke_rate": 22,
+                        "rest_distance": 210,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 3000,
+                        "distance": 1279,
+                        "calories_total": 87,
+                        "stroke_rate": 22,
+                        "rest_distance": 205,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "time",
+                        "time": 3600,
+                        "distance": 1556,
+                        "calories_total": 107,
+                        "stroke_rate": 22,
+                        "rest_distance": 223,
+                        "rest_time": 600,
+                        "heart_rate": {},
+                        "targets": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 110073466,
+            "user_id": 831361,
+            "date": "2025-12-20 11:45:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-20 16:45:00",
+            "distance": 6000,
+            "type": "rower",
+            "time": 15007,
+            "time_formatted": "30:00.7",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 13,
+            "rest_time": 3000,
+            "calories_total": 381,
+            "drag_factor": 127,
+            "stroke_count": 491,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 62,
+                "average": 136,
+                "max": 143,
+                "ending": 136
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 15007,
+                        "distance": 6000,
+                        "calories_total": 381,
+                        "stroke_rate": 20,
+                        "rest_distance": 13,
+                        "rest_time": 3000,
+                        "heart_rate": {
+                            "rest": 138,
+                            "min": 58,
+                            "average": 126,
+                            "max": 143,
+                            "ending": 136
+                        },
+                        "targets": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109987421,
+            "user_id": 831361,
+            "date": "2025-12-18 13:29:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-18 18:29:00",
+            "distance": 10000,
+            "type": "rower",
+            "time": 25490,
+            "time_formatted": "42:29.0",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 626,
+            "drag_factor": 140,
+            "stroke_count": 826,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 5169,
+                        "distance": 2000,
+                        "calories_total": 123,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5127,
+                        "distance": 2000,
+                        "calories_total": 124,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5124,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5065,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5005,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109888762,
+            "user_id": 831361,
+            "date": "2025-12-16 14:35:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-16 19:35:00",
+            "distance": 12000,
+            "type": "rower",
+            "time": 30147,
+            "time_formatted": "50:14.7",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 758,
+            "drag_factor": 164,
+            "stroke_count": 966,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 5155,
+                        "distance": 2000,
+                        "calories_total": 123,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5091,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 5059,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 4974,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 4973,
+                        "distance": 2000,
+                        "calories_total": 128,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 4894,
+                        "distance": 2000,
+                        "calories_total": 130,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109833984,
+            "user_id": 831361,
+            "date": "2025-12-15 14:38:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-15 19:38:00",
+            "distance": 250,
+            "type": "rower",
+            "time": 789,
+            "time_formatted": "1:18.9",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 12,
+            "drag_factor": 134,
+            "stroke_count": 25,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 340,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 303,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 147,
+                        "distance": 50,
+                        "calories_total": 2,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109833874,
+            "user_id": 831361,
+            "date": "2025-12-15 14:36:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-15 19:36:00",
+            "distance": 4000,
+            "type": "rower",
+            "time": 7992,
+            "time_formatted": "37:19.2",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 3949,
+            "rest_time": 14400,
+            "calories_total": 331,
+            "drag_factor": 134,
+            "stroke_count": 815,
+            "stroke_rate": 31,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 499,
+                        "distance": 250,
+                        "calories_total": 20,
+                        "stroke_rate": 32,
+                        "rest_distance": 281,
+                        "rest_time": 900,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 1018
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 1013,
+                        "distance": 500,
+                        "calories_total": 41,
+                        "stroke_rate": 30,
+                        "rest_distance": 546,
+                        "rest_time": 1800,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 1024
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 1518,
+                        "distance": 750,
+                        "calories_total": 61,
+                        "stroke_rate": 30,
+                        "rest_distance": 731,
+                        "rest_time": 2700,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 1028
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 2028,
+                        "distance": 1000,
+                        "calories_total": 81,
+                        "stroke_rate": 30,
+                        "rest_distance": 928,
+                        "rest_time": 3600,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 1023
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 1498,
+                        "distance": 750,
+                        "calories_total": 62,
+                        "stroke_rate": 31,
+                        "rest_distance": 670,
+                        "rest_time": 2700,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 1003
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 972,
+                        "distance": 500,
+                        "calories_total": 43,
+                        "stroke_rate": 33,
+                        "rest_distance": 497,
+                        "rest_time": 1800,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 984
+                        }
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 465,
+                        "distance": 250,
+                        "calories_total": 23,
+                        "stroke_rate": 36,
+                        "rest_distance": 296,
+                        "rest_time": 900,
+                        "heart_rate": {
+                            "min": 255
+                        },
+                        "targets": {
+                            "pace": 940
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109831518,
+            "user_id": 831361,
+            "date": "2025-12-15 13:55:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-15 18:55:00",
+            "distance": 3000,
+            "type": "rower",
+            "time": 7896,
+            "time_formatted": "13:09.6",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 180,
+            "drag_factor": 133,
+            "stroke_count": 257,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 1594,
+                        "distance": 600,
+                        "calories_total": 36,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 1483,
+                        "distance": 600,
+                        "calories_total": 38,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 1669,
+                        "distance": 600,
+                        "calories_total": 34,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 1533,
+                        "distance": 600,
+                        "calories_total": 37,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 1617,
+                        "distance": 600,
+                        "calories_total": 35,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109704083,
+            "user_id": 831361,
+            "date": "2025-12-12 16:12:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-12 21:12:00",
+            "distance": 1300,
+            "type": "rower",
+            "time": 3599,
+            "time_formatted": "5:59.9",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 73,
+            "drag_factor": 133,
+            "stroke_count": 110,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 113,
+                "average": 140,
+                "max": 149,
+                "ending": 142
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 837,
+                        "distance": 300,
+                        "calories_total": 17,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 112,
+                            "average": 129,
+                            "max": 138,
+                            "ending": 137
+                        }
+                    },
+                    {
+                        "time": 830,
+                        "distance": 300,
+                        "calories_total": 17,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 136,
+                            "average": 138,
+                            "max": 140,
+                            "ending": 140
+                        }
+                    },
+                    {
+                        "time": 824,
+                        "distance": 300,
+                        "calories_total": 17,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 139,
+                            "average": 141,
+                            "max": 142,
+                            "ending": 142
+                        }
+                    },
+                    {
+                        "time": 836,
+                        "distance": 300,
+                        "calories_total": 17,
+                        "stroke_rate": 17,
+                        "heart_rate": {
+                            "min": 139,
+                            "average": 143,
+                            "max": 149,
+                            "ending": 140
+                        }
+                    },
+                    {
+                        "time": 272,
+                        "distance": 100,
+                        "calories_total": 5,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 140,
+                            "average": 141,
+                            "max": 142,
+                            "ending": 142
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109702044,
+            "user_id": 831361,
+            "date": "2025-12-12 15:08:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-12 20:08:00",
+            "distance": 3000,
+            "type": "rower",
+            "time": 7729,
+            "time_formatted": "12:52.9",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 184,
+            "drag_factor": 133,
+            "stroke_count": 259,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 67,
+                "average": 117,
+                "max": 126,
+                "ending": 122
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 1496,
+                        "distance": 600,
+                        "calories_total": 38,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 80,
+                            "average": 111,
+                            "max": 123,
+                            "ending": 123
+                        }
+                    },
+                    {
+                        "time": 1572,
+                        "distance": 600,
+                        "calories_total": 36,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 111,
+                            "average": 119,
+                            "max": 127,
+                            "ending": 111
+                        }
+                    },
+                    {
+                        "time": 1507,
+                        "distance": 600,
+                        "calories_total": 38,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 111,
+                            "average": 119,
+                            "max": 125,
+                            "ending": 115
+                        }
+                    },
+                    {
+                        "time": 1581,
+                        "distance": 600,
+                        "calories_total": 36,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 109,
+                            "average": 114,
+                            "max": 119,
+                            "ending": 118
+                        }
+                    },
+                    {
+                        "time": 1573,
+                        "distance": 600,
+                        "calories_total": 36,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 109,
+                            "average": 115,
+                            "max": 122,
+                            "ending": 122
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109707227,
+            "user_id": 831361,
+            "date": "2025-12-12 00:00:00",
+            "timezone": null,
+            "date_utc": null,
+            "distance": 11713,
+            "type": "rower",
+            "time": 31010,
+            "time_formatted": "51:41.0",
+            "workout_type": "unknown",
+            "source": "Web",
+            "weight_class": "H",
+            "verified": false,
+            "ranked": false,
+            "comments": "5x1500\u20265\r\n\r\n1:46.7\r\n\r\nI'm notsure why this didn't sync to erg data but it was a solid piece.",
+            "privacy": "logged_in",
+            "stroke_data": false,
+            "real_time": null
+        },
+        {
+            "id": 109657290,
+            "user_id": 831361,
+            "date": "2025-12-11 16:27:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-11 21:27:00",
+            "distance": 16119,
+            "type": "rower",
+            "time": 40352,
+            "time_formatted": "1:07:15.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1015,
+            "drag_factor": 234,
+            "stroke_count": 1351,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 4996,
+                        "distance": 2000,
+                        "calories_total": 126,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 4975,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 5060,
+                        "distance": 2000,
+                        "calories_total": 124,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 5073,
+                        "distance": 2000,
+                        "calories_total": 124,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 5060,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 4951,
+                        "distance": 2000,
+                        "calories_total": 128,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 4984,
+                        "distance": 2000,
+                        "calories_total": 126,
+                        "stroke_rate": 21,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 4942,
+                        "distance": 2000,
+                        "calories_total": 128,
+                        "stroke_rate": 21,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 312,
+                        "distance": 119,
+                        "calories_total": 7,
+                        "stroke_rate": 17,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109542379,
+            "user_id": 831361,
+            "date": "2025-12-09 13:05:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-09 18:05:00",
+            "distance": 14000,
+            "type": "rower",
+            "time": 36697,
+            "time_formatted": "1:15:09.7",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 1994,
+            "rest_time": 8400,
+            "calories_total": 849,
+            "drag_factor": 119,
+            "stroke_count": 1341,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 13068,
+                        "distance": 5000,
+                        "calories_total": 304,
+                        "stroke_rate": 19,
+                        "rest_distance": 420,
+                        "rest_time": 3000,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 10511,
+                        "distance": 4000,
+                        "calories_total": 242,
+                        "stroke_rate": 19,
+                        "rest_distance": 613,
+                        "rest_time": 2400,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 7869,
+                        "distance": 3000,
+                        "calories_total": 182,
+                        "stroke_rate": 19,
+                        "rest_distance": 523,
+                        "rest_time": 1800,
+                        "heart_rate": {},
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 5250,
+                        "distance": 2000,
+                        "calories_total": 121,
+                        "stroke_rate": 19,
+                        "rest_distance": 438,
+                        "rest_time": 1200,
+                        "heart_rate": {},
+                        "targets": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109534230,
+            "user_id": 831361,
+            "date": "2025-12-09 10:57:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-09 15:57:00",
+            "distance": 1000,
+            "type": "rower",
+            "time": 2602,
+            "time_formatted": "4:20.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 60,
+            "drag_factor": 121,
+            "stroke_count": 81,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 526,
+                        "distance": 200,
+                        "calories_total": 12,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 521,
+                        "distance": 200,
+                        "calories_total": 12,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 519,
+                        "distance": 200,
+                        "calories_total": 12,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 517,
+                        "distance": 200,
+                        "calories_total": 12,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 519,
+                        "distance": 200,
+                        "calories_total": 12,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109533878,
+            "user_id": 831361,
+            "date": "2025-12-09 10:50:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-09 15:50:00",
+            "distance": 6016,
+            "type": "rower",
+            "time": 16024,
+            "time_formatted": "26:42.4",
+            "workout_type": "FixedTimeSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 364,
+            "drag_factor": 120,
+            "stroke_count": 485,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 6000,
+                        "distance": 2215,
+                        "calories_total": 134,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 6000,
+                        "distance": 2297,
+                        "calories_total": 140,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 4024,
+                        "distance": 1505,
+                        "calories_total": 90,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109497552,
+            "user_id": 831361,
+            "date": "2025-12-08 16:17:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-08 21:17:00",
+            "distance": 2011,
+            "type": "rower",
+            "time": 6252,
+            "time_formatted": "10:25.2",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 107,
+            "drag_factor": 134,
+            "stroke_count": 171,
+            "stroke_rate": 16,
+            "heart_rate": {
+                "min": 112,
+                "average": 139,
+                "max": 164,
+                "ending": 137
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 2117,
+                        "distance": 600,
+                        "calories_total": 30,
+                        "stroke_rate": 15,
+                        "heart_rate": {
+                            "min": 124,
+                            "average": 125,
+                            "max": 126,
+                            "ending": 126
+                        }
+                    },
+                    {
+                        "time": 1794,
+                        "distance": 600,
+                        "calories_total": 32,
+                        "stroke_rate": 17,
+                        "heart_rate": {
+                            "min": 125,
+                            "average": 139,
+                            "max": 150,
+                            "ending": 133
+                        }
+                    },
+                    {
+                        "time": 1723,
+                        "distance": 600,
+                        "calories_total": 33,
+                        "stroke_rate": 17,
+                        "heart_rate": {
+                            "min": 134,
+                            "average": 147,
+                            "max": 165,
+                            "ending": 162
+                        }
+                    },
+                    {
+                        "time": 605,
+                        "distance": 211,
+                        "calories_total": 12,
+                        "stroke_rate": 17,
+                        "heart_rate": {
+                            "min": 137,
+                            "average": 146,
+                            "max": 161,
+                            "ending": 137
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109495046,
+            "user_id": 831361,
+            "date": "2025-12-08 15:16:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-08 20:16:00",
+            "distance": 3000,
+            "type": "rower",
+            "time": 7915,
+            "time_formatted": "13:11.5",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 179,
+            "drag_factor": 133,
+            "stroke_count": 262,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 56,
+                "average": 120,
+                "max": 144,
+                "ending": 117
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 1388,
+                        "distance": 500,
+                        "calories_total": 28,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 51,
+                            "average": 88,
+                            "max": 113,
+                            "ending": 113
+                        }
+                    },
+                    {
+                        "time": 1271,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 111,
+                            "average": 117,
+                            "max": 126,
+                            "ending": 124
+                        }
+                    },
+                    {
+                        "time": 1309,
+                        "distance": 500,
+                        "calories_total": 30,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 116,
+                            "average": 118,
+                            "max": 125,
+                            "ending": 120
+                        }
+                    },
+                    {
+                        "time": 1272,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 120,
+                            "average": 132,
+                            "max": 145,
+                            "ending": 125
+                        }
+                    },
+                    {
+                        "time": 1274,
+                        "distance": 500,
+                        "calories_total": 31,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 116,
+                            "average": 120,
+                            "max": 125,
+                            "ending": 121
+                        }
+                    },
+                    {
+                        "time": 1401,
+                        "distance": 500,
+                        "calories_total": 28,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 117,
+                            "average": 120,
+                            "max": 124,
+                            "ending": 117
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109565215,
+            "user_id": 831361,
+            "date": "2025-12-08 00:00:00",
+            "timezone": null,
+            "date_utc": null,
+            "distance": 7300,
+            "type": "rower",
+            "time": 25800,
+            "time_formatted": "43:00.0",
+            "workout_type": "unknown",
+            "source": "Web",
+            "weight_class": "H",
+            "verified": false,
+            "ranked": false,
+            "comments": "500m\/3:30r...8\r\nave 1:38.3",
+            "privacy": "logged_in",
+            "stroke_data": false,
+            "real_time": null
+        },
+        {
+            "id": 109356510,
+            "user_id": 831361,
+            "date": "2025-12-05 13:42:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-05 18:42:00",
+            "distance": 6000,
+            "type": "rower",
+            "time": 14275,
+            "time_formatted": "41:47.5",
+            "workout_type": "VariableInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 2014,
+            "rest_time": 10800,
+            "calories_total": 402,
+            "drag_factor": 133,
+            "stroke_count": 713,
+            "stroke_rate": 22,
+            "heart_rate": {
+                "min": 88,
+                "average": 166,
+                "max": 179,
+                "ending": 169
+            },
+            "workout": {
+                "intervals": [
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 7169,
+                        "distance": 3000,
+                        "calories_total": 200,
+                        "stroke_rate": 22,
+                        "rest_distance": 1007,
+                        "rest_time": 4800,
+                        "heart_rate": {
+                            "rest": 129,
+                            "min": 74,
+                            "average": 134,
+                            "max": 174,
+                            "ending": 165
+                        },
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 4735,
+                        "distance": 2000,
+                        "calories_total": 135,
+                        "stroke_rate": 23,
+                        "rest_distance": 896,
+                        "rest_time": 3600,
+                        "heart_rate": {
+                            "rest": 130,
+                            "min": 95,
+                            "average": 139,
+                            "max": 166,
+                            "ending": 165
+                        },
+                        "targets": {}
+                    },
+                    {
+                        "machine": "rower",
+                        "type": "distance",
+                        "time": 2371,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 23,
+                        "rest_distance": 111,
+                        "rest_time": 2400,
+                        "heart_rate": {
+                            "rest": 156,
+                            "min": 124,
+                            "average": 145,
+                            "max": 179,
+                            "ending": 169
+                        },
+                        "targets": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109354333,
+            "user_id": 831361,
+            "date": "2025-12-05 12:57:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-05 17:57:00",
+            "distance": 4109,
+            "type": "rower",
+            "time": 10597,
+            "time_formatted": "17:39.7",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 251,
+            "drag_factor": 134,
+            "stroke_count": 342,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 67,
+                "average": 128,
+                "max": 149,
+                "ending": 132
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 2567,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 62,
+                            "average": 109,
+                            "max": 122,
+                            "ending": 118
+                        }
+                    },
+                    {
+                        "time": 2574,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 117,
+                            "average": 123,
+                            "max": 137,
+                            "ending": 131
+                        }
+                    },
+                    {
+                        "time": 2580,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 121,
+                            "average": 128,
+                            "max": 145,
+                            "ending": 128
+                        }
+                    },
+                    {
+                        "time": 2574,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 124,
+                            "average": 133,
+                            "max": 150,
+                            "ending": 131
+                        }
+                    },
+                    {
+                        "time": 292,
+                        "distance": 109,
+                        "calories_total": 6,
+                        "stroke_rate": 16,
+                        "heart_rate": {
+                            "min": 131,
+                            "average": 131,
+                            "max": 133,
+                            "ending": 132
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109313406,
+            "user_id": 831361,
+            "date": "2025-12-04 16:25:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-04 21:25:00",
+            "distance": 4000,
+            "type": "rower",
+            "time": 9457,
+            "time_formatted": "55:25.7",
+            "workout_type": "FixedDistanceInterval",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "rest_distance": 2262,
+            "rest_time": 23800,
+            "calories_total": 269,
+            "stroke_count": 542,
+            "stroke_rate": 22,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "intervals": [
+                    {
+                        "type": "distance",
+                        "time": 2382,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 22,
+                        "rest_time": 5950,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 2369,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 22,
+                        "rest_time": 5950,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 2370,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 22,
+                        "rest_time": 5950,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "type": "distance",
+                        "time": 2335,
+                        "distance": 1000,
+                        "calories_total": 68,
+                        "stroke_rate": 22,
+                        "rest_time": 5950,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109262631,
+            "user_id": 831361,
+            "date": "2025-12-03 16:33:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-03 21:33:00",
+            "distance": 10000,
+            "type": "rower",
+            "time": 25304,
+            "time_formatted": "42:10.4",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 627,
+            "drag_factor": 131,
+            "stroke_count": 804,
+            "stroke_rate": 19,
+            "heart_rate": {
+                "min": 81,
+                "average": 146,
+                "max": 174,
+                "ending": 166
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 5119,
+                        "distance": 2000,
+                        "calories_total": 124,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 69,
+                            "average": 118,
+                            "max": 139,
+                            "ending": 125
+                        }
+                    },
+                    {
+                        "time": 5117,
+                        "distance": 2000,
+                        "calories_total": 124,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 112,
+                            "average": 129,
+                            "max": 138,
+                            "ending": 137
+                        }
+                    },
+                    {
+                        "time": 5084,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 126,
+                            "average": 139,
+                            "max": 156,
+                            "ending": 142
+                        }
+                    },
+                    {
+                        "time": 5000,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 140,
+                            "average": 153,
+                            "max": 169,
+                            "ending": 164
+                        }
+                    },
+                    {
+                        "time": 4984,
+                        "distance": 2000,
+                        "calories_total": 127,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 142,
+                            "average": 159,
+                            "max": 174,
+                            "ending": 166
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 109148496,
+            "user_id": 831361,
+            "date": "2025-12-01 16:40:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-12-01 21:40:00",
+            "distance": 21097,
+            "type": "rower",
+            "time": 52468,
+            "time_formatted": "1:27:26.8",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 1339,
+            "drag_factor": 132,
+            "stroke_count": 1802,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "min": 62,
+                "average": 161,
+                "max": 193,
+                "ending": 175
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1300
+                },
+                "splits": [
+                    {
+                        "time": 2462,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 61,
+                            "average": 108,
+                            "max": 134,
+                            "ending": 122
+                        }
+                    },
+                    {
+                        "time": 2446,
+                        "distance": 1000,
+                        "calories_total": 65,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 122,
+                            "average": 133,
+                            "max": 144,
+                            "ending": 134
+                        }
+                    },
+                    {
+                        "time": 2454,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 133,
+                            "average": 143,
+                            "max": 153,
+                            "ending": 149
+                        }
+                    },
+                    {
+                        "time": 2496,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 138,
+                            "average": 143,
+                            "max": 150,
+                            "ending": 148
+                        }
+                    },
+                    {
+                        "time": 2392,
+                        "distance": 1000,
+                        "calories_total": 66,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 148,
+                            "average": 155,
+                            "max": 160,
+                            "ending": 159
+                        }
+                    },
+                    {
+                        "time": 2373,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 155,
+                            "average": 161,
+                            "max": 167,
+                            "ending": 163
+                        }
+                    },
+                    {
+                        "time": 2554,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 146,
+                            "average": 155,
+                            "max": 168,
+                            "ending": 151
+                        }
+                    },
+                    {
+                        "time": 2513,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 148,
+                            "average": 155,
+                            "max": 171,
+                            "ending": 159
+                        }
+                    },
+                    {
+                        "time": 2576,
+                        "distance": 1000,
+                        "calories_total": 61,
+                        "stroke_rate": 19,
+                        "heart_rate": {
+                            "min": 147,
+                            "average": 157,
+                            "max": 170,
+                            "ending": 151
+                        }
+                    },
+                    {
+                        "time": 2528,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 149,
+                            "average": 154,
+                            "max": 172,
+                            "ending": 156
+                        }
+                    },
+                    {
+                        "time": 2557,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 153,
+                            "average": 159,
+                            "max": 172,
+                            "ending": 164
+                        }
+                    },
+                    {
+                        "time": 2499,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 153,
+                            "average": 162,
+                            "max": 169,
+                            "ending": 165
+                        }
+                    },
+                    {
+                        "time": 2438,
+                        "distance": 1000,
+                        "calories_total": 65,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 156,
+                            "average": 164,
+                            "max": 174,
+                            "ending": 169
+                        }
+                    },
+                    {
+                        "time": 2507,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 160,
+                            "average": 169,
+                            "max": 173,
+                            "ending": 161
+                        }
+                    },
+                    {
+                        "time": 2485,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 159,
+                            "average": 168,
+                            "max": 179,
+                            "ending": 168
+                        }
+                    },
+                    {
+                        "time": 2431,
+                        "distance": 1000,
+                        "calories_total": 65,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 165,
+                            "average": 172,
+                            "max": 180,
+                            "ending": 177
+                        }
+                    },
+                    {
+                        "time": 2527,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 166,
+                            "average": 175,
+                            "max": 185,
+                            "ending": 166
+                        }
+                    },
+                    {
+                        "time": 2500,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 165,
+                            "average": 170,
+                            "max": 177,
+                            "ending": 176
+                        }
+                    },
+                    {
+                        "time": 2540,
+                        "distance": 1000,
+                        "calories_total": 62,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 169,
+                            "average": 174,
+                            "max": 177,
+                            "ending": 175
+                        }
+                    },
+                    {
+                        "time": 2489,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 171,
+                            "average": 179,
+                            "max": 183,
+                            "ending": 179
+                        }
+                    },
+                    {
+                        "time": 2446,
+                        "distance": 1000,
+                        "calories_total": 65,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 172,
+                            "average": 180,
+                            "max": 193,
+                            "ending": 180
+                        }
+                    },
+                    {
+                        "time": 257,
+                        "distance": 97,
+                        "calories_total": 5,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 173,
+                            "average": 178,
+                            "max": 181,
+                            "ending": 175
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 108759655,
+            "user_id": 831361,
+            "date": "2025-11-22 16:15:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-11-22 21:15:00",
+            "distance": 6013,
+            "type": "rower",
+            "time": 15401,
+            "time_formatted": "25:40.1",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 373,
+            "drag_factor": 97,
+            "stroke_count": 486,
+            "stroke_rate": 18,
+            "heart_rate": {
+                "min": 0,
+                "average": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 5182,
+                        "distance": 2000,
+                        "calories_total": 122,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 5072,
+                        "distance": 2000,
+                        "calories_total": 125,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 5051,
+                        "distance": 2000,
+                        "calories_total": 126,
+                        "stroke_rate": 19,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 49,
+                        "distance": 13,
+                        "calories_total": 0,
+                        "stroke_rate": 0,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 108759132,
+            "user_id": 831361,
+            "date": "2025-11-22 15:48:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-11-22 20:48:00",
+            "distance": 763,
+            "type": "rower",
+            "time": 1650,
+            "time_formatted": "2:45.0",
+            "workout_type": "JustRow",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 57,
+            "drag_factor": 3,
+            "stroke_count": 71,
+            "stroke_rate": 26,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {
+                    "pace": 1090
+                },
+                "splits": [
+                    {
+                        "time": 1650,
+                        "distance": 763,
+                        "calories_total": 57,
+                        "stroke_rate": 26,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 108759027,
+            "user_id": 831361,
+            "date": "2025-11-22 15:41:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-11-22 20:41:00",
+            "distance": 1703,
+            "type": "rower",
+            "time": 6000,
+            "time_formatted": "10:00.0",
+            "workout_type": "FixedTimeSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 102,
+            "drag_factor": 103,
+            "stroke_count": 146,
+            "stroke_rate": 14,
+            "heart_rate": {
+                "min": 0,
+                "max": 123,
+                "average": 97
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 1200,
+                        "distance": 451,
+                        "calories_total": 27,
+                        "stroke_rate": 18,
+                        "heart_rate": {
+                            "min": 61,
+                            "average": 94,
+                            "max": 115,
+                            "ending": 115
+                        }
+                    },
+                    {
+                        "time": 1200,
+                        "distance": 168,
+                        "calories_total": 10,
+                        "stroke_rate": 7,
+                        "heart_rate": {
+                            "min": 104,
+                            "average": 110,
+                            "max": 123,
+                            "ending": 107
+                        }
+                    },
+                    {
+                        "time": 1200,
+                        "distance": 196,
+                        "calories_total": 13,
+                        "stroke_rate": 9,
+                        "heart_rate": {
+                            "min": 71,
+                            "average": 83,
+                            "max": 110,
+                            "ending": 71
+                        }
+                    },
+                    {
+                        "time": 1200,
+                        "distance": 451,
+                        "calories_total": 27,
+                        "stroke_rate": 20,
+                        "heart_rate": {}
+                    },
+                    {
+                        "time": 1200,
+                        "distance": 436,
+                        "calories_total": 25,
+                        "stroke_rate": 18,
+                        "heart_rate": {}
+                    }
+                ]
+            },
+            "real_time": null
+        },
+        {
+            "id": 108684977,
+            "user_id": 831361,
+            "date": "2025-11-20 15:52:00",
+            "timezone": "America\/New_York",
+            "date_utc": "2025-11-20 20:52:00",
+            "distance": 5000,
+            "type": "rower",
+            "time": 12271,
+            "time_formatted": "20:27.1",
+            "workout_type": "FixedDistanceSplits",
+            "source": "ErgData iOS",
+            "weight_class": "H",
+            "verified": true,
+            "ranked": false,
+            "comments": null,
+            "privacy": "logged_in",
+            "stroke_data": true,
+            "calories_total": 322,
+            "drag_factor": 134,
+            "stroke_count": 424,
+            "stroke_rate": 20,
+            "heart_rate": {
+                "average": 0,
+                "min": 0
+            },
+            "workout": {
+                "targets": {},
+                "splits": [
+                    {
+                        "time": 2365,
+                        "distance": 1000,
+                        "calories_total": 67,
+                        "stroke_rate": 22,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 2486,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 2474,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 2494,
+                        "distance": 1000,
+                        "calories_total": 63,
+                        "stroke_rate": 20,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    },
+                    {
+                        "time": 2451,
+                        "distance": 1000,
+                        "calories_total": 64,
+                        "stroke_rate": 21,
+                        "heart_rate": {
+                            "min": 255
+                        }
+                    }
+                ]
+            },
+            "real_time": null
+        }
+    ],
+    "meta": {
+        "pagination": {
+            "total": 685,
+            "count": 50,
+            "per_page": 50,
+            "current_page": 1,
+            "total_pages": 14,
+            "links": {
+                "next": "https:\/\/log.concept2.com\/api\/users\/me\/results?page=2"
+            }
+        }
+    }
+}
