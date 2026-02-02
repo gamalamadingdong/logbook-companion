@@ -1,0 +1,45 @@
+--- RWN Parser & Naming Verification ---
+
+[TEST] Steady State Dist: "2000m"
+  Structure: Steady 2000 meters
+  Interval[0]: Dist=2000, Time=0, Type=distance
+  Canonical Name: "1x2000m"
+  Γ£à Parsed & Named
+
+[TEST] Steady State Time: "30:00"
+  Structure: Steady 1800 seconds
+  Interval[0]: Dist=0, Time=18000, Type=time
+  Canonical Name: "1x30:00"
+  Γ£à Parsed & Named
+
+[TEST] Standard Interval: "4x500m/2:00r"
+  Structure: Interval 4x 500 (distance)
+  Interval[0]: Dist=500, Time=0, Type=distance
+  Canonical Name: "4x500m/2:00r"
+  Γ£à Parsed & Named
+
+[TEST] Standard Interval Loose: "8 x 500m / 3:30r"
+  Structure: Interval 8x 500 (distance)
+  Interval[0]: Dist=500, Time=0, Type=distance
+  Canonical Name: "8x500m/3:30r"
+  Γ£à Parsed & Named
+
+[TEST] Variable Continuous: "2000m + 1000m + 500m"
+  Structure: Variable with 3 steps
+  Interval[0]: Dist=2000, Time=0, Type=distance
+  Canonical Name: "3x0:00"
+  Γ£à Parsed & Named
+
+[TEST] Variable Mixed: "2000m/2r + 1000m/1r"
+  Structure: Variable with 4 steps
+  Interval[0]: Dist=2000, Time=0, Type=distance
+  Canonical Name: "2x0:00/2sr"
+  Γ£à Parsed & Named
+
+[TEST] Explicit Variable: "v500m/1:00r... Ladder"
+  Structure: Steady NaN seconds
+  Interval[0]: Dist=0, Time=NaN, Type=time
+  Canonical Name: "1x0m"
+  Γ£à Parsed & Named
+
+--- Done. Passed (Parsed): 0 (approx) ---

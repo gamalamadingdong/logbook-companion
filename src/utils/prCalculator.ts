@@ -115,7 +115,7 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const firstCalories = first.calories_total;
     const calVariance = firstCalories ? workIntervals.every(i => i.calories_total && Math.abs(i.calories_total - firstCalories) <= 2) : false;
 
-    // SPECIAL CASE: Single Interval (e.g. 30:00)
+    // SPECIAL CASE: Single Interval (e.g. 30:00 or 2000m)
     // Both distVariance and timeVariance are TRUE.
     if (distVariance && timeVariance && count === 1) {
         const timeSec = first.time / 10;
@@ -128,17 +128,21 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
 
         // Prioritize:
         // 1. If logic says it's a Standard Distance (e.g. 2000m), prefer Distance.
+        if (isStandardDist) {
+            return `${Math.round(first.distance)}m`;
+        }
+
         // 2. Else if it's a Standard Time (30:00), prefer Time.
         // 3. Else if it's Clean Time but not Clean Distance, prefer Time.
-
-        if (isStandardDist) {
-            // Do nothing, fall through to distance check
-        } else if (isStandardTime || (!isCleanDist && isCleanTime)) {
+        if (isStandardTime || (!isCleanDist && isCleanTime)) {
             const m = Math.floor(timeSec / 60);
             const s = timeSec % 60;
             const timeLabel = s === 0 ? `${m}:00` : `${m}:${s}`;
-            return `${count}x${timeLabel}${restString}`;
+            return `${timeLabel}`;
         }
+
+        // Fallback for single interval: just return the distance?
+        return `${Math.round(first.distance)}m`;
     }
 
     if (distVariance) {
@@ -192,6 +196,15 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     }
 
     // Check Pyramid (A, B, C, B, A)
+    // Only format as Pyramid if count >= 5? 
+    // And prefer explicit list if short?
+
+    // Short variable list (explicit)
+    // Always prefer "v2000/1000/500" if length is small (<6)
+    if (count > 0 && count < 6) {
+        return `v${dists.join('/')}m`;
+    }
+
     const isPyramid = count >= 3 && dists[0] === dists[count - 1] && dists[Math.floor(count / 2)] > dists[0];
     if (isPyramid) return `v${dists[0]}m... Pyramid`;
 
@@ -216,21 +229,9 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const isCleanDist = dists.every(d => d % 10 === 0);
     const isCleanTime = workIntervals.every(i => (i.time / 10) % 1 === 0);
 
-    // Short variable list
-    if (count > 0 && count < 8) {
-        if (isCleanDist) {
-            return `v${dists.join('/')}m`;
-        }
-        if (isCleanTime) {
-            // Format times
-            const times = workIntervals.map(i => {
-                const totalSec = i.time / 10;
-                const m = Math.floor(totalSec / 60);
-                const s = totalSec % 60;
-                return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
-            });
-            return `v${times.join('/')}`;
-        }
+    // Short variable list (longer fallback)
+    if (count > 0 && count < 10 && isCleanDist) {
+        return `v${dists.join('/')}m`;
     }
 
     // Fallback for "Unknown" or Messy Variable

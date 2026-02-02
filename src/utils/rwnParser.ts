@@ -196,11 +196,22 @@ function parseVariableWorkout(text: string, modality?: WorkoutStructure['modalit
     const steps: WorkoutStep[] = [];
 
     segments.forEach(seg => {
-        // Handle parenthesis grouping (Simple support: just flatten?)
-        // "3 x ( ... )" is hard. 
-        // For now, support simple "A + B + C"
+        // Handle parenthesis grouping? (Future)
+        // Check for Work/Rest syntax: "2000m/2:00r" or "1000m/2r"
 
-        const comp = parseComponent(seg);
+        let workStr = seg;
+        let restStr = null;
+
+        if (seg.includes('/')) {
+            const parts = seg.split('/');
+            if (parts.length >= 2) {
+                workStr = parts[0].trim();
+                restStr = parts[1].trim();
+            }
+        }
+
+        // Parse Work Component
+        const comp = parseComponent(workStr);
         if (comp) {
             steps.push({
                 type: 'work',
@@ -210,19 +221,13 @@ function parseVariableWorkout(text: string, modality?: WorkoutStructure['modalit
                 target_pace: comp.guidance?.target_pace
             });
 
-            // Note: Variable intervals in C2 usually need undefined rest if they are continuous.
-            // But if user wrote "2000m + 1000m", they imply continuous.
-            // If they want rest, they'd use "2000m/2:00r + 1000m" (Mixed Interval Syntax)
-        }
-
-        // Check if segment has rest attached: "2000m/2:00r"
-        if (seg.includes('/')) {
-            // Re-parse with rest logic?
-            // Simple hack: split by /
-            const parts = seg.split('/');
-            if (parts.length === 2) {
-                // If the FIRST part was already parsed as work, we just add a rest step
-                const restVal = parseRest(parts[1]);
+            // If we found a specific rest string, add it
+            if (restStr) {
+                const restVal = parseRest(restStr);
+                // Even if 0, if explicitly stated '0r', maybe we should add it? 
+                // Usually 0 rest in variable means undefined/continuous.
+                // But parseRest returns 0 if invalid or empty.
+                // Let's assume if it parsed > 0, we add it.
                 if (restVal > 0) {
                     steps.push({
                         type: 'rest',
@@ -231,6 +236,10 @@ function parseVariableWorkout(text: string, modality?: WorkoutStructure['modalit
                     });
                 }
             }
+        } else {
+            // Failed to parse work part? 
+            // Maybe it was just "1:00r"? (Invalid as standalone segment usually)
+            // Ignore/Log?
         }
     });
 
