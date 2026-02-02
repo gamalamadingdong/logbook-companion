@@ -6,7 +6,7 @@ import { getProfile } from '../api/concept2';
 import { DEMO_WORKOUTS, GUEST_PROFILE } from '../data/demoData';
 
 export const useDashboardData = () => {
-    const { user, isGuest } = useAuth();
+    const { user, isGuest, tokensReady } = useAuth();
 
     // State
     const [statsHistory, setStatsHistory] = useState<any[]>([]);
@@ -95,8 +95,8 @@ export const useDashboardData = () => {
                 // Initial Workouts Fetch
                 await fetchRecentWorkoutsReal(0);
 
-                // C2 Profile (If connected)
-                if (localStorage.getItem('concept2_token')) {
+                // C2 Profile (If connected and tokens ready)
+                if (tokensReady && localStorage.getItem('concept2_token')) {
                     getProfile().then(setC2Profile).catch(() => { });
                 }
 
@@ -108,7 +108,7 @@ export const useDashboardData = () => {
         }
 
         loadData();
-    }, [user, isGuest]);
+    }, [user, isGuest, tokensReady]);
 
     // Pagination Helper
     const fetchRecentWorkouts = async (page: number) => {
