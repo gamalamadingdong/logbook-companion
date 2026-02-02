@@ -45,9 +45,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/', label: 'Dashboard', icon: Home },
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync Data', icon: Database },
-        { path: '/templates', label: 'Workouts', icon: Dumbbell },
+        { path: '/templates', label: 'Workouts', icon: Dumbbell, badge: 'Beta' },
         { path: '/preferences', label: 'Settings', icon: Settings },
-        { path: '/live', label: 'Live Sessions', icon: Activity },
+        { path: '/live', label: 'Live Sessions', icon: Activity, badge: 'Alpha' },
         { path: '/docs', label: 'Documentation', icon: BookOpen },
         ...(isAdmin ? [
             { path: '/feedback', label: 'Feedback', icon: MessageSquare }
@@ -98,7 +98,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     }`}
                             >
                                 <Icon size={20} className={isActive ? 'text-indigo-400' : ''} />
-                                <span className="flex-1">{link.label}</span>
+                                <span className="flex-1 flex items-center justify-between">
+                                    {link.label}
+                                    {link.badge && (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${link.badge === 'Alpha'
+                                            ? 'bg-amber-900/30 text-amber-500 border-amber-500/30'
+                                            : 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30'
+                                            }`}>
+                                            {link.badge}
+                                        </span>
+                                    )}
+                                </span>
                                 {link.path === '/feedback' && newFeedbackCount > 0 && (
                                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                                         {newFeedbackCount}
@@ -170,6 +180,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 >
                                     <Icon size={24} />
                                     {link.label}
+                                    {link.badge && (
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${link.badge === 'Alpha'
+                                            ? 'bg-amber-900/30 text-amber-500 border-amber-500/30'
+                                            : 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30'
+                                            }`}>
+                                            {link.badge}
+                                        </span>
+                                    )}
                                 </Link>
                             );
                         })}
