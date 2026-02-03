@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getProfile, getResults, getResultDetail, getStrokes } from '../api/concept2';
+import type { C2Result } from '../api/concept2.types';
 import { supabase, upsertWorkout } from '../services/supabase';
 import { calculateZoneDistribution } from '../utils/zones';
 import { calculateCanonicalName } from '../utils/workoutNaming';
@@ -96,7 +97,7 @@ export const useConcept2Sync = () => {
             }
             // 'all' sends no params
 
-            let allSummaries: any[] = [];
+            let allSummaries: C2Result[] = [];
             let page = 1;
             let hasMore = true;
 
@@ -134,23 +135,34 @@ export const useConcept2Sync = () => {
 
             // 3. Process & Upsert
             let processed = 0;
-            let skipped = 0;
+            let skippedExisting = 0;
+            let skippedFiltered = 0;
             let failed = 0;
 
             // Default machine types if not provided
             const machineTypes = options.machineTypes || { 'rower': true, 'bike': true, 'skierg': true };
 
-            for (const summary of allSummaries) {
-                // SKIP if already exists (unless Forced)
-                if (!options.forceResync && existingIds.has(summary.id.toString())) {
-                    skipped++;
+            const totalToProcess = allSummaries.length;
+
+            for (let i = 0; i < allSummaries.length; i++) {
+                const summary = allSummaries[i];
+                const currentIndex = i + 1;
+
+                // Update progress bar
+                setProgress(Math.round((currentIndex / totalToProcess) * 100));
+
+                // FILTER: Check Machine Type FIRST (before API calls)
+                const type = summary.type || 'rower'; // Default to rower if missing
+                if (!machineTypes[type]) {
+                    skippedFiltered++;
+                    setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered)`);
                     continue;
                 }
 
-                // FILTER: Check Machine Type
-                const type = summary.type || 'rower'; // Default to rower if missing
-                if (!machineTypes[type]) {
-                    // console.log(`Skipping ${summary.id} due to type mismatch (${type})`);
+                // SKIP if already exists (unless Forced)
+                if (!options.forceResync && existingIds.has(summary.id.toString())) {
+                    skippedExisting++;
+                    setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered)`);
                     continue;
                 }
 
@@ -236,30 +248,33 @@ export const useConcept2Sync = () => {
                     await upsertWorkout(record);
 
                     processed++;
-                    setStatus(`Syncing new workout ${processed}... (${skipped} skipped)`);
+                    setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered)`);
 
-                    // Rate Limit Throttle: Wait 500ms between items to be polite
+                    // Rate Limit Throttle: Wait 500ms between API calls to be polite
                     await new Promise(resolve => setTimeout(resolve, 500));
                 } catch (innerErr) {
                     console.error(`Failed to process workout ${summary.id}:`, innerErr);
                     failed++;
+                    setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered, ${failed} failed)`);
                     // Just continue to next
                 }
             }
 
             // 4. Update PR Cache
             setStatus('Updating Personal Records...');
+            setProgress(100);
             await saveFilteredPRs(userId);
 
             const failureMsg = failed > 0 ? `, ${failed} failed` : '';
-            setStatus(`Success! Synced ${processed} new workouts (${skipped} skipped${failureMsg}).`);
+            const filterMsg = skippedFiltered > 0 ? `, ${skippedFiltered} filtered by machine type` : '';
+            setStatus(`Success! Synced ${processed} new workouts (${skippedExisting} already existed${filterMsg}${failureMsg}).`);
 
             // SAVE LOCALSTORAGE TIMESTAMP
             localStorage.setItem('last_c2_sync_timestamp', Date.now().toString());
 
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setError(err.message || "Sync failed.");
+            setError(err instanceof Error ? err.message : "Sync failed.");
             setStatus('Sync failed.');
         } finally {
             setSyncing(false);
