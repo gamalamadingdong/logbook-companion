@@ -1,5 +1,5 @@
 
-import { calculateCanonicalName, detectIntervalsFromStrokes } from '../src/utils/prCalculator.ts';
+import { calculateCanonicalName, detectIntervalsFromStrokes } from '../src/utils/workoutNaming';
 import fs from 'fs';
 import path from 'path';
 
@@ -58,8 +58,6 @@ runTest('Speed Pyramid (250...750...250)', [
 ], 'v250m... Pyramid'); // Assuming current logic detects this
 
 // 4. Repeating Complex (4x 750/500/250)
-// This is what the user mentioned before: "750/500/250 x 3"
-// Current logic attempts to find repeating chunks.
 const chunk = [
     { type: 'distance', distance: 750, time: 1500, rest_time: 0 },
     { type: 'distance', distance: 500, time: 1000, rest_time: 0 },
@@ -68,6 +66,25 @@ const chunk = [
 // 3 repetitions
 const repeatingIntervals = [...chunk, ...chunk, ...chunk];
 runTest('Repeating Pattern (3x 750/500/250)', repeatingIntervals as any, '3x 750/500/250m');
+
+// 4b. Long Variable List (12 items)
+// Logic detects this as a Ladder now (Ascending)
+const longList = Array.from({ length: 12 }, (_, i) => ({
+    type: 'distance',
+    distance: 500 + (i * 10), // 500, 510, 520...
+    time: 0, // Explicitly 0
+    rest_time: 0
+}));
+runTest('Long Variable List (12 items)', longList as any, 'v500...610m Ladder');
+
+// 4c. Mixed Variable (New Fix)
+// 500m, 1:00, 500m
+const mixedList = [
+    { type: 'distance', distance: 500, time: 0, rest_time: 0 }, // 500m
+    { type: 'time', distance: 0, time: 600, rest_time: 0 },     // 1:00 (600ds)
+    { type: 'distance', distance: 500, time: 0, rest_time: 0 }  // 500m
+];
+runTest('Mixed Variable (v500m/1:00/500m)', mixedList as any, 'v500m/1:00/500m');
 
 // 5. Classic 8x500m
 runTest('Classic 8x500', Array(8).fill({ type: 'distance', distance: 500, time: 1000, rest_time: 1200 }), '8x500m/2:00r');
@@ -89,6 +106,7 @@ runTest('Ascending Ladder (100...1000)',
 
 // 8. Ladder (Descending)
 runTest('Descending Ladder (1000...100)',
+    // 2:00 pace = 0.24s/m = 2.4 ds/m. 100m -> 240ds.
     Array.from({ length: 10 }, (_, i) => createInterval((10 - i) * 100, (10 - i) * 240, 60)),
     'v1000...100m Ladder'
 );
@@ -96,11 +114,11 @@ runTest('Descending Ladder (1000...100)',
 // 9. Basic Types (Regression Check)
 runTest('Single Distance (2000m)',
     [{ type: 'distance', distance: 2000, time: 4200, rest_time: 0 }],
-    '1x2000m' // Current behavior check
+    '2000m'
 );
 runTest('Single Time (30:00)',
     [{ type: 'time', distance: 7500, time: 18000, rest_time: 0 }],
-    '1x30:00' // Current behavior check
+    '30:00'
 );
 
 // 10. Live Records File

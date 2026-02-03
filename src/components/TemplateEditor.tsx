@@ -3,7 +3,7 @@ import { X, Save, Loader2, Eye, HelpCircle } from 'lucide-react';
 import { fetchTemplateById, updateTemplate, createTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
 import { structureToIntervals } from '../utils/structureAdapter';
-import { calculateCanonicalName } from '../utils/prCalculator';
+import { calculateCanonicalName } from '../utils/workoutNaming';
 import { parseRWN } from '../utils/rwnParser';
 
 interface TemplateEditorProps {

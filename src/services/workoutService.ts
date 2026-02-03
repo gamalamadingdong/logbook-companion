@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import type { C2ResultDetail, C2Stroke } from '../api/concept2.types';
-import { calculateCanonicalName } from '../utils/prCalculator';
+import { calculateCanonicalName } from '../utils/workoutNaming';
 
 export const workoutService = {
     // Fetch recent workouts list (Dashboard)

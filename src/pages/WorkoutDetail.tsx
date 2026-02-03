@@ -5,7 +5,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { useAuth } from '../hooks/useAuth';
-import { calculateWatts, calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/prCalculator';
+import { calculateWatts } from '../utils/prCalculator';
+import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/workoutNaming';
 import { calculateBucketsFromStrokes } from '../utils/zones';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
@@ -120,10 +121,139 @@ export const WorkoutDetail: React.FC = () => {
         return detail.workout_name || 'Workout';
     }, [detail, strokes]);
 
+    // --- Derived State (Must be unconditional) ---
+
+    // 1. Process Strokes & Intervals
+    const processedData = useMemo(() => {
+        if (!detail || !strokes) return { intervalsData: [], visibleStrokes: [], segments: [] };
+
+        // Segment strokes into "Raw Segments" based on distance resets
+        const rawSegments: C2Stroke[][] = [];
+        let currentRawSegment: C2Stroke[] = [];
+
+        strokes.forEach((s, i) => {
+            if (i > 0 && s.d < strokes[i - 1].d) {
+                rawSegments.push(currentRawSegment);
+                currentRawSegment = [];
+            }
+            currentRawSegment.push(s);
+        });
+        if (currentRawSegment.length > 0) {
+            rawSegments.push(currentRawSegment);
+        }
+
+        // Refine segments
+        const intervalsData = rawSegments.map((segment, i) => {
+            const def = detail.workout?.intervals?.[i];
+            if (!def) return { work: segment, rest: [] };
+
+            const isTime = def.type === 'time';
+            const isDist = def.type === 'distance';
+
+            let work: C2Stroke[] = [];
+            let rest: C2Stroke[] = [];
+
+            if (isTime) {
+                work = segment.filter(s => s.t <= def.time);
+                rest = segment.filter(s => s.t > def.time);
+            } else if (isDist) {
+                const targetDm = def.distance * 10;
+                work = segment.filter(s => s.d <= targetDm);
+                rest = segment.filter(s => s.d > targetDm);
+            } else {
+                work = segment;
+            }
+            return { work, rest };
+        });
+
+        // Determine visible strokes
+        let visibleStrokes: any[] = [];
+        if (selectedInterval === 'all') {
+            let cumulativeDist = 0;
+            intervalsData.forEach((item) => {
+                const stitched = item.work.map(s => ({ ...s, d: s.d + cumulativeDist }));
+                visibleStrokes = visibleStrokes.concat(stitched);
+                if (item.work.length > 0) cumulativeDist += item.work[item.work.length - 1].d;
+            });
+            if (intervalsData.length === 0) visibleStrokes = strokes;
+        } else {
+            visibleStrokes = intervalsData[selectedInterval]?.work || [];
+        }
+
+        const segments = detail.workout?.intervals || detail.workout?.splits || [];
+
+        return { intervalsData, visibleStrokes, segments };
+    }, [detail, strokes, selectedInterval]);
+
+    const { intervalsData, visibleStrokes, segments } = processedData;
+
+    // 2. Chart Data
+    const chartData = useMemo(() => {
+        return visibleStrokes.map(s => {
+            let watts = 0;
+            if (s.p > 300) {
+                const paceSeconds = s.p / 10;
+                watts = calculateWatts(paceSeconds);
+            } else {
+                watts = s.p;
+            }
+            return {
+                distance: s.d / 10,
+                watts: Math.round(watts),
+                spm: s.spm,
+                hr: s.hr
+            };
+        });
+    }, [visibleStrokes]);
+
+    // 3. Stats & Metrics
+    const stats = useMemo(() => {
+        if (!detail) return {
+            avgPaceFormatted: '-',
+            workDistance: 0,
+            workTime: 0,
+            totalDistance: 0,
+            restTime: 0,
+            isInterval: false,
+            workIntervals: []
+        };
+
+        const totalSeconds = (detail.time / 10);
+        const avgPaceSeconds = detail.distance ? (totalSeconds * 500) / detail.distance : 0;
+        const avgPaceMins = Math.floor(avgPaceSeconds / 60);
+        const avgPaceSecs = (avgPaceSeconds % 60).toFixed(1);
+        const avgPaceFormatted = detail.distance ? `${avgPaceMins}:${avgPaceSecs.padStart(4, '0')}` : '-';
+
+        const workIntervals = (detail.workout?.intervals || []).filter((i: C2Interval) => i.type !== 'rest');
+        const workDistance = workIntervals.length > 0
+            ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.distance, 0)
+            : detail.distance;
+        const workTime = workIntervals.length > 0
+            ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.time, 0) / 10
+            : totalSeconds;
+        const totalDistance = detail.distance + (detail.rest_distance || 0);
+        const restTime = totalSeconds - workTime;
+        const isInterval = !!detail.workout?.intervals;
+
+        return { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals };
+    }, [detail]);
+
+    const { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals } = stats;
+
+    // 4. Power Buckets
+    const activeBuckets = useMemo(() => {
+        if (visibleStrokes.length > 0) {
+            return calculateBucketsFromStrokes(visibleStrokes);
+        }
+        return buckets || {};
+    }, [visibleStrokes, buckets]);
+
+
+    // --- Early Returns (Conditionals) ---
     if (loading) return <div className="p-8 text-neutral-400">Loading workout details...</div>;
     if (!detail) return <div className="p-8 text-neutral-400">Workout not found.</div>;
 
-    // Helper to format time (deciseconds)
+    // Helper must be available to render
     const formatTime = (time: number) => {
         if (!time) return '0:00.0';
         const totalSeconds = time / 10;
@@ -131,159 +261,6 @@ export const WorkoutDetail: React.FC = () => {
         const seconds = (totalSeconds % 60).toFixed(1);
         return `${minutes}:${seconds.padStart(4, '0')}`;
     };
-
-
-
-    // ... existing loading checks ...
-
-
-
-    // Segment strokes into "Raw Segments" based on distance resets
-    const rawSegments: C2Stroke[][] = [];
-    let currentRawSegment: C2Stroke[] = [];
-
-    strokes.forEach((s, i) => {
-        // If distance drops significantly (reset), start new segment
-        // We use a threshold of < 100m (1000 dm) to detect reset, or just strictly less than previous
-        if (i > 0 && s.d < strokes[i - 1].d) {
-            rawSegments.push(currentRawSegment);
-            currentRawSegment = [];
-        }
-        currentRawSegment.push(s);
-    });
-    if (currentRawSegment.length > 0) {
-        rawSegments.push(currentRawSegment);
-    }
-
-    // Now refine segments into Work vs Rest based on workout definition
-    const intervalsData = rawSegments.map((segment, i) => {
-        // If we have interval definitions, use them to split Work/Rest
-        // "Splits" (steady state) usually don't have resets, so they end up as 1 segment.
-        // "Intervals" have resets.
-        const def = detail.workout?.intervals?.[i];
-
-        if (!def) {
-            // No definition means it's likely a steady state or single piece
-            // Treat entire segment as work
-            return { work: segment, rest: [] };
-        }
-
-        // Split based on definition type
-        const isTime = def.type === 'time';
-        const isDist = def.type === 'distance';
-
-        let work: C2Stroke[] = [];
-        let rest: C2Stroke[] = [];
-
-        if (isTime) {
-            // Filter by time (deciseconds)
-            // Stroke time s.t is accumulated FROM START OF INTERVAL in ds
-            work = segment.filter(s => s.t <= def.time);
-            rest = segment.filter(s => s.t > def.time);
-        } else if (isDist) {
-            // Filter by distance (decimeters)
-            const targetDm = def.distance * 10;
-            work = segment.filter(s => s.d <= targetDm);
-            rest = segment.filter(s => s.d > targetDm);
-        } else {
-            // Fallback
-            work = segment;
-        }
-        return { work, rest };
-    });
-
-    // Determine strokes to show based on selection
-    let visibleStrokes: any[] = [];
-
-    if (selectedInterval === 'all') {
-        // Stitch "Work" segments together
-        let cumulativeDist = 0;
-
-        intervalsData.forEach((item) => {
-            const stitched = item.work.map(s => ({
-                ...s,
-                d: s.d + cumulativeDist
-            }));
-            visibleStrokes = visibleStrokes.concat(stitched);
-
-            // Add max distance of THIS work segment to cumulative
-            if (item.work.length > 0) {
-                cumulativeDist += item.work[item.work.length - 1].d;
-            }
-        });
-
-        // Use raw strokes if no intervals detected (fallback)
-        if (intervalsData.length === 0) visibleStrokes = strokes;
-
-    } else {
-        // Show specific interval (Work only)
-        visibleStrokes = intervalsData[selectedInterval]?.work || [];
-    }
-
-    // Prepare chart data (convert units)
-    // Stroke distance (d) is definitely decimeters
-    const chartData = visibleStrokes.map(s => {
-        // Concept2 API usually returns 'p' as Pace (time per 500m) in deciseconds for rowing
-        // OR Watts directly? The bug report suggests it is returning ~1150 which is 1:55 pace.
-        // If it were watts, 1150w is huge. If it were tenths of watts, 115w is low for 1:55.
-        // 1:55 pace -> ~230-240 watts. 
-        // So s.p is likely Pace in Deciseconds.
-
-        let watts = 0;
-        // Heuristic: If p > 500, it's likely Pace in Deciseconds (e.g. 1150 = 1:55.0)
-        // If p < 500, it might be raw Watts? Or if it's huge > 2000? 
-        // For now, assume Pace (ds) if > 300 (which is 0:30/500m - impossible record)
-        if (s.p > 300) {
-            const paceSeconds = s.p / 10;
-            watts = calculateWatts(paceSeconds);
-        } else {
-            // Treat as raw watts (tenths?) or just watts
-            // Existing code divided by 10. Let's assume if it is explicitly "watts" type stroke data it might be different, 
-            // but user data s.p seems to be pace based on graph.
-            watts = s.p; // Fallback
-        }
-
-        return {
-            distance: s.d / 10,
-            watts: Math.round(watts),
-            spm: s.spm,
-            hr: s.hr
-        };
-    });
-
-    // Identify if we have intervals or splits
-    const segments = detail.workout?.intervals || detail.workout?.splits || [];
-    const isInterval = !!detail.workout?.intervals;
-
-    // Calculate Average 500m Pace
-    // time (ds) -> seconds: time / 10
-    // distance (m)
-    // pace = (seconds * 500) / distance
-    const totalSeconds = (detail.time / 10);
-    const avgPaceSeconds = detail.distance ? (totalSeconds * 500) / detail.distance : 0;
-    const avgPaceMins = Math.floor(avgPaceSeconds / 60);
-    const avgPaceSecs = (avgPaceSeconds % 60).toFixed(1);
-    const avgPaceFormatted = detail.distance ? `${avgPaceMins}:${avgPaceSecs.padStart(4, '0')}` : '-';
-
-    // Calculate Work vs Total metrics
-    const workIntervals = (detail.workout?.intervals || []).filter((i: C2Interval) => i.type !== 'rest');
-    const workDistance = workIntervals.length > 0
-        ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.distance, 0)
-        : detail.distance;
-    const workTime = workIntervals.length > 0
-        ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.time, 0) / 10
-        : totalSeconds;
-    const totalDistance = detail.distance + (detail.rest_distance || 0);
-    const restTime = totalSeconds - workTime;
-
-    // Calculate Dynamic Buckets from Visible Strokes (Work Only)
-    // This solves the bug where Rest was included in DB-generated buckets!
-    const activeBuckets = useMemo(() => {
-        if (visibleStrokes.length > 0) {
-            return calculateBucketsFromStrokes(visibleStrokes);
-        }
-        return buckets || {}; // Fallback to DB buckets if no strokes (unlikely if we have detail)
-    }, [visibleStrokes, buckets]);
 
 
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, type UserProfile } from '../services/supabase';
-import { PR_DISTANCES, BENCHMARK_PATTERNS, calculateCanonicalName } from '../utils/prCalculator';
+import { PR_DISTANCES, BENCHMARK_PATTERNS } from '../utils/prCalculator';
+import { calculateCanonicalName } from '../utils/workoutNaming';
 import { fetchUserPRs } from '../utils/prDetection';
 import { Loader2, Database } from 'lucide-react';
 import { GoalsManager } from '../components/GoalsManager';

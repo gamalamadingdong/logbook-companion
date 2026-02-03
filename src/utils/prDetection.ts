@@ -1,5 +1,6 @@
 import { supabase } from '../services/supabase';
-import { calculatePRs, PR_DISTANCES, BENCHMARK_PATTERNS, formatTime, formatPace, formatRest, calculateCanonicalName, calculateWatts, formatWatts } from './prCalculator';
+import { calculatePRs, PR_DISTANCES, BENCHMARK_PATTERNS, formatTime, formatPace, calculateWatts, formatWatts } from './prCalculator';
+import { formatRest, calculateCanonicalName } from './workoutNaming';
 import type { PRRecord } from './prCalculator';
 import { DEMO_WORKOUTS } from '../data/demoData';
 

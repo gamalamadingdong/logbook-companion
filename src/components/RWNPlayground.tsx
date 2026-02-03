@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Terminal, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { parseRWN } from '../utils/rwnParser';
 import { structureToIntervals } from '../utils/structureAdapter';
-import { calculateCanonicalName } from '../utils/prCalculator';
+import { calculateCanonicalName } from '../utils/workoutNaming';
 
 export const RWNPlayground: React.FC = () => {
     const [input, setInput] = useState('3 x 2000m / 4:00r');

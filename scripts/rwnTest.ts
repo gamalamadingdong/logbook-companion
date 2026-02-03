@@ -1,7 +1,7 @@
 
 import { parseRWN } from '../src/utils/rwnParser';
 import { structureToIntervals } from '../src/utils/structureAdapter';
-import { calculateCanonicalName } from '../src/utils/prCalculator';
+import { calculateCanonicalName } from '../src/utils/workoutNaming';
 
 const TEST_CASES = [
     { input: '2000m', label: 'Steady State Dist' },
@@ -63,6 +63,48 @@ async function runTests() {
     }
 
     console.log(`--- Done. Passed (Parsed): ${passed + failed - failed} (approx) ---`);
+
+    await testCanonicalNamingCompliance();
+}
+
+// Mock C2Interval helper
+function mkInt(type: 'distance' | 'time', val: number, rest = 0): any {
+    return {
+        type,
+        distance: type === 'distance' ? val : 0,
+        time: type === 'time' ? val * 10 : 0,     // Deciseconds
+        rest_time: rest * 10,
+        stroke_rate: 24,
+        calories_total: 100 + Math.floor(Math.random() * 50)
+    };
+}
+
+async function testCanonicalNamingCompliance() {
+    console.log('\n--- Canonical Compliance Checks ---');
+
+    const cases = [
+        {
+            label: "Long Variable List (12 items)",
+            intervals: Array(12).fill(0).map((_, i) => mkInt('distance', 500 + i * 100)),
+            expectedStart: "v500/"
+        },
+        {
+            label: "Mixed Type Variable",
+            intervals: [
+                mkInt('distance', 500),
+                mkInt('time', 60), // 1:00
+                mkInt('distance', 500)
+            ],
+            expectNot: "Unstructured"
+        }
+    ];
+
+    for (const c of cases) {
+        const name = calculateCanonicalName(c.intervals as any);
+        console.log(`[${c.label}] -> "${name}"`);
+        if (c.expectedStart && !name.startsWith(c.expectedStart)) console.log(`  ⚠️ Expected start: ${c.expectedStart}`);
+        if (c.expectNot && name === c.expectNot) console.log(`  ⚠️ Failed: Returned ${c.expectNot}`);
+    }
 }
 
 runTests();

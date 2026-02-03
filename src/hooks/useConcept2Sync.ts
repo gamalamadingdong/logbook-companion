@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { getProfile, getResults, getResultDetail, getStrokes } from '../api/concept2';
 import { supabase, upsertWorkout } from '../services/supabase';
 import { calculateZoneDistribution } from '../utils/zones';
-import { calculateCanonicalName } from '../utils/prCalculator';
+import { calculateCanonicalName } from '../utils/workoutNaming';
 import { saveFilteredPRs } from '../utils/prDetection';
 
 export type SyncRange = 'all' | 'season' | '30days' | 'custom';
