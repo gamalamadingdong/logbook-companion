@@ -30,7 +30,9 @@ interface ParsedComponent {
     value: number;
     guidance?: {
         target_rate?: number;
+        target_rate_max?: number;  // If present, target_rate is min, this is max
         target_pace?: string;
+        target_pace_max?: string;  // If present, target_pace is min, this is max
     };
     tags?: string[];
 }
@@ -69,11 +71,31 @@ function parseComponent(str: string): ParsedComponent | null {
         const guidanceParts = guidanceText.split('@').map(p => p.trim());
 
         for (const part of guidanceParts) {
-            // Regex for Rate: r(\d+) or (\d+)spm
+            // Regex for Rate Range: r20-24 or 20-24spm or r20-24spm
+            if (!guidance.target_rate) {
+                const rateRangeMatch = part.match(/^(?:r)?(\d+)-(\d+)(?:spm)?$/i);
+                if (rateRangeMatch) {
+                    guidance.target_rate = parseInt(rateRangeMatch[1]);
+                    guidance.target_rate_max = parseInt(rateRangeMatch[2]);
+                    continue;
+                }
+            }
+
+            // Regex for Rate (single value): r(\d+) or (\d+)spm
             if (!guidance.target_rate) {
                 const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
                 if (rateMatch) {
                     guidance.target_rate = parseInt(rateMatch[1]);
+                    continue;
+                }
+            }
+
+            // Regex for Absolute Pace Range: 1:48-1:52 or 2:05-2:10
+            if (!guidance.target_pace) {
+                const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)-(\d+:\d+(?:\.\d+)?)$/);
+                if (paceRangeMatch) {
+                    guidance.target_pace = paceRangeMatch[1];
+                    guidance.target_pace_max = paceRangeMatch[2];
                     continue;
                 }
             }
@@ -263,7 +285,9 @@ function parseRepeatedGroup(text: string, modality?: WorkoutStructure['modality'
 
                 value: struct.value,
                 target_rate: struct.target_rate,
+                target_rate_max: struct.target_rate_max,
                 target_pace: struct.target_pace,
+                target_pace_max: struct.target_pace_max,
                 tags: struct.tags
             }];
         }
@@ -279,7 +303,9 @@ function parseRepeatedGroup(text: string, modality?: WorkoutStructure['modality'
                     duration_type: struct.work.type,
                     value: struct.work.value,
                     target_rate: struct.work.target_rate,
+                    target_rate_max: struct.work.target_rate_max,
                     target_pace: struct.work.target_pace,
+                    target_pace_max: struct.work.target_pace_max,
                     tags: struct.work.tags
                 });
                 steps.push({
@@ -396,7 +422,9 @@ export function parseRWN(input: string): WorkoutStructure | null {
                         type: workComp.type,
                         value: workComp.value,
                         target_rate: workComp.guidance?.target_rate,
+                        target_rate_max: workComp.guidance?.target_rate_max,
                         target_pace: workComp.guidance?.target_pace,
+                        target_pace_max: workComp.guidance?.target_pace_max,
                         tags: intervalTags.length > 0 ? intervalTags : workComp.tags
                     },
                     rest: {
@@ -418,7 +446,9 @@ export function parseRWN(input: string): WorkoutStructure | null {
             value: singleComp.value,
             unit: mapToSteadyUnit(singleComp.type),
             target_rate: singleComp.guidance?.target_rate,
+            target_rate_max: singleComp.guidance?.target_rate_max,
             target_pace: singleComp.guidance?.target_pace,
+            target_pace_max: singleComp.guidance?.target_pace_max,
             tags: singleComp.tags
         };
     }
@@ -461,7 +491,9 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
 
                     value: subStruct.value,
                     target_rate: subStruct.target_rate,
+                    target_rate_max: subStruct.target_rate_max,
                     target_pace: subStruct.target_pace,
+                    target_pace_max: subStruct.target_pace_max,
                     tags: subStruct.tags
                 });
             } else if (subStruct.type === 'interval') {
@@ -473,7 +505,9 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
                         duration_type: subStruct.work.type,
                         value: subStruct.work.value,
                         target_rate: subStruct.work.target_rate,
+                        target_rate_max: subStruct.work.target_rate_max,
                         target_pace: subStruct.work.target_pace,
+                        target_pace_max: subStruct.work.target_pace_max,
                         tags: subStruct.work.tags
                     });
                     steps.push({
@@ -517,6 +551,9 @@ function parseLegacySegment(text: string): WorkoutStructure | null {
                     type: workComp.type,
                     value: workComp.value,
                     target_rate: workComp.guidance?.target_rate,
+                    target_rate_max: workComp.guidance?.target_rate_max,
+                    target_pace: workComp.guidance?.target_pace,
+                    target_pace_max: workComp.guidance?.target_pace_max,
                     tags: workComp.tags
                 },
                 rest: {

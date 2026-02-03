@@ -83,45 +83,45 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
     };
 
     useEffect(() => {
+        const loadTemplate = async () => {
+            if (!templateId) return;
+            setLoading(true);
+            try {
+                const data = await fetchTemplateById(templateId);
+                if (data) {
+                    setTemplate(data);
+                    // Initialize structure builder from existing structure
+                    if (data.workout_structure) {
+                        const struct = data.workout_structure;
+                        setStructureType(struct.type);
+                        if (struct.type === 'steady_state') {
+                            setSteadyValue(struct.value);
+                            setSteadyUnit(struct.unit);
+                            setSteadyTargetRate(struct.target_rate);
+                            setSteadyTargetPace(struct.target_pace);
+                        } else if (struct.type === 'interval') {
+                            setIntervalRepeats(struct.repeats);
+                            setWorkType(struct.work.type);
+                            setWorkValue(struct.work.value);
+                            setWorkTargetRate(struct.work.target_rate);
+                            setWorkTargetPace(struct.work.target_pace);
+                            setRestValue(struct.rest.value);
+                        } else if (struct.type === 'variable') {
+                            setVariableSteps(struct.steps);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load template:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         if (templateId) {
             loadTemplate();
         }
     }, [templateId]);
-
-    const loadTemplate = async () => {
-        if (!templateId) return;
-        setLoading(true);
-        try {
-            const data = await fetchTemplateById(templateId);
-            if (data) {
-                setTemplate(data);
-                // Initialize structure builder from existing structure
-                if (data.workout_structure) {
-                    const struct = data.workout_structure;
-                    setStructureType(struct.type);
-                    if (struct.type === 'steady_state') {
-                        setSteadyValue(struct.value);
-                        setSteadyUnit(struct.unit);
-                        setSteadyTargetRate(struct.target_rate);
-                        setSteadyTargetPace(struct.target_pace);
-                    } else if (struct.type === 'interval') {
-                        setIntervalRepeats(struct.repeats);
-                        setWorkType(struct.work.type);
-                        setWorkValue(struct.work.value);
-                        setWorkTargetRate(struct.work.target_rate);
-                        setWorkTargetPace(struct.work.target_pace);
-                        setRestValue(struct.rest.value);
-                    } else if (struct.type === 'variable') {
-                        setVariableSteps(struct.steps);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error('Failed to load template:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const buildStructure = (): WorkoutStructure | null => {
         if (structureType === 'none') return null;
@@ -193,7 +193,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
             if (templateId) {
                 await updateTemplate(templateId, updates);
             } else {
-                await createTemplate(updates as any);
+                await createTemplate(updates);
             }
             onClose(true);
         } catch (err) {
@@ -231,8 +231,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                         {templateId ? 'Edit Template' : 'New Template'}
                     </h2>
                     <button
+                        type="button"
                         onClick={() => onClose(false)}
                         className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                        title="Close"
+                        aria-label="Close editor"
                     >
                         <X size={20} />
                     </button>
@@ -310,8 +313,10 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                     <label className="block text-sm font-medium text-neutral-400 mb-1">Training Zone</label>
                                     <select
                                         value={template.training_zone || ''}
-                                        onChange={e => setTemplate({ ...template, training_zone: e.target.value as any || null })}
+                                        onChange={e => setTemplate({ ...template, training_zone: (e.target.value || null) as WorkoutTemplate['training_zone'] })}
                                         className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                        title="Training Zone"
+                                        aria-label="Training Zone"
                                     >
                                         <option value="">No zone specified</option>
                                         {TRAINING_ZONES.map(zone => (
@@ -321,8 +326,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                 </div>
                                 <div className="flex items-center gap-2 pt-4">
                                     <button
+                                        type="button"
                                         onClick={() => setTemplate(prev => ({ ...prev, is_test: !prev.is_test }))}
                                         className={`relative w-11 h-6 rounded-full transition-colors ${template.is_test ? 'bg-emerald-600' : 'bg-neutral-700'}`}
+                                        title="Toggle benchmark/test"
+                                        aria-label="Toggle benchmark/test"
                                     >
                                         <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${template.is_test ? 'translate-x-5' : ''}`} />
                                     </button>
@@ -365,14 +373,18 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                     value={steadyValue}
                                                     onChange={e => setSteadyValue(parseInt(e.target.value) || 0)}
                                                     className="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white"
+                                                    placeholder="5000"
+                                                    aria-label="Workout value"
                                                 />
                                             </div>
                                             <div className="w-32">
                                                 <label className="block text-xs text-neutral-500 mb-1">Unit</label>
                                                 <select
                                                     value={steadyUnit}
-                                                    onChange={e => setSteadyUnit(e.target.value as any)}
+                                                    onChange={e => setSteadyUnit(e.target.value as 'meters' | 'seconds' | 'calories')}
                                                     className="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white"
+                                                    title="Unit"
+                                                    aria-label="Unit"
                                                 >
                                                     <option value="meters">Meters</option>
                                                     <option value="seconds">Seconds</option>
@@ -418,6 +430,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                     onChange={e => setIntervalRepeats(parseInt(e.target.value) || 1)}
                                                     min={1}
                                                     className="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white"
+                                                    placeholder="4"
+                                                    aria-label="Number of repeats"
                                                 />
                                             </div>
                                         </div>
@@ -431,11 +445,15 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                         value={workValue}
                                                         onChange={e => setWorkValue(parseInt(e.target.value) || 0)}
                                                         className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-white text-sm"
+                                                        placeholder="500"
+                                                        aria-label="Work value"
                                                     />
                                                     <select
                                                         value={workType}
-                                                        onChange={e => setWorkType(e.target.value as any)}
+                                                        onChange={e => setWorkType(e.target.value as 'distance' | 'time' | 'calories')}
                                                         className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-white text-sm"
+                                                        title="Work unit"
+                                                        aria-label="Work unit"
                                                     >
                                                         <option value="distance">m</option>
                                                         <option value="time">sec</option>
@@ -469,6 +487,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                         value={restValue}
                                                         onChange={e => setRestValue(parseInt(e.target.value) || 0)}
                                                         className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-white text-sm"
+                                                        placeholder="60"
+                                                        aria-label="Rest duration in seconds"
                                                     />
                                                     <span className="text-neutral-500 text-sm self-center">sec</span>
                                                 </div>
@@ -491,12 +511,16 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                         value={step.value}
                                                         onChange={e => updateVariableStep(idx, { value: parseInt(e.target.value) || 0 })}
                                                         className="w-24 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white text-sm"
+                                                        placeholder="500"
+                                                        aria-label={`${step.type} value`}
                                                     />
                                                     <select
                                                         value={step.duration_type}
-                                                        onChange={e => updateVariableStep(idx, { duration_type: e.target.value as any })}
+                                                        onChange={e => updateVariableStep(idx, { duration_type: e.target.value as 'distance' | 'time' | 'calories' })}
                                                         className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white text-sm"
                                                         disabled={step.type === 'rest'} // Rest is always time
+                                                        title="Duration type"
+                                                        aria-label="Duration type"
                                                     >
                                                         <option value="distance">m</option>
                                                         <option value="time">sec</option>
@@ -521,8 +545,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                                         </>
                                                     )}
                                                     <button
+                                                        type="button"
                                                         onClick={() => removeVariableStep(idx)}
                                                         className="p-1 text-red-400 hover:bg-red-900/30 rounded ml-auto"
+                                                        title="Remove step"
+                                                        aria-label="Remove step"
                                                     >
                                                         <X size={14} />
                                                     </button>
@@ -531,12 +558,14 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                         ))}
                                         <div className="flex gap-2">
                                             <button
+                                                type="button"
                                                 onClick={() => addVariableStep('work')}
                                                 className="flex-1 py-1.5 bg-emerald-900/30 text-emerald-400 rounded text-sm hover:bg-emerald-900/50"
                                             >
                                                 + Work
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => addVariableStep('rest')}
                                                 className="flex-1 py-1.5 bg-amber-900/30 text-amber-400 rounded text-sm hover:bg-amber-900/50"
                                             >

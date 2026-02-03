@@ -17,8 +17,10 @@ export interface SteadyStateStructure {
     modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     value: number;
     unit: 'meters' | 'seconds' | 'calories';
-    target_rate?: number;  // Optional SPM guidance
-    target_pace?: string;  // Optional pace guidance
+    target_rate?: number;      // Optional SPM guidance (min if range)
+    target_rate_max?: number;  // If present, target_rate is min, this is max
+    target_pace?: string;      // Optional pace guidance (min if range)
+    target_pace_max?: string;  // If present, target_pace is min, this is max
     tags?: string[];
 }
 
@@ -44,8 +46,10 @@ export interface VariableStructure {
 export interface IntervalStep {
     type: 'distance' | 'time' | 'calories'; // PM5 supports all three for work
     value: number; // meters for distance, seconds for time, cals for calories
-    target_rate?: number;  // Optional SPM guidance (e.g., 24)
-    target_pace?: string;  // Optional pace guidance (e.g., "2:00" or "sub-2:00")
+    target_rate?: number;      // Optional SPM guidance (min if range)
+    target_rate_max?: number;  // If present, target_rate is min, this is max
+    target_pace?: string;      // Optional pace guidance (min if range)
+    target_pace_max?: string;  // If present, target_pace is min, this is max
     tags?: string[];
 }
 
@@ -61,9 +65,11 @@ export interface WorkoutStep {
     modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     duration_type: 'distance' | 'time' | 'calories'; // Work can be any; rest should be 'time'
     value: number; // meters for distance, seconds for time, cals for calories
-    target_rate?: number;  // Optional SPM guidance
-    target_pace?: string;  // Optional pace guidance
-    tags?: string[];       // Optional tags (e.g. #warmup, #cooldown, #test)
+    target_rate?: number;      // Optional SPM guidance (min if range)
+    target_rate_max?: number;  // If present, target_rate is min, this is max
+    target_pace?: string;      // Optional pace guidance (min if range)
+    target_pace_max?: string;  // If present, target_pace is min, this is max
+    tags?: string[];           // Optional tags (e.g. #warmup, #cooldown, #test)
 }
 
 // Helper type for workout template from database

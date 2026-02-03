@@ -1,3 +1,4 @@
+import { describe, test, expect } from 'vitest';
 import { parseRWN } from './rwnParser';
 
 describe('RWN Parser - Chained Guidance Parameters', () => {
@@ -113,6 +114,142 @@ describe('RWN Parser - Chained Guidance Parameters', () => {
                 expect(result.unit).toBe('meters');
                 expect(result.target_pace).toBe('2k+10');
                 expect(result.target_rate).toBe(22);
+            }
+        });
+    });
+});
+
+describe('RWN Parser - Range Notation', () => {
+    describe('Stroke Rate Ranges', () => {
+        test('parses absolute rate range @18-22spm', () => {
+            const result = parseRWN('60:00@18-22spm');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_rate).toBe(18);
+                expect(result.target_rate_max).toBe(22);
+            }
+        });
+
+        test('parses r-notation rate range @r24-28', () => {
+            const result = parseRWN('4x2000m@r24-28/5:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_rate).toBe(24);
+                expect(result.work.target_rate_max).toBe(28);
+            }
+        });
+
+        test('parses rate range with spm suffix @20-24spm', () => {
+            const result = parseRWN('8x500m@20-24spm/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_rate).toBe(20);
+                expect(result.work.target_rate_max).toBe(24);
+            }
+        });
+    });
+
+    describe('Pace Ranges', () => {
+        test('parses absolute pace range @2:05-2:10', () => {
+            const result = parseRWN('60:00@2:05-2:10');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('2:05');
+                expect(result.target_pace_max).toBe('2:10');
+            }
+        });
+
+        test('parses pace range in interval @1:48-1:52/3:00r', () => {
+            const result = parseRWN('8x500m@1:48-1:52/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_pace).toBe('1:48');
+                expect(result.work.target_pace_max).toBe('1:52');
+            }
+        });
+    });
+
+    describe('Combined Pace and Rate Ranges', () => {
+        test('parses both pace range and rate range', () => {
+            const result = parseRWN('10x500m@1:48-1:52@28-32spm/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_pace).toBe('1:48');
+                expect(result.work.target_pace_max).toBe('1:52');
+                expect(result.work.target_rate).toBe(28);
+                expect(result.work.target_rate_max).toBe(32);
+            }
+        });
+
+        test('parses pace range with single rate', () => {
+            const result = parseRWN('60:00@2:05-2:10@20spm');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('2:05');
+                expect(result.target_pace_max).toBe('2:10');
+                expect(result.target_rate).toBe(20);
+                expect(result.target_rate_max).toBeUndefined();
+            }
+        });
+
+        test('parses single pace with rate range', () => {
+            const result = parseRWN('5000m@2:00@18-22spm');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('2:00');
+                expect(result.target_pace_max).toBeUndefined();
+                expect(result.target_rate).toBe(18);
+                expect(result.target_rate_max).toBe(22);
+            }
+        });
+    });
+
+    describe('Backwards Compatibility (single values still work)', () => {
+        test('single rate still works', () => {
+            const result = parseRWN('30:00@r20');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_rate).toBe(20);
+                expect(result.target_rate_max).toBeUndefined();
+            }
+        });
+
+        test('single pace still works', () => {
+            const result = parseRWN('2000m@1:45');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('1:45');
+                expect(result.target_pace_max).toBeUndefined();
             }
         });
     });
