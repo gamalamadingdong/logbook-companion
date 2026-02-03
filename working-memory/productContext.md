@@ -1,3 +1,4 @@
+
 # Product Context
 
 ## Problem
@@ -13,3 +14,7 @@ A unified dashboard that:
 -   **Fast**: minimal loading times.
 -   **Visual**: Charts and graphs are the primary interface.
 -   **Set & Forget**: Once configured, the sync should be easy to trigger.
+
+## Feature Roadmap
+### Data Integrity
+-   **Manual Workout Structure Override**: Allow users to manually specify the workout structure (RWN string) for logs where automatic deduction fails (e.g., Manual Logs, Missing Stroke Data).

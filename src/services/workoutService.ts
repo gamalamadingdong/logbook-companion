@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import type { C2ResultDetail, C2Stroke } from '../api/concept2.types';
 import { calculateCanonicalName } from '../utils/workoutNaming';
+import { parseRWN } from '../utils/rwnParser';
+import { structureToIntervals } from '../utils/structureAdapter';
 
 export const workoutService = {
     // Fetch recent workouts list (Dashboard)
@@ -23,8 +25,18 @@ export const workoutService = {
             // Try to use DB canonical name, fallback to calculating it, then fallback to DB workout name
             let canonicalName = log.canonical_name;
 
+            // 1. Manual Override Check (New Feature)
+            if (log.manual_rwn) {
+                const parsed = parseRWN(log.manual_rwn);
+                if (parsed) {
+                    const intervals = structureToIntervals(parsed);
+                    const generated = calculateCanonicalName(intervals);
+                    if (generated) canonicalName = generated;
+                }
+            }
+            // 2. Auto-Detection (Legacy / Default)
             // If missing OR "Unstructured", try to generate from raw (and backfill)
-            if ((!canonicalName || canonicalName === 'Unstructured') && raw && raw.workout && raw.workout.intervals) {
+            else if ((!canonicalName || canonicalName === 'Unstructured') && raw && raw.workout && raw.workout.intervals) {
                 const generated = calculateCanonicalName(raw.workout.intervals);
                 // Accept new name if it's better (not Unknown/Unstructured)
                 if (generated && generated !== 'Unknown' && generated !== 'Unstructured') {
@@ -275,5 +287,20 @@ export const workoutService = {
             previous,
             history
         };
+    },
+
+    // Update workout naming metadata (Manual Override)
+    updateWorkoutName: async (id: string, payload: { manualRWN?: string; isBenchmark?: boolean }) => {
+        const updates: any = {};
+
+        if (payload.manualRWN !== undefined) updates.manual_rwn = payload.manualRWN;
+        if (payload.isBenchmark !== undefined) updates.is_benchmark = payload.isBenchmark;
+
+        const { error } = await supabase
+            .from('workout_logs')
+            .update(updates)
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };

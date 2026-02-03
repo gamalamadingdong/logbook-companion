@@ -77,6 +77,8 @@ export interface C2ResultDetail extends C2Result {
     };
     strokes?: C2Stroke[]; // Helper prop attached manually
     workout_name?: string; // Canonical name from DB
+    manual_rwn?: string; // Manual override for structural definition
+    is_benchmark?: boolean; // User flagged as Test/Benchmark
 }
 
 export interface C2Pagination {

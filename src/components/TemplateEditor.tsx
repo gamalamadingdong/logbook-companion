@@ -21,7 +21,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         description: '',
         workout_type: 'erg',
         training_zone: null,
-        workout_structure: null
+        workout_structure: null,
+        is_test: false
     });
 
     // Structure builder state
@@ -53,6 +54,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
 
         // Populate State
         setStructureType(structure.type);
+
+        // Check for tags
+        if (structure.tags?.includes('test')) {
+            setTemplate(prev => ({ ...prev, is_test: true }));
+        }
 
         if (structure.type === 'steady_state') {
             setSteadyValue(structure.value);
@@ -126,7 +132,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 value: steadyValue,
                 unit: steadyUnit,
                 ...(steadyTargetRate && { target_rate: steadyTargetRate }),
-                ...(steadyTargetPace && { target_pace: steadyTargetPace })
+                ...(steadyTargetPace && { target_pace: steadyTargetPace }),
+                tags: template.is_test ? ['test'] : []
             };
         }
 
@@ -142,12 +149,13 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 type: 'interval',
                 repeats: intervalRepeats,
                 work: workStep,
-                rest: restStep
+                rest: restStep,
+                tags: template.is_test ? ['test'] : []
             };
         }
 
         if (structureType === 'variable' && variableSteps.length > 0) {
-            return { type: 'variable', steps: variableSteps };
+            return { type: 'variable', steps: variableSteps, tags: template.is_test ? ['test'] : [] };
         }
 
         return null;
@@ -178,7 +186,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 description: template.description || '',
                 workout_type: template.workout_type || 'erg',
                 training_zone: template.training_zone,
-                workout_structure: structure
+                workout_structure: structure,
+                is_test: template.is_test
             };
 
             if (templateId) {
@@ -309,6 +318,15 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                             <option key={zone} value={zone}>{zone}</option>
                                         ))}
                                     </select>
+                                </div>
+                                <div className="flex items-center gap-2 pt-4">
+                                    <button
+                                        onClick={() => setTemplate(prev => ({ ...prev, is_test: !prev.is_test }))}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${template.is_test ? 'bg-emerald-600' : 'bg-neutral-700'}`}
+                                    >
+                                        <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${template.is_test ? 'translate-x-5' : ''}`} />
+                                    </button>
+                                    <span className="text-sm font-medium text-white">Mark as Benchmark / Test</span>
                                 </div>
                             </div>
 

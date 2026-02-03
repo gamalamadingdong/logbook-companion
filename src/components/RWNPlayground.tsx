@@ -18,7 +18,8 @@ export const RWNPlayground: React.FC = () => {
         { label: 'Multi-Erg', value: 'Bike: 15000m', desc: 'Modality Prefix' },
         { label: 'Rate Cap', value: '2000m @r24', desc: 'Rate Limit' },
         { label: 'Mixed', value: '2000m+1000m+500m', desc: 'Variable' },
-        { label: 'Complex', value: '3x(4:00/2:00r)', desc: 'Time Intervals' },
+        { label: 'Complex (Nested)', value: '3x(750m/3:00r + 500m/3:00r + 250m)', desc: 'Nested' },
+        { label: '10k Sandwich', value: '2x10000m/10:00r', desc: 'Long Intervals' },
     ];
 
     useEffect(() => {
@@ -116,6 +117,20 @@ export const RWNPlayground: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* Tags & Metadata */}
+                    {parsed?.tags && parsed.tags.length > 0 && (
+                        <div className="flex items-center justify-between bg-neutral-900 p-3 rounded-lg border border-neutral-800 mt-2">
+                            <span className="text-sm text-neutral-500">Detected Tags</span>
+                            <div className="flex gap-2">
+                                {parsed.tags.map((tag: string) => (
+                                    <span key={tag} className="px-2 py-0.5 bg-yellow-900/20 text-yellow-500 border border-yellow-800/30 rounded text-xs font-mono">
+                                        #{tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Output Section */}

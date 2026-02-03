@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts } from '../utils/prCalculator';
 import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/workoutNaming';
+import { parseRWN } from '../utils/rwnParser';
+import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateBucketsFromStrokes } from '../utils/zones';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
@@ -21,6 +23,14 @@ export const WorkoutDetail: React.FC = () => {
     const [selectedInterval, setSelectedInterval] = useState<number | 'all'>('all');
     const [buckets, setBuckets] = useState<Record<string, number> | null>(null);
     const [baselineWatts, setBaselineWatts] = useState<number>(202); // Default 2:00 split
+
+    // Manual Override State
+    const [isEditing, setIsEditing] = useState(false);
+    const [manualRWN, setManualRWN] = useState('');
+    const [previewName, setPreviewName] = useState<string | null>(null);
+    const [parseError, setParseError] = useState<string | null>(null);
+    const [isBenchmark, setIsBenchmark] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -50,6 +60,9 @@ export const WorkoutDetail: React.FC = () => {
                     setDetail(detailData);
                     setStrokes(strokeData);
                     setBuckets(bucketsData);
+                    setBuckets(bucketsData);
+                    if (detailData.manual_rwn) setManualRWN(detailData.manual_rwn);
+                    if (detailData.is_benchmark) setIsBenchmark(true);
                 }
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
@@ -102,6 +115,17 @@ export const WorkoutDetail: React.FC = () => {
 
     // Calculate Canonical Name (must be before early returns per Rules of Hooks)
     const canonicalName = useMemo(() => {
+        // Live Preview takes precedence during edit
+        if (isEditing && previewName) return previewName;
+
+        // Manual Override (if set and not editing)
+        if (!isEditing && detail?.manual_rwn) {
+            const parsed = parseRWN(detail.manual_rwn);
+            if (parsed) {
+                return calculateCanonicalName(structureToIntervals(parsed));
+            }
+        }
+
         if (!detail) return 'Workout';
         const intervals = detail.workout?.intervals || [];
         if (intervals.length > 0) {
@@ -274,8 +298,13 @@ export const WorkoutDetail: React.FC = () => {
                 </Link>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-neutral-800">
                     <div>
-                        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">
+                        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent flex items-center gap-3">
                             {canonicalName}
+                            {detail.is_benchmark && (
+                                <span className="text-xs font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded align-middle">
+                                    Benchmark
+                                </span>
+                            )}
                         </h1>
                         <div className="flex items-center gap-3 text-neutral-400 text-sm md:text-base font-medium">
                             <span className="px-3 py-1 bg-neutral-900 rounded-full border border-neutral-800">
@@ -285,183 +314,332 @@ export const WorkoutDetail: React.FC = () => {
                             <span className="capitalize">{detail.workout_type.replace(/([A-Z])/g, ' $1').trim()}</span>
                         </div>
                     </div>
-                    <div className="flex flex-col md:flex-row gap-4 items-end">
-                        <a
-                            href={`https://log.concept2.com/profile/${detail.user_id}/log/${detail.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
-                        >
-                            <ExternalLink size={16} />
-                            View on Logbook
-                        </a>
-                        <Link
-                            to={`/history/${encodeURIComponent(detail.workout_name || '')}`}
-                            className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"
-                        >
-                            View History
-                        </Link>
-                        <Link
-                            to={`/compare/${id}`}
-                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
-                        >
-                            <SplitSquareHorizontal size={16} />
-                            Compare
-                        </Link>
-                    </div>
+                    <span className="capitalize">{detail.workout_type.replace(/([A-Z])/g, ' $1').trim()}</span>
                 </div>
             </div>
 
+            {/* Manual RWN Edit Modal / Overlay */}
+            {isEditing && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white">Edit Structure</h3>
+                            <button onClick={() => setIsEditing(false)} className="text-neutral-400 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-400 mb-2">
+                                    RWN String (Structure Override)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={manualRWN}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setManualRWN(val);
+                                        if (!val.trim()) {
+                                            setPreviewName(null);
+                                            setParseError(null);
+                                            return;
+                                        }
+                                        const res = parseRWN(val);
+                                        if (res) {
+                                            setParseError(null);
+                                            // Check for #test tag
+                                            if (res.tags?.includes('test')) {
+                                                setIsBenchmark(true);
+                                            } else {
+                                                // Only uncheck if we previously auto-checked it? 
+                                                // Or strict sync? Strict sync feels safer for "RWN as DNA".
+                                                setIsBenchmark(false);
+                                            }
+
+                                            try {
+                                                const ints = structureToIntervals(res);
+                                                setPreviewName(calculateCanonicalName(ints));
+                                            } catch (err) {
+                                                setPreviewName(null);
+                                            }
+                                        } else {
+                                            setParseError('Invalid RWN syntax');
+                                            setPreviewName(null);
+                                        }
+                                    }}
+                                    placeholder="e.g. 4x500m/1:00r"
+                                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-mono"
+                                />
+                                {parseError && (
+                                    <div className="flex items-center gap-2 text-rose-400 text-sm mt-2">
+                                        <AlertCircle size={14} /> {parseError}
+                                    </div>
+                                )}
+                                {previewName && !parseError && (
+                                    <div className="mt-2 p-3 bg-neutral-950/50 rounded-lg border border-neutral-800">
+                                        <div className="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-1">Preview Name</div>
+                                        <div className="text-emerald-400 font-bold">{previewName}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                        </div>
+
+                        {/* Benchmark Toggle */}
+                        <div className="flex items-center justify-between p-3 bg-neutral-950/50 rounded-xl border border-neutral-800">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white">Mark as Benchmark</span>
+                                <span className="text-xs text-neutral-500">Flag this workout as a test or PR attempt.</span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const newState = !isBenchmark;
+                                    setIsBenchmark(newState);
+
+                                    // Update RWN string to match
+                                    let current = manualRWN.trim();
+                                    if (newState) {
+                                        if (!current.includes('#test')) {
+                                            setManualRWN(current ? `${current} #test` : '#test');
+                                        }
+                                    } else {
+                                        setManualRWN(current.replace(/\s*#test/gi, '').trim());
+                                    }
+                                }}
+                                className={`relative w-11 h-6 rounded-full transition-colors ${isBenchmark ? 'bg-yellow-500' : 'bg-neutral-700'}`}
+                            >
+                                <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${isBenchmark ? 'translate-x-5' : ''}`} />
+                            </button>
+                        </div>
+
+                        <div className="pt-4 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsEditing(false)}
+                                className="px-4 py-2 text-neutral-400 hover:text-white font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={!!parseError || isSaving}
+                                onClick={async () => {
+                                    setIsSaving(true);
+                                    try {
+                                        await workoutService.updateWorkoutName(detail.id.toString(), { manualRWN: manualRWN || '', isBenchmark });
+                                        // Optimistic update
+                                        setDetail(prev => prev ? ({ ...prev, manual_rwn: manualRWN, is_benchmark: isBenchmark }) : null);
+                                        setIsEditing(false);
+                                    } catch (e) {
+                                        console.error(e);
+                                    } finally {
+                                        setIsSaving(false);
+                                    }
+                                }}
+                                className="bg-white text-black px-4 py-2 rounded-xl font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isSaving ? 'Saving...' : <><Save size={16} /> Save Changes</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+                <button
+                    onClick={() => {
+                        setIsEditing(true);
+                        if (detail.manual_rwn) {
+                            const res = parseRWN(detail.manual_rwn);
+                            if (res) {
+                                setPreviewName(calculateCanonicalName(structureToIntervals(res)));
+                            }
+                        }
+                    }}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
+                >
+                    <Pencil size={16} />
+                    Edit Structure
+                </button>
+                <a
+                    href={`https://log.concept2.com/profile/${detail.user_id}/log/${detail.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
+                >
+                    <ExternalLink size={16} />
+                    View on Logbook
+                </a>
+                <Link
+                    to={`/history/${encodeURIComponent(detail.workout_name || '')}`}
+                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"
+                >
+                    View History
+                </Link>
+                <Link
+                    to={`/compare/${id}`}
+                    className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                    <SplitSquareHorizontal size={16} />
+                    Compare
+                </Link>
+            </div>
+
+
             {/* Stats Grid - Row 1: Distance & Time Metrics */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                    {
-                        label: 'Work Distance',
-                        value: Math.round(workDistance),
-                        unit: 'm',
-                        icon: <Activity size={18} />,
-                        color: 'text-blue-400',
-                        subtext: workIntervals.length > 0 ? `${workIntervals.length} intervals` : null
-                    },
-                    {
-                        label: 'Total Distance',
-                        value: Math.round(totalDistance),
-                        unit: 'm',
-                        icon: <Activity size={18} />,
-                        color: 'text-neutral-400',
-                        subtext: detail.rest_distance ? `+${detail.rest_distance}m rest` : null
-                    },
-                    {
-                        label: 'Work Time',
-                        value: formatTime(workTime * 10),
-                        unit: '',
-                        icon: <Clock size={18} />,
-                        color: 'text-emerald-400',
-                        subtext: null
-                    },
-                    {
-                        label: 'Total Time',
-                        value: formatTime(detail.time),
-                        unit: '',
-                        icon: <Timer size={18} />,
-                        color: 'text-neutral-400',
-                        subtext: restTime > 0 ? `+${Math.round(restTime)}s rest` : null
-                    },
-                ].map((stat, i) => (
-                    <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
-                        <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
-                            {stat.icon}
-                            <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
+                {
+                    [
+                        {
+                            label: 'Work Distance',
+                            value: Math.round(workDistance),
+                            unit: 'm',
+                            icon: <Activity size={18} />,
+                            color: 'text-blue-400',
+                            subtext: workIntervals.length > 0 ? `${workIntervals.length} intervals` : null
+                        },
+                        {
+                            label: 'Total Distance',
+                            value: Math.round(totalDistance),
+                            unit: 'm',
+                            icon: <Activity size={18} />,
+                            color: 'text-neutral-400',
+                            subtext: detail.rest_distance ? `+${detail.rest_distance}m rest` : null
+                        },
+                        {
+                            label: 'Work Time',
+                            value: formatTime(workTime * 10),
+                            unit: '',
+                            icon: <Clock size={18} />,
+                            color: 'text-emerald-400',
+                            subtext: null
+                        },
+                        {
+                            label: 'Total Time',
+                            value: formatTime(detail.time),
+                            unit: '',
+                            icon: <Timer size={18} />,
+                            color: 'text-neutral-400',
+                            subtext: restTime > 0 ? `+${Math.round(restTime)}s rest` : null
+                        },
+                    ].map((stat, i) => (
+                        <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
+                            <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
+                                {stat.icon}
+                                <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
+                            </div>
+                            <div className="text-3xl font-bold text-white tracking-tight">
+                                {stat.value || '-'} {stat.unit && <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>}
+                            </div>
+                            {stat.subtext && (
+                                <div className="text-xs text-neutral-500 mt-2 font-medium">{stat.subtext}</div>
+                            )}
                         </div>
-                        <div className="text-3xl font-bold text-white tracking-tight">
-                            {stat.value || '-'} {stat.unit && <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>}
-                        </div>
-                        {stat.subtext && (
-                            <div className="text-xs text-neutral-500 mt-2 font-medium">{stat.subtext}</div>
-                        )}
-                    </div>
-                ))}
+                    ))
+                }
             </div>
 
             {/* Stats Grid - Row 2: Performance Metrics */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                    { label: 'Avg Pace', value: avgPaceFormatted, unit: '/500m', icon: <Activity size={18} />, color: 'text-blue-400' },
-                    {
-                        label: 'Avg Watts',
-                        // If no watt data, calculate from avg pace. Avoid using drag_factor (usually ~130) as watts.
-                        value: detail.watts || (detail.time ? calculateWatts((detail.time / 10 / detail.distance) * 500) : '-'),
-                        unit: 'w',
-                        icon: <Zap size={18} />,
-                        color: 'text-yellow-400'
-                    },
-                    { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
-                    { label: 'Rest Distance', value: detail.rest_distance || 0, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
-                ].map((stat, i) => (
-                    <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
-                        <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
-                            {stat.icon}
-                            <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
+                {
+                    [
+                        { label: 'Avg Pace', value: avgPaceFormatted, unit: '/500m', icon: <Activity size={18} />, color: 'text-blue-400' },
+                        {
+                            label: 'Avg Watts',
+                            // If no watt data, calculate from avg pace. Avoid using drag_factor (usually ~130) as watts.
+                            value: detail.watts || (detail.time ? calculateWatts((detail.time / 10 / detail.distance) * 500) : '-'),
+                            unit: 'w',
+                            icon: <Zap size={18} />,
+                            color: 'text-yellow-400'
+                        },
+                        { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
+                        { label: 'Rest Distance', value: detail.rest_distance || 0, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
+                    ].map((stat, i) => (
+                        <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
+                            <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
+                                {stat.icon}
+                                <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
+                            </div>
+                            <div className="text-3xl font-bold text-white tracking-tight">
+                                {stat.value || '-'} <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>
+                            </div>
                         </div>
-                        <div className="text-3xl font-bold text-white tracking-tight">
-                            {stat.value || '-'} <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>
-                        </div>
-                    </div>
-                ))}
+                    ))
+                }
             </div>
 
             {/* Charts */}
-            {strokes.length > 0 && (
-                <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                            Performance Analysis
-                        </h3>
+            {
+                strokes.length > 0 && (
+                    <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                Performance Analysis
+                            </h3>
 
-                        {/* Interval Selector */}
-                        {isInterval && intervalsData.length > 1 && (
-                            <div className="flex gap-2 p-1 bg-neutral-900 rounded-lg overflow-x-auto max-w-full">
-                                <button
-                                    onClick={() => setSelectedInterval('all')}
-                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${selectedInterval === 'all'
-                                        ? 'bg-neutral-800 text-white shadow-sm'
-                                        : 'text-neutral-500 hover:text-neutral-300'
-                                        }`}
-                                >
-                                    All
-                                </button>
-                                {intervalsData.map((_, i) => (
+                            {/* Interval Selector */}
+                            {isInterval && intervalsData.length > 1 && (
+                                <div className="flex gap-2 p-1 bg-neutral-900 rounded-lg overflow-x-auto max-w-full">
                                     <button
-                                        key={i}
-                                        onClick={() => setSelectedInterval(i)}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap ${selectedInterval === i
+                                        onClick={() => setSelectedInterval('all')}
+                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${selectedInterval === 'all'
                                             ? 'bg-neutral-800 text-white shadow-sm'
                                             : 'text-neutral-500 hover:text-neutral-300'
                                             }`}
                                     >
-                                        Int {i + 1}
+                                        All
                                     </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                                    {intervalsData.map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setSelectedInterval(i)}
+                                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap ${selectedInterval === i
+                                                ? 'bg-neutral-800 text-white shadow-sm'
+                                                : 'text-neutral-500 hover:text-neutral-300'
+                                                }`}
+                                        >
+                                            Int {i + 1}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
-                    <div className="h-[400px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                                <XAxis
-                                    dataKey="distance"
-                                    stroke="#525252"
-                                    tickFormatter={(val) => `${(val / 1000).toFixed(1)}k`}
-                                    type="number"
-                                    domain={['dataMin', 'dataMax']}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    dy={10}
-                                    fontSize={12}
-                                />
-                                <YAxis yAxisId="left" stroke="#8884d8" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
-                                <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#171717', border: '1px solid #404040', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                    itemStyle={{ fontSize: '12px', fontWeight: 500 }}
-                                    labelStyle={{ color: '#a3a3a3', fontSize: '12px', marginBottom: '4px' }}
-                                    formatter={(value: any, name: any) => [
-                                        name === 'watts' && typeof value === 'number' ? value.toFixed(1) : value,
-                                        name.toString().toUpperCase()
-                                    ]}
-                                    labelFormatter={(val) => `${val.toFixed(0)}m`}
-                                />
-                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                <Line yAxisId="left" type="monotone" dataKey="watts" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="Watts" />
-                                <Line yAxisId="right" type="monotone" dataKey="hr" stroke="#fb7185" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="HR" />
-                                <Line yAxisId="right" type="monotone" dataKey="spm" stroke="#34d399" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="SPM" />
-                            </LineChart>
-                        </ResponsiveContainer>
+                        <div className="h-[400px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                                    <XAxis
+                                        dataKey="distance"
+                                        stroke="#525252"
+                                        tickFormatter={(val) => `${(val / 1000).toFixed(1)}k`}
+                                        type="number"
+                                        domain={['dataMin', 'dataMax']}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        dy={10}
+                                        fontSize={12}
+                                    />
+                                    <YAxis yAxisId="left" stroke="#8884d8" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#171717', border: '1px solid #404040', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                        itemStyle={{ fontSize: '12px', fontWeight: 500 }}
+                                        labelStyle={{ color: '#a3a3a3', fontSize: '12px', marginBottom: '4px' }}
+                                        formatter={(value: any, name: any) => [
+                                            name === 'watts' && typeof value === 'number' ? value.toFixed(1) : value,
+                                            name.toString().toUpperCase()
+                                        ]}
+                                        labelFormatter={(val) => `${val.toFixed(0)}m`}
+                                    />
+                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                    <Line yAxisId="left" type="monotone" dataKey="watts" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="Watts" />
+                                    <Line yAxisId="right" type="monotone" dataKey="hr" stroke="#fb7185" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="HR" />
+                                    <Line yAxisId="right" type="monotone" dataKey="spm" stroke="#34d399" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="SPM" />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
-                </div>
-            )
+                )
             }
 
             {/* Power Distribution Chart */}
@@ -534,7 +712,7 @@ export const WorkoutDetail: React.FC = () => {
                     </div>
                 )
             }
-        </div >
-    );
 
+        </div>
+    );
 };

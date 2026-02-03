@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Check, X, Edit, Filter, Plus } from 'lucide-react';
-import { fetchTemplates } from '../services/templateService';
+import { Search, Check, X, Edit, Filter, Plus, Trash2 } from 'lucide-react';
+import { fetchTemplates, deleteTemplate } from '../services/templateService';
 import type { WorkoutTemplateListItem } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
+import { useAuth } from '../hooks/useAuth';
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 
 export const TemplateLibrary: React.FC = () => {
+    const { user } = useAuth();
+    const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
+
     const [templates, setTemplates] = useState<WorkoutTemplateListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -47,6 +51,24 @@ export const TemplateLibrary: React.FC = () => {
         setEditingId(null);
         if (saved) {
             loadTemplates();
+        }
+    };
+
+    const handleDelete = async (template: WorkoutTemplateListItem) => {
+        if (!isAdmin) return;
+
+        const confirmed = window.confirm(
+            `Are you sure you want to delete "${template.name}"?\n\nThis action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await deleteTemplate(template.id);
+            loadTemplates();
+        } catch (err) {
+            console.error('Failed to delete template:', err);
+            alert('Failed to delete template. Please try again.');
         }
     };
 
@@ -174,13 +196,24 @@ export const TemplateLibrary: React.FC = () => {
                                         {template.difficulty_level}
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <button
-                                            onClick={() => setEditingId(template.id)}
-                                            className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
-                                            title="Edit template"
-                                        >
-                                            <Edit size={18} />
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={() => setEditingId(template.id)}
+                                                className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                                                title="Edit template"
+                                            >
+                                                <Edit size={18} />
+                                            </button>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => handleDelete(template)}
+                                                    className="p-2 text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                                    title="Delete template"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

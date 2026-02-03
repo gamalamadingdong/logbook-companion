@@ -11,6 +11,8 @@ export function formatRest(sec: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+
+
 /**
  * Generate a canonical name for an interval workout based on its structure.
  * Verified to handle "4x1000m", "8x500m/3:30r", etc.
@@ -82,29 +84,49 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
         return `${count}x${timeLabel}${restString}`;
     }
 
-    if (calVariance && first.calories_total) {
-        return `${count}x${first.calories_total}cal${restString}`;
-    }
 
-    if (wattsVariance && first.watts) {
-        return `${count}x${Math.round(first.watts)}W${restString}`;
-    }
 
-    // Variable / Pyramid
-    const dists = workIntervals.map(i => Math.round(i.distance));
+    // Variable / Pyramid / Ladder Logic
+    // We generate a "Signature" for each interval to detect patterns regardless of mixed types.
+    const signatures = workIntervals.map(i => {
+        // Decide type priority for this step
+        // If type is explicitly 'time', or if it has time and 0 distance
+        const isTimeStep = i.type === 'time' || (i.time > 0 && i.distance === 0);
 
-    // CHECK FOR REPEATING PATTERNS (Generic)
-    // Try chunk sizes from 2 up to count/2
+        // Explicit Type Priority
+        if (i.type === 'time') {
+            const totalSec = i.time / 10;
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
+        }
+        if (i.type === 'distance') {
+            return `${Math.round(i.distance)}m`;
+        }
+
+        // Failover Inference
+        if (isTimeStep) {
+            const totalSec = i.time / 10;
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
+        }
+        return `${Math.round(i.distance)}m`;
+    });
+
+    // 1. Check for Repeating Patterns (Chunking)
+    // Try chunk sizes from 1 (simple repeats, but that's handled by variance checks usually) to count/2
+    // We start from k=2 because k=1 is handled by Simple Dist/Time Variance checks above.
     for (let k = 2; k <= count / 2; k++) {
         if (count % k === 0) {
             // Potential pattern of length k
-            const chunk = dists.slice(0, k);
+            const chunk = signatures.slice(0, k);
             let matches = true;
 
             // Verify all subsequent chunks match the first chunk
             for (let i = k; i < count; i += k) {
                 for (let j = 0; j < k; j++) {
-                    if (dists[i + j] !== chunk[j]) {
+                    if (signatures[i + j] !== chunk[j]) {
                         matches = false;
                         break;
                     }
@@ -114,75 +136,67 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
 
             if (matches) {
                 const sets = count / k;
-                return `${sets}x ${chunk.join('/')}m${restString}`;
+                const chunkLabel = chunk.join('/');
+                return `${sets}x ${chunkLabel}${restString}`;
             }
         }
     }
 
-    // Check Pyramid (A, B, C, B, A)
-    const isPyramid = count >= 3 && dists[0] === dists[count - 1] && dists[Math.floor(count / 2)] > dists[0];
-    if (isPyramid) return `v${dists[0]}m... Pyramid`;
+    // 2. Check Pyramid/Ladder (using numeric values if units match)
+    const isAllDist = workIntervals.every(i => i.type === 'distance' || (i.distance > 0 && i.time === 0));
+    const isAllTime = workIntervals.every(i => i.type === 'time' || (i.time > 0 && i.distance === 0));
 
-    // Check Ladder (Ascending/Descending)
-    if (count >= 3) {
-        let isAscending = true;
-        let isDescending = true;
-        for (let i = 0; i < count - 1; i++) {
-            if (dists[i + 1] <= dists[i]) isAscending = false;
-            if (dists[i + 1] >= dists[i]) isDescending = false;
+    if (isAllDist || isAllTime) {
+        const values = workIntervals.map(i => isAllDist ? Math.round(i.distance) : i.time / 10);
+
+        // Pyramid
+        const isPyramid = count >= 3 && values[0] === values[count - 1] && values[Math.floor(count / 2)] > values[0];
+        if (isPyramid) {
+            const startLabel = signatures[0];
+            return `v${startLabel}... Pyramid`;
         }
 
-        if (isAscending || isDescending) {
-            return `v${dists[0]}...${dists[count - 1]}m Ladder`;
+        // Ladder
+        if (count >= 3) {
+            let isAscending = true;
+            let isDescending = true;
+            for (let i = 0; i < count - 1; i++) {
+                if (values[i + 1] <= values[i]) isAscending = false;
+                if (values[i + 1] >= values[i]) isDescending = false;
+            }
+
+            if (isAscending || isDescending) {
+                const startLabel = signatures[0];
+                const endLabel = signatures[count - 1];
+                return `v${startLabel}...${endLabel} Ladder`;
+            }
         }
     }
 
-    // Variable List Logic
+    // 3. Check for Uniform Watts / Calories (Intensity Workouts)
+    // We check this AFTER pattern detection because "3x 750/500/250" is a more specific name than "9x 200W".
+    // This catches "Random Dists/Times but Fixed Watts" scenarios.
+    if (calVariance && first.calories_total) {
+        return `${count}x${first.calories_total}cal${restString}`;
+    }
+
+    if (wattsVariance && first.watts) {
+        return `${count}x${Math.round(first.watts)}W${restString}`;
+    }
+
+    // 4. Fallback: Variable List
     // Allow up to 16 items explicitly 
     if (count > 0 && count <= 16) {
-        // Try to build a clean string representation for each step
-        const stepStrings = workIntervals.map(i => {
-            // Decide type priority for this step
-            const isTimeStep = i.type === 'time' || (i.time > 0 && i.distance === 0);
-            const isDistStep = i.type === 'distance' || (i.distance > 0 && !isTimeStep);
-
-            // Explicit Type Priority
-            if (i.type === 'time') {
-                const totalSec = i.time / 10;
-                const m = Math.floor(totalSec / 60);
-                const s = totalSec % 60;
-                return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
-            }
-
-            if (i.type === 'distance') {
-                return `${Math.round(i.distance)}m`;
-            }
-
-            // Failover Inference (if type is missing or vague)
-            if (isTimeStep) {
-                const totalSec = i.time / 10;
-                const m = Math.floor(totalSec / 60);
-                const s = totalSec % 60;
-                return s === 0 ? `${m}:00` : `${m}:${Math.round(s).toString().padStart(2, '0')}`;
-            }
-
-            if (isDistStep) {
-                return `${Math.round(i.distance)}m`;
-            }
-
-            return '?';
-        });
-
+        // If all match a pattern "v500m/..."
         // If all are meters, we can condense: v500/1000/500m
-        const allMeters = stepStrings.every(s => s.endsWith('m'));
+        const allMeters = signatures.every(s => s.endsWith('m'));
         if (allMeters) {
-            const values = stepStrings.map(s => s.slice(0, -1));
+            const values = signatures.map(s => s.slice(0, -1));
             return `v${values.join('/')}m`;
         }
 
-        // If mixed or all time, join with /
-        // v500m/1:00/500m
-        return `v${stepStrings.join('/')}`;
+        // If mixed or time
+        return `v${signatures.join('/')}`;
     }
 
     // Fallback for "Unknown" or Messy Variable

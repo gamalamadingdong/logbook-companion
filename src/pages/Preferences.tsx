@@ -417,6 +417,98 @@ export const Preferences: React.FC = () => {
                 </div>
             </div>
 
+            {/* Danger Zone */}
+            <div className="mt-8 pt-8 border-t border-neutral-800">
+                <div className="flex items-start gap-4 mb-6">
+                    <div className="p-3 bg-rose-900/20 rounded-xl text-rose-500">
+                        <Database size={24} />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-semibold text-rose-400">Danger Zone</h2>
+                        <p className="text-neutral-500 text-sm">Irreversible actions for your account data.</p>
+                    </div>
+                </div>
+
+                <div className="bg-rose-950/10 rounded-lg border border-rose-900/20 divide-y divide-rose-900/20">
+                    <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-neutral-300 font-medium">Delete All Workouts</h3>
+                            <p className="text-neutral-500 text-sm mt-1">
+                                Permanently removes all your synced workout logs from the database.
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm("Are you sure you want to DELETE ALL WORKOUTS? This cannot be undone.")) return;
+                                if (!window.confirm("Please confirm again. All history will be lost.")) return;
+
+                                setSaving(true);
+                                setMessage(null);
+                                try {
+                                    if (!profile?.user_id) throw new Error("Not logged in");
+                                    const { error } = await supabase
+                                        .from('workout_logs')
+                                        .delete()
+                                        .eq('user_id', profile.user_id);
+
+                                    if (error) throw error;
+                                    setMessage({ type: 'success', text: 'All workouts deleted.' });
+                                } catch (err: any) {
+                                    setMessage({ type: 'error', text: 'Deletion failed: ' + err.message });
+                                } finally {
+                                    setSaving(false);
+                                }
+                            }}
+                            disabled={saving}
+                            className="bg-rose-950 hover:bg-rose-900 text-rose-500 hover:text-rose-400 border border-rose-900/50 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm whitespace-nowrap"
+                        >
+                            Delete Workouts
+                        </button>
+                    </div>
+
+                    <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-neutral-300 font-medium">Remove Integrations & Tokens</h3>
+                            <p className="text-neutral-500 text-sm mt-1">
+                                Removes your Concept2 connection and clears all stored tokens.
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm("Disconnect Concept2 and clear all tokens?")) return;
+
+                                setSaving(true);
+                                setMessage(null);
+                                try {
+                                    if (!profile?.user_id) throw new Error("Not logged in");
+                                    const { error } = await supabase
+                                        .from('user_integrations')
+                                        .delete()
+                                        .eq('user_id', profile.user_id);
+
+                                    if (error) throw error;
+
+                                    // Clear local storage too
+                                    localStorage.removeItem('concept2_token');
+                                    localStorage.removeItem('concept2_refresh_token');
+                                    localStorage.removeItem('concept2_expires_at');
+
+                                    setMessage({ type: 'success', text: 'Integrations removed.' });
+                                } catch (err: any) {
+                                    setMessage({ type: 'error', text: 'Removal failed: ' + err.message });
+                                } finally {
+                                    setSaving(false);
+                                }
+                            }}
+                            disabled={saving}
+                            className="bg-rose-950 hover:bg-rose-900 text-rose-500 hover:text-rose-400 border border-rose-900/50 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm whitespace-nowrap"
+                        >
+                            Remove Integrations
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {/* Footer Actions */}
             <div className="flex items-center justify-end space-x-4 pt-4 border-t border-neutral-800">
                 {message && (

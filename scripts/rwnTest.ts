@@ -1,7 +1,7 @@
 
-import { parseRWN } from '../src/utils/rwnParser';
-import { structureToIntervals } from '../src/utils/structureAdapter';
-import { calculateCanonicalName } from '../src/utils/workoutNaming';
+import { parseRWN } from '../src/utils/rwnParser.ts';
+import { structureToIntervals } from '../src/utils/structureAdapter.ts';
+import { calculateCanonicalName } from '../src/utils/workoutNaming.ts';
 
 const TEST_CASES = [
     { input: '2000m', label: 'Steady State Dist' },
@@ -96,6 +96,15 @@ async function testCanonicalNamingCompliance() {
                 mkInt('distance', 500)
             ],
             expectNot: "Unstructured"
+        },
+        {
+            label: "Mixed Time/Distance (Warmup/Cooldown)",
+            intervals: [
+                mkInt('time', 600), // 10:00
+                mkInt('distance', 10000), // 10k
+                mkInt('time', 600) // 10:00
+            ],
+            expectedStart: "v10:00/" // Should start with time, not 0m
         }
     ];
 

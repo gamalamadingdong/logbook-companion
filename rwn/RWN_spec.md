@@ -81,10 +81,15 @@ Target cadence in Strokes Per Minute (SPM).
 ### 4.2 Pace Targets
 Target intensity by split (time/500m).
 
-**Syntax:** `@[M]:[SS]`
+**Syntax:** 
+- Absolute: `@[M]:[SS]`
+- Reference: `@2k`, `@5k`, `@6k`, `@30m`, `@60m`
+- Relative: `@2k+[offset]`, `@2k-[offset]`
 
 **Examples:**
-- `2000m@1:45` → 2k test at 1:45 split.
+- `2000m@1:45` → 2k test at 1:45 split
+- `10x500m@2k/3:00r` → 10x500m at 2k PR pace
+- `5000m@2k+10` → 5000m at 10 seconds slower than 2k PR pace
 - `4x1000m/3:30r@1:50`
 
 ### 4.3 Intensity Zones
@@ -207,6 +212,7 @@ RWN supports metadata tagging for workout segments using the `#` symbol.
 Tags are used to annotate the purpose of a segment.
 -   `#warmup`: Denotes a warmup segment. `erg-link` may eventually treat this as a separate program or unverified segment.
 -   `#cooldown`: Denotes a cooldown segment.
+-   `#test` (or `#benchmark`): Flags the workout as a benchmark/test piece.
 
 ### 10.2 Syntax
 Tags are appended to the component description.
@@ -217,4 +223,20 @@ Tags are appended to the component description.
 ### 10.3 Parsing Behavior
 -   Tags are stripped from the core component parsing (e.g. `2000m` is still parsed as Distance).
 -   Tags are stored in the workout structure's metadata.
+
+## 11. Implementation & Verification Rules
+
+> [!IMPORTANT]
+> **End-to-End Verification Rule**:
+> Whenever a change is made to the RWN schema (parsing logic, new tags, structure definitions), **EVERY** consuming component must be verified.
+>
+> **Checklist:**
+> 1.  **Parser**: `rwnParser.ts` (Does it parse correctly?)
+> 2.  **Types**: `workoutStructure.types.ts` (Are types updated?)
+> 3.  **Database**: `db_schema.sql` (Do we need new columns/indexing?)
+> 4.  **UI - Workout Detail**: `WorkoutDetail.tsx` (Viewing & Editing)
+> 5.  **UI - Template Editor**: `TemplateEditor.tsx` (Creation & Quick Create)
+> 6.  **UI - Dev Tools**: `RWNPlayground.tsx` (Visualization)
+> 7.  **Service Layer**: `workoutService.ts` (Persistence)
+
 

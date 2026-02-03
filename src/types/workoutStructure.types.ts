@@ -19,6 +19,7 @@ export interface SteadyStateStructure {
     unit: 'meters' | 'seconds' | 'calories';
     target_rate?: number;  // Optional SPM guidance
     target_pace?: string;  // Optional pace guidance
+    tags?: string[];
 }
 
 // Fixed intervals: Repeating distance/time/calories with time-based rest
@@ -28,6 +29,7 @@ export interface IntervalStructure {
     repeats: number;
     work: IntervalStep;
     rest: RestStep; // Rest is always time on PM5
+    tags?: string[];
 }
 
 // Variable intervals: Complex/mixed patterns (pyramids, ladders, etc.)
@@ -35,6 +37,7 @@ export interface VariableStructure {
     type: 'variable';
     modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     steps: WorkoutStep[];
+    tags?: string[];
 }
 
 // Step within a fixed interval (work duration)
@@ -43,6 +46,7 @@ export interface IntervalStep {
     value: number; // meters for distance, seconds for time, cals for calories
     target_rate?: number;  // Optional SPM guidance (e.g., 24)
     target_pace?: string;  // Optional pace guidance (e.g., "2:00" or "sub-2:00")
+    tags?: string[];
 }
 
 // Rest step (PM5 only supports time-based rest)
@@ -54,10 +58,12 @@ export interface RestStep {
 // Individual step in a variable workout
 export interface WorkoutStep {
     type: 'work' | 'rest';
+    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
     duration_type: 'distance' | 'time' | 'calories'; // Work can be any; rest should be 'time'
     value: number; // meters for distance, seconds for time, cals for calories
     target_rate?: number;  // Optional SPM guidance
     target_pace?: string;  // Optional pace guidance
+    tags?: string[];       // Optional tags (e.g. #warmup, #cooldown, #test)
 }
 
 // Helper type for workout template from database
