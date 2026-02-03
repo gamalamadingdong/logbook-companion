@@ -11,11 +11,28 @@ export const concept2Client = axios.create({
     },
 });
 
-// Helper: Clear local tokens
-function clearLocalTokens() {
+// Helper: Clear local tokens AND database tokens
+async function clearAllTokens() {
+    // Clear localStorage
     localStorage.removeItem('concept2_token');
     localStorage.removeItem('concept2_refresh_token');
     localStorage.removeItem('concept2_expires_at');
+    
+    // Clear database tokens so they don't get restored on next login
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_integrations').update({
+                concept2_token: null,
+                concept2_refresh_token: null,
+                concept2_expires_at: null
+            }).eq('user_id', user.id);
+            console.log('Cleared C2 tokens from database');
+        }
+    } catch (err) {
+        console.error('Failed to clear C2 tokens from database:', err);
+    }
+    
     // Dispatch reconnect-required event for UI to handle
     window.dispatchEvent(new CustomEvent('concept2-reconnect-required'));
 }
@@ -79,7 +96,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
         } catch (error: any) {
             if (error.response && error.response.status === 400) {
                 console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
-                clearLocalTokens();
+                await clearAllTokens();
                 throw new Error("FATAL_REFRESH_ERROR");
             }
             throw error;
@@ -166,7 +183,7 @@ concept2Client.interceptors.response.use(
 
                 } catch (refreshError) {
                     console.error("Token refresh failed during retry:", refreshError);
-                    clearLocalTokens();
+                    await clearAllTokens();
                     // Don't reject, just let it fail -> UI might redirect
                 }
             }
