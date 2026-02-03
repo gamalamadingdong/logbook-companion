@@ -4,6 +4,143 @@
 
 ---
 
+## ADR-012: Template Quality Signals & Execution Tracking Strategy
+
+**Date**: February 3, 2026  
+**Status**: Proposed (Needs Decision)  
+**Author**: AI Assistant
+
+### Context
+The database has rich quality metrics for `workout_templates`:
+- `average_rating`, `rating_count` (user feedback)
+- `usage_count`, `completion_rate` (engagement metrics)
+- `validated` (expert approval)
+
+These are currently **not exposed in the UI**. The question is: **How do we connect templates to actual workout execution?**
+
+**Current System**:
+- LogbookCompanion syncs completed workouts from Concept2 API (post-facto)
+- Templates exist as "blueprints" but no "assign → execute → track" flow
+- No way to know if a user "selected" a template vs. did a similar workout organically
+
+### The Fundamental Question
+**How do users interact with templates?**
+
+### Option A: Retrospective Matching (Passive)
+**Model**: User rows freely, system matches completed workouts to templates after the fact
+
+**How it works**:
+1. User completes workout on PM5
+2. Sync from Concept2 API
+3. Parser generates canonical name (`4x500m/1:00r`)
+4. Match against templates with same canonical name
+5. Prompt: "Was this workout based on [Template X]?"
+
+**Pros**:
+- No workflow changes (users keep rowing how they want)
+- Works with existing PM5 setup
+- Leverages RWN canonical names (the "Trinity")
+
+**Cons**:
+- Fuzzy matching (was `4x500m/1:05r` the same as template `4x500m/1:00r`?)
+- Can't distinguish "used template" vs "coincidentally similar workout"
+- Completion rate = meaningless (can't know if they intended to finish)
+
+---
+
+### Option B: Explicit Template Selection (Active)
+**Model**: User selects template BEFORE workout, system tracks execution
+
+**How it works**:
+1. User browses template library
+2. Clicks "Do This Workout"
+3. **Sub-options**:
+   - **B1 (PM5 Programming)**: Bluetooth/USB to PM5, program workout directly
+   - **B2 (Manual Reference)**: Display workout on screen, user manually programs PM5
+   - **B3 (Planned Workout)**: Mark as "planned", match post-sync
+
+**Pros**:
+- Clear intent tracking
+- Accurate completion rates
+- Can prompt for post-workout rating
+- Enables "planned vs actual" analysis
+
+**Cons**:
+- Requires workflow change (users must "select" templates)
+- B1 requires Bluetooth implementation (erg-link complexity)
+- B2 requires user to manually mirror data (error-prone)
+- B3 still has fuzzy matching issue
+
+---
+
+### Option C: Hybrid Approach
+**Model**: Both passive matching + explicit selection
+
+**How it works**:
+1. **If user explicitly selects**: Track as "planned workout", strong link
+2. **If synced workout matches template**: Suggest "Was this based on [X]?"
+3. **Analytics distinguish**: "explicit uses" vs "possible matches"
+
+**Pros**:
+- Flexible (supports both power users and casual rowers)
+- Gradual adoption (can add explicit selection later)
+- Better data quality over time
+
+**Cons**:
+- Two tracking systems to maintain
+- Complexity in analytics (how to weight "confirmed" vs "suggested" usage)
+
+---
+
+### Option D: Templates as Documentation Only
+**Model**: Templates are reference/inspiration, not execution tracking
+
+**How it works**:
+- Templates are "workout recipes" users can browse
+- No execution tracking at all
+- Quality metrics come from explicit reviews only (not usage-based)
+
+**Pros**:
+- Simple, no execution complexity
+- Aligns with current "sync-only" model
+
+**Cons**:
+- Loses valuable engagement data
+- Can't measure which workouts are actually effective
+- No feedback loop for template quality
+
+---
+
+### Recommended Decision Path
+
+**Phase 1 (Now)**: Expose existing quality signals **without** execution tracking
+- Show `validated`, `average_rating`, `rating_count` as badges
+- Add "Review This Template" button (ratings without execution)
+- Filter templates by quality/validation
+
+**Phase 2 (Later)**: Implement retrospective matching (Option A or C)
+- Use RWN canonical names to suggest template matches post-sync
+- Prompt: "This looks like [Template]. Was it?"
+- Track "confirmed matches" separately from "possible matches"
+
+**Phase 3 (Future)**: Add explicit template selection (Option B or C)
+- "Plan Workout" feature
+- PM5 programming via Bluetooth (erg-link integration)
+- Full planned-vs-actual analytics
+
+### Open Questions
+1. **Primary Use Case**: Are templates for "planning" or "inspiration"?
+2. **User Workflow**: Do we want to change how users interact with workouts?
+3. **PM5 Integration**: Is programming the monitor directly a goal?
+4. **Data Quality**: Is fuzzy matching good enough, or do we need explicit tracking?
+
+### Next Steps
+- **Decision needed**: Which option aligns with product vision?
+- **User Research**: How do coaches/athletes currently use workout templates?
+- **Technical Spike**: How hard is PM5 Bluetooth programming?
+
+---
+
 ## ADR-001: Instruction-Driven Over Code Generator
 
 **Date**: December 15, 2025  

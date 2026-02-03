@@ -1,13 +1,15 @@
 import type { C2Interval, C2Stroke } from '../api/concept2.types';
 
 /**
- * Format rest time (seconds) to readable string (e.g. 5:00, 30s)
+ * Format rest time (seconds) to readable string matching RWN spec
+ * RWN allows both `[M]:[SS]r` and `[S]sr`
+ * Use shorter format when possible for readability
  */
 export function formatRest(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    if (m > 0 && s === 0) return `${m}:00`;
-    if (m === 0) return `${s}s`;
+    // Always use M:SS format to match Concept2 and avoid ambiguity with stroke rate
+    // E.g., "20sr" could be confused with stroke rate, "0:20r" is unambiguous
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
