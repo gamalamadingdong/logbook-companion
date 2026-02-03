@@ -30,12 +30,16 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
     const [steadyValue, setSteadyValue] = useState(5000);
     const [steadyUnit, setSteadyUnit] = useState<'meters' | 'seconds' | 'calories'>('meters');
     const [steadyTargetRate, setSteadyTargetRate] = useState<number | undefined>(undefined);
+    const [steadyTargetRateMax, setSteadyTargetRateMax] = useState<number | undefined>(undefined);
     const [steadyTargetPace, setSteadyTargetPace] = useState<string | undefined>(undefined);
+    const [steadyTargetPaceMax, setSteadyTargetPaceMax] = useState<string | undefined>(undefined);
     const [intervalRepeats, setIntervalRepeats] = useState(5);
     const [workType, setWorkType] = useState<'distance' | 'time' | 'calories'>('distance');
     const [workValue, setWorkValue] = useState(500);
     const [workTargetRate, setWorkTargetRate] = useState<number | undefined>(undefined);
+    const [workTargetRateMax, setWorkTargetRateMax] = useState<number | undefined>(undefined);
     const [workTargetPace, setWorkTargetPace] = useState<string | undefined>(undefined);
+    const [workTargetPaceMax, setWorkTargetPaceMax] = useState<string | undefined>(undefined);
     const [restValue, setRestValue] = useState(60); // Rest is always time (seconds)
     const [variableSteps, setVariableSteps] = useState<WorkoutStep[]>([]);
 
@@ -64,13 +68,17 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
             setSteadyValue(structure.value);
             setSteadyUnit(structure.unit);
             setSteadyTargetRate(structure.target_rate);
+            setSteadyTargetRateMax(structure.target_rate_max);
             setSteadyTargetPace(structure.target_pace);
+            setSteadyTargetPaceMax(structure.target_pace_max);
         } else if (structure.type === 'interval') {
             setIntervalRepeats(structure.repeats);
             setWorkType(structure.work.type);
             setWorkValue(structure.work.value);
             setWorkTargetRate(structure.work.target_rate);
+            setWorkTargetRateMax(structure.work.target_rate_max);
             setWorkTargetPace(structure.work.target_pace);
+            setWorkTargetPaceMax(structure.work.target_pace_max);
             setRestValue(structure.rest.value);
         } else if (structure.type === 'variable') {
             setVariableSteps(structure.steps);
@@ -98,13 +106,17 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                             setSteadyValue(struct.value);
                             setSteadyUnit(struct.unit);
                             setSteadyTargetRate(struct.target_rate);
+                            setSteadyTargetRateMax(struct.target_rate_max);
                             setSteadyTargetPace(struct.target_pace);
+                            setSteadyTargetPaceMax(struct.target_pace_max);
                         } else if (struct.type === 'interval') {
                             setIntervalRepeats(struct.repeats);
                             setWorkType(struct.work.type);
                             setWorkValue(struct.work.value);
                             setWorkTargetRate(struct.work.target_rate);
+                            setWorkTargetRateMax(struct.work.target_rate_max);
                             setWorkTargetPace(struct.work.target_pace);
+                            setWorkTargetPaceMax(struct.work.target_pace_max);
                             setRestValue(struct.rest.value);
                         } else if (struct.type === 'variable') {
                             setVariableSteps(struct.steps);
@@ -132,7 +144,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 value: steadyValue,
                 unit: steadyUnit,
                 ...(steadyTargetRate && { target_rate: steadyTargetRate }),
+                ...(steadyTargetRateMax && { target_rate_max: steadyTargetRateMax }),
                 ...(steadyTargetPace && { target_pace: steadyTargetPace }),
+                ...(steadyTargetPaceMax && { target_pace_max: steadyTargetPaceMax }),
                 tags: template.is_test ? ['test'] : []
             };
         }
@@ -142,7 +156,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 type: workType,
                 value: workValue,
                 ...(workTargetRate && { target_rate: workTargetRate }),
-                ...(workTargetPace && { target_pace: workTargetPace })
+                ...(workTargetRateMax && { target_rate_max: workTargetRateMax }),
+                ...(workTargetPace && { target_pace: workTargetPace }),
+                ...(workTargetPaceMax && { target_pace_max: workTargetPaceMax })
             };
             const restStep: RestStep = { type: 'time', value: restValue };
             return {

@@ -121,8 +121,20 @@ describe('RWN Parser - Chained Guidance Parameters', () => {
 
 describe('RWN Parser - Range Notation', () => {
     describe('Stroke Rate Ranges', () => {
-        test('parses absolute rate range @18-22spm', () => {
+        test('parses absolute rate range @18-22spm (hyphen)', () => {
             const result = parseRWN('60:00@18-22spm');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_rate).toBe(18);
+                expect(result.target_rate_max).toBe(22);
+            }
+        });
+
+        test('parses absolute rate range @18..22spm (double-dot)', () => {
+            const result = parseRWN('60:00@18..22spm');
 
             expect(result).not.toBeNull();
             expect(result?.type).toBe('steady_state');
@@ -135,6 +147,18 @@ describe('RWN Parser - Range Notation', () => {
 
         test('parses r-notation rate range @r24-28', () => {
             const result = parseRWN('4x2000m@r24-28/5:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_rate).toBe(24);
+                expect(result.work.target_rate_max).toBe(28);
+            }
+        });
+
+        test('parses r-notation rate range @r24..28 (double-dot)', () => {
+            const result = parseRWN('4x2000m@r24..28/5:00r');
 
             expect(result).not.toBeNull();
             expect(result?.type).toBe('interval');
@@ -159,8 +183,20 @@ describe('RWN Parser - Range Notation', () => {
     });
 
     describe('Pace Ranges', () => {
-        test('parses absolute pace range @2:05-2:10', () => {
+        test('parses absolute pace range @2:05-2:10 (hyphen)', () => {
             const result = parseRWN('60:00@2:05-2:10');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('2:05');
+                expect(result.target_pace_max).toBe('2:10');
+            }
+        });
+
+        test('parses absolute pace range @2:05..2:10 (double-dot)', () => {
+            const result = parseRWN('60:00@2:05..2:10');
 
             expect(result).not.toBeNull();
             expect(result?.type).toBe('steady_state');
@@ -180,6 +216,30 @@ describe('RWN Parser - Range Notation', () => {
             if (result?.type === 'interval') {
                 expect(result.work.target_pace).toBe('1:48');
                 expect(result.work.target_pace_max).toBe('1:52');
+            }
+        });
+
+        test('parses relative pace range @2k-1..2k-5 (double-dot)', () => {
+            const result = parseRWN('60:00@2k-1..2k-5');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.target_pace).toBe('2k-1');
+                expect(result.target_pace_max).toBe('2k-5');
+            }
+        });
+
+        test('parses relative pace range @2k+5..2k+10 (double-dot)', () => {
+            const result = parseRWN('8x500m@2k+5..2k+10/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.work.target_pace).toBe('2k+5');
+                expect(result.work.target_pace_max).toBe('2k+10');
             }
         });
     });

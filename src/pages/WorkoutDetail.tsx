@@ -38,7 +38,7 @@ export const WorkoutDetail: React.FC = () => {
         const fetchData = async () => {
             try {
                 if (isGuest) {
-                    const mockDetail = DEMO_WORKOUTS.find(w => w.id === id || w.external_id === id) as any;
+                    const mockDetail = DEMO_WORKOUTS.find(w => w.id === id || w.external_id === id) as C2ResultDetail | undefined;
                     if (mockDetail) {
                         // Cast to C2ResultDetail - demo data has similar shape
                         setDetail(mockDetail);
@@ -191,7 +191,7 @@ export const WorkoutDetail: React.FC = () => {
         });
 
         // Determine visible strokes
-        let visibleStrokes: any[] = [];
+        let visibleStrokes: C2Stroke[] = [];
         if (selectedInterval === 'all') {
             let cumulativeDist = 0;
             intervalsData.forEach((item) => {
@@ -324,7 +324,7 @@ export const WorkoutDetail: React.FC = () => {
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-white">Edit Structure</h3>
-                            <button onClick={() => setIsEditing(false)} className="text-neutral-400 hover:text-white">
+                            <button onClick={() => setIsEditing(false)} className="text-neutral-400 hover:text-white" title="Close" aria-label="Close edit dialog">
                                 <X size={20} />
                             </button>
                         </div>
@@ -360,7 +360,7 @@ export const WorkoutDetail: React.FC = () => {
                                             try {
                                                 const ints = structureToIntervals(res);
                                                 setPreviewName(calculateCanonicalName(ints));
-                                            } catch (err) {
+                                            } catch {
                                                 setPreviewName(null);
                                             }
                                         } else {
@@ -398,7 +398,7 @@ export const WorkoutDetail: React.FC = () => {
                                     setIsBenchmark(newState);
 
                                     // Update RWN string to match
-                                    let current = manualRWN.trim();
+                                    const current = manualRWN.trim();
                                     if (newState) {
                                         if (!current.includes('#test')) {
                                             setManualRWN(current ? `${current} #test` : '#test');
@@ -408,6 +408,8 @@ export const WorkoutDetail: React.FC = () => {
                                     }
                                 }}
                                 className={`relative w-11 h-6 rounded-full transition-colors ${isBenchmark ? 'bg-yellow-500' : 'bg-neutral-700'}`}
+                                title={isBenchmark ? 'Mark as non-benchmark' : 'Mark as benchmark'}
+                                aria-label={isBenchmark ? 'Toggle off benchmark status' : 'Toggle on benchmark status'}
                             >
                                 <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${isBenchmark ? 'translate-x-5' : ''}`} />
                             </button>
@@ -625,9 +627,9 @@ export const WorkoutDetail: React.FC = () => {
                                         contentStyle={{ backgroundColor: '#171717', border: '1px solid #404040', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                                         itemStyle={{ fontSize: '12px', fontWeight: 500 }}
                                         labelStyle={{ color: '#a3a3a3', fontSize: '12px', marginBottom: '4px' }}
-                                        formatter={(value: any, name: any) => [
-                                            name === 'watts' && typeof value === 'number' ? value.toFixed(1) : value,
-                                            name.toString().toUpperCase()
+                                        formatter={(value: number | string | undefined, name: string | undefined) => [
+                                            name === 'watts' && typeof value === 'number' ? value.toFixed(1) : value ?? '',
+                                            (name ?? '').toString().toUpperCase()
                                         ]}
                                         labelFormatter={(val) => `${val.toFixed(0)}m`}
                                     />

@@ -71,9 +71,9 @@ function parseComponent(str: string): ParsedComponent | null {
         const guidanceParts = guidanceText.split('@').map(p => p.trim());
 
         for (const part of guidanceParts) {
-            // Regex for Rate Range: r20-24 or 20-24spm or r20-24spm
+            // Regex for Rate Range: r20-24 or r20..24 or 20-24spm or 20..24spm
             if (!guidance.target_rate) {
-                const rateRangeMatch = part.match(/^(?:r)?(\d+)-(\d+)(?:spm)?$/i);
+                const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
                 if (rateRangeMatch) {
                     guidance.target_rate = parseInt(rateRangeMatch[1]);
                     guidance.target_rate_max = parseInt(rateRangeMatch[2]);
@@ -90,12 +90,22 @@ function parseComponent(str: string): ParsedComponent | null {
                 }
             }
 
-            // Regex for Absolute Pace Range: 1:48-1:52 or 2:05-2:10
+            // Regex for Absolute Pace Range: 1:48-1:52 or 1:48..1:52
             if (!guidance.target_pace) {
-                const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)-(\d+:\d+(?:\.\d+)?)$/);
+                const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
                 if (paceRangeMatch) {
                     guidance.target_pace = paceRangeMatch[1];
                     guidance.target_pace_max = paceRangeMatch[2];
+                    continue;
+                }
+            }
+
+            // Regex for Relative Pace Range: 2k+5-2k+10 or 2k+5..2k+10 or 2k-1..2k-5
+            if (!guidance.target_pace) {
+                const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+                if (relPaceRangeMatch) {
+                    guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
+                    guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
                     continue;
                 }
             }

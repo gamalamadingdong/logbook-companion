@@ -74,32 +74,38 @@ Target cadence in Strokes Per Minute (SPM).
 
 **Syntax:** 
 - Single value: `@[Number]spm` or `@r[Number]`
-- Range: `@[Min]-[Max]spm` or `@r[Min]-[Max]`
+- Range (canonical): `@[Min]..[Max]spm` or `@r[Min]..[Max]`
+- Range (legacy): `@[Min]-[Max]spm` (also supported for backward compatibility)
 
 **Examples:**
 - `30:00@r20` → 30 mins at rate 20.
 - `8x500m/1:00r@r32` → Intervals at rate 32.
-- `60:00@18-22spm` → Hour piece holding 18-22 spm.
-- `4x2000m/5:00r@r24-28` → 2k repeats at rate 24-28.
+- `60:00@18..22spm` → Hour piece holding 18-22 spm.
+- `4x2000m/5:00r@r24..28` → 2k repeats at rate 24-28.
+- `20:00@22-24spm` → Legacy syntax (still supported).
 
 ### 4.2 Pace Targets
 Target intensity by split (time/500m).
 
 **Syntax:** 
 - Absolute: `@[M]:[SS]`
-- Absolute Range: `@[M]:[SS]-[M]:[SS]`
+- Absolute Range (canonical): `@[M]:[SS]..[M]:[SS]`
+- Absolute Range (legacy): `@[M]:[SS]-[M]:[SS]` (also supported)
 - Reference: `@2k`, `@5k`, `@6k`, `@30m`, `@60m`
 - Relative: `@2k+[offset]`, `@2k-[offset]`
+- Relative Range (canonical): `@2k+5..2k+10` (use `..` to avoid ambiguity)
 
-> **Note:** Relative ranges (e.g., `@2k+5-2k+10`) are not supported to avoid parsing ambiguity. Use absolute ranges or zones instead.
+> **Note:** For relative pace ranges, `..` is **strongly recommended** over `-` to avoid parsing ambiguity (e.g., `@2k-1..2k-5` is clear, `@2k-1-2k-5` is ambiguous).
 
 **Examples:**
 - `2000m@1:45` → 2k test at 1:45 split
 - `10x500m@2k/3:00r` → 10x500m at 2k PR pace
 - `5000m@2k+10` → 5000m at 10 seconds slower than 2k PR pace
-- `4x1000m/3:30r@1:50`
-- `60:00@2:05-2:10` → Hour piece holding 2:05-2:10 split.
-- `8x500m@1:48-1:52/3:00r` → 500m repeats in the 1:48-1:52 band.
+- `4x1000m/3:30r@1:50` → Single target pace
+- `60:00@2:05..2:10` → Hour piece holding 2:05-2:10 split.
+- `8x500m@1:48..1:52/3:00r` → 500m repeats in the 1:48-1:52 band.
+- `8x500m@2k-1..2k-5/3:00r` → Relative pace range using canonical syntax.
+- `60:00@2:05-2:10` → Legacy syntax (still supported).
 
 ### 4.3 Intensity Zones
 Subjective or heart-rate based intensity zones.
