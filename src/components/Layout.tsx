@@ -43,7 +43,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     const links = [
         { path: '/', label: 'Log Dashboard', icon: Home },
-        { path: '/analytics', label: 'Analytics', icon: TrendingUp },
+        { path: '/analytics', label: 'Analysis', icon: TrendingUp },
         { path: '/sync', label: 'Sync Data', icon: Database },
         { path: '/templates', label: 'Library', icon: Dumbbell, badge: 'Alpha' },
         { path: '/preferences', label: 'Settings', icon: Settings },

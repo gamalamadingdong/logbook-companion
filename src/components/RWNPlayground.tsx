@@ -11,19 +11,21 @@ export const RWNPlayground: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     const EXAMPLES = [
-        { label: 'Intervals', value: '4x500m/1:00r', desc: 'Distance Sprints' },
-        { label: 'Time Intervals', value: '8x1:00/1:00r', desc: 'Time-based' },
-        { label: 'Single + Rest', value: '500m@2k/1:00r', desc: 'One interval' },
-        { label: 'Steady State', value: '10000m', desc: 'Distance SS' },
-        { label: 'Time SS', value: '30:00', desc: 'Duration SS' },
-        { label: 'Training Zone', value: '20:00@UT1', desc: 'Zone pace' },
-        { label: 'Relative Pace', value: '5000m@2k+10', desc: 'PR + offset' },
-        { label: 'Rate Range', value: '30:00@18..22spm', desc: 'Rate band' },
-        { label: 'Pace Range', value: '60:00@2:05..2:10', desc: 'Split band' },
-        { label: 'Block Tags', value: '[w]10:00 + 5x500m/1:00r + [c]5:00', desc: 'W/U + Work + C/D' },
-        { label: 'Multi-Erg', value: 'Bike: 15000m', desc: 'Modality prefix' },
-        { label: 'Variable', value: '2000m+1000m+500m', desc: 'Pyramid' },
-        { label: 'Grouped', value: '3x(750m/3:00r + 500m/3:00r)', desc: 'Nested blocks' },
+        { label: 'Intervals', value: '4x500m/1:00r', desc: 'Distance Sprints', category: 'Basic' },
+        { label: 'Time Intervals', value: '8x1:00/1:00r', desc: 'Time-based', category: 'Basic' },
+        { label: 'Steady State', value: '10000m', desc: 'Distance SS', category: 'Basic' },
+        { label: 'Training Zone', value: '20:00@UT1', desc: 'Zone pace', category: 'Pace' },
+        { label: 'Relative Pace', value: '5000m@2k+10', desc: 'PR + offset', category: 'Pace' },
+        { label: 'Rate Range', value: '30:00@18..22spm', desc: 'Rate band', category: 'Pace' },
+        { label: 'Pace Range', value: '60:00@2:05..2:10', desc: 'Split band', category: 'Pace' },
+        { label: 'With W/U & C/D', value: '[w]10:00 + 5x500m/1:00r + [c]5:00', desc: 'Full session', category: 'Advanced' },
+        { label: 'Rate Pyramid', value: '[w]5:00 + 5:00@r20 + 5:00@r22 + 5:00@r24 + 5:00@r22 + [c]5:00', desc: 'Rate steps', category: 'Advanced' },
+        { label: 'Variable', value: '2000m+1000m+500m', desc: 'Pyramid', category: 'Advanced' },
+        { label: 'Grouped', value: '3x(750m/3:00r + 500m/3:00r)', desc: 'Nested blocks', category: 'Advanced' },
+        { label: 'BikeErg', value: 'Bike: 15000m', desc: 'Single modality', category: 'Multi-Modal' },
+        { label: 'SkiErg', value: 'Ski: 8x500m/3:30r', desc: 'Ski intervals', category: 'Multi-Modal' },
+        { label: 'Circuit', value: '[w]Row: 5:00 + Row: 2000m + Bike: 5000m + Ski: 2000m + [c]Row: 5:00', desc: 'Cross-training', category: 'Multi-Modal' },
+        { label: 'Team Circuit', value: '[w]Row: 10:00 + 3x(Row: 2000m/2:00r + Bike: 5000m/2:00r + Run: 800m/2:00r) + [c]Row: 5:00', desc: 'Full circuit', category: 'Multi-Modal' },
     ];
 
     useEffect(() => {
@@ -104,20 +106,29 @@ export const RWNPlayground: React.FC = () => {
                         <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-3">
                             Try Examples
                         </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {EXAMPLES.map((ex) => (
-                                <button
-                                    key={ex.label}
-                                    onClick={() => setInput(ex.value)}
-                                    className="text-left px-3 py-2 rounded-lg border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 hover:border-neutral-700 transition-all group"
-                                >
-                                    <div className="text-xs font-medium text-neutral-300 group-hover:text-emerald-400 transition-colors">
-                                        {ex.label}
+                        <div className="space-y-3">
+                            {['Basic', 'Pace', 'Advanced', 'Multi-Modal'].map(category => (
+                                <div key={category}>
+                                    <div className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
+                                        {category}
                                     </div>
-                                    <div className="text-[10px] text-neutral-500 font-mono mt-0.5 truncate">
-                                        {ex.value}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {EXAMPLES.filter(ex => ex.category === category).map((ex) => (
+                                            <button
+                                                key={ex.label}
+                                                onClick={() => setInput(ex.value)}
+                                                className="text-left px-3 py-2 rounded-lg border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 hover:border-neutral-700 transition-all group"
+                                            >
+                                                <div className="text-xs font-medium text-neutral-300 group-hover:text-emerald-400 transition-colors">
+                                                    {ex.label}
+                                                </div>
+                                                <div className="text-[10px] text-neutral-500 mt-0.5">
+                                                    {ex.desc}
+                                                </div>
+                                            </button>
+                                        ))}
                                     </div>
-                                </button>
+                                </div>
                             ))}
                         </div>
                     </div>
