@@ -5,6 +5,7 @@ import type { WorkoutTemplateListItem } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabase';
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 
@@ -15,9 +16,11 @@ export const TemplateLibrary: React.FC = () => {
 
     const [templates, setTemplates] = useState<WorkoutTemplateListItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [totalWorkoutsLinked, setTotalWorkoutsLinked] = useState(0);
     const [search, setSearch] = useState('');
     const [zoneFilter, setZoneFilter] = useState<string>('');
     const [structureFilter, setStructureFilter] = useState<'all' | 'has' | 'missing'>('all');
+    const [sortOrder, setSortOrder] = useState<'popular' | 'recent'>('popular');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
@@ -29,9 +32,23 @@ export const TemplateLibrary: React.FC = () => {
                 workoutType: 'erg',
                 trainingZone: zoneFilter || undefined,
                 hasStructure: structureFilter === 'all' ? undefined : structureFilter === 'has',
-                search: search || undefined
+                search: search || undefined,
+                sortBy: sortOrder
             });
             setTemplates(data);
+            
+            // Calculate total of YOUR workouts linked to templates
+            if (user?.id) {
+                const { count, error } = await supabase
+                    .from('workout_logs')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .not('template_id', 'is', null);
+                
+                if (!error && count !== null) {
+                    setTotalWorkoutsLinked(count);
+                }
+            }
         } catch (err) {
             console.error('Failed to load templates:', err);
         } finally {
@@ -41,7 +58,7 @@ export const TemplateLibrary: React.FC = () => {
 
     useEffect(() => {
         loadTemplates();
-    }, [zoneFilter, structureFilter]);
+    }, [zoneFilter, structureFilter, sortOrder]);
 
     // Debounced search
     useEffect(() => {
@@ -175,6 +192,17 @@ export const TemplateLibrary: React.FC = () => {
                     ))}
                 </select>
 
+                {/* Sort Order */}
+                <select
+                    value={sortOrder}
+                    onChange={e => setSortOrder(e.target.value as 'popular' | 'recent')}
+                    className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                    aria-label="Sort templates by"
+                >
+                    <option value="popular">Most Popular</option>
+                    <option value="recent">Recently Used</option>
+                </select>
+
                 {/* Structure Filter */}
                 <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-3">
                     <Filter size={16} className="text-neutral-500" />
@@ -198,6 +226,9 @@ export const TemplateLibrary: React.FC = () => {
                 </span>
                 <span className="text-emerald-400">
                     {templates.filter(t => t.workout_structure).length} standardized
+                </span>
+                <span className="text-indigo-400">
+                    {totalWorkoutsLinked} workouts categorized
                 </span>
                 <span className="text-amber-400">
                     {templates.filter(t => !t.workout_structure).length} need structure

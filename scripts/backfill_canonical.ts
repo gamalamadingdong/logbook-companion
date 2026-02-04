@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { calculateCanonicalName, detectIntervalsFromStrokes } from '../src/utils/workoutNaming';
-import type { C2ResultDetail, C2Interval } from '../src/api/concept2.types';
+import type { C2Interval } from '../src/api/concept2.types';
 import fs from 'fs';
 import path from 'path';
 
@@ -73,7 +73,7 @@ async function backfill() {
 
         // Parse raw data if it's a string
         if (typeof raw === 'string') {
-            try { raw = JSON.parse(raw); } catch (e) { }
+            try { raw = JSON.parse(raw); } catch (e) {  console.log(e);}
         }
 
         // Extract intervals

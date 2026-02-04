@@ -7,6 +7,7 @@ export interface TemplateFilters {
     hasStructure?: boolean;
     status?: string;
     search?: string;
+    sortBy?: 'popular' | 'recent';
 }
 
 /**
@@ -15,9 +16,17 @@ export interface TemplateFilters {
 export async function fetchTemplates(filters: TemplateFilters = {}): Promise<WorkoutTemplateListItem[]> {
     let query = supabase
         .from('workout_templates')
-        .select('id, name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count')
-        .order('usage_count', { ascending: false })
-        .order('name', { ascending: true }); // Secondary sort by name
+        .select('id, name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at');
+
+    // Apply sorting based on sortBy parameter
+    if (filters.sortBy === 'recent') {
+        query = query.order('last_used_at', { ascending: false, nullsFirst: false })
+                     .order('name', { ascending: true });
+    } else {
+        // Default to 'popular' sorting
+        query = query.order('usage_count', { ascending: false })
+                     .order('name', { ascending: true });
+    }
 
     // Default to 'erg' type (rowing workouts)
     if (filters.workoutType) {
