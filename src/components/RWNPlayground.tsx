@@ -149,13 +149,13 @@ export const RWNPlayground: React.FC = () => {
                 </div>
 
                 {/* Output Section */}
-                <div className="space-y-4">
-                    <div>
+                <div className="flex flex-col h-full space-y-4">
+                    <div className="flex-1 flex flex-col">
                         <label className="block text-sm font-medium text-neutral-400 mb-2">
                             Parsed Structure
                         </label>
-                        <div className="relative group">
-                            <pre className="w-full h-64 bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-xs font-mono text-neutral-300 overflow-auto custom-scrollbar">
+                        <div className="relative group flex-1">
+                            <pre className="w-full h-full bg-neutral-900 border border-neutral-800 rounded-lg p-4 text-xs font-mono text-neutral-300 overflow-auto custom-scrollbar">
                                 {parsed ? JSON.stringify(parsed, null, 2) : '// Output will appear here'}
                             </pre>
                             {/* Overlay Label for result */}

@@ -124,6 +124,20 @@ Subjective or heart-rate based intensity zones.
 - `3x20:00/2:00r@UT2`
 - `10x1:00/1:00r@AN`
 
+### 4.4 Chaining Guidance Parameters
+Multiple guidance parameters can be chained together using multiple `@` symbols to specify both pace/zone and rate simultaneously.
+
+**Syntax:** `@[Pace/Zone]@[Rate]` or `@[Rate]@[Pace/Zone]`
+
+**Examples:**
+- `30:00@UT2@r20` → 30 mins at UT2 pace, holding rate 20
+- `5000m@2k+5@r28` → 5k at 2k+5 pace, holding rate 28
+- `8x500m/1:00r@1:50@r32` → 500m intervals at 1:50 split and rate 32
+- `60:00@r18..22@UT2` → Hour piece at UT2, rate range 18-22
+- `4x2000m/5:00r@2k@r24..28` → 2k repeats at 2k pace, rate 24-28
+
+> **Note:** Order of chained parameters does not matter (`@UT2@r20` is equivalent to `@r20@UT2`). The parser will extract pace/zone and rate guidance independently.
+
 ## 5. Segmented Workouts (Compound)
 Workouts composed of distinct segments without rest (e.g., warmups, rate steps) are linked with the `+` operator.
 
