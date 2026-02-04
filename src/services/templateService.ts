@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { WorkoutTemplate, WorkoutTemplateListItem } from '../types/workoutStructure.types';
+import type { WorkoutTemplate, WorkoutTemplateListItem, WorkoutStructure } from '../types/workoutStructure.types';
 
 export interface TemplateFilters {
     workoutType?: string;
@@ -16,7 +16,8 @@ export async function fetchTemplates(filters: TemplateFilters = {}): Promise<Wor
     let query = supabase
         .from('workout_templates')
         .select('id, name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count')
-        .order('name', { ascending: true });
+        .order('usage_count', { ascending: false })
+        .order('name', { ascending: true }); // Secondary sort by name
 
     // Default to 'erg' type (rowing workouts)
     if (filters.workoutType) {
@@ -142,4 +143,40 @@ export async function deleteTemplate(id: string): Promise<void> {
         console.error('Error deleting template:', error);
         throw error;
     }
+}
+
+/**
+ * Check if a template with identical workout_structure already exists
+ */
+export async function findDuplicateTemplate(
+    workoutStructure: WorkoutStructure,
+    excludeId?: string
+): Promise<WorkoutTemplate | null> {
+    if (!workoutStructure) return null;
+
+    let query = supabase
+        .from('workout_templates')
+        .select('*');
+
+    // Exclude current template if editing
+    if (excludeId) {
+        query = query.neq('id', excludeId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Error checking for duplicates:', error);
+        return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    // Find exact JSON match
+    const structureStr = JSON.stringify(workoutStructure);
+    const duplicate = data.find(t => 
+        t.workout_structure && JSON.stringify(t.workout_structure) === structureStr
+    );
+
+    return duplicate || null;
 }

@@ -114,7 +114,10 @@ export const workoutService = {
 
             return {
                 ...data.raw_data,
-                workout_name: canonicalName // Inject Canonical Name for UI consistency
+                workout_name: canonicalName, // Inject Canonical Name for UI consistency
+                template_id: data.template_id, // Include linked template ID
+                manual_rwn: data.manual_rwn, // Include manual RWN override
+                is_benchmark: data.is_benchmark // Include benchmark flag
             } as C2ResultDetail;
         }
 
@@ -169,14 +172,28 @@ export const workoutService = {
             workoutId = data.id;
         }
 
-        const { data, error } = await supabase
-            .from('workout_power_distribution')
-            .select('buckets')
-            .eq('workout_id', workoutId)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from('workout_power_distribution')
+                .select('buckets')
+                .eq('workout_id', workoutId)
+                .single();
 
-        if (error) return null;
-        return data.buckets as Record<string, number>;
+            if (error) {
+                // Gracefully handle RLS/404/406 errors
+                if (error.code === 'PGRST116' || error.message?.includes('406') || error.message?.includes('Not Acceptable')) {
+                    console.log('Power distribution not available for this workout');
+                    return null;
+                }
+                console.error('Error fetching power buckets:', error);
+                return null;
+            }
+
+            return data?.buckets as Record<string, number> || null;
+        } catch (err) {
+            console.error('Exception fetching power buckets:', err);
+            return null;
+        }
     },
 
     // Fetch history of a specific workout type (Progress)
@@ -302,5 +319,27 @@ export const workoutService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    // Link a workout to a template
+    linkWorkoutToTemplate: async (workoutId: string, templateId: string | null) => {
+        const { data, error } = await supabase
+            .from('workout_logs')
+            .update({ template_id: templateId })
+            .eq('id', workoutId)
+            .select();
+
+        if (error) {
+            console.error('Failed to link workout to template:', error);
+            throw error;
+        }
+        
+        if (!data || data.length === 0) {
+            console.error('No rows updated - workout may not exist or RLS policy blocking update');
+            throw new Error('Failed to update workout - no rows affected');
+        }
+        
+        console.log('Successfully linked workout:', data);
+        return data[0];
     }
 };

@@ -1,13 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity } from 'lucide-react';
+import { ArrowLeft, Activity, Link as LinkIcon, X, Search } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { workoutService } from '../services/workoutService';
+import { supabase } from '../services/supabase';
+import type { WorkoutStructure } from '../types/workoutStructure.types';
 
 export const WorkoutHistory: React.FC = () => {
     const { name } = useParams<{ name: string }>();
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Bulk Template Linking State
+    const [showTemplateLinking, setShowTemplateLinking] = useState(false);
+    const [availableTemplates, setAvailableTemplates] = useState<Array<{
+        id: string;
+        name: string;
+        rwn: string | null;
+        workout_type: string;
+        training_zone: string | null;
+        workout_structure: WorkoutStructure | null;
+        is_steady_state: boolean;
+        is_interval: boolean;
+        estimated_duration: number | null;
+        distance: number | null;
+    }>>([]);
+    const [templateSearch, setTemplateSearch] = useState('');
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [linking, setLinking] = useState(false);
 
     const workoutName = decodeURIComponent(name || '');
 
@@ -56,13 +76,39 @@ export const WorkoutHistory: React.FC = () => {
                         <ArrowLeft size={18} className="mr-2 group-hover:-translate-x-1 transition-transform" />
                         <span className="font-medium">Back to Analytics</span>
                     </Link>
-                    <div>
-                        <h1 className="text-3xl font-bold text-white tracking-tight">
-                            History: <span className="text-emerald-500">{workoutName}</span>
-                        </h1>
-                        <p className="text-neutral-500 mt-1">
-                            {history.length} attempts
-                        </p>
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white tracking-tight">
+                                History: <span className="text-emerald-500">{workoutName}</span>
+                            </h1>
+                            <p className="text-neutral-500 mt-1">
+                                {history.length} attempts
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                setShowTemplateLinking(true);
+                                setLoadingTemplates(true);
+                                try {
+                                    const { data, error } = await supabase
+                                        .from('workout_templates')
+                                        .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
+                                        .eq('workout_type', 'erg')
+                                        .order('name', { ascending: true });
+                                    
+                                    if (error) throw error;
+                                    setAvailableTemplates(data || []);
+                                } catch (err) {
+                                    console.error('Failed to load templates:', err);
+                                } finally {
+                                    setLoadingTemplates(false);
+                                }
+                            }}
+                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                            <LinkIcon size={16} />
+                            Link Template to All
+                        </button>
                     </div>
                 </div>
 
@@ -156,6 +202,151 @@ export const WorkoutHistory: React.FC = () => {
                 </div>
 
             </div>
+
+            {/* Template Linking Modal */}
+            {showTemplateLinking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+                            <div>
+                                <h2 className="text-lg font-semibold text-white">Link Template to All Workouts</h2>
+                                <p className="text-sm text-neutral-400 mt-0.5">
+                                    This will link the selected template to all {history.length} workouts in this history
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowTemplateLinking(false)}
+                                className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                                aria-label="Close template linking"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Search */}
+                        <div className="p-4 border-b border-neutral-800">
+                            <div className="relative">
+                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                                <input
+                                    type="text"
+                                    value={templateSearch}
+                                    onChange={(e) => setTemplateSearch(e.target.value)}
+                                    placeholder="Search templates..."
+                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Template List */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {loadingTemplates ? (
+                                <div className="text-center py-8 text-neutral-400">
+                                    Loading templates...
+                                </div>
+                            ) : availableTemplates.filter(t => 
+                                !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())
+                            ).length === 0 ? (
+                                <div className="text-center py-8 text-neutral-400">
+                                    {templateSearch ? 'No templates found matching your search' : 'No templates available'}
+                                </div>
+                            ) : (
+                                availableTemplates
+                                    .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+                                    .map((template) => {
+                                        const structureType = template.is_steady_state 
+                                            ? 'Steady State' 
+                                            : template.is_interval 
+                                                ? 'Interval' 
+                                                : template.workout_structure 
+                                                    ? 'Variable' 
+                                                    : 'Unknown';
+                                        
+                                        const workoutInfo = template.distance 
+                                            ? `${template.distance}m`
+                                            : template.estimated_duration
+                                                ? `${Math.floor(template.estimated_duration / 60)}min`
+                                                : '';
+
+                                        return (
+                                            <button
+                                                key={template.id}
+                                                onClick={async () => {
+                                                    if (!window.confirm(
+                                                        `Link "${template.name}" to all ${history.length} workouts in this history?\n\n` +
+                                                        `This will update all "${workoutName}" workouts.`
+                                                    )) {
+                                                        return;
+                                                    }
+
+                                                    setLinking(true);
+                                                    try {
+                                                        // Get all workout IDs that need linking
+                                                        const workoutIds = history.map(h => h.db_id).filter(Boolean);
+                                                        
+                                                        if (workoutIds.length === 0) {
+                                                            alert('No workout database IDs found');
+                                                            return;
+                                                        }
+
+                                                        // Bulk update via Supabase
+                                                        const { error } = await supabase
+                                                            .from('workout_logs')
+                                                            .update({ template_id: template.id })
+                                                            .in('id', workoutIds);
+
+                                                        if (error) throw error;
+
+                                                        alert(`Successfully linked ${workoutIds.length} workouts to "${template.name}"`);
+                                                        setShowTemplateLinking(false);
+                                                    } catch (err) {
+                                                        console.error('Failed to link templates:', err);
+                                                        alert('Failed to link templates. See console for details.');
+                                                    } finally {
+                                                        setLinking(false);
+                                                    }
+                                                }}
+                                                disabled={linking}
+                                                className="w-full text-left bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded-lg p-4 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <div className="flex items-start justify-between gap-4 mb-2">
+                                                    <div className="flex-1">
+                                                        <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors mb-1">
+                                                            {template.name}
+                                                        </h3>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {template.training_zone && (
+                                                                <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">
+                                                                    {template.training_zone}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-xs bg-neutral-700 text-neutral-300 px-2 py-0.5 rounded">
+                                                                {structureType}
+                                                            </span>
+                                                            {workoutInfo && (
+                                                                <span className="text-xs text-neutral-400">
+                                                                    {workoutInfo}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <LinkIcon size={18} className="text-neutral-500 group-hover:text-blue-400 transition-colors flex-shrink-0" />
+                                                </div>
+                                                {template.rwn && (
+                                                    <div className="mt-2 pt-2 border-t border-neutral-700/50">
+                                                        <code className="text-xs text-neutral-400 font-mono break-all">
+                                                            {template.rwn}
+                                                        </code>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
+import { TemplateEditor } from '../components/TemplateEditor';
+import { fetchTemplateById } from '../services/templateService';
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts } from '../utils/prCalculator';
 import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/workoutNaming';
@@ -12,12 +14,14 @@ import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateBucketsFromStrokes } from '../utils/zones';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
+import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructure.types';
 import { DEMO_WORKOUTS } from '../data/demoData';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { profile, isGuest } = useAuth();
     const [detail, setDetail] = useState<C2ResultDetail | null>(null);
+    const [dbId, setDbId] = useState<string | null>(null); // Database UUID
     const [strokes, setStrokes] = useState<C2Stroke[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedInterval, setSelectedInterval] = useState<number | 'all'>('all');
@@ -31,6 +35,27 @@ export const WorkoutDetail: React.FC = () => {
     const [parseError, setParseError] = useState<string | null>(null);
     const [isBenchmark, setIsBenchmark] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Template Creation State
+    const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+    const [linkedTemplate, setLinkedTemplate] = useState<WorkoutTemplate | null>(null);
+    
+    // Template Linking State
+    const [showTemplateLinking, setShowTemplateLinking] = useState(false);
+    const [availableTemplates, setAvailableTemplates] = useState<Array<{
+        id: string;
+        name: string;
+        rwn: string | null;
+        workout_type: string;
+        training_zone: string | null;
+        workout_structure: WorkoutStructure | null;
+        is_steady_state: boolean;
+        is_interval: boolean;
+        estimated_duration: number | null;
+        distance: number | null;
+    }>>([]);
+    const [templateSearch, setTemplateSearch] = useState('');
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -51,6 +76,17 @@ export const WorkoutDetail: React.FC = () => {
                         setBuckets({});
                     }
                 } else {
+                    // Fetch the database record to get the UUID
+                    const { data: dbRecord } = await supabase
+                        .from('workout_logs')
+                        .select('id')
+                        .eq('external_id', id)
+                        .single();
+                    
+                    if (dbRecord) {
+                        setDbId(dbRecord.id);
+                    }
+
                     // Fetch detail and strokes from Supabase via workoutService
                     const [detailData, strokeData, bucketsData] = await Promise.all([
                         workoutService.getWorkoutDetail(id),
@@ -60,9 +96,18 @@ export const WorkoutDetail: React.FC = () => {
                     setDetail(detailData);
                     setStrokes(strokeData);
                     setBuckets(bucketsData);
-                    setBuckets(bucketsData);
                     if (detailData.manual_rwn) setManualRWN(detailData.manual_rwn);
                     if (detailData.is_benchmark) setIsBenchmark(true);
+
+                    // Fetch linked template if present
+                    if (detailData.template_id) {
+                        try {
+                            const template = await fetchTemplateById(detailData.template_id);
+                            setLinkedTemplate(template);
+                        } catch (err) {
+                            console.error('Failed to fetch template:', err);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
@@ -143,6 +188,7 @@ export const WorkoutDetail: React.FC = () => {
             return `${detail.distance}m`;
         }
         return detail.workout_name || 'Workout';
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [detail, strokes]);
 
     // --- Derived State (Must be unconditional) ---
@@ -446,7 +492,92 @@ export const WorkoutDetail: React.FC = () => {
                 </div>
             )}
 
+            {/* Linked Template Display */}
+            {linkedTemplate && (
+                <div className="bg-blue-600/10 border border-blue-500/30 rounded-xl p-4 mb-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                                <BookmarkCheck size={18} className="text-blue-400" />
+                                <h3 className="text-sm font-semibold text-blue-400">Linked Template</h3>
+                            </div>
+                            <p className="text-white font-medium mb-1">{linkedTemplate.name}</p>
+                            {linkedTemplate.description && (
+                                <p className="text-neutral-400 text-sm">{linkedTemplate.description}</p>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowTemplateEditor(true)}
+                                className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                            >
+                                View Template
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (window.confirm('Unlink this template from the workout?')) {
+                                        try {
+                                            if (!dbId) {
+                                                alert('Database ID not available');
+                                                return;
+                                            }
+                                            await workoutService.linkWorkoutToTemplate(dbId, null);
+                                            setLinkedTemplate(null);
+                                            if (detail) {
+                                                setDetail({ ...detail, template_id: null });
+                                            }
+                                        } catch (err) {
+                                            console.error('Failed to unlink template:', err);
+                                            alert('Failed to unlink template');
+                                        }
+                                    }
+                                }}
+                                className="bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                            >
+                                Unlink
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row gap-4 items-end">
+                {!linkedTemplate && (
+                    <>
+                        <button
+                            onClick={() => setShowTemplateEditor(true)}
+                            className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                            <BookmarkPlus size={16} />
+                            Create Template
+                        </button>
+                        <button
+                            onClick={async () => {
+                                setShowTemplateLinking(true);
+                                setLoadingTemplates(true);
+                                try {
+                                    // Fetch templates with RWN for display
+                                    const { data, error } = await supabase
+                                        .from('workout_templates')
+                                        .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
+                                        .eq('workout_type', 'erg')
+                                        .order('name', { ascending: true });
+                                    
+                                    if (error) throw error;
+                                    setAvailableTemplates(data || []);
+                                } catch (err) {
+                                    console.error('Failed to load templates:', err);
+                                } finally {
+                                    setLoadingTemplates(false);
+                                }
+                            }}
+                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                            <LinkIcon size={16} />
+                            Link to Template
+                        </button>
+                    </>
+                )}
                 <button
                     onClick={() => {
                         setIsEditing(true);
@@ -714,6 +845,178 @@ export const WorkoutDetail: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* Template Editor Modal */}
+            {showTemplateEditor && detail && (
+                <TemplateEditor
+                    templateId={linkedTemplate?.id || null}
+                    onClose={async (saved, templateId) => {
+                        setShowTemplateEditor(false);
+                        if (saved && templateId && dbId && !linkedTemplate) {
+                            // Only auto-link if creating a NEW template (not editing existing)
+                            try {
+                                // Link the workout to the newly created template
+                                await workoutService.linkWorkoutToTemplate(dbId, templateId);
+                                
+                                // Fetch and display the linked template
+                                const template = await fetchTemplateById(templateId);
+                                setLinkedTemplate(template);
+                                
+                                // Update the detail to reflect the link
+                                if (detail) {
+                                    setDetail({ ...detail, template_id: templateId });
+                                }
+                                
+                                console.log('Template created and linked successfully!');
+                            } catch (err) {
+                                console.error('Failed to link workout to template:', err);
+                                alert('Template created but failed to link to this workout');
+                            }
+                        } else if (saved && linkedTemplate) {
+                            // If editing existing template, just refresh the template data
+                            try {
+                                const template = await fetchTemplateById(linkedTemplate.id);
+                                setLinkedTemplate(template);
+                            } catch (err) {
+                                console.error('Failed to refresh template:', err);
+                            }
+                        }
+                    }}
+                    initialData={!linkedTemplate ? {
+                        rwnInput: detail.manual_rwn || detail.workout_name || '',
+                        name: detail.workout_name || '',
+                        description: `Created from workout on ${new Date(detail.date).toLocaleDateString()}`,
+                        is_test: detail.is_benchmark || false,
+                        workout_type: 'erg'
+                    } : undefined}
+                />
+            )}
+
+            {/* Template Linking Modal */}
+            {showTemplateLinking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+                            <h2 className="text-lg font-semibold text-white">Link to Template</h2>
+                            <button
+                                onClick={() => setShowTemplateLinking(false)}
+                                className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                                aria-label="Close template linking"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Search */}
+                        <div className="p-4 border-b border-neutral-800">
+                            <div className="relative">
+                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                                <input
+                                    type="text"
+                                    value={templateSearch}
+                                    onChange={(e) => setTemplateSearch(e.target.value)}
+                                    placeholder="Search templates..."
+                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Template List */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {loadingTemplates ? (
+                                <div className="text-center py-8 text-neutral-400">
+                                    Loading templates...
+                                </div>
+                            ) : availableTemplates.filter(t => 
+                                !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())
+                            ).length === 0 ? (
+                                <div className="text-center py-8 text-neutral-400">
+                                    {templateSearch ? 'No templates found matching your search' : 'No templates available'}
+                                </div>
+                            ) : (
+                                availableTemplates
+                                    .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+                                    .map((template) => {
+                                        // Determine structure type for visual indication
+                                        const structureType = template.is_steady_state 
+                                            ? 'Steady State' 
+                                            : template.is_interval 
+                                                ? 'Interval' 
+                                                : template.workout_structure 
+                                                    ? 'Variable' 
+                                                    : 'Unknown';
+                                        
+                                        // Format distance/duration if available
+                                        const workoutInfo = template.distance 
+                                            ? `${template.distance}m`
+                                            : template.estimated_duration
+                                                ? `${Math.floor(template.estimated_duration / 60)}min`
+                                                : '';
+
+                                        return (
+                                            <button
+                                                key={template.id}
+                                                onClick={async () => {
+                                                    if (!dbId) {
+                                                        alert('Database ID not available');
+                                                        return;
+                                                    }
+                                                    try {
+                                                        await workoutService.linkWorkoutToTemplate(dbId, template.id);
+                                                        const fullTemplate = await fetchTemplateById(template.id);
+                                                        setLinkedTemplate(fullTemplate);
+                                                        if (detail) {
+                                                            setDetail({ ...detail, template_id: template.id });
+                                                        }
+                                                        setShowTemplateLinking(false);
+                                                        console.log('Template linked successfully!');
+                                                    } catch (err) {
+                                                        console.error('Failed to link template:', err);
+                                                        alert('Failed to link template');
+                                                    }
+                                                }}
+                                                className="w-full text-left bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded-lg p-4 transition-colors group"
+                                            >
+                                                <div className="flex items-start justify-between gap-4 mb-2">
+                                                    <div className="flex-1">
+                                                        <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors mb-1">
+                                                            {template.name}
+                                                        </h3>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {template.training_zone && (
+                                                                <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">
+                                                                    {template.training_zone}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-xs bg-neutral-700 text-neutral-300 px-2 py-0.5 rounded">
+                                                                {structureType}
+                                                            </span>
+                                                            {workoutInfo && (
+                                                                <span className="text-xs text-neutral-400">
+                                                                    {workoutInfo}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <LinkIcon size={18} className="text-neutral-500 group-hover:text-blue-400 transition-colors flex-shrink-0" />
+                                                </div>
+                                                {/* RWN Display */}
+                                                {template.rwn && (
+                                                    <div className="mt-2 pt-2 border-t border-neutral-700/50">
+                                                        <code className="text-xs text-neutral-400 font-mono break-all">
+                                                            {template.rwn}
+                                                        </code>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

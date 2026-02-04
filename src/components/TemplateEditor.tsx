@@ -1,28 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2, Eye, HelpCircle, CheckCircle, AlertCircle } from 'lucide-react';
-import { fetchTemplateById, updateTemplate, createTemplate } from '../services/templateService';
+import { fetchTemplateById, updateTemplate, createTemplate, findDuplicateTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/workoutNaming';
 import { parseRWN, validateRWN, estimateDuration, formatDuration } from '../utils/rwnParser';
+import { structureToRWN } from '../utils/structureToRWN';
 
 interface TemplateEditorProps {
     templateId: string | null; // null = new template
-    onClose: (saved: boolean) => void;
+    onClose: (saved: boolean, templateId?: string) => void;
+    initialData?: {
+        rwnInput?: string;
+        name?: string;
+        description?: string;
+        is_test?: boolean;
+        workout_type?: 'erg' | 'on_water';
+    };
 }
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 
-export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onClose }) => {
+export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onClose, initialData }) => {
     const [loading, setLoading] = useState(!!templateId);
     const [saving, setSaving] = useState(false);
     const [template, setTemplate] = useState<Partial<WorkoutTemplate>>({
-        name: '',
-        description: '',
-        workout_type: 'erg',
+        name: initialData?.name || '',
+        description: initialData?.description || '',
+        workout_type: initialData?.workout_type || 'erg',
         training_zone: null,
         workout_structure: null,
-        is_test: false,
+        is_test: initialData?.is_test || false,
         pacing_guidance: null,
         coaching_points: null,
         technique_focus: null
@@ -60,6 +68,63 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         paceUsed?: string;
         requiresBaseline?: boolean;
     } | null>(null);
+
+    // Auto-update RWN when structure is manually changed via UI controls
+    useEffect(() => {
+        // Skip if user is actively typing in RWN field or if no structure selected
+        if (structureType === 'none') return;
+
+        let structure: WorkoutStructure | null = null;
+
+        if (structureType === 'steady_state') {
+            structure = {
+                type: 'steady_state',
+                value: steadyValue,
+                unit: steadyUnit,
+                ...(steadyTargetRate && { target_rate: steadyTargetRate }),
+                ...(steadyTargetRateMax && { target_rate_max: steadyTargetRateMax }),
+                ...(steadyTargetPace && { target_pace: steadyTargetPace }),
+                ...(steadyTargetPaceMax && { target_pace_max: steadyTargetPaceMax }),
+                tags: template.is_test ? ['test'] : []
+            };
+        } else if (structureType === 'interval') {
+            const workStep: IntervalStep = {
+                type: workType,
+                value: workValue,
+                ...(workTargetRate && { target_rate: workTargetRate }),
+                ...(workTargetRateMax && { target_rate_max: workTargetRateMax }),
+                ...(workTargetPace && { target_pace: workTargetPace }),
+                ...(workTargetPaceMax && { target_pace_max: workTargetPaceMax })
+            };
+            const restStep: RestStep = { type: 'time', value: restValue };
+            structure = {
+                type: 'interval',
+                repeats: intervalRepeats,
+                work: workStep,
+                rest: restStep,
+                tags: template.is_test ? ['test'] : []
+            };
+        } else if (structureType === 'variable' && variableSteps.length > 0) {
+            structure = { type: 'variable', steps: variableSteps, tags: template.is_test ? ['test'] : [] };
+        }
+
+        if (!structure) return;
+
+        // Generate RWN from current structure
+        const generatedRWN = structureToRWN(structure);
+        
+        // Only update if different and not empty
+        if (generatedRWN && generatedRWN !== rwnInput) {
+            setRwnInput(generatedRWN);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        structureType,
+        steadyValue, steadyUnit, steadyTargetRate, steadyTargetRateMax, steadyTargetPace, steadyTargetPaceMax,
+        intervalRepeats, workType, workValue, workTargetRate, workTargetRateMax, workTargetPace, workTargetPaceMax, restValue,
+        variableSteps,
+        template.is_test
+    ]);
 
     // Validate RWN as user types
     useEffect(() => {
@@ -175,8 +240,40 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
 
         if (templateId) {
             loadTemplate();
+        } else if (initialData?.rwnInput) {
+            // Auto-populate from initialData when creating new template
+            setRwnInput(initialData.rwnInput);
+            // Trigger quick create to parse the RWN
+            setTimeout(() => {
+                const structure = parseRWN(initialData.rwnInput!);
+                if (structure) {
+                    setStructureType(structure.type);
+                    if (structure.tags?.includes('test')) {
+                        setTemplate(prev => ({ ...prev, is_test: true }));
+                    }
+                    if (structure.type === 'steady_state') {
+                        setSteadyValue(structure.value);
+                        setSteadyUnit(structure.unit);
+                        setSteadyTargetRate(structure.target_rate);
+                        setSteadyTargetRateMax(structure.target_rate_max);
+                        setSteadyTargetPace(structure.target_pace);
+                        setSteadyTargetPaceMax(structure.target_pace_max);
+                    } else if (structure.type === 'interval') {
+                        setIntervalRepeats(structure.repeats);
+                        setWorkType(structure.work.type);
+                        setWorkValue(structure.work.value);
+                        setWorkTargetRate(structure.work.target_rate);
+                        setWorkTargetRateMax(structure.work.target_rate_max);
+                        setWorkTargetPace(structure.work.target_pace);
+                        setWorkTargetPaceMax(structure.work.target_pace_max);
+                        setRestValue(structure.rest.value);
+                    } else if (structure.type === 'variable') {
+                        setVariableSteps(structure.steps);
+                    }
+                }
+            }, 100);
         }
-    }, [templateId]);
+    }, [templateId, initialData]);
 
     const buildStructure = (): WorkoutStructure | null => {
         if (structureType === 'none') return null;
@@ -241,6 +338,25 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         try {
             const structure = buildStructure();
             
+            // Check for duplicate structure before saving
+            if (structure) {
+                const duplicate = await findDuplicateTemplate(structure, templateId || undefined);
+                if (duplicate) {
+                    setSaving(false);
+                    
+                    const confirmSave = window.confirm(
+                        `A template with identical structure already exists:\n\n` +
+                        `"${duplicate.name}"\n\n` +
+                        `Do you want to create a duplicate template anyway?`
+                    );
+                    
+                    if (!confirmSave) {
+                        return;
+                    }
+                    setSaving(true);
+                }
+            }
+            
             const updates = {
                 name: template.name,
                 description: template.description || '',
@@ -254,12 +370,15 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 technique_focus: template.technique_focus || null
             };
 
+            let savedTemplateId: string;
             if (templateId) {
                 await updateTemplate(templateId, updates);
+                savedTemplateId = templateId;
             } else {
-                await createTemplate(updates);
+                const newTemplate = await createTemplate(updates);
+                savedTemplateId = newTemplate.id;
             }
-            onClose(true);
+            onClose(true, savedTemplateId);
         } catch (err) {
             console.error('Failed to save template:', err);
             // Show the actual error message
@@ -315,6 +434,18 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                         </div>
                     ) : (
                         <>
+                            {/* Duplicate Detection Notice */}
+                            {!templateId && (
+                                <div className="bg-blue-900/10 border border-blue-500/30 rounded-lg p-3 text-sm text-blue-300">
+                                    <div className="flex items-start gap-2">
+                                        <CheckCircle size={16} className="mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <strong className="font-semibold">Duplicate Detection Active:</strong> If an identical workout structure already exists, you'll be prompted before creating a duplicate.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Basic Info */}
                             <div className="space-y-4">
                                 {/* Quick Create Section */}
