@@ -2,7 +2,174 @@
 # Active Context
 
 ## Current Focus
-RWN Parser Enhancements & Community Standard Development
+**Ready to implement template matching infrastructure**
+
+## Recent Changes (2026-02-04)
+
+### ✅ Implemented: Block Tag Notation in RWN Spec & Parser
+- **Grammar Addition**: `[w]`, `[c]`, `[t]` bracket prefixes for warmup/cooldown/test
+- **Files Changed**:
+  - [RWN_spec.md](rwn/RWN_spec.md) — Added Section 10.1 Block Tags
+  - [workoutStructure.types.ts](src/types/workoutStructure.types.ts) — Added `BlockType` enum and `blockType` field
+  - [rwnParser.ts](src/utils/rwnParser.ts) — Parses bracket tags and sets `blockType` on steps
+  - [test_roundtrip.ts](scripts/test_roundtrip.ts) — Updated to output canonical bracket notation
+- **Canonical Form**: `[w]10:00 + 5x500m/1:00r + [c]5:00` (bracket notation preferred)
+- **Legacy Support**: `#warmup`, `#cooldown`, `#test` still parse correctly
+
+### ✅ Design Decisions Finalized
+1. **"Main" is implicit** — Untagged blocks default to `blockType: 'main'`
+2. **Naming: `getMainBlock()`** — Not "getWorkIntervalsOnly" (work can be intervals OR fixed distance/time)
+3. **Tags don't affect matching** — Canonical name strips tags; matching is by structure only
+4. **Multiple template priority**: User's template first → Most popular community template
+
+### ✅ Trinity Verification Updated
+- **Round-trip Tests**: 7/10 passing (test file updated with bracket notation tests)
+- **"Failures" are expected canonicalization**: Legacy `#warmup` → `[w]` output
+- **Core semantic matching**: `blockType` preserved in all cases ✓
+
+### ✅ Created: Workflow Requirements Document
+- **File**: [workflow-requirements.md](workflow-requirements.md)
+- **Purpose**: Define immutable constraints for data sync, matching, and analysis
+- **Key Principles**:
+  1. **Trinity**: RWN ↔ Structure ↔ Canonical Name (must be lossless round-trip)
+  2. **Matching by String Equality**: canonical_name is the join key (no fuzzy matching for MVP)
+  3. **Tags are Metadata**: `[w]`, `[c]` inform analysis but NOT matching
+  4. **Guidance Stripped from Canonical**: `4x500m@2k/2:00r` → `4x500m/2:00r`
+
+### ✅ Created: Pacing Calculator Library (2026-02-03)
+- **File**: [paceCalculator.ts](src/utils/paceCalculator.ts)
+- **Purpose**: Decoupled pacing calculations for personalized targets
+- **Key Functions**: `calculateActualPace()`, `parsePaceToSeconds()`, `formatSplit()`
+- **Bug Fixed**: `parsePaceToSeconds("2k+20")` was returning 2 (now returns null)
+
+## Next Steps: Template Matching Implementation
+
+### ✅ Phase 1: Database Schema (COMPLETED 2026-02-04)
+1. ✅ Verified `template_id` column exists in `workout_logs` table
+2. ✅ Added `canonical_name` column to `workout_templates` table
+3. ✅ Created indexes for efficient lookups:
+   - `idx_workout_templates_canonical_name` on workout_templates
+   - `idx_workout_logs_template_id` on workout_logs
+   - `idx_workout_logs_canonical_name` on workout_logs
+4. ✅ Created migration script: [migration_add_canonical_name_to_templates.sql](db/migrations/migration_add_canonical_name_to_templates.sql)
+5. ✅ Created backfill script: [backfill_canonical_names.ts](scripts/backfill_canonical_names.ts)
+6. ✅ Applied migration via Supabase MCP
+7. ✅ **Backfilled 89 templates successfully** - All templates now have canonical_name
+
+**Files Changed**:
+- [db_schema.sql](db/db_schema.sql) — Added `canonical_name` column to workout_templates
+- [migration_add_canonical_name_to_templates.sql](db/migrations/migration_add_canonical_name_to_templates.sql) — Migration file
+- [backfill_canonical_names.ts](scripts/backfill_canonical_names.ts) — Backfill script
+- [structureToRWN.ts](src/utils/structureToRWN.ts) — NEW: Extracted trinity regeneration function
+- [migrations/README.md](db/migrations/README.md) — Migration documentation
+
+**Results**: 89/89 templates updated with canonical RWN notation ✨
+
+### ✅ Phase 2: Auto-Matching in Sync (COMPLETED 2026-02-04)
+**Goal**: Automatically match workouts to templates when syncing from Concept2
+
+**Implementation**:
+1. ✅ Created `templateMatching.ts` utility with priority matching logic
+2. ✅ Integrated into `useConcept2Sync.ts` after workout upsert
+3. ✅ Matching priority implemented:
+   - User's own templates (created_by = user_id) FIRST
+   - Then most popular community template (highest usage_count)
+4. ✅ Edge cases handled:
+   - No canonical_name → skip matching
+   - No matching templates → template_id stays null
+   - Silent failure on error (workout still synced)
+
+**Files Changed**:
+- [templateMatching.ts](src/utils/templateMatching.ts) — NEW: Template matching utility functions
+- [useConcept2Sync.ts](src/hooks/useConcept2Sync.ts) — Added auto-matching after workout upsert
+
+**How It Works**:
+```typescript
+// After creating workout in database
+const upsertedWorkout = await upsertWorkout(record);
+
+// Auto-match by canonical_name
+if (upsertedWorkout && record.canonical_name) {
+  const workoutId = upsertedWorkout[0].id;
+  await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
+}
+```
+
+**Priority Logic**:
+1. Query all templates WHERE canonical_name = workout.canonical_name
+2. If user has their own template → use it
+3. Else → use most popular community template (ORDER BY usage_count DESC)
+4. Update workout_logs.template_id
+
+### Phase 3: Work-Only Analysis (Next)
+**Goal**: Extract and analyze only the "work" portion of workouts (excluding warmup/cooldown)
+
+**Implementation Plan**:
+1. Create `getMainBlock()` utility function in `src/utils/workoutAnalysis.ts`
+2. Filter steps by `blockType !== 'warmup' && blockType !== 'cooldown'`
+3. Update stats calculations to use main block only:
+   - `WorkoutComparison.tsx` — Compare work intervals only
+   - `WorkoutDetail.tsx` — Show work vs warmup/cooldown separately
+   - Stats calculations — Calculate averages on main block
+
+**Design**:
+```typescript
+function getMainBlock(workout: WorkoutStructure): WorkoutStep[] {
+  if (workout.type === 'variable') {
+    return workout.steps.filter(step => 
+      step.blockType !== 'warmup' && 
+      step.blockType !== 'cooldown'
+    );
+  }
+  // For steady_state/interval, check top-level blockType
+  if (workout.blockType === 'warmup' || workout.blockType === 'cooldown') {
+    return [];
+  }
+  return [workout]; // Return the whole workout as main block
+}
+```
+
+**Use Cases**:
+- Template matching: Match on full structure INCLUDING warmup/cooldown
+- Stats analysis: Calculate on MAIN BLOCK ONLY (work intervals)
+- Comparison: Compare main blocks between workouts
+
+### Phase 2: Auto-Matching in Sync (Next)
+**Goal**: When user syncs from Concept2, automatically match workouts to templates by canonical_name
+
+**Implementation Plan**:
+1. Update `useConcept2Sync.ts` to query templates after workout creation
+2. Implement matching logic:
+   ```typescript
+   // After creating workout in database
+   const canonicalName = structureToRWN(workoutStructure);
+   
+   // Query for matching template (user's first, then community)
+   const matchedTemplate = await findBestMatchingTemplate(userId, canonicalName);
+   
+   if (matchedTemplate) {
+     await supabase
+       .from('workout_logs')
+       .update({ template_id: matchedTemplate.id })
+       .eq('id', workoutLog.id);
+   }
+   ```
+3. Create `findBestMatchingTemplate()` utility with priority:
+   - User's own templates (created_by = user_id) first
+   - Then community templates sorted by usage_count DESC
+4. Handle edge cases:
+   - No matching templates → `template_id` stays null
+   - Multiple matches → Pick highest priority (user's first, then most popular)
+
+### Phase 2: Auto-Matching During Sync
+1. In `useConcept2Sync.ts`, after calculating canonical_name:
+   - Query templates for matching canonical_name
+   - Priority: user's own → most popular
+   - Set `template_id` on workout_log
+
+### Phase 3: Work-Only Analysis
+1. Create `getMainBlock(workout, template)` utility
+2. Update stats calculations to filter by blockType
 
 ## Recent Changes (2026-02-03)
 

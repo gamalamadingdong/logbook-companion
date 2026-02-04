@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Check, X, Edit, Filter, Plus, Trash2 } from 'lucide-react';
+import { Search, Check, X, Edit, Filter, Plus, Trash2, Play } from 'lucide-react';
 import { fetchTemplates, deleteTemplate } from '../services/templateService';
 import type { WorkoutTemplateListItem } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 
 export const TemplateLibrary: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
     const [templates, setTemplates] = useState<WorkoutTemplateListItem[]>([]);
@@ -17,6 +19,8 @@ export const TemplateLibrary: React.FC = () => {
     const [zoneFilter, setZoneFilter] = useState<string>('');
     const [structureFilter, setStructureFilter] = useState<'all' | 'has' | 'missing'>('all');
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [deleting, setDeleting] = useState(false);
 
     const loadTemplates = async () => {
         setLoading(true);
@@ -72,6 +76,48 @@ export const TemplateLibrary: React.FC = () => {
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (!isAdmin || selectedIds.size === 0) return;
+
+        const confirmed = window.confirm(
+            `Are you sure you want to delete ${selectedIds.size} template(s)?\n\nThis action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        setDeleting(true);
+        try {
+            await Promise.all(
+                Array.from(selectedIds).map(id => deleteTemplate(id))
+            );
+            setSelectedIds(new Set());
+            loadTemplates();
+        } catch (err) {
+            console.error('Failed to delete templates:', err);
+            alert('Failed to delete some templates. Please try again.');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === templates.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(templates.map(t => t.id)));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
     return (
         <div className="p-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-6">
@@ -81,13 +127,25 @@ export const TemplateLibrary: React.FC = () => {
                         Manage workout templates and add standardized structures
                     </p>
                 </div>
-                <button
-                    onClick={() => setEditingId('new')}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                    <Plus size={18} />
-                    New Template
-                </button>
+                <div className="flex items-center gap-3">
+                    {isAdmin && selectedIds.size > 0 && (
+                        <button
+                            onClick={handleBulkDelete}
+                            disabled={deleting}
+                            className="flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-red-800 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <Trash2 size={18} />
+                            Delete {selectedIds.size} Selected
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setEditingId('new')}
+                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                        <Plus size={18} />
+                        New Template
+                    </button>
+                </div>
             </div>
 
             {/* Filters Row */}
@@ -109,6 +167,7 @@ export const TemplateLibrary: React.FC = () => {
                     value={zoneFilter}
                     onChange={e => setZoneFilter(e.target.value)}
                     className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                    aria-label="Filter by training zone"
                 >
                     <option value="">All Zones</option>
                     {TRAINING_ZONES.map(zone => (
@@ -121,8 +180,9 @@ export const TemplateLibrary: React.FC = () => {
                     <Filter size={16} className="text-neutral-500" />
                     <select
                         value={structureFilter}
-                        onChange={e => setStructureFilter(e.target.value as any)}
+                        onChange={e => setStructureFilter(e.target.value as 'all' | 'has' | 'missing')}
                         className="bg-transparent py-2 text-white focus:outline-none"
+                        aria-label="Filter by structure status"
                     >
                         <option value="all">All Status</option>
                         <option value="has">✓ Standardized</option>
@@ -154,6 +214,17 @@ export const TemplateLibrary: React.FC = () => {
                     <table className="w-full">
                         <thead className="bg-neutral-800/50">
                             <tr className="text-left text-neutral-400 text-sm">
+                                {isAdmin && (
+                                    <th className="px-4 py-3 w-12">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.size === templates.length && templates.length > 0}
+                                            onChange={toggleSelectAll}
+                                            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-neutral-900"
+                                            aria-label="Select all templates"
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-4 py-3 font-medium">Status</th>
                                 <th className="px-4 py-3 font-medium">Name</th>
                                 <th className="px-4 py-3 font-medium">Zone</th>
@@ -164,6 +235,17 @@ export const TemplateLibrary: React.FC = () => {
                         <tbody className="divide-y divide-neutral-800">
                             {templates.map(template => (
                                 <tr key={template.id} className="hover:bg-neutral-800/30 transition-colors">
+                                    {isAdmin && (
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(template.id)}
+                                                onChange={() => toggleSelect(template.id)}
+                                                className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-neutral-900"
+                                                aria-label={`Select ${template.name}`}
+                                            />
+                                        </td>
+                                    )}
                                     <td className="px-4 py-3">
                                         {template.workout_structure ? (
                                             <span className="flex items-center gap-1 text-emerald-400 text-sm">
@@ -197,6 +279,14 @@ export const TemplateLibrary: React.FC = () => {
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={() => navigate(`/templates/${template.id}`)}
+                                                className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-1.5"
+                                                title="View template details"
+                                            >
+                                                <Play size={14} />
+                                                See Details
+                                            </button>
                                             <button
                                                 onClick={() => setEditingId(template.id)}
                                                 className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"

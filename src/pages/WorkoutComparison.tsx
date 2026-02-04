@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
@@ -6,8 +6,53 @@ import { formatPace } from '../utils/prDetection';
 import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
 import type { C2Stroke } from '../api/concept2.types';
 
+// Type Definitions
+interface WorkoutData {
+    id?: string | number;
+    db_id?: string;
+    workout_name?: string;
+    distance_meters?: number;
+    distance?: number;
+    duration_seconds?: number;
+    time?: number;
+    watts?: number;
+    formatted_pace?: string;
+    date?: string;
+    completed_at?: string;
+}
+
+interface SimilarWorkouts {
+    target: WorkoutData;
+    pr?: WorkoutData | null;
+    previous?: WorkoutData | null;
+    history?: WorkoutData[];
+}
+
+interface SearchResult {
+    id?: string;
+    db_id?: string;
+    name: string;
+    date: string;
+    distance: number;
+    time_formatted: string;
+}
+
+interface StatBoxProps {
+    label: string;
+    value: string | number;
+    unit: string;
+    icon: React.ComponentType<{ size: number }>;
+    color: string;
+}
+
+interface WorkoutSummaryCardProps {
+    workout: WorkoutData | null;
+    title: string;
+    onClear?: () => void;
+}
+
 // Helper Components
-const StatBox = ({ label, value, unit, icon: Icon, color }: any) => (
+const StatBox = ({ label, value, unit, icon: Icon, color }: StatBoxProps) => (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col items-center justify-center gap-2">
         <div className={`text-${color}-500 opacity-80`}>
             <Icon size={16} />
@@ -17,26 +62,32 @@ const StatBox = ({ label, value, unit, icon: Icon, color }: any) => (
     </div>
 );
 
-const WorkoutSummaryCard = ({ workout, title, onClear }: any) => {
+const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCardProps) => {
     // Basic stats extraction
-    if (!workout) return null;
+    const stats = useMemo(() => {
+        if (!workout) return null;
 
-    const dist = workout.distance_meters || workout.distance;
-    const time = workout.duration_seconds || (typeof workout.time === 'number' ? workout.time / 10 : 0);
-    const paceSeconds = dist > 0 ? (time / dist) * 500 : 0;
-    const pace = workout.formatted_pace || formatPace(paceSeconds);
-    const watts = workout.watts || (time > 0 ? Math.round(2.8 / Math.pow((time / dist) * 500 / 500, 3)) : 0);
-    const date = new Date(workout.date || workout.completed_at || Date.now()).toLocaleDateString();
+        const dist = workout.distance_meters || workout.distance || 0;
+        const time = workout.duration_seconds || (typeof workout.time === 'number' ? workout.time / 10 : 0);
+        const paceSeconds = dist > 0 ? (time / dist) * 500 : 0;
+        const pace = workout.formatted_pace || formatPace(paceSeconds);
+        const watts = workout.watts || (time > 0 && dist > 0 ? Math.round(2.8 / Math.pow((time / dist) * 500 / 500, 3)) : 0);
+        const date = workout.date || workout.completed_at ? new Date(workout.date || workout.completed_at || '').toLocaleDateString() : 'Unknown';
+
+        return { dist, pace, watts, date };
+    }, [workout]);
+
+    if (!workout || !stats) return null;
 
     return (
         <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative group">
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <div className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">{title}</div>
-                    <div className="text-2xl font-bold text-white">{workout.workout_name || `${(dist / 1000).toFixed(1)}k Row`}</div>
+                    <div className="text-2xl font-bold text-white">{workout.workout_name || `${(stats.dist / 1000).toFixed(1)}k Row`}</div>
                     <div className="flex items-center gap-2 text-neutral-400 text-sm mt-1">
                         <Calendar size={12} />
-                        {date}
+                        {stats.date}
                     </div>
                 </div>
                 {onClear && (
@@ -51,8 +102,8 @@ const WorkoutSummaryCard = ({ workout, title, onClear }: any) => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <StatBox label="Avg Split" value={pace} unit="/500m" icon={Gauge} color="blue" />
-                <StatBox label="Avg Watts" value={watts || '-'} unit="w" icon={Zap} color="emerald" />
+                <StatBox label="Avg Split" value={stats.pace} unit="/500m" icon={Gauge} color="blue" />
+                <StatBox label="Avg Watts" value={stats.watts || '-'} unit="w" icon={Zap} color="emerald" />
             </div>
         </div>
     );
@@ -64,19 +115,19 @@ export const WorkoutComparison: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     // Workout A Data
-    const [workoutA, setWorkoutA] = useState<any>(null);
+    const [workoutA, setWorkoutA] = useState<WorkoutData | null>(null);
     const [statsA, setStatsA] = useState<C2Stroke[]>([]);
 
     // Workout B Data
-    const [workoutB, setWorkoutB] = useState<any>(null);
+    const [workoutB, setWorkoutB] = useState<WorkoutData | null>(null);
     const [statsB, setStatsB] = useState<C2Stroke[]>([]);
 
     // Smart Picker Data
-    const [similar, setSimilar] = useState<any>(null);
+    const [similar, setSimilar] = useState<SimilarWorkouts | null>(null);
 
     // Search State
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
 
     useEffect(() => {
@@ -135,7 +186,8 @@ export const WorkoutComparison: React.FC = () => {
         load();
     }, [aId, bId]);
 
-    const handleSelectB = (id: string) => {
+    const handleSelectB = (id: string | number | undefined) => {
+        if (!id) return;
         navigate(`/compare/${aId}/${id}`);
     };
 
@@ -147,7 +199,11 @@ export const WorkoutComparison: React.FC = () => {
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
             {/* Header */}
             <header className="flex items-center gap-4">
-                <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-800 rounded-full text-neutral-400 transition-colors">
+                <button 
+                    onClick={() => navigate(-1)} 
+                    className="p-2 hover:bg-neutral-800 rounded-full text-neutral-400 transition-colors"
+                    aria-label="Go back"
+                >
                     <ArrowLeft size={20} />
                 </button>
                 <div>
@@ -202,7 +258,7 @@ export const WorkoutComparison: React.FC = () => {
                                         <div className="space-y-2">
                                             {searchResults.map((res) => (
                                                 <button
-                                                    key={res.id}
+                                                    key={res.id || res.db_id}
                                                     onClick={() => handleSelectB(res.id || res.db_id)}
                                                     className="w-full flex items-center justify-between p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg transition-colors text-left"
                                                 >
@@ -227,7 +283,7 @@ export const WorkoutComparison: React.FC = () => {
                                     <div className="w-full space-y-4">
                                         {similar?.pr && (
                                             <button
-                                                onClick={() => handleSelectB(similar.pr.id || similar.pr.db_id)}
+                                                onClick={() => handleSelectB(similar.pr?.id || similar.pr?.db_id)}
                                                 className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
                                             >
                                                 <div className="flex items-center gap-3">
@@ -237,7 +293,7 @@ export const WorkoutComparison: React.FC = () => {
                                                     <div className="text-left">
                                                         <div className="text-sm font-bold text-white">Personal Best</div>
                                                         <div className="text-xs text-neutral-500">
-                                                            {new Date(similar.pr.date).toLocaleDateString()} • {similar.pr.watts}w
+                                                            {similar.pr.date ? new Date(similar.pr.date).toLocaleDateString() : 'Unknown'} • {similar.pr.watts}w
                                                         </div>
                                                     </div>
                                                 </div>
@@ -249,7 +305,7 @@ export const WorkoutComparison: React.FC = () => {
 
                                         {similar?.previous && (
                                             <button
-                                                onClick={() => handleSelectB(similar.previous.id || similar.previous.db_id)}
+                                                onClick={() => handleSelectB(similar.previous?.id || similar.previous?.db_id)}
                                                 className="w-full flex items-center justify-between p-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl transition-all group"
                                             >
                                                 <div className="flex items-center gap-3">
@@ -259,7 +315,7 @@ export const WorkoutComparison: React.FC = () => {
                                                     <div className="text-left">
                                                         <div className="text-sm font-bold text-white">Previous Attempt</div>
                                                         <div className="text-xs text-neutral-500">
-                                                            {new Date(similar.previous.date).toLocaleDateString()} • {similar.previous.watts}w
+                                                            {similar.previous.date ? new Date(similar.previous.date).toLocaleDateString() : 'Unknown'} • {similar.previous.watts}w
                                                         </div>
                                                     </div>
                                                 </div>
@@ -273,13 +329,15 @@ export const WorkoutComparison: React.FC = () => {
                                     <div className="w-full border-t border-neutral-800 pt-4">
                                         <p className="text-xs text-neutral-600 text-center uppercase tracking-widest mb-2">History Match</p>
                                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                                            {similar?.history?.slice(0, 10).map((h: any) => (
+                                            {similar?.history?.slice(0, 10).map((h: WorkoutData) => (
                                                 <button
-                                                    key={h.id}
+                                                    key={h.id || h.db_id}
                                                     onClick={() => handleSelectB(h.id || h.db_id)}
                                                     className="w-full flex items-center justify-between p-3 hover:bg-neutral-800 rounded-lg transition-colors text-left"
                                                 >
-                                                    <span className="text-sm text-neutral-300">{new Date(h.date).toLocaleDateString()}</span>
+                                                    <span className="text-sm text-neutral-300">
+                                                        {h.date || h.completed_at ? new Date(h.date || h.completed_at || '').toLocaleDateString() : 'Unknown'}
+                                                    </span>
                                                     <span className="text-sm font-mono text-neutral-500">{h.watts}w</span>
                                                 </button>
                                             ))}

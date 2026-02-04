@@ -1,9 +1,25 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { calculateCanonicalName, detectIntervalsFromStrokes } from '../src/utils/prCalculator';
+import { calculateCanonicalName, detectIntervalsFromStrokes } from '../src/utils/workoutNaming';
 import type { C2ResultDetail, C2Interval } from '../src/api/concept2.types';
 import fs from 'fs';
 import path from 'path';
+
+// Standard rowing distances
+const STANDARD_DISTANCES = [
+    100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000,
+    7500, 10000, 15000, 21097, 30000, 42195
+];
+
+function roundToStandardDistance(meters: number): number {
+    const threshold = Math.max(20, meters * 0.01);
+    for (const standard of STANDARD_DISTANCES) {
+        if (Math.abs(meters - standard) <= threshold) {
+            return standard;
+        }
+    }
+    return Math.round(meters);
+}
 
 // Load creds from .env manually (simple parsing)
 const envPath = path.resolve(process.cwd(), '.env');
@@ -15,13 +31,18 @@ const env = envContent.split('\n').reduce((acc, line) => {
 }, {} as Record<string, string>);
 
 const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey = env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = env.VITE_SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
     console.error("Missing Supabase credentials in .env");
+    console.error("URL:", supabaseUrl ? "✓" : "✗");
+    console.error("Key:", supabaseKey ? "✓" : "✗");
+    console.error("\nNOTE: This script needs VITE_SUPABASE_SERVICE_ROLE_KEY to bypass RLS policies.");
+    console.error("Add it to your .env file from your Supabase dashboard (Settings > API)");
     process.exit(1);
 }
 
+console.log("Connecting to Supabase:", supabaseUrl);
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function backfill() {
@@ -34,6 +55,12 @@ async function backfill() {
 
     if (error) {
         console.error("Error fetching workouts:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        return;
+    }
+
+    if (!workouts) {
+        console.error("No data returned from query (workouts is null/undefined)");
         return;
     }
 
@@ -70,12 +97,12 @@ async function backfill() {
             // Let's rely on simple checks for FixedDistance/FixedTime if they aren't intervals.
 
             if (w.workout_type === 'FixedDistanceSplits' || w.workout_type === 'FixedDistanceNoSplits') {
-                canonicalName = `${w.distance_meters}m`;
+                canonicalName = `${roundToStandardDistance(w.distance_meters)}m`;
             } else if (w.workout_type === 'FixedTimeSplits' || w.workout_type === 'FixedTimeNoSplits') {
                 const mins = Math.round(w.duration_minutes);
                 canonicalName = `${mins}:00`;
             } else if (w.workout_type === 'JustRow' && w.distance_meters > 0) {
-                canonicalName = `${Math.floor(w.distance_meters)}m JustRow`;
+                canonicalName = `${roundToStandardDistance(w.distance_meters)}m JustRow`;
             }
         }
 

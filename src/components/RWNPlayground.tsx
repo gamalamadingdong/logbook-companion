@@ -11,15 +11,19 @@ export const RWNPlayground: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     const EXAMPLES = [
-        { label: 'Intervals', value: '4x500m/1:00r', desc: 'Sprints' },
-        { label: 'Distance', value: '10000m', desc: 'Steady State' },
-        { label: 'Time', value: '30:00', desc: 'Duration' },
-        { label: 'Relative', value: '30:00 @2k+18', desc: 'Split Target' },
-        { label: 'Multi-Erg', value: 'Bike: 15000m', desc: 'Modality Prefix' },
-        { label: 'Rate Cap', value: '2000m @r24', desc: 'Rate Limit' },
-        { label: 'Mixed', value: '2000m+1000m+500m', desc: 'Variable' },
-        { label: 'Complex (Nested)', value: '3x(750m/3:00r + 500m/3:00r + 250m)', desc: 'Nested' },
-        { label: '10k Sandwich', value: '2x10000m/10:00r', desc: 'Long Intervals' },
+        { label: 'Intervals', value: '4x500m/1:00r', desc: 'Distance Sprints' },
+        { label: 'Time Intervals', value: '8x1:00/1:00r', desc: 'Time-based' },
+        { label: 'Single + Rest', value: '500m@2k/1:00r', desc: 'One interval' },
+        { label: 'Steady State', value: '10000m', desc: 'Distance SS' },
+        { label: 'Time SS', value: '30:00', desc: 'Duration SS' },
+        { label: 'Training Zone', value: '20:00@UT1', desc: 'Zone pace' },
+        { label: 'Relative Pace', value: '5000m@2k+10', desc: 'PR + offset' },
+        { label: 'Rate Range', value: '30:00@18..22spm', desc: 'Rate band' },
+        { label: 'Pace Range', value: '60:00@2:05..2:10', desc: 'Split band' },
+        { label: 'Block Tags', value: '[w]10:00 + 5x500m/1:00r + [c]5:00', desc: 'W/U + Work + C/D' },
+        { label: 'Multi-Erg', value: 'Bike: 15000m', desc: 'Modality prefix' },
+        { label: 'Variable', value: '2000m+1000m+500m', desc: 'Pyramid' },
+        { label: 'Grouped', value: '3x(750m/3:00r + 500m/3:00r)', desc: 'Nested blocks' },
     ];
 
     useEffect(() => {

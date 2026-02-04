@@ -1,3 +1,5 @@
+import type { C2Stroke, C2Split, C2Interval, C2ResultDetail } from '../api/concept2.types';
+
 export type TrainingZone = 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN';
 
 export interface ZoneDefinition {
@@ -68,16 +70,14 @@ export const getTargetSplitRange = (zone: TrainingZone, baseline2kWatts: number)
  * Parses workout data (splits or intervals) to calculate the exact duration spent in each zone.
  * Prioritizes intervals if available (more semantic), otherwise falls back to splits.
  */
-export const calculateZoneDistribution = (rawData: any, baseline2kWatts: number): Record<TrainingZone, number> => {
+export const calculateZoneDistribution = (rawData: Partial<C2ResultDetail> & Record<string, unknown>, baseline2kWatts: number): Record<TrainingZone, number> => {
     const distribution: Record<TrainingZone, number> = { UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0 };
 
     // Safety check
     if (!rawData || !baseline2kWatts) return distribution;
 
     // 1. Try STROKES (Highest Fidelity)
-    // Structure often: rawData.strokes or rawData.data.strokes
-    // C2 JSON usually: data: { strokes: [...] } or just strokes: [...]
-    const strokes = rawData.strokes || rawData.data?.strokes;
+    const strokes = rawData.strokes || (rawData.data as Record<string, unknown>)?.strokes;
 
     if (Array.isArray(strokes) && strokes.length > 0) {
         let lastTime = 0;
@@ -125,14 +125,15 @@ export const calculateZoneDistribution = (rawData: any, baseline2kWatts: number)
     }
 
     // 2. Fallback to Intervals/Splits (Medium Fidelity)
-    const intervals = rawData.workout?.intervals || rawData.data?.intervals;
-    const splits = rawData.workout?.splits || rawData.data?.splits;
-    const segments = intervals || splits || [];
+    const intervals = rawData.workout?.intervals || (rawData.data as Record<string, unknown>)?.intervals;
+    const splits = rawData.workout?.splits || (rawData.data as Record<string, unknown>)?.splits;
+    const segments = (intervals || splits || []) as Array<C2Split | C2Interval>;
 
     for (const segment of segments) {
-        if (segment.type === 'rest') continue;
+        // Check if this is a rest interval (only C2Interval has type field)
+        if ('type' in segment && segment.type === 'rest') continue;
 
-        const watts = segment.watts || (segment.pace ? splitToWatts(segment.pace) : 0);
+        const watts = segment.watts || 0;
         const duration = segment.time ? segment.time / 10 : 0; // deciseconds -> seconds
 
         if (duration > 0 && watts > 0) {
@@ -188,21 +189,18 @@ export const aggregateBucketsByZone = (
  * Calculates 5-watt power buckets directly from stroke data.
  * Used for client-side distribution analysis of specific intervals (Work only).
  */
-export const calculateBucketsFromStrokes = (strokes: any[]): Record<string, number> => {
+export const calculateBucketsFromStrokes = (strokes: C2Stroke[]): Record<string, number> => {
     const buckets: Record<string, number> = {};
 
     strokes.forEach(s => {
         // Calculate Watts
         let watts = 0;
-        if (s.watts) {
-            watts = s.watts;
-        } else if (s.p) {
-            // Heuristic: if p > 500, assume pace in deciseconds
-            if (s.p > 300) {
-                watts = splitToWatts(s.p / 10);
-            } else {
-                watts = s.p;
-            }
+        // C2Stroke.p can be watts or pace depending on context
+        // Heuristic: if p > 300, assume pace in deciseconds/500m
+        if (s.p > 300) {
+            watts = splitToWatts(s.p / 10);
+        } else {
+            watts = s.p;
         }
 
         // Calculate Duration (approximate from stroke data if not available, usually use difference in time)

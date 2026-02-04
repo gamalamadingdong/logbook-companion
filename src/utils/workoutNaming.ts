@@ -1,6 +1,29 @@
 import type { C2Interval, C2Stroke } from '../api/concept2.types';
 
 /**
+ * Standard rowing distances in meters
+ */
+const STANDARD_DISTANCES = [
+    100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000,
+    7500, 10000, 15000, 21097, 30000, 42195
+];
+
+/**
+ * Round to nearest standard distance if close enough (within 20m or 1%)
+ */
+export function roundToStandardDistance(meters: number): number {
+    const threshold = Math.max(20, meters * 0.01); // 20m or 1%, whichever is larger
+    
+    for (const standard of STANDARD_DISTANCES) {
+        if (Math.abs(meters - standard) <= threshold) {
+            return standard;
+        }
+    }
+    
+    return Math.round(meters);
+}
+
+/**
  * Format rest time (seconds) to readable string matching RWN spec
  * RWN allows both `[M]:[SS]r` and `[S]sr`
  * Use shorter format when possible for readability
@@ -43,46 +66,112 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     const firstCalories = first.calories_total;
     const calVariance = firstCalories ? workIntervals.every(i => i.calories_total && Math.abs(i.calories_total - firstCalories) <= 2) : false;
 
-    // SPECIAL CASE: Single Interval (e.g. 30:00 or 2000m)
-    // Both distVariance and timeVariance are TRUE.
-    if (distVariance && timeVariance && count === 1) {
+    // SPECIAL CASE: Single Interval
+    // Return simple "5000m" or "30:00" without "1x"
+    if (count === 1) {
+        // Exact Type Priority if available (useful for templates with 0 dist or 0 time)
+        const type = first.type;
+
+        // 1. Time-based
+        // If explicitly 'time', or inferred (time > 0 and dist == 0)
+        // OR if it's a Standard Time (e.g. 30:00) regardless of distance
         const timeSec = first.time / 10;
-        // e.g. 20:00=1200, 30:00=1800, 40:00=2400, 60:00=3600
         const isStandardTime = [1200, 1800, 2400, 3600].includes(timeSec);
 
-        const isCleanTime = (timeSec % 1 === 0);
-        const isStandardDist = [2000, 5000, 6000, 10000, 21097, 42195].includes(Math.round(first.distance));
-        const isCleanDist = first.distance % 500 === 0;
-
-        // Prioritize:
-        // 1. If logic says it's a Standard Distance (e.g. 2000m), prefer Distance.
-        if (isStandardDist) {
-            return `${Math.round(first.distance)}m`;
-        }
-
-        // 2. Else if it's a Standard Time (30:00), prefer Time.
-        // 3. Else if it's Clean Time but not Clean Distance, prefer Time.
-        if (isStandardTime || (!isCleanDist && isCleanTime)) {
+        if (type === 'time' || (first.time > 0 && first.distance === 0) || isStandardTime) {
             const m = Math.floor(timeSec / 60);
             const s = timeSec % 60;
-            const timeLabel = s === 0 ? `${m}:00` : `${m}:${s}`;
-            return `${timeLabel}`;
+            const timeLabel = s === 0 ? `${m}:00` : `${m}:${s.toString().padStart(2, '0')}`;
+            return timeLabel;
         }
 
-        // Fallback for single interval: just return the distance?
+        // 2. Distance-based
+        if (type === 'distance' || first.distance > 0) {
+            return `${roundToStandardDistance(first.distance)}m`;
+        }
+
+        // 3. Calorie-based
+        if (type === 'calorie' || type === 'calories' || first.calories_total) {
+            return `${first.calories_total}cal`;
+        }
+
+        // Fallback
+        if (first.time > 0) {
+            const m = Math.floor(timeSec / 60);
+            const s = timeSec % 60;
+            return s === 0 ? `${m}:00` : `${m}:${s.toString().padStart(2, '0')}`;
+        }
         return `${Math.round(first.distance)}m`;
+    }
+
+    // BLOCK STRUCTURE DETECTION (before uniform checks)
+    // Detect repeating rest patterns that indicate block structures
+    // Example: [90s, 90s, 90s, 90s, 360s] repeated 4 times = 4 blocks of 5 intervals
+    const restTimes = workIntervals.map(i => (i.rest_time || 0) / 10); // Convert to seconds
+    
+    if (restTimes.length >= 4) { // Need at least 4 intervals to detect blocks
+        // Try different block sizes (minimum 2 intervals per block)
+        for (let blockSize = 2; blockSize <= restTimes.length / 2; blockSize++) {
+            if (restTimes.length % blockSize !== 0) continue;
+            
+            const pattern = restTimes.slice(0, blockSize);
+            const blockCount = restTimes.length / blockSize;
+            
+            // Check if this pattern repeats throughout
+            let matches = true;
+            for (let i = blockSize; i < restTimes.length; i++) {
+                if (Math.abs(restTimes[i] - pattern[i % blockSize]) > 2) { // 2s tolerance
+                    matches = false;
+                    break;
+                }
+            }
+            
+            if (matches && blockCount >= 2) {
+                // Check if there's a longer rest at the end of each block
+                const lastRest = pattern[pattern.length - 1];
+                const firstRest = pattern[0];
+                
+                // Block rest should be significantly longer than intra-block rest
+                if (lastRest > firstRest * 1.5) {
+                    // Check if work intervals within block are uniform
+                    const blockWorkIntervals = workIntervals.slice(0, blockSize);
+                    const blockDists = blockWorkIntervals.map(i => i.distance);
+                    const blockTimes = blockWorkIntervals.map(i => i.time);
+                    
+                    const blockDistUniform = blockDists.every(d => Math.abs(d - blockDists[0]) < 5);
+                    const blockTimeUniform = blockTimes.every(t => Math.abs(t - blockTimes[0]) < 100);
+                    
+                    if (blockDistUniform || blockTimeUniform) {
+                        // Generate block canonical name
+                        const first = blockWorkIntervals[0];
+                        const isDistBased = first.type === 'distance' || (first.distance > 0 && first.type !== 'time');
+                        
+                        if (isDistBased) {
+                            const workSig = `${roundToStandardDistance(first.distance)}m`;
+                            return `${blockCount}x${blockSize}x${workSig}`;
+                        } else {
+                            const timeSec = first.time / 10;
+                            const m = Math.floor(timeSec / 60);
+                            const s = timeSec % 60;
+                            const workSig = s === 0 ? `${m}:00` : `${m}:${s.toString().padStart(2, '0')}`;
+                            return `${blockCount}x${blockSize}x${workSig}`;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (distVariance) {
         const avgDist = workIntervals.reduce((s, i) => s + i.distance, 0) / count;
-        return `${count}x${Math.round(avgDist)}m${restString}`;
+        return `${count}x${roundToStandardDistance(avgDist)}m${restString}`;
     }
 
     if (timeVariance) {
         const timeSec = first.time / 10;
         const m = Math.floor(timeSec / 60);
         const s = timeSec % 60;
-        const timeLabel = s === 0 ? `${m}:00` : `${m}:${s}`;
+        const timeLabel = s === 0 ? `${m}:00` : `${m}:${s.toString().padStart(2, '0')}`;
         return `${count}x${timeLabel}${restString}`;
     }
 
@@ -145,21 +234,22 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     }
 
     // 2. Check Pyramid/Ladder (using numeric values if units match)
+    // Only apply these labels for 5+ intervals; smaller counts are clearer when listed explicitly
     const isAllDist = workIntervals.every(i => i.type === 'distance' || (i.distance > 0 && i.time === 0));
     const isAllTime = workIntervals.every(i => i.type === 'time' || (i.time > 0 && i.distance === 0));
 
     if (isAllDist || isAllTime) {
         const values = workIntervals.map(i => isAllDist ? Math.round(i.distance) : i.time / 10);
 
-        // Pyramid
-        const isPyramid = count >= 3 && values[0] === values[count - 1] && values[Math.floor(count / 2)] > values[0];
+        // Pyramid (only for 5+ intervals)
+        const isPyramid = count >= 5 && values[0] === values[count - 1] && values[Math.floor(count / 2)] > values[0];
         if (isPyramid) {
             const startLabel = signatures[0];
             return `v${startLabel}... Pyramid`;
         }
 
-        // Ladder
-        if (count >= 3) {
+        // Ladder (only for 5+ intervals)
+        if (count >= 5) {
             let isAscending = true;
             let isDescending = true;
             for (let i = 0; i < count - 1; i++) {

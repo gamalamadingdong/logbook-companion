@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2, Eye, HelpCircle } from 'lucide-react';
+import { X, Save, Loader2, Eye, HelpCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { fetchTemplateById, updateTemplate, createTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/workoutNaming';
-import { parseRWN } from '../utils/rwnParser';
+import { parseRWN, validateRWN, estimateDuration, formatDuration } from '../utils/rwnParser';
 
 interface TemplateEditorProps {
     templateId: string | null; // null = new template
@@ -22,7 +22,10 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         workout_type: 'erg',
         training_zone: null,
         workout_structure: null,
-        is_test: false
+        is_test: false,
+        pacing_guidance: null,
+        coaching_points: null,
+        technique_focus: null
     });
 
     // Structure builder state
@@ -46,9 +49,49 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
     // Quick Create State
     const [rwnInput, setRwnInput] = useState('');
     const [rwnError, setRwnError] = useState<string | null>(null);
+    const [rwnValidation, setRwnValidation] = useState<{
+        valid: boolean;
+        errors: string[];
+        warnings?: string[];
+        workDistance?: number;
+        workTime?: number;
+        restTime?: number;
+        totalTime?: number;
+        paceUsed?: string;
+        requiresBaseline?: boolean;
+    } | null>(null);
+
+    // Validate RWN as user types
+    useEffect(() => {
+        if (!rwnInput.trim()) {
+            setRwnValidation(null);
+            return;
+        }
+
+        const validation = validateRWN(rwnInput);
+        const estimate = estimateDuration(rwnInput);
+
+        setRwnValidation({
+            valid: validation.valid,
+            errors: validation.errors,
+            warnings: validation.warnings,
+            workDistance: estimate?.workDistance,
+            workTime: estimate?.workTime,
+            restTime: estimate?.restTime,
+            totalTime: estimate?.totalTime,
+            paceUsed: estimate?.paceUsed,
+            requiresBaseline: estimate?.requiresBaseline
+        });
+    }, [rwnInput]);
 
     const handleQuickCreate = () => {
         setRwnError(null);
+        
+        if (rwnValidation && !rwnValidation.valid) {
+            setRwnError(rwnValidation.errors.join('; '));
+            return;
+        }
+
         const structure = parseRWN(rwnInput);
 
         if (!structure) {
@@ -197,13 +240,18 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         setSaving(true);
         try {
             const structure = buildStructure();
+            
             const updates = {
                 name: template.name,
                 description: template.description || '',
                 workout_type: template.workout_type || 'erg',
                 training_zone: template.training_zone,
                 workout_structure: structure,
-                is_test: template.is_test
+                rwn: rwnInput.trim() || null,
+                is_test: template.is_test || false,
+                pacing_guidance: template.pacing_guidance || null,
+                coaching_points: template.coaching_points || null,
+                technique_focus: template.technique_focus || null
             };
 
             if (templateId) {
@@ -214,7 +262,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
             onClose(true);
         } catch (err) {
             console.error('Failed to save template:', err);
-            alert('Failed to save template');
+            // Show the actual error message
+            const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+            alert(`Failed to save template: ${errorMessage}`);
         } finally {
             setSaving(false);
         }
@@ -240,7 +290,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-neutral-800">
                     <h2 className="text-lg font-semibold text-white">
@@ -301,7 +351,50 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                         </button>
                                     </div>
                                     {rwnError && (
-                                        <p className="text-xs text-red-400 mt-2">{rwnError}</p>
+                                        <div className="flex items-start gap-2 mt-2 text-xs text-red-400">
+                                            <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                                            <span>{rwnError}</span>
+                                        </div>
+                                    )}
+                                    {rwnValidation && rwnValidation.valid && (
+                                        <div className="mt-2 space-y-1">
+                                            <div className="flex items-center gap-2 text-xs text-emerald-400">
+                                                <CheckCircle size={14} />
+                                                <span>Valid RWN</span>
+                                            </div>
+                                            {rwnValidation.workDistance !== undefined && !isNaN(rwnValidation.workDistance) && (
+                                                <div className="text-xs text-neutral-400 ml-5">
+                                                    🏃 Work: {rwnValidation.workDistance}m
+                                                    {rwnValidation.workTime !== undefined && (
+                                                        <> ({formatDuration(rwnValidation.workTime)}
+                                                        {rwnValidation.paceUsed && <> @ {rwnValidation.paceUsed}/500m</>})
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {rwnValidation.requiresBaseline && (
+                                                <div className="flex items-start gap-2 text-xs text-yellow-400 ml-5">
+                                                    <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+                                                    <span>Uses training zones - duration estimate requires baseline tests</span>
+                                                </div>
+                                            )}
+                                            {rwnValidation.restTime !== undefined && rwnValidation.restTime > 0 && (
+                                                <div className="text-xs text-neutral-400 ml-5">
+                                                    ⏸️ Rest: {formatDuration(rwnValidation.restTime)}
+                                                </div>
+                                            )}
+                                            {rwnValidation.totalTime !== undefined && !rwnValidation.requiresBaseline && (
+                                                <div className="text-xs text-neutral-400 ml-5">
+                                                    ⚡ Total: {formatDuration(rwnValidation.totalTime)}
+                                                </div>
+                                            )}
+                                            {rwnValidation.warnings && rwnValidation.warnings.length > 0 && (
+                                                <div className="flex items-start gap-2 text-xs text-yellow-400 ml-5">
+                                                    <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+                                                    <span>{rwnValidation.warnings.join('; ')}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
 
@@ -351,6 +444,52 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                                         <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${template.is_test ? 'translate-x-5' : ''}`} />
                                     </button>
                                     <span className="text-sm font-medium text-white">Mark as Benchmark / Test</span>
+                                </div>
+                            </div>
+
+                            {/* Guidance & Coaching */}
+                            <div className="border-t border-neutral-800 pt-6 space-y-4">
+                                <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wide mb-4">
+                                    Guidance & Coaching
+                                </h3>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-1">Pacing Guidance</label>
+                                    <textarea
+                                        value={template.pacing_guidance || ''}
+                                        onChange={e => setTemplate({ ...template, pacing_guidance: e.target.value || null })}
+                                        rows={3}
+                                        className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 resize-none"
+                                        placeholder="e.g., Start at UT2 pace (2:10-2:15/500m), build to UT1 in final 10 minutes..."
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-1">Technique Focus (one per line)</label>
+                                    <textarea
+                                        value={template.technique_focus?.join('\n') || ''}
+                                        onChange={e => setTemplate({ 
+                                            ...template, 
+                                            technique_focus: e.target.value ? e.target.value.split('\n').filter(line => line.trim()) : null 
+                                        })}
+                                        rows={4}
+                                        className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 resize-none font-mono text-sm"
+                                        placeholder="Body angle timing\nConnection at the catch\nRelaxed recovery\nQuick hands away"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-1">Coaching Points (one per line)</label>
+                                    <textarea
+                                        value={template.coaching_points?.join('\n') || ''}
+                                        onChange={e => setTemplate({ 
+                                            ...template, 
+                                            coaching_points: e.target.value ? e.target.value.split('\n').filter(line => line.trim()) : null 
+                                        })}
+                                        rows={4}
+                                        className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 resize-none font-mono text-sm"
+                                        placeholder="Focus on the drive sequence\nKeep shoulders relaxed\nQuick hands away at the finish\nMaintain controlled breathing rhythm"
+                                    />
                                 </div>
                             </div>
 

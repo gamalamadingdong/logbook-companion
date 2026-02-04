@@ -11,6 +11,9 @@ export type WorkoutStructure =
     | IntervalStructure
     | VariableStructure;
 
+// Block type for semantic workout segments (moved before usage)
+export type BlockType = 'warmup' | 'cooldown' | 'test' | 'main';
+
 // Steady state: Just Row / Single Distance / Single Time / Single Calories
 export interface SteadyStateStructure {
     type: 'steady_state';
@@ -21,7 +24,8 @@ export interface SteadyStateStructure {
     target_rate_max?: number;  // If present, target_rate is min, this is max
     target_pace?: string;      // Optional pace guidance (min if range)
     target_pace_max?: string;  // If present, target_pace is min, this is max
-    tags?: string[];
+    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
+    tags?: string[];           // Legacy inline tags (prefer blockType)
 }
 
 // Fixed intervals: Repeating distance/time/calories with time-based rest
@@ -50,7 +54,8 @@ export interface IntervalStep {
     target_rate_max?: number;  // If present, target_rate is min, this is max
     target_pace?: string;      // Optional pace guidance (min if range)
     target_pace_max?: string;  // If present, target_pace is min, this is max
-    tags?: string[];
+    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
+    tags?: string[];           // Legacy inline tags (prefer blockType)
 }
 
 // Rest step (PM5 only supports time-based rest)
@@ -69,7 +74,8 @@ export interface WorkoutStep {
     target_rate_max?: number;  // If present, target_rate is min, this is max
     target_pace?: string;      // Optional pace guidance (min if range)
     target_pace_max?: string;  // If present, target_pace is min, this is max
-    tags?: string[];           // Optional tags (e.g. #warmup, #cooldown, #test)
+    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
+    tags?: string[];           // Legacy inline tags (prefer blockType)
 }
 
 // Helper type for workout template from database
@@ -94,10 +100,12 @@ export interface WorkoutTemplate {
     completion_rate: number;
     average_rating: number;
     rating_count: number;
+    last_used_at: string | null;
     status: string;
     validated: boolean;
-    signature_workout: string | null;
+    rwn: string | null;
     tags: string[];
+    created_by: string | null;
     created_at: string;
     updated_at: string;
 }

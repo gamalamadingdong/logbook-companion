@@ -42,7 +42,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     }, [isAdmin]);
 
     const links = [
-        { path: '/', label: 'Dashboard', icon: Home },
+        { path: '/', label: 'Log Dashboard', icon: Home },
         { path: '/analytics', label: 'Analytics', icon: TrendingUp },
         { path: '/sync', label: 'Sync Data', icon: Database },
         { path: '/templates', label: 'Workouts', icon: Dumbbell, badge: 'Alpha' },

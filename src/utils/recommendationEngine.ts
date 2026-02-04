@@ -1,22 +1,6 @@
 
 import type { WorkoutLog, UserGoal, WorkoutTemplate, UserProfile } from '../services/supabase';
-
-// Helper to parse "2k" time strings "6:40.0" -> seconds
-const parseTime = (timeStr: string): number => {
-    if (!timeStr) return 0;
-    const parts = timeStr.split(':');
-    if (parts.length === 2) {
-        return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
-    }
-    return parseFloat(timeStr);
-};
-
-// Helper to format seconds -> "1:45.0"
-const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = (seconds % 60).toFixed(1).padStart(4, '0');
-    return `${mins}:${secs}`;
-};
+import { parsePaceToSeconds, getZoneTimeAdjustment, calculateWattsFromSplit, calculate2kRelativePace, calculatePaceWithConfidence } from './paceCalculator';
 
 interface SuggestedWorkout {
     template: WorkoutTemplate;
@@ -86,7 +70,10 @@ export const getSuggestedWorkout = (
         const baseline2k = userProfile.benchmark_preferences['2k']?.working_baseline; // e.g., "7:00.0"
 
         if (baseline2k) {
-            const baseSeconds = parseTime(baseline2k) / 4; // /500m split
+            const baseSeconds = parsePaceToSeconds(baseline2k);
+            if (!baseSeconds) return { template: selectedTemplate, reason };
+            
+            const baseSplit = baseSeconds / 4; // /500m split
             let adjustment = 0;
             let foundPacing = false;
 
@@ -103,25 +90,19 @@ export const getSuggestedWorkout = (
 
             // 2. Fallback to Zone-Based Estimation if no explicit formula found
             if (!foundPacing && selectedTemplate.training_zone) {
-                switch (selectedTemplate.training_zone) {
-                    case 'UT2': adjustment = 25; break; // +25s (Slower/Easier)
-                    case 'UT1': adjustment = 18; break; // +18s
-                    case 'AT': adjustment = 10; break;  // +10s
-                    case 'TR': adjustment = 2; break;   // +2s (Slightly slower than 2k)
-                    case 'AN': adjustment = -2; break;  // -2s (Slightly faster than 2k)
-                    default: adjustment = 22; // safe default
-                }
+                adjustment = getZoneTimeAdjustment(selectedTemplate.training_zone);
                 foundPacing = true;
             }
 
             if (foundPacing) {
-                targetSplitSeconds = baseSeconds + adjustment;
-
-                // Confidence Range (Fixed 2% for MVP)
-                const range = targetSplitSeconds * 0.02;
+                const baseline2kWatts = calculateWattsFromSplit(baseSplit);
+                const result = calculate2kRelativePace(adjustment, baseline2kWatts);
+                const withConfidence = calculatePaceWithConfidence(result.split, 2);
+                
+                targetSplitSeconds = result.split;
                 targetPaceRange = {
-                    low: formatTime(targetSplitSeconds - range),
-                    high: formatTime(targetSplitSeconds + range)
+                    low: withConfidence.lowFormatted,
+                    high: withConfidence.highFormatted
                 };
             }
         }

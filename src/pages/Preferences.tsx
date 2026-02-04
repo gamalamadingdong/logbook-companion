@@ -83,8 +83,9 @@ export const Preferences: React.FC = () => {
             if (error) throw error;
 
             setMessage({ type: 'success', text: 'Preferences saved successfully.' });
-        } catch (err: any) {
-            setMessage({ type: 'error', text: err.message || 'Failed to save.' });
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to save.';
+            setMessage({ type: 'error', text: errorMessage });
         } finally {
             setSaving(false);
         }
@@ -173,6 +174,7 @@ export const Preferences: React.FC = () => {
                             <label className="block text-sm font-medium text-neutral-400 mb-1">Display Name</label>
                             <input
                                 type="text"
+                                aria-label="Display Name"
                                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-neutral-100 focus:outline-none focus:border-emerald-500"
                                 value={formData.display_name || ''}
                                 onChange={e => setFormData({ ...formData, display_name: e.target.value })}
@@ -183,6 +185,7 @@ export const Preferences: React.FC = () => {
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Max Heart Rate (bpm)</label>
                                 <input
                                     type="number"
+                                    aria-label="Max Heart Rate"
                                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-neutral-100 focus:outline-none focus:border-emerald-500"
                                     value={formData.max_heart_rate || ''}
                                     onChange={e => setFormData({ ...formData, max_heart_rate: parseInt(e.target.value) || undefined })}
@@ -193,6 +196,7 @@ export const Preferences: React.FC = () => {
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Resting HR (bpm)</label>
                                 <input
                                     type="number"
+                                    aria-label="Resting Heart Rate"
                                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-neutral-100 focus:outline-none focus:border-emerald-500"
                                     value={formData.resting_heart_rate || ''}
                                     onChange={e => setFormData({ ...formData, resting_heart_rate: parseInt(e.target.value) || undefined })}
@@ -204,6 +208,7 @@ export const Preferences: React.FC = () => {
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Weight (lbs)</label>
                                 <input
                                     type="number"
+                                    aria-label="Weight in pounds"
                                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-neutral-100 focus:outline-none focus:border-emerald-500"
                                     value={formData.weight_lbs || ''}
                                     onChange={e => setFormData({ ...formData, weight_lbs: parseInt(e.target.value) || undefined })}
@@ -212,22 +217,10 @@ export const Preferences: React.FC = () => {
 
                         </div>
 
-                        {/* Concept2 Sync Settings */}
+                        {/* Concept2 Sync Settings - Note: Auto-sync controlled via localStorage */}
                         <div className="mt-6 pt-6 border-t border-neutral-800">
                             <h3 className="font-medium text-neutral-200 mb-3">Concept2 Sync</h3>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={(formData as any).preferences?.auto_sync !== false}
-                                    onChange={(e) => setFormData({
-                                        ...formData,
-                                        preferences: { ...(formData as any).preferences, auto_sync: e.target.checked }
-                                    } as any)}
-                                    className="w-4 h-4 rounded border-gray-600 bg-neutral-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-neutral-900"
-                                />
-                                <span className="text-neutral-300">Automatically sync workouts on login</span>
-                            </label>
-                            <p className="text-xs text-neutral-500 mt-1 ml-7">When disabled, sync only runs manually from the Sync page.</p>
+                            <p className="text-sm text-neutral-400">Sync is currently controlled via the Sync page. Visit the Sync page to manage your Concept2 connection.</p>
                         </div>
                     </div>
                 )}
@@ -265,6 +258,7 @@ export const Preferences: React.FC = () => {
                                                 <td className="px-4 py-3 text-center">
                                                     <input
                                                         type="checkbox"
+                                                        aria-label={`Track ${b.label} benchmark`}
                                                         checked={isTracked}
                                                         onChange={() => toggleBenchmark(b.key)}
                                                         className="w-4 h-4 rounded border-gray-600 bg-neutral-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-neutral-900"
@@ -338,7 +332,7 @@ export const Preferences: React.FC = () => {
                                         // Ensure raw_data is object
                                         let raw = log.raw_data;
                                         if (typeof raw === 'string') {
-                                            try { raw = JSON.parse(raw); } catch (e) { }
+                                            try { raw = JSON.parse(raw); } catch { /* Ignore parse errors */ }
                                         }
 
                                         // 1. Try to calculate from intervals
@@ -395,9 +389,10 @@ export const Preferences: React.FC = () => {
                                     }
 
                                     setMessage({ type: 'success', text: `Optimization complete. Updated ${updated} workouts.` });
-                                } catch (err: any) {
+                                } catch (err: unknown) {
                                     console.error(err);
-                                    setMessage({ type: 'error', text: 'Optimization failed: ' + err.message });
+                                    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                                    setMessage({ type: 'error', text: 'Optimization failed: ' + errorMessage });
                                 } finally {
                                     setSaving(false);
                                 }
@@ -453,8 +448,9 @@ export const Preferences: React.FC = () => {
 
                                     if (error) throw error;
                                     setMessage({ type: 'success', text: 'All workouts deleted.' });
-                                } catch (err: any) {
-                                    setMessage({ type: 'error', text: 'Deletion failed: ' + err.message });
+                                } catch (err: unknown) {
+                                    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                                    setMessage({ type: 'error', text: 'Deletion failed: ' + errorMessage });
                                 } finally {
                                     setSaving(false);
                                 }
@@ -494,8 +490,9 @@ export const Preferences: React.FC = () => {
                                     localStorage.removeItem('concept2_expires_at');
 
                                     setMessage({ type: 'success', text: 'Integrations removed.' });
-                                } catch (err: any) {
-                                    setMessage({ type: 'error', text: 'Removal failed: ' + err.message });
+                                } catch (err: unknown) {
+                                    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                                    setMessage({ type: 'error', text: 'Removal failed: ' + errorMessage });
                                 } finally {
                                     setSaving(false);
                                 }

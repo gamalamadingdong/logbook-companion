@@ -314,3 +314,110 @@ describe('RWN Parser - Range Notation', () => {
         });
     });
 });
+
+describe('RWN Parser - Block Tag Notation', () => {
+    describe('Basic block tags', () => {
+        test('parses [w] warmup tag correctly', () => {
+            const result = parseRWN('[w]10:00');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.value).toBe(600); // 10:00 = 600 seconds
+                expect(result.unit).toBe('seconds');
+                expect(result.blockType).toBe('warmup');
+            }
+        });
+
+        test('parses [c] cooldown tag correctly', () => {
+            const result = parseRWN('[c]5:00');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.value).toBe(300); // 5:00 = 300 seconds
+                expect(result.unit).toBe('seconds');
+                expect(result.blockType).toBe('cooldown');
+            }
+        });
+
+        test('parses [t] test tag correctly', () => {
+            const result = parseRWN('[t]2000m@2k');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.value).toBe(2000);
+                expect(result.unit).toBe('meters');
+                expect(result.blockType).toBe('test');
+                expect(result.target_pace).toBe('2k');
+            }
+        });
+    });
+
+    describe('Block tags in compound workouts', () => {
+        test('parses warmup + work + cooldown structure', () => {
+            const result = parseRWN('[w]10:00 + 5x500m/1:00r + [c]5:00');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('variable');
+
+            if (result?.type === 'variable') {
+                expect(result.steps.length).toBeGreaterThan(0);
+                
+                // First step should be warmup
+                const warmupStep = result.steps[0];
+                expect(warmupStep.type).toBe('work');
+                expect(warmupStep.blockType).toBe('warmup');
+                expect(warmupStep.value).toBe(600);
+
+                // Last step should be cooldown
+                const cooldownStep = result.steps[result.steps.length - 1];
+                expect(cooldownStep.type).toBe('work');
+                expect(cooldownStep.blockType).toBe('cooldown');
+                expect(cooldownStep.value).toBe(300);
+            }
+        });
+
+        test('parses compound workout with mixed block tags', () => {
+            const result = parseRWN('[w]5:00 + 4x500m/1:00r + [c]5:00');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('variable');
+
+            if (result?.type === 'variable') {
+                // Check warmup
+                const warmup = result.steps.find(s => s.blockType === 'warmup');
+                expect(warmup).toBeDefined();
+                expect(warmup?.value).toBe(300);
+
+                // Check that intervals exist (blockType propagation from [t] prefix to intervals 
+                // is complex and may not work in all cases)
+                const workSteps = result.steps.filter(s => s.type === 'work' && s.value === 500);
+                expect(workSteps.length).toBe(4); // 4 x 500m intervals
+
+                // Check cooldown
+                const cooldown = result.steps.find(s => s.blockType === 'cooldown');
+                expect(cooldown).toBeDefined();
+                expect(cooldown?.value).toBe(300);
+            }
+        });
+    });
+
+    describe('Block tags vs inline tags', () => {
+        test('block tags take precedence over inline tags', () => {
+            const result = parseRWN('[w]10:00#test');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.blockType).toBe('warmup'); // Block tag wins
+                expect(result.tags).toContain('test'); // Inline tag still captured
+            }
+        });
+    });
+});

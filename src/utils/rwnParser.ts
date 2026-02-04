@@ -1,9 +1,23 @@
-import type { WorkoutStructure, WorkoutStep } from '../types/workoutStructure.types';
+import type { WorkoutStructure, WorkoutStep, BlockType } from '../types/workoutStructure.types';
 
 /**
  * RWN Parser
  * Parses Rowers Workout Notation strings into WorkoutStructure objects.
+ * 
+ * Block Tag Notation (Preferred):
+ *   [w]10:00 + 5x500m/1:00r + [c]5:00
+ *   [w] = warmup, [c] = cooldown, [t] = test
+ * 
+ * Inline Tag Notation (Legacy, still supported):
+ *   10:00#warmup + 5x500m/1:00r + 5:00#cooldown
  */
+
+// Block tag mapping: [w] -> warmup, [c] -> cooldown, [t] -> test
+const BLOCK_TAG_MAP: Record<string, BlockType> = {
+    'w': 'warmup',
+    'c': 'cooldown',
+    't': 'test'
+};
 
 // Key mapping for Steady State units
 function mapToSteadyUnit(type: 'distance' | 'time' | 'calories'): 'meters' | 'seconds' | 'calories' {
@@ -24,7 +38,7 @@ function parseTime(str: string): number | null {
     return null;
 }
 
-// Helper: Parse Component ("2000m", "30:00", "500cal")
+// Helper: Parse Component ("2000m", "30:00", "500cal", "[w]10:00")
 interface ParsedComponent {
     type: 'distance' | 'time' | 'calories';
     value: number;
@@ -34,17 +48,34 @@ interface ParsedComponent {
         target_pace?: string;
         target_pace_max?: string;  // If present, target_pace is min, this is max
     };
-    tags?: string[];
+    blockType?: BlockType;  // Semantic block type from [w], [c], [t] prefix
+    tags?: string[];        // Legacy inline tags (#warmup, #cooldown, #test)
 }
 
 function parseComponent(str: string): ParsedComponent | null {
-    const rawClean = str.trim();
+    let rawClean = str.trim();
 
-    // Extract Tags (#warmup, #test)
+    // Extract Block Tag prefix: [w], [c], [t]
+    let blockType: BlockType | undefined;
+    const blockTagMatch = rawClean.match(/^\[([wct])\]/i);
+    if (blockTagMatch) {
+        const tagChar = blockTagMatch[1].toLowerCase();
+        blockType = BLOCK_TAG_MAP[tagChar];
+        rawClean = rawClean.substring(blockTagMatch[0].length).trim();
+    }
+
+    // Extract inline Tags (#warmup, #test) - legacy support
     const tags: string[] = [];
     const tagMatches = rawClean.matchAll(/#([\w-]+)/g);
     for (const m of tagMatches) {
-        tags.push(m[1].toLowerCase());
+        const tag = m[1].toLowerCase();
+        tags.push(tag);
+        // Also set blockType from inline tags if not already set
+        if (!blockType) {
+            if (tag === 'warmup') blockType = 'warmup';
+            else if (tag === 'cooldown') blockType = 'cooldown';
+            else if (tag === 'test' || tag === 'benchmark') blockType = 'test';
+        }
     }
     const clean = rawClean.replace(/#[\w-]+/g, '').trim();
 
@@ -155,6 +186,7 @@ function parseComponent(str: string): ParsedComponent | null {
             type: 'distance',
             value: parseInt(coreText.replace(/m/i, '')),
             guidance,
+            blockType,
             tags
         };
     }
@@ -165,6 +197,7 @@ function parseComponent(str: string): ParsedComponent | null {
             type: 'calories',
             value: parseInt(coreText.replace(/(?:cal|c)/i, '')),
             guidance,
+            blockType,
             tags
         };
     }
@@ -173,7 +206,7 @@ function parseComponent(str: string): ParsedComponent | null {
     if (coreText.includes(':')) {
         const sec = parseTime(coreText);
         if (sec !== null) {
-            return { type: 'time', value: sec, guidance, tags };
+            return { type: 'time', value: sec, guidance, blockType, tags };
         }
     }
 
@@ -292,12 +325,12 @@ function parseRepeatedGroup(text: string, modality?: WorkoutStructure['modality'
                 type: 'work',
                 modality: struct.modality,
                 duration_type: struct.unit === 'seconds' ? 'time' : (struct.unit === 'meters' ? 'distance' : 'calories'),
-
                 value: struct.value,
                 target_rate: struct.target_rate,
                 target_rate_max: struct.target_rate_max,
                 target_pace: struct.target_pace,
                 target_pace_max: struct.target_pace_max,
+                blockType: struct.blockType,
                 tags: struct.tags
             }];
         }
@@ -316,6 +349,7 @@ function parseRepeatedGroup(text: string, modality?: WorkoutStructure['modality'
                     target_rate_max: struct.work.target_rate_max,
                     target_pace: struct.work.target_pace,
                     target_pace_max: struct.work.target_pace_max,
+                    blockType: struct.work.blockType,
                     tags: struct.work.tags
                 });
                 steps.push({
@@ -369,7 +403,7 @@ export function parseRWN(input: string): WorkoutStructure | null {
     // 0. Check for Modality Prefix (e.g., "Bike: 4x500m")
     const modalityMatch = text.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
     if (modalityMatch) {
-        modality = modalityMatch[1].toLowerCase() as any;
+        modality = modalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
         text = modalityMatch[2].trim();
     }
 
@@ -435,6 +469,7 @@ export function parseRWN(input: string): WorkoutStructure | null {
                         target_rate_max: workComp.guidance?.target_rate_max,
                         target_pace: workComp.guidance?.target_pace,
                         target_pace_max: workComp.guidance?.target_pace_max,
+                        blockType: workComp.blockType,
                         tags: intervalTags.length > 0 ? intervalTags : workComp.tags
                     },
                     rest: {
@@ -447,7 +482,43 @@ export function parseRWN(input: string): WorkoutStructure | null {
         }
     }
 
-    // 2. Steady State (Single component)
+    // 2. Check for single interval with rest (e.g., "15:00@UT1/2:00r" without "1x" prefix)
+    // This handles cases like "Work/Rest" without the multiplier
+    if (text.includes('/') && !text.includes('(')) {
+        const parts = text.split('/');
+        if (parts.length === 2) {
+            const workStr = parts[0].trim();
+            const restStr = parts[1].trim();
+            
+            const workComp = parseComponent(workStr);
+            if (workComp) {
+                const restVal = parseRest(restStr);
+                
+                return {
+                    type: 'interval',
+                    modality,
+                    repeats: 1,
+                    work: {
+                        type: workComp.type,
+                        value: workComp.value,
+                        target_rate: workComp.guidance?.target_rate,
+                        target_rate_max: workComp.guidance?.target_rate_max,
+                        target_pace: workComp.guidance?.target_pace,
+                        target_pace_max: workComp.guidance?.target_pace_max,
+                        blockType: workComp.blockType,
+                        tags: workComp.tags
+                    },
+                    rest: {
+                        type: 'time',
+                        value: restVal
+                    },
+                    tags: workComp.tags
+                };
+            }
+        }
+    }
+
+    // 3. Steady State (Single component)
     const singleComp = parseComponent(text);
     if (singleComp) {
         return {
@@ -459,8 +530,9 @@ export function parseRWN(input: string): WorkoutStructure | null {
             target_rate_max: singleComp.guidance?.target_rate_max,
             target_pace: singleComp.guidance?.target_pace,
             target_pace_max: singleComp.guidance?.target_pace_max,
+            blockType: singleComp.blockType,
             tags: singleComp.tags
-        };
+        } as WorkoutStructure;
     }
 
     // Fallback: Return null
@@ -483,7 +555,7 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
         // Handle local modality override?
         const segModalityMatch = cleanSeg.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
         if (segModalityMatch) {
-            segModality = segModalityMatch[1].toLowerCase() as any;
+            segModality = segModalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
             cleanText = segModalityMatch[2].trim();
         }
 
@@ -498,12 +570,12 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
                     type: 'work',
                     modality: subStruct.modality || segModality,
                     duration_type: subStruct.unit === 'seconds' ? 'time' : (subStruct.unit === 'meters' ? 'distance' : 'calories'),
-
                     value: subStruct.value,
                     target_rate: subStruct.target_rate,
                     target_rate_max: subStruct.target_rate_max,
                     target_pace: subStruct.target_pace,
                     target_pace_max: subStruct.target_pace_max,
+                    blockType: subStruct.blockType,
                     tags: subStruct.tags
                 });
             } else if (subStruct.type === 'interval') {
@@ -518,6 +590,7 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
                         target_rate_max: subStruct.work.target_rate_max,
                         target_pace: subStruct.work.target_pace,
                         target_pace_max: subStruct.work.target_pace_max,
+                        blockType: subStruct.work.blockType,
                         tags: subStruct.work.tags
                     });
                     steps.push({
@@ -564,6 +637,7 @@ function parseLegacySegment(text: string): WorkoutStructure | null {
                     target_rate_max: workComp.guidance?.target_rate_max,
                     target_pace: workComp.guidance?.target_pace,
                     target_pace_max: workComp.guidance?.target_pace_max,
+                    blockType: workComp.blockType,
                     tags: workComp.tags
                 },
                 rest: {
@@ -574,4 +648,301 @@ function parseLegacySegment(text: string): WorkoutStructure | null {
         }
     }
     return null;
+}
+
+/**
+ * Validation result with detailed error messages
+ */
+export interface RWNValidationResult {
+    valid: boolean;
+    errors: string[];
+    warnings?: string[];
+    structure?: WorkoutStructure;
+}
+
+/**
+ * Validate RWN string and return detailed errors
+ */
+export function validateRWN(input: string): RWNValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!input || input.trim() === '') {
+        return { valid: false, errors: ['RWN cannot be empty'] };
+    }
+
+    // Try to parse
+    const structure = parseRWN(input);
+
+    if (!structure) {
+        // Generic parsing failure - try to give specific hints
+        const trimmed = input.trim();
+        
+        // Check for common mistakes
+        if (trimmed.includes('x') && !trimmed.match(/\d+x/)) {
+            errors.push("Missing repeat count before 'x' (e.g., '4x500m')");
+        }
+        
+        if (trimmed.includes('/') && !trimmed.match(/\/\d/)) {
+            errors.push("Missing rest time after '/' (e.g., '/1:30r')");
+        }
+
+        if (trimmed.match(/\d+k\b/)) {
+            errors.push("Use full distance in meters (e.g., '5000m' instead of '5k')");
+        }
+
+        if (!trimmed.match(/\d+m\b/) && !trimmed.match(/\d+:\d+/) && !trimmed.match(/\d+cal\b/)) {
+            errors.push("No valid distance (m), time (mm:ss), or calories (cal) found");
+        }
+
+        // If no specific error found, generic message
+        if (errors.length === 0) {
+            errors.push("Could not parse RWN. Check syntax (e.g., '4x500m/1:00r' or '5000m')");
+        }
+
+        return { valid: false, errors, warnings };
+    }
+
+    // Successful parse - check for warnings
+    if (structure.type === 'interval' && structure.repeats > 50) {
+        warnings.push(`High repeat count (${structure.repeats}x) - is this intended?`);
+    }
+
+    if (structure.type === 'steady_state' && structure.unit === 'meters' && structure.value > 50000) {
+        warnings.push(`Long distance (${structure.value}m) - verify this is correct`);
+    }
+
+    if (structure.type === 'steady_state' && structure.unit === 'seconds' && structure.value > 7200) {
+        warnings.push(`Long duration (${Math.floor(structure.value / 60)} min) - verify this is correct`);
+    }
+
+    return {
+        valid: true,
+        errors: [],
+        warnings: warnings.length > 0 ? warnings : undefined,
+        structure
+    };
+}
+
+/**
+ * Duration estimation result
+ */
+export interface DurationEstimate {
+    workDistance: number;  // Total meters of work (excludes rest)
+    workTime: number;      // Total seconds of work
+    restTime: number;      // Total seconds of rest
+    totalTime: number;     // workTime + restTime
+    estimateMethod: 'explicit_pace' | 'explicit_time' | 'default_pace' | 'no_estimate' | 'needs_baseline';
+    paceUsed?: string;     // Pace used for calculation (e.g., "2:00/500m")
+    requiresBaseline?: boolean; // True if workout uses training zones but user has no baseline data
+}
+
+/**
+ * Estimate workout duration and work distance from RWN
+ * @param input RWN string
+ * @param defaultPace Default pace to use if none specified (e.g., "2:05")
+ */
+export function estimateDuration(input: string, defaultPace: string = '2:05'): DurationEstimate | null {
+    const structure = parseRWN(input);
+    
+    if (!structure) {
+        return null;
+    }
+
+    let workDistance = 0;
+    let workTime = 0;
+    let restTime = 0;
+    let estimateMethod: DurationEstimate['estimateMethod'] = 'no_estimate';
+    let paceUsed: string | undefined;
+    let requiresBaseline = false;
+
+    // Helper: Convert pace string "2:05" to seconds per 500m
+    // Returns null for training zones (UT1, AT, etc.) that need user baseline
+    const parsePaceToSeconds = (pace: string): number | null => {
+        // Skip training zones - these need user baseline data
+        if (/^(UT2|UT1|AT|TR|AN)$/i.test(pace)) {
+            return null;
+        }
+        
+        // Skip relative paces like "2k+5" - these need user baseline
+        if (/^(2k|5k|6k|30m|60m)/i.test(pace)) {
+            return null;
+        }
+        
+        // Parse absolute pace "2:05" format
+        const parts = pace.split(':');
+        if (parts.length === 2) {
+            return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+        }
+        
+        // Single number (seconds)
+        return parseFloat(pace);
+    };
+
+    // Helper: Calculate time for distance at pace
+    const timeForDistance = (meters: number, paceSeconds: number): number => {
+        return (meters / 500) * paceSeconds;
+    };
+
+    if (structure.type === 'steady_state') {
+        if (structure.unit === 'meters') {
+            workDistance = structure.value;
+            
+            // Use explicit pace if provided
+            if (structure.target_pace) {
+                const paceSeconds = parsePaceToSeconds(structure.target_pace);
+                if (paceSeconds) {
+                    paceUsed = structure.target_pace;
+                    workTime = timeForDistance(workDistance, paceSeconds);
+                    estimateMethod = 'explicit_pace';
+                } else {
+                    // Training zone or relative pace - can't estimate without baseline
+                    requiresBaseline = true;
+                    estimateMethod = 'needs_baseline';
+                }
+            } else {
+                // Use default pace
+                paceUsed = defaultPace;
+                workTime = timeForDistance(workDistance, parsePaceToSeconds(defaultPace)!);
+                estimateMethod = 'default_pace';
+            }
+        } else if (structure.unit === 'seconds') {
+            workTime = structure.value;
+            estimateMethod = 'explicit_time';
+            
+            // Estimate distance if we have pace
+            if (structure.target_pace) {
+                paceUsed = structure.target_pace;
+                const paceSeconds = parsePaceToSeconds(structure.target_pace);
+                if (paceSeconds !== null) {
+                    workDistance = (workTime / paceSeconds) * 500;
+                }
+            } else {
+                // Use default pace to estimate distance
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workDistance = (workTime / paceSeconds) * 500;
+                }
+            }
+        } else if (structure.unit === 'calories') {
+            // Can't estimate time from calories without power data
+            estimateMethod = 'no_estimate';
+        }
+    } else if (structure.type === 'interval') {
+        const { repeats, work, rest } = structure;
+        
+        // Calculate work per interval
+        if (work.type === 'distance') {
+            workDistance = work.value * repeats;
+            
+            if (work.target_pace) {
+                paceUsed = work.target_pace;
+                const paceSeconds = parsePaceToSeconds(work.target_pace);
+                if (paceSeconds !== null) {
+                    workTime = timeForDistance(work.value, paceSeconds) * repeats;
+                    estimateMethod = 'explicit_pace';
+                }
+            } else {
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workTime = timeForDistance(work.value, paceSeconds) * repeats;
+                    estimateMethod = 'default_pace';
+                }
+            }
+        } else if (work.type === 'time') {
+            workTime = work.value * repeats;
+            estimateMethod = 'explicit_time';
+            
+            if (work.target_pace) {
+                paceUsed = work.target_pace;
+                const paceSeconds = parsePaceToSeconds(work.target_pace);
+                if (paceSeconds !== null) {
+                    workDistance = ((work.value / paceSeconds) * 500) * repeats;
+                }
+            } else {
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workDistance = ((work.value / paceSeconds) * 500) * repeats;
+                }
+            }
+        } else if (work.type === 'calories') {
+            estimateMethod = 'no_estimate';
+        }
+        
+        // Rest is always time (already in seconds)
+        restTime = rest.value * (repeats - 1); // N intervals = N-1 rest periods
+    } else if (structure.type === 'variable') {
+        // Sum up all work steps
+        for (const step of structure.steps) {
+            if (step.type === 'work') {
+                if (step.duration_type === 'distance') {
+                    workDistance += step.value;
+                    
+                    if (step.target_pace) {
+                        paceUsed = step.target_pace;
+                        const paceSeconds = parsePaceToSeconds(step.target_pace);
+                        if (paceSeconds !== null) {
+                            workTime += timeForDistance(step.value, paceSeconds);
+                            estimateMethod = 'explicit_pace';
+                        }
+                    } else {
+                        paceUsed = paceUsed || defaultPace;
+                        const paceSeconds = parsePaceToSeconds(defaultPace);
+                        if (paceSeconds !== null) {
+                            workTime += timeForDistance(step.value, paceSeconds);
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'default_pace';
+                            }
+                        }
+                    }
+                } else if (step.duration_type === 'time') {
+                    workTime += step.value;
+                    
+                    if (step.target_pace) {
+                        paceUsed = step.target_pace;
+                        const paceSeconds = parsePaceToSeconds(step.target_pace);
+                        if (paceSeconds !== null) {
+                            workDistance += (step.value / paceSeconds) * 500;
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'explicit_pace';
+                            }
+                        }
+                    } else {
+                        paceUsed = paceUsed || defaultPace;
+                        const paceSeconds = parsePaceToSeconds(defaultPace);
+                        if (paceSeconds !== null) {
+                            workDistance += (step.value / paceSeconds) * 500;
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'explicit_time';
+                            }
+                        }
+                    }
+                }
+            } else if (step.type === 'rest') {
+                restTime += step.value;
+            }
+        }
+    }
+
+    return {
+        workDistance: Math.round(workDistance),
+        workTime: Math.round(workTime),
+        restTime: Math.round(restTime),
+        totalTime: Math.round(workTime + restTime),
+        estimateMethod,
+        paceUsed,
+        requiresBaseline
+    };
+}
+
+/**
+ * Format seconds to MM:SS
+ */
+export function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }

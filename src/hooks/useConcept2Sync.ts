@@ -3,8 +3,9 @@ import { getProfile, getResults, getResultDetail, getStrokes } from '../api/conc
 import type { C2Result } from '../api/concept2.types';
 import { supabase, upsertWorkout } from '../services/supabase';
 import { calculateZoneDistribution } from '../utils/zones';
-import { calculateCanonicalName } from '../utils/workoutNaming';
+import { calculateCanonicalName, roundToStandardDistance } from '../utils/workoutNaming';
 import { saveFilteredPRs } from '../utils/prDetection';
+import { matchWorkoutToTemplate } from '../utils/templateMatching';
 
 export type SyncRange = 'all' | 'season' | '30days' | 'custom';
 
@@ -201,11 +202,11 @@ export const useConcept2Sync = () => {
                             const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
                             if (calculated && calculated !== 'Unknown') return calculated;
 
-                            // Fallback logic
+                            // Fallback logic with standard distance rounding
                             const type = summary.workout_type || '';
 
                             if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
-                                return `${Math.round(summary.distance)}m`;
+                                return `${roundToStandardDistance(summary.distance)}m`;
                             }
                             if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
                                 const mins = Math.round(summary.time / 600);
@@ -245,7 +246,13 @@ export const useConcept2Sync = () => {
                     }
 
 
-                    await upsertWorkout(record);
+                    const upsertedWorkout = await upsertWorkout(record);
+
+                    // Auto-match workout to template by canonical_name
+                    if (upsertedWorkout && upsertedWorkout.length > 0 && record.canonical_name) {
+                        const workoutId = upsertedWorkout[0].id;
+                        await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
+                    }
 
                     processed++;
                     setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered)`);

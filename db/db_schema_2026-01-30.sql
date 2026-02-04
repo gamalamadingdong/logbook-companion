@@ -717,6 +717,7 @@ CREATE TABLE public.workout_logs (
   duration_seconds numeric,
   zone_distribution jsonb DEFAULT '{}'::jsonb,
   canonical_name text,
+  manual_rwn text,
   CONSTRAINT workout_logs_pkey PRIMARY KEY (id),
   CONSTRAINT workout_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(user_id)
 );
@@ -754,5 +755,8 @@ CREATE TABLE public.workout_templates (
   signature_workout text UNIQUE,
   tags ARRAY DEFAULT '{}'::text[],
   workout_structure jsonb,
-  CONSTRAINT workout_templates_pkey PRIMARY KEY (id)
+  rwn text,
+  created_by uuid,
+  CONSTRAINT workout_templates_pkey PRIMARY KEY (id),
+  CONSTRAINT workout_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );

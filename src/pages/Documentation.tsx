@@ -287,18 +287,49 @@ export const Documentation: React.FC = () => {
 
                         <section>
                             <h3 className="text-lg font-semibold text-white mb-3">3. Extended Guidance (@)</h3>
-                            <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
                                     <div className="text-xs text-neutral-500 uppercase font-semibold mb-1">Stroke Rate</div>
-                                    <div className="font-mono text-emerald-400">@r20</div>
+                                    <div className="font-mono text-emerald-400 text-sm">@r20</div>
+                                    <div className="text-xs text-neutral-600 mt-1">or @18..22spm</div>
                                 </div>
                                 <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
                                     <div className="text-xs text-neutral-500 uppercase font-semibold mb-1">Pace Target</div>
-                                    <div className="font-mono text-emerald-400">@1:45</div>
+                                    <div className="font-mono text-emerald-400 text-sm">@1:45</div>
+                                    <div className="text-xs text-neutral-600 mt-1">or @2:05..2:10</div>
+                                </div>
+                                <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
+                                    <div className="text-xs text-neutral-500 uppercase font-semibold mb-1">Relative Pace</div>
+                                    <div className="font-mono text-emerald-400 text-sm">@2k+10</div>
+                                    <div className="text-xs text-neutral-600 mt-1">PR + offset</div>
                                 </div>
                                 <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
                                     <div className="text-xs text-neutral-500 uppercase font-semibold mb-1">Zone</div>
-                                    <div className="font-mono text-emerald-400">@UT2</div>
+                                    <div className="font-mono text-emerald-400 text-sm">@UT2</div>
+                                    <div className="text-xs text-neutral-600 mt-1">Intensity zones</div>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-4 bg-neutral-950 p-4 rounded border border-neutral-800">
+                                <h4 className="text-sm font-medium text-neutral-300 mb-2">Block Tags (Semantic Structure)</h4>
+                                <p className="text-xs text-neutral-500 mb-3">Use block tags to denote warmup, cooldown, and test segments:</p>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex gap-3">
+                                        <code className="text-emerald-400">[w]10:00</code>
+                                        <span className="text-neutral-600">→ Warmup (10 min)</span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <code className="text-emerald-400">[c]5:00</code>
+                                        <span className="text-neutral-600">→ Cooldown (5 min)</span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <code className="text-emerald-400">[t]2000m@2k</code>
+                                        <span className="text-neutral-600">→ Test piece (2k at PR pace)</span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <code className="text-emerald-400">[w]10:00 + 5x500m/1:00r + [c]5:00</code>
+                                        <span className="text-neutral-600">→ Complete workout with W/U and C/D</span>
+                                    </div>
                                 </div>
                             </div>
                         </section>

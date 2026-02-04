@@ -76,7 +76,7 @@ export async function fetchTemplateById(id: string): Promise<WorkoutTemplate | n
  */
 export async function updateTemplate(
     id: string,
-    updates: Partial<Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type' | 'training_zone' | 'workout_structure' | 'validated'>>
+    updates: Partial<Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type' | 'training_zone' | 'workout_structure' | 'is_test'>>
 ): Promise<WorkoutTemplate | null> {
     const { data, error } = await supabase
         .from('workout_templates')
@@ -101,12 +101,20 @@ export async function updateTemplate(
  */
 export async function createTemplate(
     template: Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type'> &
-        Partial<Pick<WorkoutTemplate, 'training_zone' | 'workout_structure' | 'difficulty_level'>>
+        Partial<Pick<WorkoutTemplate, 'training_zone' | 'workout_structure' | 'difficulty_level' | 'is_test'>>
 ): Promise<WorkoutTemplate> {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('You must be logged in to create templates');
+    }
+
     const { data, error } = await supabase
         .from('workout_templates')
         .insert({
             ...template,
+            created_by: user.id,
             status: 'draft',
             validated: false
         })

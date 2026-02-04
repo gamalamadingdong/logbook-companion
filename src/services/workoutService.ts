@@ -187,7 +187,7 @@ export const workoutService = {
             .from('workout_logs')
             .select('*')
             .eq('canonical_name', workoutName)
-            .order('completed_at', { ascending: true }); // Oldest first for progress chart
+            .order('completed_at', { ascending: false }); // Most recent first
 
         if (error) throw error;
 

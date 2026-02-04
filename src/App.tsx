@@ -15,6 +15,7 @@ import { Feedback } from './pages/Feedback';
 import { About } from './pages/About';
 import { CoachSessions } from './pages/CoachSessions';
 import { TemplateLibrary } from './pages/TemplateLibrary';
+import { TemplateDetail } from './pages/TemplateDetail';
 import { Documentation } from './pages/Documentation';
 
 import { Layout } from './components/Layout';
@@ -122,6 +123,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <TemplateLibrary />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/templates/:templateId"
+            element={
+              <ProtectedRoute>
+                <TemplateDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/templates/:templateId/edit"
+            element={
+              <ProtectedRoute>
+                <TemplateDetail />
               </ProtectedRoute>
             }
           />

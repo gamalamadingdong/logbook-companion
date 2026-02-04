@@ -38,12 +38,20 @@ For workouts with uniform work and rest steps:
 - `3x20:00/2:00r` → 3 intervals of 20 minutes with 2 minutes rest.
 - `10x1:00/1:00r` → 10 intervals of 1 minute on, 1 minute off.
 
+**Single Interval Notation:**
+For a single interval with rest, the `1x` prefix may be omitted:
+- `500m@2k/1:00r` → Equivalent to `1x500m@2k/1:00r`
+- `15:00@UT1/2:00r` → Equivalent to `1x15:00@UT1/2:00r`
+
+> **Note:** This shorthand is parsed as a 1-repeat interval, not steady state, due to the presence of rest.
+
 ### 2.2 Steady State
-Single continuous efforts are denoted by their total duration or distance.
+Single continuous efforts are denoted by their total duration or distance (without rest).
 
 **Examples:**
 - `10000m` → 10k steady state.
 - `30:00` → 30 minutes steady state.
+- `5000m@UT2` → 5k at UT2 pace (continuous, no rest).
 
 ## 3. Component Definitions
 
@@ -161,12 +169,16 @@ Examples: `v500m/1000m/500m` or `(500m/1:00r) + (1000m/2:00r)`
 
 ```ebnf
 workout         = segment_sequence , [ split_config ] ;
-segment_sequence= simple_workout | interval_workout | compound_workout ;
+segment_sequence= tagged_segment | interval_workout | compound_workout ;
 
-compound_workout= simple_workout , { " + " , simple_workout } ;
+compound_workout= tagged_segment , { " + " , tagged_segment } ;
 
-simple_workout  = work_component , [ guidance ] ;
+tagged_segment  = [ block_tag ] , simple_workout ;
+block_tag       = "[" , ( "w" | "c" | "t" ) , "]" ;
+
+simple_workout  = work_component , [ guidance ] , [ inline_tag ] ;
 interval_workout= repeats , "x" , work_component , [ "/" , rest_component ] , [ guidance ] ;
+inline_tag      = "#" , ( "warmup" | "cooldown" | "test" | "benchmark" ) ;
 
 repeats         = integer ;
 work_component  = distance | time | calories ;
@@ -221,23 +233,55 @@ RWN supports non-rowing activities using a `Type:` prefix.
 
 
 ## 10. Tags & Metadata
-RWN supports metadata tagging for workout segments using the `#` symbol.
+RWN supports metadata tagging for workout segments to indicate their purpose (warmup, cooldown, test).
 
-### 10.1 Standard Tags
-Tags are used to annotate the purpose of a segment.
--   `#warmup`: Denotes a warmup segment. `erg-link` may eventually treat this as a separate program or unverified segment.
+### 10.1 Block Tags (Bracket Notation) - Preferred
+Block tags use single-letter bracket prefixes to mark segment purpose.
+
+**Syntax:** `[tag]segment`
+
+| Tag | Meaning | Example |
+|:----|:--------|:--------|
+| `[w]` | Warmup | `[w]10:00` |
+| `[c]` | Cooldown | `[c]5:00` |
+| `[t]` | Test/Benchmark | `[t]2000m` |
+
+**Examples:**
+- `[w]10:00 + 5x500m/1:00r + [c]5:00` → Warmup, main intervals, cooldown
+- `[w]2000m + [t]2000m` → Warmup before a 2k test
+- `[w]10:00 + 4x2000m/5:00r` → Just warmup, no cooldown
+
+> **Note:** Block tags are **prefixes** and do not conflict with split notation (Section 6), which uses **suffixes** containing numbers: `10000m [2000m]`. The parser distinguishes by:
+> - `[w]`, `[c]`, `[t]` → Single letter = block tag
+> - `[2000m]`, `[5:00]` → Number + unit = split config
+
+### 10.2 Inline Tags (Hash Notation) - Alternative
+For inline tagging or free-form annotations, the `#` symbol can be used as a suffix.
+
+**Syntax:** `segment #tag`
+
+**Standard Tags:**
+-   `#warmup`: Denotes a warmup segment.
 -   `#cooldown`: Denotes a cooldown segment.
--   `#test` (or `#benchmark`): Flags the workout as a benchmark/test piece.
+-   `#test` (or `#benchmark`): Flags as a benchmark/test piece.
 
-### 10.2 Syntax
-Tags are appended to the component description.
+**Examples:**
 -   `2000m #warmup`
 -   `10:00 #cooldown`
--   `2000m #warmup + 4x500m/2r + 1000m #cooldown`
+-   `2000m #warmup + 4x500m/2:00r + 1000m #cooldown`
 
-### 10.3 Parsing Behavior
--   Tags are stripped from the core component parsing (e.g. `2000m` is still parsed as Distance).
--   Tags are stored in the workout structure's metadata.
+### 10.3 Canonical Form
+When regenerating RWN strings, the **bracket notation** is the canonical output format:
+- Input: `2000m #warmup + 5x500m/1:00r + 1000m #cooldown`
+- Canonical: `[w]2000m + 5x500m/1:00r + [c]1000m`
+
+Both notations parse to the same structure; bracket notation is preferred for compactness.
+
+### 10.4 Parsing Behavior
+-   Tags are stripped from the core component parsing (e.g., `[w]2000m` parses the `2000m` as Distance).
+-   Tags are stored in the segment's metadata (`blockType: 'warmup' | 'cooldown' | 'test' | 'main'`).
+-   Untagged segments default to `blockType: 'main'`.
+-   Tags are **semantic metadata only** — they do NOT affect the canonical_name used for template matching.
 
 ## 11. Implementation & Verification Rules
 

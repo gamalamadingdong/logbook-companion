@@ -40,8 +40,8 @@ export const WorkoutHistory: React.FC = () => {
         </div>
     );
 
-    // Format Data for Chart
-    const chartData = history.map(h => ({
+    // Format Data for Chart (oldest to newest for left-to-right progression)
+    const chartData = [...history].reverse().map(h => ({
         date: new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }),
         watts: h.watts,
         dateObj: new Date(h.date) // For sorting if needed
