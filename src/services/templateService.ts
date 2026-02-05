@@ -21,11 +21,11 @@ export async function fetchTemplates(filters: TemplateFilters = {}): Promise<Wor
     // Apply sorting based on sortBy parameter
     if (filters.sortBy === 'recent') {
         query = query.order('last_used_at', { ascending: false, nullsFirst: false })
-                     .order('name', { ascending: true });
+            .order('name', { ascending: true });
     } else {
         // Default to 'popular' sorting
         query = query.order('usage_count', { ascending: false })
-                     .order('name', { ascending: true });
+            .order('name', { ascending: true });
     }
 
     // Default to 'erg' type (rowing workouts)
@@ -115,7 +115,7 @@ export async function createTemplate(
 ): Promise<WorkoutTemplate> {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
         throw new Error('You must be logged in to create templates');
     }
@@ -183,9 +183,73 @@ export async function findDuplicateTemplate(
 
     // Find exact JSON match
     const structureStr = JSON.stringify(workoutStructure);
-    const duplicate = data.find(t => 
+    const duplicate = data.find(t =>
         t.workout_structure && JSON.stringify(t.workout_structure) === structureStr
     );
 
     return duplicate || null;
+}
+
+export interface TemplateHistoryItem {
+    id: string;
+    workout_date: string;
+    distance: number;
+    time: number; // deciseconds
+    stroke_rate: number;
+    watts: number | null;
+}
+
+/**
+ * Fetch workout history for a specific template
+ */
+export async function getTemplateHistory(templateId: string, userId: string): Promise<TemplateHistoryItem[]> {
+    if (!templateId || !userId) return [];
+
+    // Query workout logs linked to this template
+    // Note: workout_logs stores time in deciseconds
+    // We want the most recent ones first
+    const { data, error } = await supabase
+        .from('workout_logs')
+        .select('id, workout_date, distance, time, stroke_rate, watts')
+        .eq('template_id', templateId)
+        .eq('user_id', userId)
+        .order('workout_date', { ascending: true }); // Ascending for chart
+
+    if (error) {
+        console.error('Error fetching template history:', error);
+        return [];
+    }
+
+    return data || [];
+}
+
+export type PersonalBest = TemplateHistoryItem & {
+    // Additional fields if needed, but TemplateHistoryItem has what we need
+};
+
+/**
+ * Fetch the personal best (highest watts) for a template
+ */
+export async function getTemplatePersonalBest(templateId: string, userId: string): Promise<PersonalBest | null> {
+    if (!templateId || !userId) return null;
+
+    const { data, error } = await supabase
+        .from('workout_logs')
+        .select('id, workout_date, distance, time, stroke_rate, watts')
+        .eq('template_id', templateId)
+        .eq('user_id', userId)
+        .order('watts', { ascending: false })
+        .order('completed_at', { ascending: true }) // First time achieved is the tie-breaker
+        .limit(1)
+        .single();
+
+    if (error) {
+        // PGRST116 is "JSON object returned null" (no rows found for .single())
+        if (error.code !== 'PGRST116') {
+            console.error('Error fetching personal best:', error);
+        }
+        return null;
+    }
+
+    return data as PersonalBest;
 }

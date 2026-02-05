@@ -12,6 +12,7 @@ import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/wor
 import { parseRWN } from '../utils/rwnParser';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateBucketsFromStrokes } from '../utils/zones';
+import { getMainBlockIndices } from '../utils/workoutAnalysis';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructure.types';
@@ -39,7 +40,7 @@ export const WorkoutDetail: React.FC = () => {
     // Template Creation State
     const [showTemplateEditor, setShowTemplateEditor] = useState(false);
     const [linkedTemplate, setLinkedTemplate] = useState<WorkoutTemplate | null>(null);
-    
+
     // Template Linking State
     const [showTemplateLinking, setShowTemplateLinking] = useState(false);
     const [availableTemplates, setAvailableTemplates] = useState<Array<{
@@ -82,7 +83,7 @@ export const WorkoutDetail: React.FC = () => {
                         .select('id')
                         .eq('external_id', id)
                         .single();
-                    
+
                     if (dbRecord) {
                         setDbId(dbRecord.id);
                     }
@@ -285,30 +286,79 @@ export const WorkoutDetail: React.FC = () => {
             totalDistance: 0,
             restTime: 0,
             isInterval: false,
-            workIntervals: []
+            workIntervals: [],
+            sessionPaceFormatted: '-' // New field for session totals
         };
 
         const totalSeconds = (detail.time / 10);
-        const avgPaceSeconds = detail.distance ? (totalSeconds * 500) / detail.distance : 0;
-        const avgPaceMins = Math.floor(avgPaceSeconds / 60);
-        const avgPaceSecs = (avgPaceSeconds % 60).toFixed(1);
-        const avgPaceFormatted = detail.distance ? `${avgPaceMins}:${avgPaceSecs.padStart(4, '0')}` : '-';
 
-        const workIntervals = (detail.workout?.intervals || []).filter((i: C2Interval) => i.type !== 'rest');
+        // Session Totals (Includes Warmup/Cooldown)
+        const totalDistance = detail.distance + (detail.rest_distance || 0);
+        const sessionPaceSeconds = detail.distance ? (totalSeconds * 500) / detail.distance : 0;
+        const sessionPaceMins = Math.floor(sessionPaceSeconds / 60);
+        const sessionPaceSecs = (sessionPaceSeconds % 60).toFixed(1);
+        const sessionPaceFormatted = detail.distance ? `${sessionPaceMins}:${sessionPaceSecs.padStart(4, '0')}` : '-';
+
+        // Work Block Analysis
+        // 1. Resolve Structure
+        let structure: WorkoutStructure | null = null;
+        // Check linked template first (if available), then manual RWN override
+        // Actually manual_rwn might be on the detail even if not "editing"
+        if (detail.manual_rwn) {
+            structure = parseRWN(detail.manual_rwn);
+        } else if (linkedTemplate?.workout_structure) {
+            structure = linkedTemplate.workout_structure;
+        }
+
+        // 2. Identify Main Intervals
+        const mainIndices = structure ? getMainBlockIndices(structure) : null;
+
+        // 3. Filter C2 Intervals
+        const allIntervals = detail.workout?.intervals || [];
+        const validIntervals = allIntervals.filter((i: C2Interval) => i.type !== 'rest'); // C2 sometimes includes explicit rest rows
+
+        let workIntervals = validIntervals;
+        if (mainIndices && mainIndices.length > 0) {
+            // Safety: Only filter if lengths roughly align or if we are confident
+            // If mainIndices asks for index 5 but we only have 3 intervals, don't crash
+            workIntervals = validIntervals.filter((_, idx) => mainIndices.includes(idx));
+        }
+
+        // 4. Calculate Work Metrics
+        const isInterval = !!detail.workout?.intervals;
+
+        // Work Distance (exclude Rest segments from total distance?)
+        // If we filtered for mainIndices, we sum those. 
+        // If no intervals (Single Distance), workDistance = totalDistance usually
         const workDistance = workIntervals.length > 0
             ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.distance, 0)
-            : detail.distance;
+            : detail.distance; // Fallback for single piece
+
         const workTime = workIntervals.length > 0
             ? workIntervals.reduce((sum: number, i: C2Interval) => sum + i.time, 0) / 10
             : totalSeconds;
-        const totalDistance = detail.distance + (detail.rest_distance || 0);
+
         const restTime = totalSeconds - workTime;
-        const isInterval = !!detail.workout?.intervals;
 
-        return { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals };
-    }, [detail]);
+        // Calculate Average Pace for WORK ONLY
+        const avgPaceSeconds = workDistance ? (workTime * 500) / workDistance : 0;
+        const avgPaceMins = Math.floor(avgPaceSeconds / 60);
+        const avgPaceSecs = (avgPaceSeconds % 60).toFixed(1);
+        const avgPaceFormatted = workDistance ? `${avgPaceMins}:${avgPaceSecs.padStart(4, '0')}` : '-';
 
-    const { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals } = stats;
+        return {
+            avgPaceFormatted,
+            workDistance,
+            workTime,
+            totalDistance,
+            restTime,
+            isInterval,
+            workIntervals,
+            sessionPaceFormatted
+        };
+    }, [detail, linkedTemplate]); // Added linkedTemplate dependency
+
+    const { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals, sessionPaceFormatted } = stats;
 
     // 4. Power Buckets
     const activeBuckets = useMemo(() => {
@@ -562,7 +612,7 @@ export const WorkoutDetail: React.FC = () => {
                                         .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
                                         .eq('workout_type', 'erg')
                                         .order('name', { ascending: true });
-                                    
+
                                     if (error) throw error;
                                     setAvailableTemplates(data || []);
                                 } catch (err) {
@@ -675,17 +725,33 @@ export const WorkoutDetail: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {
                     [
-                        { label: 'Avg Pace', value: avgPaceFormatted, unit: '/500m', icon: <Activity size={18} />, color: 'text-blue-400' },
+                        {
+                            label: 'Work Pace',
+                            value: avgPaceFormatted,
+                            unit: '/500m',
+                            icon: <Wind size={18} />,
+                            color: 'text-blue-400',
+                            subtext: isInterval ? 'Main set average' : 'Clean average'
+                        },
+                        {
+                            label: 'Session Pace',
+                            value: sessionPaceFormatted,
+                            unit: '/500m',
+                            icon: <Timer size={18} />,
+                            color: 'text-neutral-400',
+                            subtext: 'Includes w/up & cool'
+                        },
                         {
                             label: 'Avg Watts',
-                            // If no watt data, calculate from avg pace. Avoid using drag_factor (usually ~130) as watts.
-                            value: detail.watts || (detail.time ? calculateWatts((detail.time / 10 / detail.distance) * 500) : '-'),
+                            // If no watt data, calculate from work pace (avgPaceFormatted). 
+                            // Note: avgPaceFormatted is string "M:SS.d". Need seconds.
+                            value: detail.watts || (workTime && workDistance ? Math.round(calculateWatts((workTime * 500) / workDistance)) : '-'),
                             unit: 'w',
                             icon: <Zap size={18} />,
-                            color: 'text-yellow-400'
+                            color: 'text-yellow-400',
+                            subtext: 'Based on work set'
                         },
                         { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
-                        { label: 'Rest Distance', value: detail.rest_distance || 0, unit: 'm', icon: <Wind size={18} />, color: 'text-neutral-400' },
                     ].map((stat, i) => (
                         <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
                             <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
@@ -857,16 +923,16 @@ export const WorkoutDetail: React.FC = () => {
                             try {
                                 // Link the workout to the newly created template
                                 await workoutService.linkWorkoutToTemplate(dbId, templateId);
-                                
+
                                 // Fetch and display the linked template
                                 const template = await fetchTemplateById(templateId);
                                 setLinkedTemplate(template);
-                                
+
                                 // Update the detail to reflect the link
                                 if (detail) {
                                     setDetail({ ...detail, template_id: templateId });
                                 }
-                                
+
                                 console.log('Template created and linked successfully!');
                             } catch (err) {
                                 console.error('Failed to link workout to template:', err);
@@ -928,7 +994,7 @@ export const WorkoutDetail: React.FC = () => {
                                 <div className="text-center py-8 text-neutral-400">
                                     Loading templates...
                                 </div>
-                            ) : availableTemplates.filter(t => 
+                            ) : availableTemplates.filter(t =>
                                 !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())
                             ).length === 0 ? (
                                 <div className="text-center py-8 text-neutral-400">
@@ -939,16 +1005,16 @@ export const WorkoutDetail: React.FC = () => {
                                     .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
                                     .map((template) => {
                                         // Determine structure type for visual indication
-                                        const structureType = template.is_steady_state 
-                                            ? 'Steady State' 
-                                            : template.is_interval 
-                                                ? 'Interval' 
-                                                : template.workout_structure 
-                                                    ? 'Variable' 
+                                        const structureType = template.is_steady_state
+                                            ? 'Steady State'
+                                            : template.is_interval
+                                                ? 'Interval'
+                                                : template.workout_structure
+                                                    ? 'Variable'
                                                     : 'Unknown';
-                                        
+
                                         // Format distance/duration if available
-                                        const workoutInfo = template.distance 
+                                        const workoutInfo = template.distance
                                             ? `${template.distance}m`
                                             : template.estimated_duration
                                                 ? `${Math.floor(template.estimated_duration / 60)}min`

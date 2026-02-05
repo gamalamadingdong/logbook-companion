@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Edit, Users, TrendingUp, Calendar, ChevronDown, ChevronUp, Clock, Target, Lightbulb, Compass } from 'lucide-react';
-import { fetchTemplateById } from '../services/templateService';
+import { ArrowLeft, Edit, Users, TrendingUp, Calendar, ChevronDown, ChevronUp, Clock, Target, Lightbulb, Compass, Trophy, ArrowRight } from 'lucide-react';
+import { fetchTemplateById, getTemplateHistory, getTemplatePersonalBest } from '../services/templateService';
+import type { PersonalBest, TemplateHistoryItem } from '../services/templateService';
 import { supabase } from '../services/supabase';
 import type { WorkoutTemplate } from '../types/workoutStructure.types';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatDuration, estimateDuration } from '../utils/rwnParser';
 import { useAuth } from '../hooks/useAuth';
 import { WorkoutVisualizer } from '../components/WorkoutVisualizer';
@@ -15,13 +17,15 @@ export const TemplateDetail: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
-    
+
     const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
     const [loading, setLoading] = useState(true);
     // const [starting, setStarting] = useState(false);
     const [showJson, setShowJson] = useState(false);
     const [showEditor, setShowEditor] = useState(false);
     const [personalizedPaces, setPersonalizedPaces] = useState<Record<string, { split: number; label: string; isRange?: boolean; splitMax?: number }>>({});
+    const [history, setHistory] = useState<TemplateHistoryItem[]>([]);
+    const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
 
     // Check if we're on the edit route
     useEffect(() => {
@@ -30,7 +34,7 @@ export const TemplateDetail: React.FC = () => {
 
     useEffect(() => {
         if (!templateId) return;
-        
+
         const loadTemplate = async () => {
             setLoading(true);
             try {
@@ -38,11 +42,20 @@ export const TemplateDetail: React.FC = () => {
                 setTemplate(data);
 
                 // Fetch user baseline if logged in
-                if (user?.id && data) {
+                if (user?.id) {
+                    // Load baseline
                     const baselineWatts = await getUserBaseline2kWatts(user.id, supabase);
 
+                    // Load history
+                    const historyData = await getTemplateHistory(templateId, user.id);
+                    setHistory(historyData);
+
+                    // Load Personal Best
+                    const pbData = await getTemplatePersonalBest(templateId, user.id);
+                    setPersonalBest(pbData);
+
                     // Calculate personalized paces for all targets in structure
-                    if (data.workout_structure) {
+                    if (data && data.workout_structure) {
                         const targets = extractPaceTargets(data.workout_structure);
                         const paces: Record<string, { split: number; label: string; isRange?: boolean; splitMax?: number }> = {};
                         targets.forEach(target => {
@@ -73,38 +86,38 @@ export const TemplateDetail: React.FC = () => {
         }
     };
 
-/*     const handleStartWorkout = async () => {
-        if (!template || !user) return;
-
-        setStarting(true);
-        try {
-            // Create a planned workout from this template
-            const { data: workout, error } = await supabase
-                .from('workout_logs')
-                .insert({
-                    user_id: user.id,
-                    workout_name: template.name,
-                    workout_type: template.workout_type,
-                    status: 'planned',
-                    planned_date: new Date().toISOString(),
-                    template_id: templateId,
-                    // Store the template structure for reference
-                    notes: template.description
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            // Navigate to workout detail page
-            navigate(`/workouts/${workout.id}`);
-        } catch (err) {
-            console.error('Failed to start workout:', err);
-            alert('Failed to start workout. Please try again.');
-        } finally {
-            setStarting(false);
-        }
-    }; */
+    /*     const handleStartWorkout = async () => {
+            if (!template || !user) return;
+    
+            setStarting(true);
+            try {
+                // Create a planned workout from this template
+                const { data: workout, error } = await supabase
+                    .from('workout_logs')
+                    .insert({
+                        user_id: user.id,
+                        workout_name: template.name,
+                        workout_type: template.workout_type,
+                        status: 'planned',
+                        planned_date: new Date().toISOString(),
+                        template_id: templateId,
+                        // Store the template structure for reference
+                        notes: template.description
+                    })
+                    .select()
+                    .single();
+    
+                if (error) throw error;
+    
+                // Navigate to workout detail page
+                navigate(`/workouts/${workout.id}`);
+            } catch (err) {
+                console.error('Failed to start workout:', err);
+                alert('Failed to start workout. Please try again.');
+            } finally {
+                setStarting(false);
+            }
+        }; */
 
     if (loading) {
         return (
@@ -123,8 +136,8 @@ export const TemplateDetail: React.FC = () => {
     }
 
     // Calculate duration estimate if we have structure
-    const estimate = template.workout_structure 
-        ? estimateDuration(JSON.stringify(template.workout_structure)) 
+    const estimate = template.workout_structure
+        ? estimateDuration(JSON.stringify(template.workout_structure))
         : null;
 
     return (
@@ -146,13 +159,12 @@ export const TemplateDetail: React.FC = () => {
 
                         <div className="flex flex-wrap items-center gap-4 mt-4">
                             {template.training_zone && (
-                                <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                    template.training_zone === 'UT2' ? 'bg-blue-900/50 text-blue-300' :
+                                <span className={`px-3 py-1 rounded-lg text-sm font-medium ${template.training_zone === 'UT2' ? 'bg-blue-900/50 text-blue-300' :
                                     template.training_zone === 'UT1' ? 'bg-cyan-900/50 text-cyan-300' :
-                                    template.training_zone === 'AT' ? 'bg-yellow-900/50 text-yellow-300' :
-                                    template.training_zone === 'TR' ? 'bg-orange-900/50 text-orange-300' :
-                                    'bg-red-900/50 text-red-300'
-                                }`}>
+                                        template.training_zone === 'AT' ? 'bg-yellow-900/50 text-yellow-300' :
+                                            template.training_zone === 'TR' ? 'bg-orange-900/50 text-orange-300' :
+                                                'bg-red-900/50 text-red-300'
+                                    }`}>
                                     {template.training_zone}
                                 </span>
                             )}
@@ -204,7 +216,7 @@ export const TemplateDetail: React.FC = () => {
                         )}
                     </div>
                 )}
-                
+
                 <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
                     <div className="flex items-center gap-3 text-neutral-400 mb-2">
                         <Users size={20} />
@@ -229,7 +241,7 @@ export const TemplateDetail: React.FC = () => {
                         <span className="text-sm">Last Used</span>
                     </div>
                     <div className="text-xl font-bold text-white">
-                        {template.last_used_at 
+                        {template.last_used_at
                             ? new Date(template.last_used_at).toLocaleDateString()
                             : 'Never'
                         }
@@ -237,11 +249,88 @@ export const TemplateDetail: React.FC = () => {
                 </div>
             </div>
 
+            {/* Performance Trend */}
+            {history.length > 1 && (
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 mb-8">
+                    <div className="flex items-center gap-2 mb-6">
+                        <TrendingUp size={20} className="text-emerald-400" />
+                        <h2 className="text-xl font-bold text-white">Performance Trend</h2>
+                    </div>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={history}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                <XAxis
+                                    dataKey="workout_date"
+                                    stroke="#666"
+                                    tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    tick={{ fontSize: 12 }}
+                                />
+                                <YAxis
+                                    stroke="#666"
+                                    domain={['auto', 'auto']}
+                                    tick={{ fontSize: 12 }}
+                                    unit="w"
+                                />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#171717', borderColor: '#333', color: '#fff' }}
+                                    formatter={(value: any) => [`${Math.round(value)}w`, 'Power']}
+                                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="watts"
+                                    name="Power"
+                                    stroke="#10b981"
+                                    strokeWidth={3}
+                                    dot={{ fill: '#10b981', r: 4 }}
+                                    activeDot={{ r: 6 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Personal Best Card - Prominent Display */}
+            {personalBest && (
+                <div onClick={() => navigate(`/workouts/${personalBest.id}`)} className="bg-gradient-to-r from-amber-900/40 to-yellow-900/20 border border-amber-700/30 rounded-xl p-6 mb-8 cursor-pointer hover:border-amber-500/50 transition-colors group">
+                    <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400">
+                                <Trophy size={24} />
+                            </div>
+                            <div>
+                                <div className="text-amber-200 font-bold text-lg">Personal Best</div>
+                                <div className="text-amber-500/80 text-sm">
+                                    Achieved on {new Date(personalBest.workout_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                </div>
+                            </div>
+                        </div>
+                        <ArrowRight className="text-amber-700 group-hover:text-amber-400 transition-colors" size={24} />
+                    </div>
+
+                    <div className="mt-4 flex items-baseline gap-1">
+                        <span className="text-4xl font-bold text-white">{Math.round(personalBest.watts || 0)}</span>
+                        <span className="text-amber-500/80 font-medium">watts</span>
+                    </div>
+
+                    {/* Show split if available */}
+                    {personalBest.time > 0 && personalBest.distance > 0 && (
+                        <div className="mt-2 text-sm text-neutral-400">
+                            Split: <span className="text-white font-mono">
+                                {formatDuration(500 * (personalBest.time / 10) / personalBest.distance)}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Workout Details */}
             {template.workout_structure && (
                 <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 mb-8">
                     <h2 className="text-xl font-bold text-white mb-6">Workout Structure</h2>
-                    
+
                     {/* Visual Workout Breakdown */}
                     <WorkoutVisualizer structure={template.workout_structure} />
 
@@ -357,7 +446,7 @@ export const TemplateDetail: React.FC = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Editor Modal */}
             {showEditor && templateId && (
                 <TemplateEditor

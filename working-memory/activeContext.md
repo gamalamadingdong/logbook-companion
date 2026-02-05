@@ -4,6 +4,29 @@
 ## Current Focus
 **Template system enhancements complete - Ready for analytics improvements**
 
+## Recent Changes (2026-02-04 Session 3)
+
+### ✅ Fixed: Token Refresh Race Conditions & Scopes
+1.  **Web Locks Implemented**:
+    - Problem: Multiple tabs refreshing token simultaneously caused race conditions and 400 Bad Request errors.
+    - Solution: Used `navigator.locks` to mutex-guard the network refresh.
+    - Added optimistic check to reuse tokens refreshed by other tabs.
+    - **File**: [`concept2.ts`](src/api/concept2.ts)
+
+2.  **Scope Mismatch Fixed**:
+    - Problem: Old tokens had `results:write` scope which is no longer valid/configured, causing `invalid_grant`.
+    - Solution: Explicitly downscoped refresh request to `user:read,results:read`.
+
+### ✅ Implemented: Work-Only Analysis & Template Trends
+1.  **Work-Only Metrics**:
+    - **Session Pace**: Cleanly separated from Work Pace/Distance.
+    - **Logic**: `getMainBlockIndices()` filters out warmups/cooldowns.
+    - **UI**: Added "Session Pace" card to `WorkoutDetail.tsx`.
+
+2.  **Template Effectiveness Chart**:
+    - Added **Performance Trend** chart to `TemplateDetail.tsx`.
+    - Visualizes historical Watts for the specific template over time.
+
 ## Recent Changes (2026-02-04 Session 2)
 
 ### ✅ Fixed: Template Linking & Display Issues
@@ -125,20 +148,16 @@
 ## Next Steps
 
 ### Ready for Implementation
-1. **Template Effectiveness Tracking**
-   - Show progress with specific templates over time
-   - Compare workouts using same template
-   - Display personal records for each template type
+1.  **Analytics/Analysis Improvements**
+    - Training zone distribution
+    - Volume trends by template type
+    - Best Efforts per template
 
-2. **Backfill Remaining Workouts**
-   - Auto-match entire workout history to templates
-   - Boost "workouts categorized" count
-   - Script to run bulk template matching
+2.  **erg-link Integration**
+    - Support `target_*_max` fields (ranges) in PM5 programming
 
-3. **Analytics/Analysis Improvements**
-   - Training zone distribution
-   - Volume trends by template type
-   - Workout frequency heatmaps
+### Completed / Verified
+- **Backfill Remaining Workouts**: Script confirmed all workouts are already linked to templates upon inspection (2026-02-04).
 
 ### Blocked/Waiting
 - **Migration Pending**: `last_used_at` field needs manual SQL execution

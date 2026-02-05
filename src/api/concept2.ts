@@ -17,7 +17,7 @@ async function clearAllTokens() {
     localStorage.removeItem('concept2_token');
     localStorage.removeItem('concept2_refresh_token');
     localStorage.removeItem('concept2_expires_at');
-    
+
     // Clear database tokens so they don't get restored on next login
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -32,7 +32,7 @@ async function clearAllTokens() {
     } catch (err) {
         console.error('Failed to clear C2 tokens from database:', err);
     }
-    
+
     // Dispatch reconnect-required event for UI to handle
     window.dispatchEvent(new CustomEvent('concept2-reconnect-required'));
 }
@@ -41,69 +41,107 @@ async function clearAllTokens() {
 let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(refreshToken: string): Promise<string> {
+    // Deduplicate requests in the SAME tab
     if (refreshPromise) {
-        console.log('Refresh already in progress, attaching to existing promise...');
+        console.log('Refresh already in progress (local), attaching to existing promise...');
         return refreshPromise;
     }
 
     refreshPromise = (async () => {
-        const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-        const clientSecret = import.meta.env.VITE_CONCEPT2_CLIENT_SECRET;
+        // Deduplicate requests ACROSS tabs using Web Locks API
+        // This ensures only one tab attempts the HTTP refresh at a time
+        return navigator.locks.request('concept2_refresher_lock', async () => {
+            // 1. Check if token was updated by another tab while we were waiting for the lock
+            const currentStoredRefresh = localStorage.getItem('concept2_refresh_token');
+            const currentStoredToken = localStorage.getItem('concept2_token');
+            const currentExpiresAt = localStorage.getItem('concept2_expires_at');
 
-        if (!clientId || !clientSecret) {
-            throw new Error("Missing Concept2 Client ID or Secret in environment variables.");
-        }
+            // If the refresh token changed, or if the expiry is now well in the future, return the stored token
+            const isFresh = currentExpiresAt && (new Date(currentStoredRefresh ? currentExpiresAt : '').getTime() > Date.now() + 5 * 60 * 1000);
 
-        const params = new URLSearchParams();
-        params.append('client_id', clientId);
-        params.append('client_secret', clientSecret);
-        params.append('grant_type', 'refresh_token');
-        params.append('refresh_token', refreshToken);
-
-        try {
-            console.log('Initiating unique token refresh request...');
-            const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            });
-
-            const newToken = response.data.access_token;
-            const newRefreshToken = response.data.refresh_token;
-
-            localStorage.setItem('concept2_token', newToken);
-            if (newRefreshToken) {
-                localStorage.setItem('concept2_refresh_token', newRefreshToken);
-            }
-            if (response.data.expires_in) {
-                const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
-                localStorage.setItem('concept2_expires_at', expiresAt);
+            if ((currentStoredRefresh && currentStoredRefresh !== refreshToken) || (isFresh && currentStoredToken)) {
+                console.log('Token was refreshed by another tab/process. Using updated token.');
+                if (currentStoredToken) return currentStoredToken;
             }
 
-            // Persist to DB async (don't block)
-            supabase.auth.getUser().then(({ data: { user } }) => {
-                if (user) {
-                    supabase.from('user_integrations').upsert({
-                        user_id: user.id,
-                        concept2_token: newToken,
-                        concept2_refresh_token: newRefreshToken,
-                        concept2_expires_at: response.data.expires_in
-                            ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
-                            : undefined
-                    }, { onConflict: 'user_id' }).then(() => console.log('DB Token Update Success'));
+            // 2. Proceed with actual Network Refresh
+            const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
+            const clientSecret = import.meta.env.VITE_CONCEPT2_CLIENT_SECRET;
+
+            if (!clientId || !clientSecret) {
+                throw new Error("Missing Concept2 Client ID or Secret in environment variables.");
+            }
+
+            const params = new URLSearchParams();
+            params.append('client_id', clientId);
+            params.append('client_secret', clientSecret);
+            params.append('grant_type', 'refresh_token');
+            // Use the LATEST refresh token if possible, though 'refreshToken' arg is usually it
+            params.append('refresh_token', refreshToken);
+            // Explicitly request the scopes we want. This handles cases where:
+            // 1. The original token had scopes that are no longer allowed (e.g. results:write)
+            // 2. We want to ensure we stay within our desired permission set
+            params.append('scope', 'user:read,results:read');
+
+            try {
+                console.log('Initiating unique token refresh request (network)...');
+                const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
+
+                const newToken = response.data.access_token;
+                const newRefreshToken = response.data.refresh_token;
+
+                localStorage.setItem('concept2_token', newToken);
+                if (newRefreshToken) {
+                    localStorage.setItem('concept2_refresh_token', newRefreshToken);
                 }
-            });
+                if (response.data.expires_in) {
+                    const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
+                    localStorage.setItem('concept2_expires_at', expiresAt);
+                }
 
-            return newToken;
-        } catch (error: any) {
-            if (error.response && error.response.status === 400) {
-                console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
-                await clearAllTokens();
-                throw new Error("FATAL_REFRESH_ERROR");
+                // Persist to DB async (don't block)
+                supabase.auth.getUser().then(({ data: { user } }) => {
+                    if (user) {
+                        supabase.from('user_integrations').upsert({
+                            user_id: user.id,
+                            concept2_token: newToken,
+                            concept2_refresh_token: newRefreshToken,
+                            concept2_expires_at: response.data.expires_in
+                                ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
+                                : undefined
+                        }, { onConflict: 'user_id' }).then(() => console.log('DB Token Update Success'));
+                    }
+                });
+
+                return newToken;
+            } catch (error: any) {
+                // If 400 Invalid Grant, checking race condition again is redundant due to lock,
+                // BUT if we raced with the server usage elsewhere (unlikely with this setup), it might fail.
+                if (error.response && error.response.status === 400) {
+                    // Check ONE LAST TIME if storage updated differently
+                    const finalCheckRefresh = localStorage.getItem('concept2_refresh_token');
+                    if (finalCheckRefresh && finalCheckRefresh !== refreshToken) {
+                        console.log('Refresh failed (400) but token rotated in storage. Recovering...');
+                        const finalCheckToken = localStorage.getItem('concept2_token');
+                        if (finalCheckToken) return finalCheckToken;
+                    }
+
+                    console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
+                    await clearAllTokens();
+                    throw new Error("FATAL_REFRESH_ERROR");
+                }
+                throw error;
             }
-            throw error;
-        } finally {
-            refreshPromise = null;
-        }
+        });
     })();
+
+    // Ensure we clear the local promise reference after it completes (success or fail)
+    // so subsequent calls can start a new chain
+    refreshPromise.finally(() => {
+        refreshPromise = null;
+    });
 
     return refreshPromise;
 }
