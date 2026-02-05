@@ -150,11 +150,14 @@ export const Dashboard: React.FC = () => {
                                     { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
                                 ] : undefined}
                             />
-                            <TrainingSuggestionsWidget
-                                recentWorkouts={recentWorkouts}
-                                userGoals={userGoals}
-                                userProfile={userProfile}
-                            />
+                            {/* Check preference, default to true */}
+                            {userProfile?.preferences?.show_recommended_workouts !== false && (
+                                <TrainingSuggestionsWidget
+                                    recentWorkouts={recentWorkouts}
+                                    userGoals={userGoals}
+                                    userProfile={userProfile}
+                                />
+                            )}
                         </>
                     )}
 

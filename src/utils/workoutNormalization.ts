@@ -33,7 +33,7 @@ export function extractMainWork(canonicalName: string): string {
     }
 
     // Strip any remaining block tags from work segments
-    const cleanSegments = workSegments.map(segment => 
+    const cleanSegments = workSegments.map(segment =>
         segment.replace(/#(warmup|cooldown|test)$/i, '').trim()
     );
 
@@ -63,4 +63,36 @@ export function normalizeForMatching(canonicalName: string): string {
     normalized = normalized.replace(/\s*\+\s*/g, ' + '); // Consistent spacing around +
 
     return normalized;
+}
+
+/**
+ * Get Distance Bucket for Analysis
+ * Groups workouts into standard ranges
+ */
+export function getDistanceBucket(meters: number): string {
+    if (meters < 5000) return 'Short (< 5k)';
+    if (meters < 10000) return 'Medium (5k - 10k)';
+    if (meters < 15000) return 'Long (10k - 15k)';
+    return 'Endurance (15k+)';
+}
+
+/**
+ * Check if workout should be considered "Steady State"
+ * Includes JustRow, FixedDistance, FixedTime.
+ * Excludes Intervals and Benchmarks/Tests.
+ */
+export type WorkoutType = string; // Placeholder, assuming string from DB
+
+export function isSteadyState(type: string, isBenchmark: boolean = false): boolean {
+    if (isBenchmark) return false;
+
+    const steadyTypes = [
+        'JustRow',
+        'FixedDistanceSplits',
+        'FixedDistanceNoSplits',
+        'FixedTimeSplits',
+        'FixedTimeNoSplits'
+    ];
+
+    return steadyTypes.includes(type);
 }

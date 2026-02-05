@@ -25,7 +25,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             const fetchNewFeedbackCount = async () => {
                 const { count, error } = await supabase
                     .from('user_feedback')
-                    .select('*', { count: 'exact', head: true })
+                    .select('id', { count: 'exact' })
+                    .limit(0)
                     .eq('status', 'new');
 
                 if (!error && count !== null) {

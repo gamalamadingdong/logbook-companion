@@ -6,26 +6,27 @@ import { ZonePaceTrendChart } from '../components/analytics/ZonePaceTrendChart';
 import { PRList } from '../components/analytics/PRList';
 import { classifyWorkout, ZONES, aggregateBucketsByZone } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Loader2, Activity, Ruler, Calendar } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Line } from 'recharts';
+import { Loader2, Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 import { WeeklyReport } from '../components/analytics/WeeklyReport';
+import { SteadyStateAnalysis } from '../components/analytics/SteadyStateAnalysis';
 
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts } from '../utils/prCalculator';
 import { workoutService } from '../services/workoutService';
 import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
+import { getLinearRegressionStats } from '../utils/math';
 
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
-import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
 
 type TimeRangePreset = 'thisMonth' | 'lastMonth' | 'ytd' | '3m' | '6m' | '1y' | 'all' | 'custom';
 
 export const Analytics: React.FC = () => {
     const { profile, loading: authLoading, isGuest } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'records'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'records' | 'steadystate'>('overview');
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
     const [showReport, setShowReport] = useState(false);
@@ -33,6 +34,7 @@ export const Analytics: React.FC = () => {
     const [goals, setGoals] = useState<UserGoal[]>([]); // Added state for goals
     const [baselineWatts, setBaselineWatts] = useState(0);
     const [timeRange, setTimeRange] = useState<TimeRangePreset>('6m');
+    const [zoneFilter, setZoneFilter] = useState<string>('all');
     const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
     const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
 
@@ -122,40 +124,68 @@ export const Analytics: React.FC = () => {
 
     // Filter Logic
     const filteredWorkouts = useMemo(() => {
-        if (timeRange === 'all') return workouts;
+        let result = workouts;
 
-        const now = new Date();
-        let startDate: Date;
-        let endDate: Date = now;
+        // 1. Time Range Filter
+        if (timeRange !== 'all') {
+            const now = new Date();
+            let startDate: Date;
+            let endDate: Date = now;
 
-        if (timeRange === 'custom' && customStartDate && customEndDate) {
-            startDate = customStartDate;
-            endDate = customEndDate;
-        } else if (timeRange === 'thisMonth') {
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        } else if (timeRange === 'lastMonth') {
-            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            endDate = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
-        } else if (timeRange === 'ytd') {
-            startDate = new Date(now.getFullYear(), 0, 1);
-        } else if (timeRange === '3m') {
-            startDate = new Date(now);
-            startDate.setMonth(now.getMonth() - 3);
-        } else if (timeRange === '6m') {
-            startDate = new Date(now);
-            startDate.setMonth(now.getMonth() - 6);
-        } else if (timeRange === '1y') {
-            startDate = new Date(now);
-            startDate.setFullYear(now.getFullYear() - 1);
-        } else {
-            return workouts;
+            if (timeRange === 'custom' && customStartDate && customEndDate) {
+                startDate = customStartDate;
+                endDate = customEndDate;
+            } else if (timeRange === 'thisMonth') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            } else if (timeRange === 'lastMonth') {
+                startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                endDate = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
+            } else if (timeRange === 'ytd') {
+                startDate = new Date(now.getFullYear(), 0, 1);
+            } else if (timeRange === '3m') {
+                startDate = new Date(now);
+                startDate.setMonth(now.getMonth() - 3);
+            } else if (timeRange === '6m') {
+                startDate = new Date(now);
+                startDate.setMonth(now.getMonth() - 6);
+            } else if (timeRange === '1y') {
+                startDate = new Date(now);
+                startDate.setFullYear(now.getFullYear() - 1);
+            } else {
+                // Should not happen if 'all' is handled first, but fallback
+                startDate = new Date(0);
+            }
+
+            result = result.filter(w => {
+                const d = new Date(w.completed_at);
+                return d >= startDate && d <= endDate;
+            });
         }
 
-        return workouts.filter(w => {
-            const d = new Date(w.completed_at);
-            return d >= startDate && d <= endDate;
-        });
-    }, [workouts, timeRange, customStartDate, customEndDate]);
+        // 2. Zone Filter
+        if (zoneFilter !== 'all') {
+            result = result.filter(w => {
+                // Determine zone logic (try to reuse component logic or simplify)
+                let watts = w.watts;
+                if (!watts && w.avg_split_500m) {
+                    watts = 2.8 / Math.pow(w.avg_split_500m / 500, 3);
+                }
+                // Determine duration for fallback
+                const duration = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
+                if (!watts && w.distance_meters && duration > 0) {
+                    const split = 500 * (duration / w.distance_meters);
+                    watts = 2.8 / Math.pow(split / 500, 3);
+                }
+
+                if (!watts) return false;
+
+                const zId = classifyWorkout(watts, baselineWatts);
+                return zId === zoneFilter;
+            });
+        }
+
+        return result;
+    }, [workouts, timeRange, customStartDate, customEndDate, zoneFilter, baselineWatts]);
 
 
     // --- Calculations ---
@@ -191,6 +221,7 @@ export const Analytics: React.FC = () => {
 
     const [volumeMetric, setVolumeMetric] = useState<'hours' | 'distance'>('hours');
 
+    // Calculate Trend Line for Weekly Volume
     const weeklyVolume = useMemo(() => {
         // Aggregate by Week (ISO Week)
         const weeks: Record<string, any> = {};
@@ -269,8 +300,53 @@ export const Analytics: React.FC = () => {
             }
         });
 
-        return Object.values(weeks).sort((a: any, b: any) => a.date.localeCompare(b.date));
-    }, [filteredWorkouts, baselineWatts]);
+        // Convert to array and sort
+        const chartData = Object.values(weeks).sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+        // --- Calculate Trend Line (Merged) ---
+        if (chartData.length >= 2) {
+            const points = chartData.map((w: any) => ({
+                x: new Date(w.date).getTime(),
+                y: volumeMetric === 'hours' ? w.total : w.totalDist
+            }));
+
+            const stats = getLinearRegressionStats(points);
+            if (stats) {
+                chartData.forEach((w: any) => {
+                    const x = new Date(w.date).getTime();
+                    w.trendValue = stats.slope * x + stats.intercept;
+                });
+            }
+        }
+
+        return chartData;
+    }, [filteredWorkouts, baselineWatts, volumeMetric]);
+
+    // Calculate Trend Metrics for Weekly Volume
+    const volumeTrendMetrics = useMemo(() => {
+        if (weeklyVolume.length < 2) return null;
+
+        const points = weeklyVolume.map(w => ({
+            x: new Date(w.date).getTime(),
+            y: volumeMetric === 'hours' ? w.total : w.totalDist
+        }));
+
+        const stats = getLinearRegressionStats(points);
+        if (!stats) return null;
+
+        // Convert slope (units/ms) to units/week
+        // slope is units/ms.
+        // week = 1000 * 60 * 60 * 24 * 7 = 604800000 ms
+        const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+        const valPerWeek = stats.slope * msPerWeek;
+
+        const isImproving = valPerWeek > 0; // More volume is generally "improving" or increasing
+
+        return {
+            changePerWeek: valPerWeek,
+            isImproving
+        };
+    }, [weeklyVolume, volumeMetric]);
 
     const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0), 0);
     // Total Time in Seconds for accurate display
@@ -302,18 +378,17 @@ export const Analytics: React.FC = () => {
                     >
                         Records & Benchmarks
                     </button>
+                    <button
+                        onClick={() => setActiveTab('steadystate')}
+                        className={`pb-3 px-1 text-lg font-medium transition-colors ${activeTab === 'steadystate' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-neutral-400 hover:text-neutral-200'}`}
+                    >
+                        Steady State
+                    </button>
                 </div>
 
                 {activeTab === 'overview' && (
                     <>
-                        {/* Suggestions Widget */}
-                        <div className="mb-6">
-                            <TrainingSuggestionsWidget
-                                recentWorkouts={workouts}
-                                userGoals={goals}
-                                userProfile={profile || undefined}
-                            />
-                        </div>
+                        {/* Suggestions Widget Removed as per user request */}
 
                         {/* Goals Widget */}
                         {userId && (
@@ -328,91 +403,126 @@ export const Analytics: React.FC = () => {
                             />
                         )}
 
-                        {/* Header (Local Controls) */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-neutral-800 pb-6 mt-6">
+                        {/* Global Filter Bar & Stats */}
+                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-neutral-800 pb-6 mt-6">
 
-                            <div>
-                                <h2 className="text-2xl font-bold">Zone Distribution</h2>
-                                <p className="text-neutral-500 text-sm">Training load analysis</p>
-                            </div>
-
+                            {/* Left Side: Filters */}
                             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 flex-wrap">
-                                {/* Quick Filter Buttons */}
-                                <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex flex-wrap gap-1">
-                                    {([
-                                        { key: 'thisMonth', label: 'This Month' },
-                                        { key: 'lastMonth', label: 'Last Month' },
-                                        { key: 'ytd', label: 'YTD' },
-                                        { key: '3m', label: '3M' },
-                                        { key: '6m', label: '6M' },
-                                        { key: '1y', label: '1Y' },
-                                        { key: 'all', label: 'All' },
-                                    ] as { key: TimeRangePreset; label: string }[]).map(({ key, label }) => (
+                                {/* Zone Filters */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider hidden md:block">Zone</span>
+                                    <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex flex-wrap gap-1">
                                         <button
-                                            key={key}
-                                            onClick={() => setTimeRange(key)}
-                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === key
+                                            onClick={() => setZoneFilter('all')}
+                                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${zoneFilter === 'all'
                                                 ? 'bg-neutral-800 text-white shadow-sm'
                                                 : 'text-neutral-500 hover:text-neutral-300'
                                                 }`}
                                         >
-                                            {label}
+                                            All
                                         </button>
-                                    ))}
+                                        {ZONES.map(z => (
+                                            <button
+                                                key={z.id}
+                                                onClick={() => setZoneFilter(z.id)}
+                                                style={{
+                                                    color: zoneFilter === z.id ? z.color : undefined,
+                                                    backgroundColor: zoneFilter === z.id ? `${z.color}15` : undefined
+                                                }}
+                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${zoneFilter === z.id
+                                                    ? 'shadow-sm font-bold'
+                                                    : 'text-neutral-500 hover:text-neutral-300'
+                                                    }`}
+                                            >
+                                                {z.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
-                                {/* Custom Date Range */}
+                                <div className="hidden md:block w-px h-8 bg-neutral-800 mx-2"></div>
+
+                                {/* Date Filters */}
                                 <div className="flex items-center gap-2">
-                                    <Calendar size={16} className="text-neutral-500" />
-                                    <DatePicker
-                                        selected={customStartDate}
-                                        onChange={(date: Date | null) => {
-                                            setCustomStartDate(date);
-                                            if (date) setTimeRange('custom');
-                                        }}
-                                        selectsStart
-                                        startDate={customStartDate}
-                                        endDate={customEndDate}
-                                        placeholderText="Start"
-                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24 placeholder-neutral-500"
-                                        dateFormat="MMM d, yy"
-                                    />
-                                    <span className="text-neutral-600">—</span>
-                                    <DatePicker
-                                        selected={customEndDate}
-                                        onChange={(date: Date | null) => {
-                                            setCustomEndDate(date);
-                                            if (date) setTimeRange('custom');
-                                        }}
-                                        selectsEnd
-                                        startDate={customStartDate}
-                                        endDate={customEndDate}
-                                        minDate={customStartDate ?? undefined}
-                                        placeholderText="End"
-                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24 placeholder-neutral-500"
-                                        dateFormat="MMM d, yy"
-                                    />
+                                    <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider hidden md:block">Period</span>
+                                    <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex flex-wrap gap-1">
+                                        {([
+                                            { key: 'thisMonth', label: 'Month' }, // Shortened labels for cleaner look
+                                            { key: 'lastMonth', label: 'Last Mo' },
+                                            { key: '3m', label: '3M' },
+                                            { key: '6m', label: '6M' },
+                                            { key: 'ytd', label: 'YTD' },
+                                            { key: '1y', label: '1Y' },
+                                            { key: 'all', label: 'All' },
+                                        ] as { key: TimeRangePreset; label: string }[]).map(({ key, label }) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => setTimeRange(key)}
+                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === key
+                                                    ? 'bg-neutral-800 text-white shadow-sm'
+                                                    : 'text-neutral-500 hover:text-neutral-300'
+                                                    }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Custom Date Inputs (Condensed) */}
+                                    <div className="flex items-center gap-2 ml-2">
+                                        <DatePicker
+                                            selected={customStartDate}
+                                            onChange={(date: Date | null) => {
+                                                setCustomStartDate(date);
+                                                if (date) setTimeRange('custom');
+                                            }}
+                                            selectsStart
+                                            startDate={customStartDate}
+                                            endDate={customEndDate}
+                                            placeholderText="Start"
+                                            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-xs text-white w-20 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                                            dateFormat="MMM d"
+                                        />
+                                        <span className="text-neutral-700">-</span>
+                                        <DatePicker
+                                            selected={customEndDate}
+                                            onChange={(date: Date | null) => {
+                                                setCustomEndDate(date);
+                                                if (date) setTimeRange('custom');
+                                            }}
+                                            selectsEnd
+                                            startDate={customStartDate}
+                                            endDate={customEndDate}
+                                            minDate={customStartDate ?? undefined}
+                                            placeholderText="End"
+                                            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-xs text-white w-20 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                                            dateFormat="MMM d"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Key Metrics */}
-                            <div className="flex gap-4">
-                                <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-800 min-w-[120px]">
-                                    <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1">Total Distance</div>
-                                    <div className="text-xl font-bold text-white">{(totalDistance / 1000).toLocaleString()} <span className="text-sm font-normal text-neutral-600">km</span></div>
+                            {/* Right Side: Key Metrics */}
+                            <div className="flex gap-4 items-center self-end xl:self-auto">
+                                <div className="flex gap-4">
+                                    <div className="flex flex-col items-end">
+                                        <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Dist</div>
+                                        <div className="text-xl font-bold text-white leading-none">{(totalDistance / 1000).toLocaleString()}<span className="text-sm font-normal text-neutral-600 ml-1">km</span></div>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Time</div>
+                                        <div className="text-xl font-bold text-white leading-none">{Math.round(totalTimeSeconds / 3600)}<span className="text-sm font-normal text-neutral-600 ml-1">h</span></div>
+                                    </div>
                                 </div>
-                                <div className="bg-neutral-900 rounded-xl p-4 border border-neutral-800 min-w-[120px]">
-                                    <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1">Total Time</div>
-                                    <div className="text-xl font-bold text-white">{Math.round(totalTimeSeconds / 3600)} <span className="text-sm font-normal text-neutral-600">hrs</span></div>
-                                </div>
+                                <div className="w-px h-8 bg-neutral-800 mx-1"></div>
                                 {/* Report Button */}
                                 <button
                                     onClick={() => setShowReport(true)}
-                                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white p-4 rounded-xl border border-neutral-700 transition-colors flex flex-col items-center justify-center gap-1 min-w-[80px]"
+                                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white p-2 rounded-lg border border-neutral-700 transition-colors flex items-center justify-center gap-2"
                                     title="Export Report"
                                 >
-                                    <Calendar size={20} />
-                                    <span className="text-[10px] font-bold uppercase">Report</span>
+                                    <Calendar size={18} />
+                                    <span className="text-xs font-bold uppercase hidden sm:inline">Report</span>
                                 </button>
                             </div>
                         </div>
@@ -498,27 +608,51 @@ export const Analytics: React.FC = () => {
                         {/* Right Column: Volume Trends */}
                         <div className="lg:col-span-2 space-y-8">
                             <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px]">
-                                <div className="flex items-center justify-between mb-6">
-                                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                                        <Ruler size={18} className="text-blue-400" />
-                                        Weekly Volume
-                                    </h3>
-
-                                    {/* Metric Toggle */}
-                                    <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
-                                        {(['hours', 'distance'] as const).map(m => (
-                                            <button
-                                                key={m}
-                                                onClick={() => setVolumeMetric(m)}
-                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${volumeMetric === m
-                                                    ? 'bg-neutral-800 text-white shadow-sm'
-                                                    : 'text-neutral-500 hover:text-neutral-300'
-                                                    }`}
-                                            >
-                                                {m === 'hours' ? 'Time (Hrs)' : 'Dist (km)'}
-                                            </button>
-                                        ))}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                                    <div>
+                                        <h3 className="text-xl font-semibold flex items-center gap-2">
+                                            <Ruler size={20} className="text-blue-400" />
+                                            Weekly Volume
+                                        </h3>
+                                        <div className="flex gap-2 mt-2">
+                                            {/* Metric Toggle */}
+                                            <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
+                                                {(['hours', 'distance'] as const).map(m => (
+                                                    <button
+                                                        key={m}
+                                                        onClick={() => setVolumeMetric(m)}
+                                                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${volumeMetric === m
+                                                            ? 'bg-neutral-800 text-white shadow-sm'
+                                                            : 'text-neutral-500 hover:text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        {m === 'hours' ? 'Time (Hrs)' : 'Dist (km)'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
+
+                                    {/* Trend Box */}
+                                    {volumeTrendMetrics && (
+                                        <div className="bg-neutral-800/50 rounded-lg px-4 py-2 border border-neutral-700/50 flex items-center gap-3">
+                                            <div className={`p-2 rounded-full ${Math.abs(volumeTrendMetrics.changePerWeek) < 0.01 ? 'bg-neutral-700 text-neutral-400' : volumeTrendMetrics.isImproving ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                {Math.abs(volumeTrendMetrics.changePerWeek) < 0.01 ? <Minus size={20} /> :
+                                                    volumeTrendMetrics.isImproving ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-neutral-500 uppercase tracking-wider font-bold">Trend</div>
+                                                <div className={`text-base font-mono font-bold ${Math.abs(volumeTrendMetrics.changePerWeek) < 0.01 ? 'text-neutral-300' : volumeTrendMetrics.isImproving ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {Math.abs(volumeTrendMetrics.changePerWeek) < 0.01
+                                                        ? 'Flat'
+                                                        : volumeMetric === 'hours'
+                                                            ? `${Math.abs(volumeTrendMetrics.changePerWeek).toFixed(2)}h / wk`
+                                                            : `${(Math.abs(volumeTrendMetrics.changePerWeek) / 1000).toFixed(1)}k / wk`
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <ResponsiveContainer width="100%" height="100%">
@@ -527,13 +661,13 @@ export const Analytics: React.FC = () => {
                                             dataKey="date"
                                             tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                                             stroke="#525252"
-                                            fontSize={12}
+                                            fontSize={13}
                                             tickLine={false}
                                             axisLine={false}
                                         />
                                         <YAxis
                                             stroke="#525252"
-                                            fontSize={12}
+                                            fontSize={13}
                                             tickLine={false}
                                             axisLine={false}
                                             tickFormatter={(val) => volumeMetric === 'hours' ? `${val.toFixed(1)}h` : `${(val / 1000).toFixed(0)}k`}
@@ -606,6 +740,22 @@ export const Analytics: React.FC = () => {
                                         <Bar dataKey={volumeMetric === 'hours' ? "AT" : "dist_AT"} name="AT" stackId="a" fill={ZONES[2].color} />
                                         <Bar dataKey={volumeMetric === 'hours' ? "TR" : "dist_TR"} name="TR" stackId="a" fill={ZONES[3].color} />
                                         <Bar dataKey={volumeMetric === 'hours' ? "AN" : "dist_AN"} name="AN" stackId="a" fill={ZONES[4].color} radius={[4, 4, 0, 0]} />
+
+                                        {/* Trend Line */}
+                                        {/* Trend Line (Merged Data) */}
+                                        <Line
+                                            type="linear"
+                                            dataKey="trendValue"
+                                            name="Trend"
+                                            stroke="#ec4899" // Pink trend line
+                                            strokeWidth={2}
+                                            strokeDasharray="5 5"
+                                            opacity={0.7}
+                                            dot={false}
+                                            activeDot={false}
+                                            isAnimationActive={false}
+                                            connectNulls
+                                        />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -624,6 +774,13 @@ export const Analytics: React.FC = () => {
             {activeTab === 'records' && userId && (
                 <div className="bg-neutral-900/30 border border-neutral-800/50 rounded-2xl p-6 mt-6">
                     <PRList userId={userId} />
+                </div>
+            )}
+
+            {/* Steady State Section */}
+            {activeTab === 'steadystate' && (
+                <div className="bg-neutral-900/30 border border-neutral-800/50 rounded-2xl p-6 mt-6">
+                    <SteadyStateAnalysis baselineWatts={baselineWatts} />
                 </div>
             )}
         </div>

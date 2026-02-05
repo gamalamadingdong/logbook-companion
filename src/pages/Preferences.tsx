@@ -9,8 +9,8 @@ import { GoalsManager } from '../components/GoalsManager';
 import { PowerBackfill } from '../components/debug/PowerBackfill';
 
 export const Preferences: React.FC = () => {
-    const { profile, loading: authLoading } = useAuth();
-    const [activeTab, setActiveTab] = useState<'profile' | 'benchmarks' | 'goals'>('profile');
+    const { profile, loading: authLoading, refreshProfile } = useAuth();
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'benchmarks' | 'goals'>('profile');
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -29,7 +29,8 @@ export const Preferences: React.FC = () => {
                 weight_lbs: profile.weight_lbs,
                 birth_date: profile.birth_date,
                 display_name: profile.display_name,
-                benchmark_preferences: profile.benchmark_preferences || {}
+                benchmark_preferences: profile.benchmark_preferences || {},
+                preferences: profile.preferences || {}
             });
         }
     }, [profile]);
@@ -73,6 +74,7 @@ export const Preferences: React.FC = () => {
         if (!profile?.user_id) return;
         setSaving(true);
         setMessage(null);
+        console.log('[Preferences] Saving formData:', formData);
 
         try {
             const { error } = await supabase
@@ -82,8 +84,11 @@ export const Preferences: React.FC = () => {
 
             if (error) throw error;
 
+            console.log('[Preferences] Save successful, refreshing profile...');
+            await refreshProfile();
             setMessage({ type: 'success', text: 'Preferences saved successfully.' });
         } catch (err: unknown) {
+            console.error('[Preferences] Save failed:', err);
             const errorMessage = err instanceof Error ? err.message : 'Failed to save.';
             setMessage({ type: 'error', text: errorMessage });
         } finally {
@@ -123,6 +128,60 @@ export const Preferences: React.FC = () => {
         }));
     };
 
+    const toggleGeneralPreference = async (key: string) => {
+        if (!profile?.user_id) return;
+
+        const currentPrefs = formData.preferences || {};
+        const currentVal = currentPrefs[key];
+        // Default to true if undefined (for show_recommended_workouts)
+        // actually show_recommended_workouts defaults to true usually? 
+        // Logic in input checked is: checked={formData.preferences?.show_recommended_workouts !== false}
+        // So default is TRUE.
+        // If currentVal is undefined, it is implicitly true. So nextVal should be false.
+        // If currentVal is true, nextVal false.
+        // If currentVal is false, nextVal true.
+        const nextVal = currentVal === undefined ? false : !currentVal;
+
+        console.log(`[Preferences] Toggling ${key} to:`, nextVal);
+
+        // Optimistic Update
+        const updatedPrefs = {
+            ...currentPrefs,
+            [key]: nextVal
+        };
+
+        setFormData(prev => ({
+            ...prev,
+            preferences: updatedPrefs
+        }));
+
+        // Auto-save to DB
+        try {
+            const { error } = await supabase
+                .from('user_profiles')
+                .update({ preferences: updatedPrefs })
+                .eq('user_id', profile.user_id);
+
+            if (error) throw error;
+
+            console.log('[Preferences] Auto-saved preference:', key);
+            await refreshProfile();
+            // Optional: show a transient success message if needed, 
+            // but for toggle usually visual state is enough.
+        } catch (err) {
+            console.error('[Preferences] Auto-save failed:', err);
+            setMessage({ type: 'error', text: 'Failed to save preference.' });
+            // Revert state?
+            setFormData(prev => ({
+                ...prev,
+                preferences: {
+                    ...prev.preferences,
+                    [key]: currentVal // Revert to old value
+                }
+            }));
+        }
+    };
+
     if (authLoading) return <div className="p-8 text-neutral-400">Loading profile...</div>;
 
     const allBenchmarks = [
@@ -141,6 +200,12 @@ export const Preferences: React.FC = () => {
 
             {/* Tabs */}
             <div className="flex space-x-6 border-b border-neutral-800">
+                <button
+                    onClick={() => setActiveTab('general')}
+                    className={`pb-3 px-1 ${activeTab === 'general' ? 'text-emerald-500 border-b-2 border-emerald-500 font-medium' : 'text-neutral-400 hover:text-neutral-200'}`}
+                >
+                    General
+                </button>
                 <button
                     onClick={() => setActiveTab('profile')}
                     className={`pb-3 px-1 ${activeTab === 'profile' ? 'text-emerald-500 border-b-2 border-emerald-500 font-medium' : 'text-neutral-400 hover:text-neutral-200'}`}
@@ -164,6 +229,31 @@ export const Preferences: React.FC = () => {
 
             {/* Content */}
             <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+                {activeTab === 'general' && (
+                    <div className="space-y-6 max-w-lg">
+                        <div>
+                            <h3 className="text-lg font-medium text-neutral-200 mb-4">Dashboard Features</h3>
+                            <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-lg">
+                                <div>
+                                    <h4 className="font-medium text-neutral-200">Recommended Workouts</h4>
+                                    <p className="text-sm text-neutral-500 mt-1">
+                                        Show daily workout suggestions on the Dashboard.
+                                    </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={formData.preferences?.show_recommended_workouts !== false}
+                                        onChange={() => toggleGeneralPreference('show_recommended_workouts')}
+                                    />
+                                    <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'goals' && profile?.user_id && (
                     <GoalsManager userId={profile.user_id} />
                 )}

@@ -54,6 +54,7 @@ export interface UserProfile {
     weight_lbs?: number;
     birth_date?: string;
     benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string; goal?: number }>;
+    preferences?: Record<string, any>;
     created_at?: string;
     updated_at?: string;
 }

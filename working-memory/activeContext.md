@@ -2,7 +2,11 @@
 # Active Context
 
 ## Current Focus
-**Template system enhancements complete - Ready for analytics improvements**
+Execution of **Phase 1: The Digital Clipboard** (Workout Capture System).
+1.  **Architecture**: [Feature Spec: Hybrid Workout Capture System](feature-specs/workout-capture-system.md)
+2.  **Implementation**:
+    - Deploying OCR Service (Azure).
+    - Building "Smart Form" for manual/OCR entry in Logbook Companion.
 
 ## Recent Changes (2026-02-04 Session 3)
 

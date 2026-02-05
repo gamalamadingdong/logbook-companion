@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search } from 'lucide-react';
+import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search, Heart, Activity } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
 import { formatPace } from '../utils/prDetection';
 import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
@@ -130,6 +130,9 @@ export const WorkoutComparison: React.FC = () => {
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
 
+    // Chart State
+    const [chartMetric, setChartMetric] = useState<'watts' | 'pace' | 'rate' | 'hr'>('watts');
+
     useEffect(() => {
         const delaySearch = setTimeout(async () => {
             if (searchTerm.length > 2) {
@@ -199,8 +202,8 @@ export const WorkoutComparison: React.FC = () => {
         <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
             {/* Header */}
             <header className="flex items-center gap-4">
-                <button 
-                    onClick={() => navigate(-1)} 
+                <button
+                    onClick={() => navigate(-1)}
                     className="p-2 hover:bg-neutral-800 rounded-full text-neutral-400 transition-colors"
                     aria-label="Go back"
                 >
@@ -357,16 +360,38 @@ export const WorkoutComparison: React.FC = () => {
             {
                 workoutB && (
                     <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
-                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                            <Zap size={18} className="text-yellow-400" />
-                            Power Overlay
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                {chartMetric === 'hr' ? <Heart size={18} className="text-red-500" /> :
+                                    chartMetric === 'rate' ? <Activity size={18} className="text-blue-400" /> :
+                                        <Zap size={18} className="text-yellow-400" />}
+                                {chartMetric === 'hr' ? 'Heart Rate' : chartMetric === 'rate' ? 'Stroke Rate' : 'Power Overlay'}
+                            </h3>
+
+                            {/* Metric Toggle */}
+                            <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
+                                {(['watts', 'pace', 'hr', 'rate'] as const).map(m => (
+                                    <button
+                                        key={m}
+                                        onClick={() => setChartMetric(m)}
+                                        className={`px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${chartMetric === m
+                                            ? 'bg-neutral-800 text-white shadow-sm'
+                                            : 'text-neutral-500 hover:text-neutral-300'
+                                            }`}
+                                    >
+                                        {m}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="flex-1 w-full min-h-0">
                             <DualWorkoutChart
                                 workoutA={workoutA}
                                 strokesA={statsA}
                                 workoutB={workoutB}
                                 strokesB={statsB}
+                                metric={chartMetric}
                             />
                         </div>
                     </div>

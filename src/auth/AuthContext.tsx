@@ -19,6 +19,7 @@ interface AuthContextType {
   logout: () => void // Deprecated compatibility stub
   loginAsGuest?: () => Promise<void>
   isGuest?: boolean
+  refreshProfile: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null)
@@ -259,6 +260,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) {
+      await fetchProfile(user.id);
+    }
+  }, [user?.id, fetchProfile]);
+
   const value = {
     user,
     profile,
@@ -272,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword,
     loginAsGuest,
     isGuest: user?.id === 'guest_user_123',
+    refreshProfile,
     // Compat
     isAuthenticated: !!session,
     token,

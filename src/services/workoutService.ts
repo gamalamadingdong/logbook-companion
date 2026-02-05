@@ -177,7 +177,7 @@ export const workoutService = {
                 .from('workout_power_distribution')
                 .select('buckets')
                 .eq('workout_id', workoutId)
-                .single();
+                .maybeSingle();
 
             if (error) {
                 // Gracefully handle RLS/404/406 errors
@@ -333,13 +333,40 @@ export const workoutService = {
             console.error('Failed to link workout to template:', error);
             throw error;
         }
-        
+
         if (!data || data.length === 0) {
             console.error('No rows updated - workout may not exist or RLS policy blocking update');
             throw new Error('Failed to update workout - no rows affected');
         }
-        
+
         console.log('Successfully linked workout:', data);
         return data[0];
+    },
+
+    // Fetch Steady State Workouts (Analysis)
+    getSteadyStateHistory: async () => {
+        // Fetch all potential steady state candidates
+        // We filter by client-side types for flexibility, or could do IN query
+        const { data, error } = await supabase
+            .from('workout_logs')
+            .select('id, external_id, completed_at, workout_name, workout_type, distance_meters, duration_seconds, duration_minutes, watts, average_stroke_rate, average_heart_rate, canonical_name')
+            .eq('source', 'concept2')
+            .order('completed_at', { ascending: false });
+
+        if (error) throw error;
+
+        return data.map(log => ({
+            id: log.id,
+            external_id: log.external_id,
+            date: log.completed_at,
+            name: log.canonical_name || log.workout_name,
+            type: log.workout_name, // Map to workout_name because that holds the C2 type (JustRow, etc)
+            distance: log.distance_meters,
+            time: log.duration_seconds || (log.duration_minutes * 60),
+            watts: log.watts,
+            rate: log.average_stroke_rate,
+            hr: log.average_heart_rate,
+            is_benchmark: log.canonical_name?.includes('#test') || false
+        }));
     }
 };
