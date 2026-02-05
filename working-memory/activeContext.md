@@ -27,6 +27,11 @@
     - Added **Performance Trend** chart to `TemplateDetail.tsx`.
     - Visualizes historical Watts for the specific template over time.
 
+3.  **Personal Bests per Template**:
+    - **Service**: Added `getTemplatePersonalBest` query (Max Watts).
+    - **UI**: Added prominent "Personal Best" card to Template Detail.
+    - Shows best power, date achieved, and calculated split time.
+
 ## Recent Changes (2026-02-04 Session 2)
 
 ### ✅ Fixed: Template Linking & Display Issues
@@ -158,6 +163,7 @@
 
 ### Completed / Verified
 - **Backfill Remaining Workouts**: Script confirmed all workouts are already linked to templates upon inspection (2026-02-04).
+- **Template Effectiveness**: Performance Trends & Personal Bests fully implemented.
 
 ### Blocked/Waiting
 - **Migration Pending**: `last_used_at` field needs manual SQL execution
