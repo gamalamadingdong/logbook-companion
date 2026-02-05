@@ -21,7 +21,7 @@ We use a standardized shorthand called **RWN** to describe workouts.
 
 This notation allows us to universally identify workouts across different platforms.
 
-👉 **[Read the RWN Specification](src/docs/RWN_spec.md)**
+👉 **[Read the RWN Specification](rwn/RWN_spec.md)**
 
 ### 3. Live Sessions & Connectivity (Experimental)
 > **⚠️ Note:** Live Sessions and Group Workouts are currently under active development and considered experimental. Use with caution.
