@@ -4,6 +4,125 @@
 
 ---
 
+## ADR-013: Global Template Library with Personal Usage Tracking
+
+**Date**: February 4, 2026  
+**Status**: Accepted  
+**Author**: AI Assistant (User Decision)
+
+### Context
+During template library implementation, we needed to decide:
+1. Should templates be per-user (private) or global (shared)?
+2. Should `usage_count` show personal stats or community stats?
+3. How do we balance team/coaching needs with personal tracking?
+
+### Decision
+**Templates are global/shared, but usage tracking is personal:**
+- Template library shows ALL templates across all users
+- Template detail page shows global `usage_count` (community popularity)
+- Template library stat shows personal "X workouts categorized" count
+- Each user's workout-template links are private
+
+### Rationale
+1. **Team/Coaching Platform**: Coaches create templates for entire team to use
+2. **Community Discovery**: See what templates are popular across all users
+3. **Personal Progress**: Still track your own adoption/categorization
+4. **Best of Both Worlds**: Global resources + personal metrics
+
+### Implementation
+```typescript
+// Template fetch: No user filter (global)
+const templates = await fetchTemplates({ workoutType: 'erg' });
+
+// Personal stats: User-filtered count
+const { count } = await supabase
+    .from('workout_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .not('template_id', 'is', null);
+```
+
+### Consequences
+**Positive**:
+- Coaches can create templates once, shared with whole team
+- Athletes can discover popular community templates
+- Personal progress still tracked ("347 workouts categorized")
+- Enables future features: template recommendations, team challenges
+
+**Negative**:
+- Users see templates they may never use
+- Could get cluttered with low-quality templates (needs moderation later)
+- No "my templates" vs "community templates" distinction in UI yet
+
+### Alternatives Considered
+1. **Fully Private**: Each user sees only their own templates
+   - PRO: Clean, personal library
+   - CON: Coaches can't share, team coordination harder
+   
+2. **Hybrid**: Separate "My Templates" and "Community Templates"
+   - PRO: Best organization
+   - CON: More complex UI, premature for current user base
+
+---
+
+## ADR-014: Template Sorting Strategy (Popularity vs Recency)
+
+**Date**: February 4, 2026  
+**Status**: Accepted  
+**Author**: AI Assistant
+
+### Context
+Template library needed a sensible default sort order. Two competing needs:
+1. **Discovery**: New users want to see most popular/proven templates
+2. **Active Training**: Regular users want recently used templates at top
+
+### Decision
+**Dual sort modes with "Most Popular" as default:**
+- Default: Sort by `usage_count DESC` (global popularity)
+- Alternative: Sort by `last_used_at DESC` (personal recency)
+- User can toggle via dropdown in template library
+
+### Rationale
+1. **New User Experience**: "Most Popular" shows proven templates first
+2. **Power User Experience**: "Recently Used" surfaces active training templates
+3. **Data-Driven**: Both metrics automatically maintained by database triggers
+4. **Low Complexity**: Simple dropdown, no complex filtering
+
+### Implementation
+```typescript
+// Database trigger maintains both fields
+CREATE TRIGGER trigger_update_template_usage_count
+AFTER INSERT OR UPDATE OF template_id OR DELETE ON workout_logs
+FOR EACH ROW
+EXECUTE FUNCTION update_template_usage_count();
+
+// Trigger updates: usage_count++, last_used_at = MAX(workout.created_at)
+
+// UI sort options
+<select value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
+    <option value="popular">Most Popular</option>
+    <option value="recent">Recently Used</option>
+</select>
+```
+
+### Consequences
+**Positive**:
+- Automatic maintenance (no manual sorting logic)
+- Serves both new and experienced users
+- Performance: Indexed columns for fast sorting
+
+**Negative**:
+- Requires database migration (manual SQL execution needed)
+- "Recently Used" only meaningful if user has linked workouts
+- No "sort by name" option (could add later)
+
+### Migration Status
+**Pending**: `migration_add_last_used_at.sql` created but not applied
+- Requires manual execution in Supabase SQL Editor (MCP lacks DDL permissions)
+- Until applied, "Recently Used" sort will show all templates as null (undefined order)
+
+---
+
 ## ADR-012: Template Quality Signals & Execution Tracking Strategy
 
 **Date**: February 3, 2026  

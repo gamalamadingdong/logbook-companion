@@ -4,6 +4,216 @@
 
 ---
 
+## Phase 5: Template System Enhancement (February 4, 2026)
+
+**Timeline**: February 4, 2026  
+**Status**: ✅ Complete (pending manual migration)
+
+### What Was Built
+
+#### 1. Template Linking & Display Fixes
+**Problem**: Template links weren't displaying on WorkoutDetail page despite being set in database
+
+**Root Cause**: `getWorkoutDetail()` returned only C2 API data (`raw_data`), stripping database metadata
+
+**Solution**:
+```typescript
+// workoutService.ts - Merge database fields into returned object
+return {
+    ...data.raw_data,
+    workout_name: canonicalName,
+    template_id: data.template_id,      // ✅ Now included
+    manual_rwn: data.manual_rwn,        // ✅ Now included
+    is_benchmark: data.is_benchmark     // ✅ Now included
+} as C2ResultDetail;
+```
+
+**Files Changed**:
+- `src/services/workoutService.ts`
+
+**Result**: ✅ Linked templates now display correctly on WorkoutDetail page
+
+---
+
+#### 2. Power Distribution Error Handling
+**Problem**: 406 errors when accessing `workout_power_distribution` table blocked page rendering
+
+**Root Cause**: RLS policy requires user owns workout; when data missing or access denied → 406
+
+**Solution**:
+```typescript
+// Wrap query in try-catch, handle specific error codes
+try {
+    const { data, error } = await supabase
+        .from('workout_power_distribution')
+        .select('buckets')
+        .eq('workout_id', workoutId)
+        .single();
+    
+    if (error) {
+        if (error.code === 'PGRST116' || error.message?.includes('406')) {
+            console.log('Power distribution not available');
+            return null; // Graceful degradation
+        }
+    }
+} catch (err) {
+    return null;
+}
+```
+
+**Files Changed**:
+- `src/services/workoutService.ts` - `getPowerBuckets()` function
+
+**Result**: ✅ Pages no longer crash when power distribution unavailable
+
+---
+
+#### 3. Global Template Library with Personal Stats
+**Design Decision**: Templates shared globally, but usage tracking is personal
+
+**Implementation**:
+```typescript
+// Templates: No user filter (global library)
+const templates = await fetchTemplates({ workoutType: 'erg' });
+
+// Personal stat: User-filtered workout count
+const { count } = await supabase
+    .from('workout_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .not('template_id', 'is', null);
+
+// Display: "347 workouts categorized" (personal)
+// vs template.usage_count (global community popularity)
+```
+
+**Files Changed**:
+- `src/pages/TemplateLibrary.tsx` - Personal workout count query
+- `src/services/templateService.ts` - No user filtering on templates
+
+**Result**: ✅ Community template discovery + personal progress tracking
+
+**See Also**: ADR-013 for decision rationale
+
+---
+
+#### 4. Template Sorting (Popularity vs Recency)
+**Feature**: Sort templates by "Most Popular" or "Recently Used"
+
+**Database Changes**:
+```sql
+-- Add last_used_at column
+ALTER TABLE workout_templates 
+ADD COLUMN last_used_at TIMESTAMP WITH TIME ZONE;
+
+-- Create index for fast sorting
+CREATE INDEX idx_workout_templates_last_used_at 
+ON workout_templates(last_used_at DESC);
+
+-- Update trigger to maintain both usage_count and last_used_at
+CREATE OR REPLACE FUNCTION update_template_usage_count() ...
+```
+
+**UI Implementation**:
+```typescript
+// Sort options dropdown
+<select value={sortOrder} onChange={...}>
+    <option value="popular">Most Popular</option>
+    <option value="recent">Recently Used</option>
+</select>
+
+// Query logic
+if (sortBy === 'recent') {
+    query.order('last_used_at', { ascending: false, nullsFirst: false });
+} else {
+    query.order('usage_count', { ascending: false });
+}
+```
+
+**Files Changed**:
+- `db/migrations/migration_add_last_used_at.sql` - Database migration (NOT YET APPLIED)
+- `src/services/templateService.ts` - Added `sortBy` parameter
+- `src/pages/TemplateLibrary.tsx` - Sort UI controls
+
+**Result**: ✅ Code ready, ⏳ Pending manual SQL execution in Supabase
+
+**See Also**: ADR-014 for decision rationale
+
+---
+
+#### 5. RWN Playground Enhancements
+**Feature**: Better visualization and multi-modal workout examples
+
+**Changes**:
+1. **Categorized Examples**: Basic → Pace → Advanced → Multi-Modal
+2. **Multi-Modal Examples Added**:
+   - BikeErg: `Bike: 15000m`
+   - SkiErg: `Ski: 8x500m/3:30r`
+   - Circuit: `Row: 2000m + Bike: 5000m + Ski: 2000m`
+   - Team Circuit: `3x(Row: 2000m/2:00r + Bike: 5000m/2:00r + Run: 800m/2:00r)`
+3. **Layout Improvements**: Parsed structure now flex-grows to match examples height
+
+**Files Changed**:
+- `src/components/RWNPlayground.tsx` - Reorganized examples, flex layout
+
+**Result**: ✅ Users can experiment with multi-step, multi-modal workouts
+
+---
+
+#### 6. RWN Specification Updates
+**Feature**: Document chained guidance parameters
+
+**Added Section 4.4**:
+```markdown
+### 4.4 Chaining Guidance Parameters
+Multiple guidance parameters can be chained using multiple `@` symbols.
+
+Examples:
+- 30:00@UT2@r20 → 30 mins at UT2 pace, holding rate 20
+- 5000m@2k+5@r28 → 5k at 2k+5 pace, holding rate 28
+- 8x500m/1:00r@1:50@r32 → 500m intervals at 1:50 split and rate 32
+```
+
+**Files Changed**:
+- `rwn/RWN_spec.md` - Added Section 4.4
+
+**Result**: ✅ Specification now documents chaining syntax like `@UT2@r20`
+
+---
+
+#### 7. Menu & Terminology Updates
+**Changes**:
+- "Templates" → "Library" (clearer for community templates)
+- "Analytics" → "Analysis" (user preference)
+
+**Files Changed**:
+- `src/components/Layout.tsx` - Navigation menu updates
+
+**Result**: ✅ Improved terminology consistency
+
+---
+
+### What Worked
+- ✅ **Graceful error handling**: Null checks prevent cascading failures
+- ✅ **Database triggers**: Automatic maintenance of usage_count and last_used_at
+- ✅ **Global templates**: Good for team/coaching platforms
+- ✅ **Personal stats**: Users still see their own progress
+- ✅ **RWN playground**: Interactive learning for complex workouts
+
+### What Failed / Lessons Learned
+- ❌ **MCP Server DDL limitations**: Can't apply migrations via MCP (permission denied)
+- 📝 **Lesson**: Some operations require manual SQL execution in Supabase UI
+- ❌ **Original stats confusion**: "Templates linked" was ambiguous (now "workouts categorized")
+- 📝 **Lesson**: Metrics should be user-centric, not system-centric
+
+### Pending Work
+- ⏳ **Migration**: `migration_add_last_used_at.sql` needs manual execution
+- ⏳ **Template effectiveness tracking**: Compare progress on same template over time
+- ⏳ **Backfill script**: Auto-link entire workout history to templates
+- ⏳ **Analytics improvements**: Training zone distribution, volume trends
+
+---
+
 ## Phase 1: Foundation & Architecture (Completed)
 
 **Timeline**: Initial development → December 2025  

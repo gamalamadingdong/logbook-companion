@@ -2,9 +2,151 @@
 # Active Context
 
 ## Current Focus
-**Ready to implement template matching infrastructure**
+**Template system enhancements complete - Ready for analytics improvements**
 
-## Recent Changes (2026-02-04)
+## Recent Changes (2026-02-04 Session 2)
+
+### ✅ Fixed: Template Linking & Display Issues
+1. **Power Distribution 406 Error Fixed**
+   - Added graceful error handling in `getPowerBuckets()` function
+   - Catches PGRST116 and 406 errors when RLS blocks access or data doesn't exist
+   - Returns null instead of crashing when power distribution unavailable
+   - **File**: [workoutService.ts](src/services/workoutService.ts)
+
+2. **Template Linking Not Showing - FIXED**
+   - Root cause: `getWorkoutDetail()` was only returning C2 API data (`raw_data`)
+   - Database fields (`template_id`, `manual_rwn`, `is_benchmark`) were being stripped
+   - **Solution**: Merge database fields into returned object
+   - WorkoutDetail page now properly displays linked templates
+   - **File**: [workoutService.ts](src/services/workoutService.ts)
+
+### ✅ Menu & Terminology Updates
+1. **"Templates" → "Library"**
+   - Navigation menu item renamed for clarity
+   - **File**: [Layout.tsx](src/components/Layout.tsx)
+
+2. **"Analytics" → "Analysis"**
+   - Tab renamed per user preference
+   - **File**: [Layout.tsx](src/components/Layout.tsx)
+
+### ✅ Template Library Enhancements
+
+#### Global vs Personal Data Decision
+**DECISION**: Templates are global/shared, but usage stats show personal data
+- **Templates**: Shared across all users (good for teams/coaching)
+- **Usage Count (on template detail)**: Shows global usage (all users)
+- **"X workouts categorized" stat**: Shows YOUR workouts linked to templates
+- **Rationale**: See popular templates globally, track personal progress individually
+
+#### Usage Statistics Added
+- Replaced "X templates linked" with "X workouts categorized"
+- Counts personal workouts (`user_id` filtered) that have `template_id` not null
+- Shows meaningful adoption metric: "347 workouts categorized"
+- **File**: [TemplateLibrary.tsx](src/pages/TemplateLibrary.tsx)
+
+#### Template Sorting by Popularity & Recency
+1. **Added `last_used_at` field** to track most recent workout link
+2. **Created migration**: [migration_add_last_used_at.sql](db/migrations/migration_add_last_used_at.sql)
+   - Adds `last_used_at TIMESTAMP WITH TIME ZONE` column
+   - Creates index for efficient sorting
+   - Updates trigger to maintain `last_used_at` automatically
+   - Backfills existing data from workout_logs
+3. **Added sort dropdown** with two modes:
+   - **Most Popular** (default): Sorts by `usage_count DESC`
+   - **Recently Used**: Sorts by `last_used_at DESC`
+4. **Files Changed**:
+   - [templateService.ts](src/services/templateService.ts) — Added `sortBy` parameter
+   - [TemplateLibrary.tsx](src/pages/TemplateLibrary.tsx) — Sort UI controls
+   - [migration_add_last_used_at.sql](db/migrations/migration_add_last_used_at.sql) — Database migration
+
+**Note**: Migration must be run manually in Supabase SQL Editor (MCP lacks DDL permissions)
+
+### ✅ RWN Playground Enhancements
+
+#### Categorized Examples with Multi-Modal Support
+- **Reorganized examples** into 4 categories:
+  - **Basic**: Intervals, steady state, time-based
+  - **Pace**: Training zones, relative pace, rate/pace ranges
+  - **Advanced**: Warmup/cooldown, rate pyramids, nested blocks
+  - **Multi-Modal**: BikeErg, SkiErg, Circuit training, Team circuits
+- **New multi-modal examples**:
+  - `Bike: 15000m` — Single modality
+  - `Ski: 8x500m/3:30r` — Ski intervals
+  - `Row: 2000m + Bike: 5000m + Ski: 2000m` — Cross-training circuit
+  - `3x(Row: 2000m/2:00r + Bike: 5000m/2:00r + Run: 800m/2:00r)` — Full team circuit
+- **UI Improvements**:
+  - Examples grouped by category with headers
+  - Parsed structure now uses flex layout to match examples height
+  - Better visual hierarchy
+- **File**: [RWNPlayground.tsx](src/components/RWNPlayground.tsx)
+
+### ✅ RWN Specification Updates
+
+#### Documented Chained Guidance Parameters
+- **Added Section 4.4**: Chaining Guidance Parameters
+- **Syntax**: Multiple `@` symbols can be chained together
+- **Examples**:
+  - `30:00@UT2@r20` → 30 mins at UT2 pace, holding rate 20
+  - `5000m@2k+5@r28` → 5k at 2k+5 pace, holding rate 28
+  - `8x500m/1:00r@1:50@r32` → 500m intervals at 1:50 split and rate 32
+  - `60:00@r18..22@UT2` → Hour piece at UT2, rate range 18-22
+- **Parser behavior**: Order doesn't matter (`@UT2@r20` = `@r20@UT2`)
+- **File**: [RWN_spec.md](rwn/RWN_spec.md)
+
+## Architecture Decisions Made Today
+
+### Template System Design
+1. **Global Template Library**
+   - All users see same templates (community/team resource)
+   - Templates created by any user are visible to all
+   - Good for coaching platforms and team coordination
+
+2. **Personal Usage Tracking**
+   - Each user's workout links are private
+   - "Workouts categorized" stat shows personal progress
+   - Template detail shows global `usage_count` (community popularity)
+
+3. **Template Sorting**
+   - Default: Most Popular (usage_count DESC)
+   - Alternative: Recently Used (last_used_at DESC)
+   - Helps discover both popular templates and recently active ones
+
+### Data Quality & Error Handling
+1. **Graceful Degradation**
+   - Missing power distribution data doesn't crash UI
+   - 406/RLS errors logged but don't block page rendering
+   - Null-safe rendering for optional data
+
+2. **Database Triggers for Data Integrity**
+   - `usage_count` automatically maintained on workout_logs changes
+   - `last_used_at` automatically updated when templates linked
+   - No manual maintenance required
+
+## Next Steps
+
+### Ready for Implementation
+1. **Template Effectiveness Tracking**
+   - Show progress with specific templates over time
+   - Compare workouts using same template
+   - Display personal records for each template type
+
+2. **Backfill Remaining Workouts**
+   - Auto-match entire workout history to templates
+   - Boost "workouts categorized" count
+   - Script to run bulk template matching
+
+3. **Analytics/Analysis Improvements**
+   - Training zone distribution
+   - Volume trends by template type
+   - Workout frequency heatmaps
+
+### Blocked/Waiting
+- **Migration Pending**: `last_used_at` field needs manual SQL execution
+  - File ready: `db/migrations/migration_add_last_used_at.sql`
+  - Run in Supabase SQL Editor
+  - After running, "Recently Used" sort will work
+
+## Recent Changes (2026-02-04 Session 1)
 
 ### ✅ Implemented: Block Tag Notation in RWN Spec & Parser
 - **Grammar Addition**: `[w]`, `[c]`, `[t]` bracket prefixes for warmup/cooldown/test
