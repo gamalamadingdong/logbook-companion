@@ -173,6 +173,15 @@ export const Documentation: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-white mb-3">Key Metrics</h3>
                                 <ul className="space-y-3">
                                     <li className="bg-neutral-950 p-3 rounded border border-neutral-800">
+                                        <div className="flex justify-between items-start">
+                                            <strong className="text-white text-sm block">Global Zone Filters</strong>
+                                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded uppercase font-bold">New</span>
+                                        </div>
+                                        <span className="text-xs text-neutral-400">
+                                            Toggle the Zone Filter buttons (UT2, AT, TR, etc.) in the global header to instantly filter your Dashboard and Workout lists to only show sessions matching that intensity.
+                                        </span>
+                                    </li>
+                                    <li className="bg-neutral-950 p-3 rounded border border-neutral-800">
                                         <strong className="text-white text-sm block">Zone Distribution</strong>
                                         <span className="text-xs text-neutral-400">Breakdown of time spent in each intensity zone. Helps verify if you are training polarized (80/20 rule).</span>
                                     </li>
@@ -180,30 +189,47 @@ export const Documentation: React.FC = () => {
                                         <strong className="text-white text-sm block">Weekly Volume</strong>
                                         <span className="text-xs text-neutral-400">Total distance or time tracked per week. Monitor this to avoid overtraining spikes.</span>
                                     </li>
-                                    <li className="bg-neutral-950 p-3 rounded border border-neutral-800">
-                                        <strong className="text-white text-sm block">Pace Trends</strong>
-                                        <span className="text-xs text-neutral-400">Long-term tracking of your split for specific zones (e.g., is your UT2 getting faster?).</span>
-                                    </li>
                                 </ul>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-semibold text-white mb-3">Auto-Detection</h3>
-                                <div className="bg-neutral-950 p-4 rounded border border-neutral-800 h-full">
-                                    <p className="text-sm text-neutral-400 mb-4">
-                                        The system automatically tags your workouts based on their average intensity if not explicitly categorized.
-                                    </p>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-xs text-neutral-300">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                            <span>Manual Tags take priority</span>
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white mb-3">Workout Comparison</h3>
+                                    <div className="bg-neutral-950 p-4 rounded border border-neutral-800 h-full">
+                                        <p className="text-sm text-neutral-400 mb-3">
+                                            Compare any two workouts side-by-side with full stroke data overlays.
+                                        </p>
+                                        <div className="space-y-2 text-xs text-neutral-300">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-600"></div>
+                                                <span><strong>Metric Switching:</strong> Toggle between Watts, Pace, Rate, and Heart Rate views.</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-600"></div>
+                                                <span><strong>Pinning:</strong> Click any point on the chart to lock the stats header for detailed inspection.</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-600"></div>
+                                                <span><strong>Multi-Stat Header:</strong> View Watts, Pace, Rate, and HR simultaneously for both workouts.</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-neutral-300">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                            <span>Calculated from Average Watts vs. Baseline</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-neutral-300">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-500"></div>
-                                            <span>Variable intervals analyzed by weighted average</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white mb-3">Auto-Detection</h3>
+                                    <div className="bg-neutral-950 p-4 rounded border border-neutral-800 h-full">
+                                        <p className="text-sm text-neutral-400 mb-3">
+                                            The system automatically tags your workouts based on their average intensity if not explicitly categorized.
+                                        </p>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-xs text-neutral-300">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                <span>Manual Tags take priority</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-neutral-300">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                <span>Calculated from Average Watts vs. Baseline</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -309,7 +335,7 @@ export const Documentation: React.FC = () => {
                                     <div className="text-xs text-neutral-600 mt-1">Intensity zones</div>
                                 </div>
                             </div>
-                            
+
                             <div className="mt-4 bg-neutral-950 p-4 rounded border border-neutral-800">
                                 <h4 className="text-sm font-medium text-neutral-300 mb-2">Block Tags (Semantic Structure)</h4>
                                 <p className="text-xs text-neutral-500 mb-3">Use block tags to denote warmup, cooldown, and test segments:</p>

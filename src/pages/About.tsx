@@ -52,11 +52,10 @@ export const About: React.FC = () => {
                         icon={SplitSquareHorizontal}
                         color="purple"
                         title="Head-to-Head Compare"
-                        description="Overlay any two workouts to analyze pacing strategies, stroke rate differences, and power output stroke-by-stroke."
+                        description="Overlay any two workouts to analyze pacing strategies stroke-by-stroke. Switch between Watts, Pace, Rate, and Heart Rate views."
                     />
                 </section>
 
-                {/* Screenshots / Visuals */}
                 {/* Screenshots / Visuals Showcase */}
                 <section className="space-y-24">
 
@@ -65,7 +64,8 @@ export const About: React.FC = () => {
                         <div className="max-w-3xl mx-auto space-y-4">
                             <h2 className="text-3xl font-bold text-white">Your Training Command Center</h2>
                             <p className="text-neutral-400">
-                                A clean, dark-mode dashboard that highlights your weekly volume, recent sessions, and actionable insights immediately upon login.
+                                A clean, dark-mode dashboard that highlights your weekly volume, recent sessions, and actionable insights.
+                                Filter everything by specific Training Zones (UT2, AT, TR) to track your polarized training balance.
                             </p>
                         </div>
                         <div className="rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl bg-neutral-900/50">
@@ -104,7 +104,7 @@ export const About: React.FC = () => {
                             <h2 className="text-3xl font-bold text-white">Head-to-Head Comparison</h2>
                             <p className="text-neutral-400 mt-4">
                                 Overlay any two workouts to visualize exactly where you gained or lost time.
-                                Perfect for comparing today's effort against your PB ghost boat.
+                                Pin data points to compare Watts, Pace, Rate, and HR side-by-side for every single stroke.
                             </p>
                         </div>
                         <div className="rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl">

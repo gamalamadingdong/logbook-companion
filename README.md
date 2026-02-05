@@ -23,6 +23,12 @@ This notation allows us to universally identify workouts across different platfo
 
 👉 **[Read the RWN Specification](rwn/RWN_spec.md)**
 
+### 3. Advanced Analytics & Comparison
+We provide tools to go beyond simple logbook summaries:
+- **Zone Analysis**: Global filters for UT2, AT, TR zones based on your baseline watts.
+- **Weekly Volume**: Visual trend lines of your total volume and zone distribution.
+- **Comparison**: Head-to-head overlay of any two workouts with support for Watts, Pace, Rate, and HR metrics.
+
 ### 3. Live Sessions & Connectivity (Experimental)
 > **⚠️ Note:** Live Sessions and Group Workouts are currently under active development and considered experimental. Use with caution.
 

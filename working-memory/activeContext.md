@@ -157,10 +157,17 @@ Execution of **Phase 1: The Digital Clipboard** (Workout Capture System).
 ## Next Steps
 
 ### Ready for Implementation
-1.  **Analytics/Analysis Improvements**
-    - Training zone distribution
-    - Volume trends by template type
-    - Best Efforts per template
+### Analytics & Visualization
+- [x] **Zone Distribution**: Visual breakdown of training intensity (Polarized training check).
+- [x] **Global Zone Filters**: Top-level filter bar to toggle dashboard view by specific zones.
+- [x] **Weekly Volume Trends**: Chart showing volume over time with trend lines.
+- [x] **Dual Workout Comparison**:
+    - [x] Stroke-by-stroke overlay
+    - [x] Metric Switching (Watts, Pace, Rate, HR)
+    - [x] Multi-stat "Omni-Header" for detailed inspection
+
+### Current Focus
+- [ ] **Live Sessions**: Further refinement of the "Coach/Group" mode (currently experimental).
 
 2.  **erg-link Integration**
     - Support `target_*_max` fields (ranges) in PM5 programming
