@@ -475,4 +475,62 @@ describe('RWN Parser - Block Tag Notation', () => {
             }
         });
     });
+
+    describe('Implicit Groups & Distributed Rest', () => {
+        test('parses implicit single group (2000m+1000m+500m)/3:00r', () => {
+            const result = parseRWN('(2000m+1000m+500m)/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('variable');
+
+            if (result?.type === 'variable') {
+                expect(result.steps.length).toBe(6); // 3 work + 3 rest (distributed)
+
+                // Work 1
+                expect(result.steps[0].type).toBe('work');
+                expect(result.steps[0].value).toBe(2000);
+
+                // Rest 1 (Distributed)
+                expect(result.steps[1].type).toBe('rest');
+                expect(result.steps[1].value).toBe(180);
+
+                // Work 2
+                expect(result.steps[2].type).toBe('work');
+                expect(result.steps[2].value).toBe(1000);
+
+                // Rest 2 (Distributed)
+                expect(result.steps[3].type).toBe('rest');
+                expect(result.steps[3].value).toBe(180);
+            }
+        });
+
+        test('parses implicit single group without rest (2000m+1000m)', () => {
+            const result = parseRWN('(2000m+1000m)');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('variable');
+
+            if (result?.type === 'variable') {
+                expect(result.steps.length).toBe(2); // 2 work, 0 rest
+                expect(result.steps[0].value).toBe(2000);
+                expect(result.steps[1].value).toBe(1000);
+            }
+        });
+
+        test('parses explicit 1x group as variable with END rest (standard behavior)', () => {
+            const result = parseRWN('1x(2000m+1000m)/3:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('variable');
+
+            // Standard N x (Group) / Rest applies rest ONLY at end
+            if (result?.type === 'variable') {
+                expect(result.steps.length).toBe(3); // Work, Work, Rest (at end)
+                expect(result.steps[0].value).toBe(2000);
+                expect(result.steps[1].value).toBe(1000);
+                expect(result.steps[2].type).toBe('rest');
+                expect(result.steps[2].value).toBe(180);
+            }
+        });
+    });
 });

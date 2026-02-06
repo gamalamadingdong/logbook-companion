@@ -70,4 +70,27 @@ describe('workoutNaming logic', () => {
         expect(calculateCanonicalName(intervals)).toBe('2 x (4 x 500m)');
     });
 
+
+    it('identifies short ladder (3 items)', () => {
+        // 2000m, 1000m, 500m
+        const intervals: C2Interval[] = [
+            { type: 'distance', distance: 2000, time: 4200 } as C2Interval,
+            { type: 'distance', distance: 1000, time: 2100 } as C2Interval,
+            { type: 'distance', distance: 500, time: 1050 } as C2Interval,
+        ];
+        expect(calculateCanonicalName(intervals)).toContain('Ladder');
+        expect(calculateCanonicalName(intervals)).toBe('v2000m...500m Ladder');
+    });
+
+    it('identifies short pyramid (3 items)', () => {
+        // 500m, 1000m, 500m
+        const intervals: C2Interval[] = [
+            { type: 'distance', distance: 500, time: 1050 } as C2Interval,
+            { type: 'distance', distance: 1000, time: 2100 } as C2Interval,
+            { type: 'distance', distance: 500, time: 1050 } as C2Interval,
+        ];
+        expect(calculateCanonicalName(intervals)).toContain('Pyramid');
+        expect(calculateCanonicalName(intervals)).toBe('v500m... Pyramid');
+    });
+
 });

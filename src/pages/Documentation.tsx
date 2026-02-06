@@ -508,6 +508,26 @@ export const Documentation: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <h4 className="text-sm font-medium text-neutral-300">Distributed Rest (Grouped)</h4>
+                                                <span className="text-[10px] bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 rounded uppercase font-bold border border-emerald-900/50">New</span>
+                                            </div>
+                                            <p className="text-xs text-neutral-500 mb-3">Distribute rest across a group of intervals using <code>(...) / ...r</code> syntax.</p>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <code className="text-sm text-emerald-400 block">(2000m + 1000m + 500m) / 3:00r</code>
+                                                    <div className="mt-2 text-xs text-neutral-400 pl-3 border-l-2 border-neutral-800 space-y-1">
+                                                        <div>• 2000m <span className="text-neutral-600">/ 3:00r</span></div>
+                                                        <div>• 1000m <span className="text-neutral-600">/ 3:00r</span></div>
+                                                        <div>• 500m <span className="text-neutral-600">/ 3:00r</span></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
                                             <h4 className="text-sm font-medium text-neutral-300 mb-1">PM5 Splits</h4>
                                             <p className="text-xs text-neutral-500 mb-2">Defined in <code>[]</code></p>

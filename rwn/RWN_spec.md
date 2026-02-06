@@ -73,6 +73,19 @@ Rest components define the recovery phase. In RWN, rest is strictly **time-based
 - `4x2000m/...r` (2k repeats with undefined rest)
 - `10x500m/...r` (Relay format: Row 500m, wait for partner to finish their leg)
 
+### 3.3 Distributed Rest (Grouped Intervals)
+For grouped intervals or variable lists (e.g., pyramids, ladders), rest can be distributed to each step by appending a rest component to the group.
+
+**Syntax:** `(Step1 + Step2 + ...) / [Rest]r`
+
+**Behavior:**
+- The rest duration is applied to **EACH** step within the group.
+- `(2000m + 1000m + 500m) / 3:00r` is parsed as:
+    - 2000m Work / 3:00 Rest
+    - 1000m Work / 3:00 Rest
+    - 500m Work / 3:00 Rest
+- This differs from compound sets `(A+B)/R` where R traditionally applies only at the end. RWN interprets `(...)/R` for single groups as distributed rest for conciseness.
+
 ## 4. Extended Syntax (Guidance)
 
 RWN supports optional guidance parameters appended to components using the `@` symbol.

@@ -451,6 +451,64 @@ export function parseRWN(input: string): WorkoutStructure | null {
     if (text.includes('(')) {
         const groupStruct = parseRepeatedGroup(text, modality);
         if (groupStruct) return groupStruct;
+
+        // 0.6 Check for Implicit Single Group "(...)" or "(...)/r"
+        // If it starts with parentheses, try parsing as "1 x ..."
+        if (text.startsWith('(')) {
+            // Re-use parseRepeatedGroup by prepending "1x"
+            // This handles "(A+B)/R" -> "1x(A+B)/R"
+            const implicitStruct = parseRepeatedGroup("1x" + text, modality);
+
+            if (implicitStruct && implicitStruct.type === 'variable') {
+                // DISTRIBUTED REST LOGIC
+                // For a single repeat (implicitly 1x), if there is a group rest "/R",
+                // we interpret this as "Distributed Rest" applied to EACH step.
+                // Standard parseRepeatedGroup applies rest at END of the set.
+                // But for "Variable List" syntax (vA/B/C), users often mean "Use this rest for all steps".
+
+                // Check if the original text had a rest suffix "/..."
+                // Use regex to check for trailing slash-rest pattern outside parens?
+                // parseRepeatedGroup already successfully parsed it, so look at the result.
+
+                // If we have >1 steps and they seem to result from "1x(A+B+C)/R",
+                // parseRepeatedGroup returns: [A, B, C, Rest].
+                // We want: [A, Rest, B, Rest, C, Rest].
+
+                // Let's manually inspect how parseRepeatedGroup constructs the steps for 1x.
+                // it calls extractSteps(inner) -> [A, B, C]
+                // loops 1x
+                // push ...[A, B, C]
+                // push Rest if groupRest > 0.
+
+                // So result is [A, B, C, R].
+                // We want to TRANSFORM this into [A, R, B, R, C, R].
+
+                // Detect if there was an explicit rest by checking the last step
+                const lastStep = implicitStruct.steps[implicitStruct.steps.length - 1];
+                if (lastStep.type === 'rest' && lastStep.value > 0) {
+                    const distributedRest = lastStep.value;
+                    const workSteps = implicitStruct.steps.filter(s => s.type === 'work');
+
+                    // Rebuild steps with distributed rest
+                    const newSteps: WorkoutStep[] = [];
+                    workSteps.forEach(s => {
+                        newSteps.push(s);
+                        newSteps.push({
+                            type: 'rest',
+                            duration_type: 'time',
+                            value: distributedRest
+                        });
+                    });
+
+                    return {
+                        ...implicitStruct,
+                        steps: newSteps
+                    };
+                }
+            }
+
+            if (implicitStruct) return implicitStruct;
+        }
     }
 
     // 1. Check for Intervals (contains 'x') - Standard "N x Work" or "N x Work/Rest"

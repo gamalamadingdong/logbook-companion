@@ -246,15 +246,15 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     if (isAllDist || isAllTime) {
         const values = workIntervals.map(i => isAllDist ? Math.round(i.distance) : i.time / 10);
 
-        // Pyramid (only for 5+ intervals)
-        const isPyramid = count >= 5 && values[0] === values[count - 1] && values[Math.floor(count / 2)] > values[0];
+        // Pyramid (only for 3+ intervals)
+        const isPyramid = count >= 3 && values[0] === values[count - 1] && values[Math.floor(count / 2)] > values[0];
         if (isPyramid) {
             const startLabel = signatures[0];
             return `v${startLabel}... Pyramid`;
         }
 
-        // Ladder (only for 5+ intervals)
-        if (count >= 5) {
+        // Ladder (only for 3+ intervals)
+        if (count >= 3) {
             let isAscending = true;
             let isDescending = true;
             for (let i = 0; i < count - 1; i++) {
