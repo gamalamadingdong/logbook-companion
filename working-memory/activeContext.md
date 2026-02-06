@@ -8,6 +8,38 @@ Execution of **Phase 1: The Digital Clipboard** (Workout Capture System).
     - Deploying OCR Service (Azure).
     - Building "Smart Form" for manual/OCR entry in Logbook Companion.
 
+## Recent Changes (2026-02-06)
+
+### ✅ Feature: Workout Capture Engine (Backend)
+1. **Reconciliation Logic Implemented**
+   - **Source Priority**: `Concept2 (Gold)` > `ErgLink (Silver)` > `Manual (Bronze)`
+   - **Strict Upgrades**: High-quality data replaces low-quality data (no duplicates)
+   - **Matching**: +/- 10 min window, strict distance/time tolerance
+   - **File**: `src/utils/reconciliation.ts`
+
+2. **RWN Canonization & Block Support**
+   - **Complex Blocks**: `2 x (4 x 500m)` structures now parsed/named correctly
+   - **Notes Integration**: Canonical RWN string saved to workout notes
+   - **Fixes**: Unrolled loops (v500m...) now detected as repeating blocks
+   - **File**: `src/utils/workoutNaming.ts`
+
+3. **Assignment Linking**
+   - **Auto-Link**: Sync process checks `daily_workout_assignments`
+   - **Schema**: `group_assignments` table created (migration ready)
+   - **Safety**: Robust error handling (try/catch) for missing schema/columns
+
+4. **Documentation Hub Refinement**
+   - **Core Concepts**: Added deep-dive explanations for Syncing, Templates, and Library.
+   - **Contextual Help**: Clarified "Why" behind features (e.g. why templates are global).
+   - **Navigation**: Linked Documentation from About page.
+   - **File**: `src/pages/Documentation.tsx`
+
+5. **Power Distribution & Zone Analytics**
+   - **Bucketing Fix**: Fixed histograms to correctly calculate Time in Zone.
+   - **Sync**: Now fetching and storing stroke-level power distribution from C2.
+   - **Visualization**: Enabled precise "Zone Distribution" charts using authentic data.
+   - **File**: `src/hooks/useConcept2Sync.ts`
+
 ## Recent Changes (2026-02-04 Session 3)
 
 ### ✅ Fixed: Token Refresh Race Conditions & Scopes

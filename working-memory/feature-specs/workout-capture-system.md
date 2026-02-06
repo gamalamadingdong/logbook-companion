@@ -1,6 +1,6 @@
 # Feature Spec: Hybrid Workout Capture System
 
-**Status**: Planned / Phase 1 Ready
+**Status**: Phase 1 Backend Complete / UI Pending
 **Date**: 2026-02-05
 **Related Context**: `activeContext.md`, `projectBrief.md`
 

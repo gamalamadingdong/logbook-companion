@@ -4,6 +4,38 @@
 
 ---
 
+## ADR-015: Reconciliation Source Priority ("Swiss Cheese" Strategy)
+
+**Date**: February 6, 2026
+**Status**: Accepted
+**Author**: AI Assistant
+
+### Context
+We capture workout data from multiple sources:
+1.  **Manual Entry**: Fast, available to everyone, but low trust (typos).
+2.  **Concept2 Logbook Sync**: High trust, verified data, but delayed (nightly/manual sync).
+3.  **ErgLink Stream**: Real-time, high trust, but requires hardware.
+
+We need to merge these streams without creating duplicate workout entries (e.g. "5k" manual entry AND "5k" C2 sync).
+
+### Decision
+**Implement a strict Source Priority Hierarchy ("Gold/Silver/Bronze"):**
+
+-   **Gold (3)**: Concept2 Logbook (Verified Hardware Data)
+-   **Silver (2)**: ErgLink Stream (Live Hardware Data)
+-   **Bronze (1)**: Manual/OCR Entry (User Reported)
+
+**Rule**: A workout log can only be updated by a source of **higher or equal** priority.
+-   Manual (Bronze) -> C2 (Gold): **UPGRADE** (Update existing record).
+-   C2 (Gold) -> Manual (Bronze): **IGNORE** (Keep existing high-quality record).
+
+### Rationale
+1.  **Single Source of Truth**: The most verifiable data wins.
+2.  **User Convenience**: Users can log manually for instant gratification, knowing it will be "upgraded" to verified data later.
+3.  **Data Integrity**: Prevents lower-quality manual data from overwriting hardware-verified data.
+
+---
+
 ## ADR-013: Global Template Library with Personal Usage Tracking
 
 **Date**: February 4, 2026  

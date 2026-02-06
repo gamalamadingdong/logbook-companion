@@ -4,6 +4,38 @@
 
 ---
 
+## Phase 6: Workout Capture Engine (Backend) (February 6, 2026)
+
+**Timeline**: February 6, 2026
+**Status**: ✅ Complete (Backend)
+
+### What Was Built
+
+#### 1. Reconciliation Engine
+**Problem**: Duplicate data entering system from Manual + C2 sources.
+**Solution**: "Swiss Cheese" layering with source priority (Gold/Silver/Bronze).
+**Logic**:
+- Check for existing workout within +/- 10 mins.
+- If existing, check if new source > existing source (e.g. C2 > Manual).
+- If update: Update in place. If new: Insert.
+
+#### 2. RWN Canonical Naming Updates
+**Problem**: Complex nested blocks (e.g., `2 x (4 x 500m)`) not naming correctly.
+**Solution**:
+- Recursive block structure detection.
+- Updated `workoutNaming.ts` to generate `Nx(MxDIST)` strings.
+- Saved canonical name to `notes` field for visibility.
+
+#### 3. Power Distribution & Zone Analytics
+**Problem**: Power distribution data was missing or incorrectly bucketed, leading to inaccurate "Time in Zone" charts.
+**Solution**:
+- Integrated `getPowerDistribution` from C2 API to fetch raw stroke buckets.
+- Fixed bucketing logic to align with training zones.
+- Upserted to `workout_power_distribution` table for fast analytics.
+- Added graceful error handling (skips if RLS/Schema fails).
+
+===
+
 ## Phase 5: Template System Enhancement (February 4, 2026)
 
 **Timeline**: February 4, 2026  
