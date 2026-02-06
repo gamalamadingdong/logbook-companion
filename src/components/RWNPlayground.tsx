@@ -20,6 +20,7 @@ export const RWNPlayground: React.FC = () => {
         { label: 'Pace Range', value: '60:00@2:05..2:10', desc: 'Split band', category: 'Pace' },
         { label: 'With W/U & C/D', value: '[w]10:00 + 5x500m/1:00r + [c]5:00', desc: 'Full session', category: 'Advanced' },
         { label: 'Rate Pyramid', value: '[w]5:00 + 5:00@r20 + 5:00@r22 + 5:00@r24 + 5:00@r22 + [c]5:00', desc: 'Rate steps', category: 'Advanced' },
+        { label: 'Rate Shorthand', value: '30:00r20', desc: '30 min @ r20', category: 'Advanced' },
         { label: 'Variable', value: '2000m+1000m+500m', desc: 'Pyramid', category: 'Advanced' },
         { label: 'Grouped', value: '3x(750m/3:00r + 500m/3:00r)', desc: 'Nested blocks', category: 'Advanced' },
         { label: 'BikeErg', value: 'Bike: 15000m', desc: 'Single modality', category: 'Multi-Modal' },
@@ -57,7 +58,7 @@ export const RWNPlayground: React.FC = () => {
     }, [input]);
 
     return (
-        <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden shadow-sm mt-8">
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden shadow-sm">
             <div className="bg-neutral-900/50 p-4 border-b border-neutral-800 flex items-center gap-2">
                 <Terminal className="text-emerald-500" size={18} />
                 <h3 className="font-semibold text-white">Interactive Validator</h3>

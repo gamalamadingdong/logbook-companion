@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../../services/supabase';
+import { workoutService } from '../../services/workoutService';
 import { calculatePowerBuckets } from '../../utils/powerBucketing';
 
 export const PowerBackfill: React.FC = () => {
@@ -47,21 +48,18 @@ export const PowerBackfill: React.FC = () => {
 
                 // Calculate Buckets
                 try {
-                    const buckets = calculatePowerBuckets(raw);
+                    // Extract intervals for Work vs Rest cleaning
+                    const intervals = raw.workout?.intervals || (raw.data && raw.data.intervals);
+                    const strokes = raw.strokes || (raw.data && raw.data.strokes);
 
-                    // Upsert to DB
-                    const { error: insertError } = await supabase
-                        .from('workout_power_distribution')
-                        .upsert({
-                            workout_id: workout.id,
-                            buckets: buckets
-                        });
+                    if (strokes) {
+                        const buckets = calculatePowerBuckets(strokes, intervals);
 
-                    if (insertError) {
-                        addLog(`Error saving ${workout.id}: ${insertError.message}`);
+                        // Upsert to DB via Service
+                        await workoutService.savePowerDistribution(workout.id, buckets);
                     }
-                } catch (e) {
-                    addLog(`Error calculating ${workout.id}: ${e}`);
+                } catch (e: any) {
+                    addLog(`Error calculating ${workout.id}: ${e.message}`);
                 }
 
                 processed++;

@@ -57,9 +57,23 @@ npm run dev
 
 ## 📚 Documentation
 
-- **[Core Concepts](src/docs/CORE_CONCEPTS.md)**
-- **[RWN Specification](src/docs/RWN_spec.md)**
-- **[erg-link](../erg-link/README.md)** (Bluetooth Connectivity)
+### User Guides
+
+New to Logbook Companion? Start here:
+
+1. **[Getting Started](docs/user-guide/GETTING_STARTED.md)** - Why Logbook Companion? Your first workout and the complete workflow
+2. **[RWN Guide](docs/user-guide/RWN_GUIDE.md)** - Master the workout notation syntax with examples
+3. **[Templates Guide](docs/user-guide/TEMPLATES.md)** - Unlock automatic analytics and performance tracking
+4. **[Workout Workflow](docs/user-guide/WORKOUT_WORKFLOW.md)** - Complete guide from planning to analysis
+5. **[Quick Reference](docs/user-guide/RWN_QUICK_REFERENCE.md)** - Printable RWN cheat sheet
+
+### Technical Documentation
+
+For developers and advanced users:
+
+- **[RWN Specification](rwn/RWN_spec.md)** - Formal specification of Rowers Workout Notation
+- **[Template Matching Guide](docs/template-matching-guide.md)** - How automatic template matching works
+- **[erg-link](../erg-link/README.md)** - Bluetooth connectivity library for PM5
 
 ## License
 

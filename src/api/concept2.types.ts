@@ -23,6 +23,7 @@ export interface C2Result {
     weight_class: string; // "H", "L"
     verified: boolean;
     ranked: boolean;
+    rest_distance?: number; // Optional, present in raw data
 }
 
 export interface C2Split {
@@ -52,6 +53,7 @@ export interface C2Stroke {
     p: number;   // Power (watts) or Pace (seconds/500m) - usually Watts in this context
     spm: number; // Strokes Per Minute
     hr: number;  // Heart Rate
+    watts?: number; // Explicit watts derived or present
 }
 
 export interface C2ResultDetail extends C2Result {

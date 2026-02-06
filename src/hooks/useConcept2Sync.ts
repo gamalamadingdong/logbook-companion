@@ -2,7 +2,9 @@ import { useState, useCallback } from 'react';
 import { getProfile, getResults, getResultDetail, getStrokes } from '../api/concept2';
 import type { C2Result } from '../api/concept2.types';
 import { supabase, upsertWorkout } from '../services/supabase';
+import { workoutService } from '../services/workoutService';
 import { calculateZoneDistribution } from '../utils/zones';
+import { calculatePowerBuckets } from '../utils/powerBucketing';
 import { calculateCanonicalName, roundToStandardDistance } from '../utils/workoutNaming';
 import { saveFilteredPRs } from '../utils/prDetection';
 import { matchWorkoutToTemplate } from '../utils/templateMatching';
@@ -188,6 +190,7 @@ export const useConcept2Sync = () => {
                         workout_type: summary.type || 'rower',
                         completed_at: summary.date,
                         distance_meters: summary.distance,
+                        rest_distance_meters: summary.rest_distance || detail.rest_distance,
                         duration_minutes: Math.round(summary.time / 600),
                         duration_seconds: summary.time / 10,
                         watts: summary.watts ? Math.round(summary.watts) : undefined,
@@ -252,6 +255,19 @@ export const useConcept2Sync = () => {
                     if (upsertedWorkout && upsertedWorkout.length > 0 && record.canonical_name) {
                         const workoutId = upsertedWorkout[0].id;
                         await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
+
+                        // 3b. Power Distribution (Histograms) - Work Strokes Only
+                        try {
+                            // fullData contains 'strokes' and typically 'workout.intervals'
+                            const intervals = fullData.workout?.intervals || ((fullData as any).data && (fullData as any).data.intervals);
+                            if (fullData.strokes && fullData.strokes.length > 0) {
+                                const buckets = calculatePowerBuckets(fullData.strokes, intervals);
+                                await workoutService.savePowerDistribution(workoutId, buckets);
+                            }
+                        } catch (bucketErr) {
+                            console.warn(`Failed to calculate/save power buckets for ${summary.id}`, bucketErr);
+                            // Non-fatal, continue
+                        }
                     }
 
                     processed++;

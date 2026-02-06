@@ -109,7 +109,7 @@ export const Analytics: React.FC = () => {
         // 2. Get Workouts (ALL TIME)
         const { data: logs } = await supabase
             .from('workout_logs')
-            .select('id, completed_at, training_zone, distance_meters, duration_minutes, duration_seconds, watts, workout_type, zone_distribution, workout_name, avg_split_500m')
+            .select('id, completed_at, training_zone, distance_meters, rest_distance_meters, duration_minutes, duration_seconds, watts, workout_type, zone_distribution, workout_name, avg_split_500m')
             .order('completed_at', { ascending: true }); // Oldest first for charts
 
         setWorkouts(logs || []);
@@ -262,8 +262,9 @@ export const Analytics: React.FC = () => {
                         weeks[key][z] += hours;
                         weeks[key].total += hours;
 
-                        // Distance (allocate proportional to time for now)
-                        const distance = (w.distance_meters || 0) * ratio;
+                        // Distance (allocate proportional to time for now) - Include Rest Distance
+                        const totalWorkoutDistance = (w.distance_meters || 0) + (w.rest_distance_meters || 0);
+                        const distance = totalWorkoutDistance * ratio;
                         weeks[key][`dist_${z}`] += distance;
                         weeks[key].totalDist += distance;
                     });
@@ -293,8 +294,8 @@ export const Analytics: React.FC = () => {
                 weeks[key][zone] += hours;
                 weeks[key].total += hours;
 
-                // Distance
-                const distance = w.distance_meters || 0;
+                // Distance - Include Rest
+                const distance = (w.distance_meters || 0) + (w.rest_distance_meters || 0);
                 weeks[key][`dist_${zone}`] += distance;
                 weeks[key].totalDist += distance;
             }
@@ -348,7 +349,7 @@ export const Analytics: React.FC = () => {
         };
     }, [weeklyVolume, volumeMetric]);
 
-    const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0), 0);
+    const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0) + (w.rest_distance_meters || 0), 0);
     // Total Time in Seconds for accurate display
     const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + (w.duration_seconds || (w.duration_minutes * 60) || 0), 0);
 

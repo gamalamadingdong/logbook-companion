@@ -24,6 +24,7 @@ export type WorkoutLog = {
     average_stroke_rate?: number;
     watts?: number; // Added for C2
     calories_burned?: number;
+    rest_distance_meters?: number; // Added for C2 Rest
     external_id?: string; // c2 result id
     source: string; // 'concept2'
     raw_data?: any; // full json

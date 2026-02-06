@@ -297,7 +297,41 @@ Both notations parse to the same structure; bracket notation is preferred for co
 -   Untagged segments default to `blockType: 'main'`.
 -   Tags are **semantic metadata only** — they do NOT affect the canonical_name used for template matching.
 
-## 11. Implementation & Verification Rules
+## 11. Input Tolerance
+
+RWN parsers SHOULD accept common shorthand notations and normalize to canonical form:
+
+### 11.1 Rate Shorthand
+
+The common rowing notation `30r20` (30 minutes at rate 20) SHOULD be accepted:
+
+| Shorthand Input | Canonical Form |
+|-----------------|----------------|
+| `30r20` | `30:00@r20` |
+| `30:00r20` | `30:00@r20` |
+| `8x500r28/1:00r` | `8x500m/1:00r@r28` |
+
+**Parsing Rule:** If `r` is immediately followed by a 2-digit number (typical rates: 16-36) without `@`, treat as rate shorthand.
+
+### 11.2 Other Tolerances
+
+| Input Variation | Canonical Form |
+|-----------------|----------------|
+| `1:00 r` (space before r) | `1:00r` |
+| `4 x 500m` (spaces around x) | `4x500m` |
+| `@18-22spm` (hyphen range) | `@18..22spm` |
+| `500m #warmup` (inline tag) | `[w]500m` |
+
+### 11.3 Duration Estimation
+
+When calculating estimated duration from RWN:
+- **Total Duration** = Work Time + Rest Time
+- **Work Duration** = Time spent on work intervals only
+- **Rest Duration** = Time spent resting between intervals
+
+This distinction is important for training load calculations.
+
+## 12. Implementation & Verification Rules
 
 > [!IMPORTANT]
 > **End-to-End Verification Rule**:

@@ -69,20 +69,31 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
 
                 <div className="px-6 pt-6 pb-2">
-                    <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Athlete</div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-lg border border-emerald-500/20">
-                            {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
-                        </div>
-                        <div className="overflow-hidden">
-                            <div className="text-sm font-medium text-white truncate">
-                                {profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                    {user ? (
+                        <>
+                            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Athlete</div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-lg border border-emerald-500/20">
+                                    {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="overflow-hidden">
+                                    <div className="text-sm font-medium text-white truncate">
+                                        {profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                                    </div>
+                                    <Link to="/preferences" className="text-xs text-neutral-500 hover:text-emerald-400 block truncate transition-colors">
+                                        Edit Profile
+                                    </Link>
+                                </div>
                             </div>
-                            <Link to="/preferences" className="text-xs text-neutral-500 hover:text-emerald-400 block truncate transition-colors">
-                                Edit Profile
+                        </>
+                    ) : (
+                        <div className="p-3 bg-neutral-800/50 rounded-lg border border-neutral-700/50">
+                            <p className="text-sm text-neutral-400 mb-2">Welcome, Guest!</p>
+                            <Link to="/login" className="block w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold text-center rounded transition-colors">
+                                Log In / Sign Up
                             </Link>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -121,7 +132,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </nav>
 
                 <div className="p-4 border-t border-neutral-800 space-y-2">
-                    {!localStorage.getItem('concept2_token') && (
+                    {user && !localStorage.getItem('concept2_token') && (
                         <button
                             onClick={() => {
                                 const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
@@ -135,13 +146,23 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                             Connect Logbook
                         </button>
                     )}
-                    <button
-                        onClick={() => logout()}
-                        className="flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                    >
-                        <LogOut size={20} />
-                        Sign Out
-                    </button>
+                    {user ? (
+                        <button
+                            onClick={() => logout()}
+                            className="flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        >
+                            <LogOut size={20} />
+                            Sign Out
+                        </button>
+                    ) : (
+                        <Link
+                            to="/login"
+                            className="flex items-center gap-3 px-4 py-3 w-full text-left text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all"
+                        >
+                            <LogOut size={20} className="rotate-180" /> {/* Flip icon for Login */}
+                            Sign In
+                        </Link>
+                    )}
 
                     <div className="pt-4 mt-2 border-t border-neutral-800 text-[10px] text-neutral-600 text-center">
                         <p>© 2024 Sam Gammon</p>

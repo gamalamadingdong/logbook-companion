@@ -86,13 +86,38 @@ function parseComponent(str: string): ParsedComponent | null {
     if (clean.includes('/')) return null;
 
     // Extract guidance first (@r20, @2:00, @2k@32spm)
+    // Also handle rate shorthand: "30:00r20" -> "30:00" at rate 20
     let guidanceText = '';
     let coreText = clean;
 
-    const atIndex = clean.indexOf('@');
+    // Check for rate shorthand pattern BEFORE @ (e.g., "30:00r20" or "30r20")
+    // Pattern: time/distance followed by "r" + 2-digit rate (16-36 typical)
+    const rateShorthandMatch = clean.match(/^(.+?)r(\d{2})$/);
+    if (rateShorthandMatch) {
+        const potentialCore = rateShorthandMatch[1];
+        const potentialRate = parseInt(rateShorthandMatch[2]);
+        // Only treat as rate if it looks like a valid rate (16-40) and core is valid
+        if (potentialRate >= 16 && potentialRate <= 40) {
+            // Check if potentialCore is a valid time or distance (not ending in 'r' for rest)
+            if (/^\d+:\d+$/.test(potentialCore) || /^\d+m$/i.test(potentialCore) || /^\d+$/.test(potentialCore)) {
+                coreText = potentialCore;
+                guidanceText = `r${potentialRate}`;
+            }
+        }
+    }
+
+    // Standard @ guidance extraction
+    const atIndex = coreText.indexOf('@');
     if (atIndex !== -1) {
-        coreText = clean.substring(0, atIndex).trim();
-        guidanceText = clean.substring(atIndex + 1).trim();
+        const beforeAt = coreText.substring(0, atIndex).trim();
+        const afterAt = coreText.substring(atIndex + 1).trim();
+        // Append to existing guidanceText if we found shorthand
+        if (guidanceText) {
+            guidanceText = `${guidanceText}@${afterAt}`;
+        } else {
+            guidanceText = afterAt;
+        }
+        coreText = beforeAt;
     }
 
     // Parse Guidance - split by @ to handle multiple chained parameters
@@ -489,11 +514,11 @@ export function parseRWN(input: string): WorkoutStructure | null {
         if (parts.length === 2) {
             const workStr = parts[0].trim();
             const restStr = parts[1].trim();
-            
+
             const workComp = parseComponent(workStr);
             if (workComp) {
                 const restVal = parseRest(restStr);
-                
+
                 return {
                     type: 'interval',
                     modality,
@@ -677,12 +702,12 @@ export function validateRWN(input: string): RWNValidationResult {
     if (!structure) {
         // Generic parsing failure - try to give specific hints
         const trimmed = input.trim();
-        
+
         // Check for common mistakes
         if (trimmed.includes('x') && !trimmed.match(/\d+x/)) {
             errors.push("Missing repeat count before 'x' (e.g., '4x500m')");
         }
-        
+
         if (trimmed.includes('/') && !trimmed.match(/\/\d/)) {
             errors.push("Missing rest time after '/' (e.g., '/1:30r')");
         }
@@ -744,7 +769,7 @@ export interface DurationEstimate {
  */
 export function estimateDuration(input: string, defaultPace: string = '2:05'): DurationEstimate | null {
     const structure = parseRWN(input);
-    
+
     if (!structure) {
         return null;
     }
@@ -763,18 +788,18 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
         if (/^(UT2|UT1|AT|TR|AN)$/i.test(pace)) {
             return null;
         }
-        
+
         // Skip relative paces like "2k+5" - these need user baseline
         if (/^(2k|5k|6k|30m|60m)/i.test(pace)) {
             return null;
         }
-        
+
         // Parse absolute pace "2:05" format
         const parts = pace.split(':');
         if (parts.length === 2) {
             return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
         }
-        
+
         // Single number (seconds)
         return parseFloat(pace);
     };
@@ -787,7 +812,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
     if (structure.type === 'steady_state') {
         if (structure.unit === 'meters') {
             workDistance = structure.value;
-            
+
             // Use explicit pace if provided
             if (structure.target_pace) {
                 const paceSeconds = parsePaceToSeconds(structure.target_pace);
@@ -809,7 +834,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
         } else if (structure.unit === 'seconds') {
             workTime = structure.value;
             estimateMethod = 'explicit_time';
-            
+
             // Estimate distance if we have pace
             if (structure.target_pace) {
                 paceUsed = structure.target_pace;
@@ -831,11 +856,11 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
         }
     } else if (structure.type === 'interval') {
         const { repeats, work, rest } = structure;
-        
+
         // Calculate work per interval
         if (work.type === 'distance') {
             workDistance = work.value * repeats;
-            
+
             if (work.target_pace) {
                 paceUsed = work.target_pace;
                 const paceSeconds = parsePaceToSeconds(work.target_pace);
@@ -854,7 +879,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
         } else if (work.type === 'time') {
             workTime = work.value * repeats;
             estimateMethod = 'explicit_time';
-            
+
             if (work.target_pace) {
                 paceUsed = work.target_pace;
                 const paceSeconds = parsePaceToSeconds(work.target_pace);
@@ -871,7 +896,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
         } else if (work.type === 'calories') {
             estimateMethod = 'no_estimate';
         }
-        
+
         // Rest is always time (already in seconds)
         restTime = rest.value * (repeats - 1); // N intervals = N-1 rest periods
     } else if (structure.type === 'variable') {
@@ -880,7 +905,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
             if (step.type === 'work') {
                 if (step.duration_type === 'distance') {
                     workDistance += step.value;
-                    
+
                     if (step.target_pace) {
                         paceUsed = step.target_pace;
                         const paceSeconds = parsePaceToSeconds(step.target_pace);
@@ -900,7 +925,7 @@ export function estimateDuration(input: string, defaultPace: string = '2:05'): D
                     }
                 } else if (step.duration_type === 'time') {
                     workTime += step.value;
-                    
+
                     if (step.target_pace) {
                         paceUsed = step.target_pace;
                         const paceSeconds = parsePaceToSeconds(step.target_pace);

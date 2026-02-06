@@ -343,6 +343,20 @@ export const workoutService = {
         return data[0];
     },
 
+    savePowerDistribution: async (workoutId: string, buckets: Record<string, number>) => {
+        const { error } = await supabase
+            .from('workout_power_distribution')
+            .upsert({
+                workout_id: workoutId,
+                buckets: buckets
+            });
+
+        if (error) {
+            console.error('Error saving power buckets:', error);
+            throw error;
+        }
+    },
+
     // Fetch Steady State Workouts (Analysis)
     getSteadyStateHistory: async () => {
         // Fetch all potential steady state candidates

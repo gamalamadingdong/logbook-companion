@@ -67,8 +67,82 @@ export const getTargetSplitRange = (zone: TrainingZone, baseline2kWatts: number)
 };
 
 /**
+ * Segments strokes into Work and Rest based on the workout structure (intervals).
+ * Uses distance resets to identify segments and aligns them with interval definitions.
+ */
+export const getWorkStrokes = (strokes: C2Stroke[], intervals?: C2Interval[]): { work: C2Stroke[], rest: C2Stroke[] } => {
+    if (!strokes || strokes.length === 0) return { work: [], rest: [] };
+    if (!intervals || intervals.length === 0) return { work: strokes, rest: [] }; // Assume all work if no structure
+
+    // 1. Segment strokes based on distance resets
+    const rawSegments: C2Stroke[][] = [];
+    let currentRawSegment: C2Stroke[] = [];
+
+    strokes.forEach((s, i) => {
+        if (i > 0 && s.d < strokes[i - 1].d) {
+            rawSegments.push(currentRawSegment);
+            currentRawSegment = [];
+        }
+        currentRawSegment.push(s);
+    });
+    if (currentRawSegment.length > 0) {
+        rawSegments.push(currentRawSegment);
+    }
+
+    // 2. Filter Work vs Rest
+    let allWork: C2Stroke[] = [];
+    let allRest: C2Stroke[] = [];
+
+    rawSegments.forEach((segment, i) => {
+        const def = intervals[i];
+        if (!def) {
+            // Extra strokes not matching defined intervals? Treat as rest/undefined or work? 
+            // Safer to treat as rest to not pollute zones.
+            allRest = allRest.concat(segment);
+            return;
+        }
+
+        if (def.type === 'rest') {
+            allRest = allRest.concat(segment);
+            return;
+        }
+
+        const isTime = def.type === 'time';
+        const isDist = def.type === 'distance';
+
+        if (isTime) {
+            // Filter by time within segment
+            // Strokes are typically cumulative time? No, in segments (splits/intervals) C2 often resets time?
+            // Actually C2 PM5 Logbook strokes usually have cumulative t for the whole workout.
+            // BUT validity of splitting by `t` depends on if `t` resets.
+            // The segment logic relies on DISTANCE resets.
+            // If it's a "Just Row" or single distance, d increases monotonically.
+            // If intervals, d resets.
+            // Let's assume the segment corresponds to the interval.
+            // Inside the segment, we filter by the defined limit.
+
+            const workStrokes = segment.filter(s => s.t <= def.time);
+            const restStrokes = segment.filter(s => s.t > def.time);
+            allWork = allWork.concat(workStrokes);
+            allRest = allRest.concat(restStrokes);
+        } else if (isDist) {
+            const targetDm = def.distance * 10;
+            const workStrokes = segment.filter(s => s.d <= targetDm);
+            const restStrokes = segment.filter(s => s.d > targetDm);
+            allWork = allWork.concat(workStrokes);
+            allRest = allRest.concat(restStrokes);
+        } else {
+            // Unknown type or undefined limit, assume Work
+            allWork = allWork.concat(segment);
+        }
+    });
+
+    return { work: allWork, rest: allRest };
+};
+
+/**
  * Parses workout data (splits or intervals) to calculate the exact duration spent in each zone.
- * Prioritizes intervals if available (more semantic), otherwise falls back to splits.
+ * Prioritizes strokes (filtered for Work) if available, otherwise falls back to intervals.
  */
 export const calculateZoneDistribution = (rawData: Partial<C2ResultDetail> & Record<string, unknown>, baseline2kWatts: number): Record<TrainingZone, number> => {
     const distribution: Record<TrainingZone, number> = { UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0 };
@@ -76,58 +150,61 @@ export const calculateZoneDistribution = (rawData: Partial<C2ResultDetail> & Rec
     // Safety check
     if (!rawData || !baseline2kWatts) return distribution;
 
-    // 1. Try STROKES (Highest Fidelity)
     const strokes = rawData.strokes || (rawData.data as Record<string, unknown>)?.strokes;
+    const intervals = rawData.workout?.intervals || rawData.workout?.splits || (rawData.data as Record<string, unknown>)?.intervals;
 
+    // 1. Try STROKES (Highest Fidelity)
     if (Array.isArray(strokes) && strokes.length > 0) {
-        let lastTime = 0;
-        // Sometimes the first stroke t starts > 0.
-        // We can't trust the delta from 0 for the first stroke since we didn't row from 0 to t[0] in one stroke usually?
-        // Actually, stroke data tracks cumulative time.
-        // Let's iterate.
+        // FILTER FOR WORK ONLY
+        const { work } = getWorkStrokes(strokes as C2Stroke[], intervals as C2Interval[]);
 
-        for (let i = 0; i < strokes.length; i++) {
-            const stroke = strokes[i];
-            const t = stroke.t; // deciseconds (1/10s)
+        // We can't rely on simple time deltas if we have gaps (removed rest strokes).
+        // However, strokes usually have `spm`. We can key off that for duration if gaps exist?
+        // Or we just process the "work" strokes. 
+        // WARNING: If we stitched strokes from valid segments, `t` might not be continuous between segments.
+        // `getWorkStrokes` returns a flattened array.
+        // We should calculate duration *per stroke* based on its own data (SPM) or delta within its segment.
+        // But `getWorkStrokes` lost the segment boundary context in the flatten.
+        // Let's rely on SPM for duration estimate to be safe, OR we must calculate duration BEFORE flattening.
 
-            // Calculate Duration of this stroke
-            // For first stroke, assumes it took 't' time (from 0).
-            const durationDeci = i === 0 ? t : (t - lastTime);
-            lastTime = t;
+        // Revised approach: Iterate the strokes and calculate duration based on SPM (60/SPM).
+        // This is robust against gaps/segment jumps.
 
-            // Avoid negative or zero duration (data glitches)
-            if (durationDeci <= 0) continue;
+        for (const stroke of work) {
+            let duration = 0;
+            if (stroke.spm && stroke.spm > 0) {
+                duration = 60 / stroke.spm;
+            } else {
+                // Fallback if SPM missing? (Rare)
+                // Maybe use generous defaults or try to use `t` delta if it looks small (< 5s?)
+                continue;
+            }
 
-            // Parse Pace/Power
+            // Calculate Watts
             let watts = 0;
             if (stroke.watts) {
                 watts = stroke.watts;
             } else if (stroke.p) {
-                // p is Pace in deciseconds/500m ? 
-                // e.g. 1258 => 125.8s / 500m => 2:05.8
+                // p is Pace in deciseconds/500m -> Watts
                 const paceSeconds = stroke.p / 10;
                 watts = splitToWatts(paceSeconds);
             }
 
             if (watts > 0) {
                 const zone = classifyWorkout(watts, baseline2kWatts);
-                distribution[zone] += (durationDeci / 10); // Convert deciseconds to seconds
+                distribution[zone] += duration;
             } else {
-                // If we have time but no power, counts as UT2 (Recovery?) or skip?
-                // Let's count as UT2 for time-fidelity
-                distribution['UT2'] += (durationDeci / 10);
+                // Zone 0? Usually just ignore or UT2.
+                // If it's work stroke but 0 watts, it's basically stopped?
+                // Ignore.
             }
         }
 
-        // If we successfully processed strokes, return.
-        const total = Object.values(distribution).reduce((a, b) => a + b, 0);
-        if (total > 0) return distribution;
+        return distribution;
     }
 
     // 2. Fallback to Intervals/Splits (Medium Fidelity)
-    const intervals = rawData.workout?.intervals || (rawData.data as Record<string, unknown>)?.intervals;
-    const splits = rawData.workout?.splits || (rawData.data as Record<string, unknown>)?.splits;
-    const segments = (intervals || splits || []) as Array<C2Split | C2Interval>;
+    const segments = (intervals || []) as Array<C2Split | C2Interval>;
 
     for (const segment of segments) {
         // Check if this is a rest interval (only C2Interval has type field)

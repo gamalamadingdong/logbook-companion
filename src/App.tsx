@@ -17,6 +17,7 @@ import { CoachSessions } from './pages/CoachSessions';
 import { TemplateLibrary } from './pages/TemplateLibrary';
 import { TemplateDetail } from './pages/TemplateDetail';
 import { Documentation } from './pages/Documentation';
+import DownloadC2Data from './pages/DownloadC2Data';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -145,8 +146,16 @@ function App() {
           <Route
             path="/docs"
             element={
-              <ProtectedRoute>
+              <Layout>
                 <Documentation />
+              </Layout>
+            }
+          />
+          <Route
+            path="/download-c2-data"
+            element={
+              <ProtectedRoute>
+                <DownloadC2Data />
               </ProtectedRoute>
             }
           />

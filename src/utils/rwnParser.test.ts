@@ -117,6 +117,61 @@ describe('RWN Parser - Chained Guidance Parameters', () => {
             }
         });
     });
+
+    describe('Rate shorthand notation (TL-4)', () => {
+        test('parses time + rate shorthand "30r20" as 30:00@r20', () => {
+            const result = parseRWN('30:00r20');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.value).toBe(1800); // 30 minutes in seconds
+                expect(result.unit).toBe('seconds');
+                expect(result.target_rate).toBe(20);
+            }
+        });
+
+        test('parses distance + rate shorthand "5000mr24" as 5000m@r24', () => {
+            const result = parseRWN('5000mr24');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.value).toBe(5000);
+                expect(result.unit).toBe('meters');
+                expect(result.target_rate).toBe(24);
+            }
+        });
+
+        test('distinguishes rate shorthand from rest notation', () => {
+            // "1:00r" should be rest, not rate shorthand
+            // This is tested via interval parsing
+            const result = parseRWN('4x500m/1:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.rest.value).toBe(60); // 1:00 rest
+                expect(result.work.target_rate).toBeUndefined();
+            }
+        });
+
+        test('does not treat r99 as rate shorthand (outside typical range)', () => {
+            // r99 is outside typical 16-40 range, should not be treated as rate shorthand
+            // The parser will treat "30:00r99" without rate extraction
+            const result = parseRWN('30:00r99');
+
+            // Either null (invalid) or parsed without rate extraction
+            // Since "30:00r99" doesn't match any valid pattern, it should fail
+            // But if it parses, it shouldn't have target_rate = 99
+            if (result !== null && result.type === 'steady_state') {
+                expect(result.target_rate).not.toBe(99);
+            }
+        });
+    });
 });
 
 describe('RWN Parser - Range Notation', () => {
@@ -367,7 +422,7 @@ describe('RWN Parser - Block Tag Notation', () => {
 
             if (result?.type === 'variable') {
                 expect(result.steps.length).toBeGreaterThan(0);
-                
+
                 // First step should be warmup
                 const warmupStep = result.steps[0];
                 expect(warmupStep.type).toBe('work');

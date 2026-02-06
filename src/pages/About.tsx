@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const About: React.FC = () => {
@@ -18,12 +18,16 @@ export const About: React.FC = () => {
                     <p className="text-xl text-neutral-400 max-w-2xl mx-auto leading-relaxed">
                         A dedicated analysis layer for the Concept2 Logbook.
                     </p>
-                    <div className="pt-8 flex justify-center gap-4">
+                    <div className="pt-8 flex flex-col sm:flex-row justify-center gap-4">
                         <Link to="/login" className="px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-all transform hover:scale-105">
                             Get Started
                         </Link>
                         <Link to="/login" className="px-8 py-3 bg-neutral-900 text-white font-medium rounded-full border border-neutral-800 hover:bg-neutral-800 transition-colors">
                             Log In
+                        </Link>
+                        <Link to="/docs" className="px-8 py-3 bg-neutral-900 text-neutral-400 font-medium rounded-full border border-neutral-800 hover:bg-neutral-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+                            <BookOpen size={18} />
+                            Docs
                         </Link>
                     </div>
                 </header>
@@ -219,12 +223,15 @@ export const About: React.FC = () => {
                 </section>
 
                 {/* Footer */}
-                <footer className="text-center pt-12 pb-8 text-neutral-600 text-sm border-t border-neutral-900">
-                    <Link to="/login" className="inline-flex items-center hover:text-white transition-colors gap-2 mb-4">
+                <footer className="text-center pt-12 pb-8 text-neutral-600 text-sm border-t border-neutral-900 flex justify-center gap-6">
+                    <Link to="/login" className="inline-flex items-center hover:text-white transition-colors gap-2">
                         <ArrowLeft size={14} />
                         Back to Application
                     </Link>
-                    <p>© {new Date().getFullYear()} Logbook Companion. Not affiliated with Concept2.</p>
+                    <Link to="/docs" className="inline-flex items-center hover:text-white transition-colors gap-2">
+                        <BookOpen size={14} />
+                        Documentation
+                    </Link>
                 </footer>
             </div>
         </div>
