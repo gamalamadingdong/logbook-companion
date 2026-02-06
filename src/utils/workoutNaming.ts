@@ -13,13 +13,13 @@ const STANDARD_DISTANCES = [
  */
 export function roundToStandardDistance(meters: number): number {
     const threshold = Math.max(20, meters * 0.01); // 20m or 1%, whichever is larger
-    
+
     for (const standard of STANDARD_DISTANCES) {
         if (Math.abs(meters - standard) <= threshold) {
             return standard;
         }
     }
-    
+
     return Math.round(meters);
 }
 
@@ -108,53 +108,58 @@ export function calculateCanonicalName(intervals: C2Interval[]): string {
     // Detect repeating rest patterns that indicate block structures
     // Example: [90s, 90s, 90s, 90s, 360s] repeated 4 times = 4 blocks of 5 intervals
     const restTimes = workIntervals.map(i => (i.rest_time || 0) / 10); // Convert to seconds
-    
+
     if (restTimes.length >= 4) { // Need at least 4 intervals to detect blocks
         // Try different block sizes (minimum 2 intervals per block)
         for (let blockSize = 2; blockSize <= restTimes.length / 2; blockSize++) {
             if (restTimes.length % blockSize !== 0) continue;
-            
+
             const pattern = restTimes.slice(0, blockSize);
             const blockCount = restTimes.length / blockSize;
-            
+
             // Check if this pattern repeats throughout
             let matches = true;
             for (let i = blockSize; i < restTimes.length; i++) {
+                // EXCEPTION: Last interval of the entire workout often has 0 rest, 
+                // whereas the pattern might expect a "block rest". matched if it's the very last one.
+                if (i === restTimes.length - 1 && restTimes[i] === 0) continue;
+
                 if (Math.abs(restTimes[i] - pattern[i % blockSize]) > 2) { // 2s tolerance
                     matches = false;
                     break;
                 }
             }
-            
+
             if (matches && blockCount >= 2) {
                 // Check if there's a longer rest at the end of each block
                 const lastRest = pattern[pattern.length - 1];
                 const firstRest = pattern[0];
-                
+
                 // Block rest should be significantly longer than intra-block rest
                 if (lastRest > firstRest * 1.5) {
                     // Check if work intervals within block are uniform
                     const blockWorkIntervals = workIntervals.slice(0, blockSize);
                     const blockDists = blockWorkIntervals.map(i => i.distance);
                     const blockTimes = blockWorkIntervals.map(i => i.time);
-                    
+
                     const blockDistUniform = blockDists.every(d => Math.abs(d - blockDists[0]) < 5);
                     const blockTimeUniform = blockTimes.every(t => Math.abs(t - blockTimes[0]) < 100);
-                    
+
                     if (blockDistUniform || blockTimeUniform) {
                         // Generate block canonical name
                         const first = blockWorkIntervals[0];
                         const isDistBased = first.type === 'distance' || (first.distance > 0 && first.type !== 'time');
-                        
+
                         if (isDistBased) {
                             const workSig = `${roundToStandardDistance(first.distance)}m`;
-                            return `${blockCount}x${blockSize}x${workSig}`;
+                            // RWN 0.1.0 uses parentheses for groups: 4 x (5 x 500m)
+                            return `${blockCount} x (${blockSize} x ${workSig})`;
                         } else {
                             const timeSec = first.time / 10;
                             const m = Math.floor(timeSec / 60);
                             const s = timeSec % 60;
                             const workSig = s === 0 ? `${m}:00` : `${m}:${s.toString().padStart(2, '0')}`;
-                            return `${blockCount}x${blockSize}x${workSig}`;
+                            return `${blockCount} x (${blockSize} x ${workSig})`;
                         }
                     }
                 }

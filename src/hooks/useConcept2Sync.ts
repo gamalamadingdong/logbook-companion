@@ -8,6 +8,7 @@ import { calculatePowerBuckets } from '../utils/powerBucketing';
 import { calculateCanonicalName, roundToStandardDistance } from '../utils/workoutNaming';
 import { saveFilteredPRs } from '../utils/prDetection';
 import { matchWorkoutToTemplate } from '../utils/templateMatching';
+import { findMatchingWorkout, shouldUpgrade } from '../utils/reconciliation';
 
 export type SyncRange = 'all' | 'season' | '30days' | 'custom';
 
@@ -183,7 +184,8 @@ export const useConcept2Sync = () => {
                     const distribution = calculateZoneDistribution(fullData, baseWatts);
 
                     // Map to DB Schema
-                    const record = {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const record: any = {
                         external_id: summary.id.toString(),
                         user_id: userId,
                         workout_name: summary.workout_type || 'Workout',
@@ -199,6 +201,10 @@ export const useConcept2Sync = () => {
                         average_heart_rate: detail.heart_rate?.average,
                         max_heart_rate: detail.heart_rate?.max,
                         source: 'concept2',
+                        notes: `RWN: ${(() => {
+                            const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                            return calculated !== 'Unknown' ? calculated : (summary.workout_type || 'Workout');
+                        })()}`,
                         raw_data: fullData,
                         zone_distribution: distribution,
                         canonical_name: (() => {
@@ -239,6 +245,30 @@ export const useConcept2Sync = () => {
                         })()
                     };
 
+                    // RECONCILIATION: Check for existing manual/other entries to upgrade
+                    const match = await findMatchingWorkout(supabase, {
+                        userId,
+                        date: new Date(summary.date),
+                        distance: summary.distance,
+                        timeSeconds: summary.time / 10,
+                        tolerance: {
+                            timeSeconds: 60 * 10, // +/- 10 mins matching window
+                            distanceMeters: 100,  // +/- 100m tolerance (generous for manual entry error)
+                            durationSeconds: 10   // +/- 10s tolerance
+                        }
+                    });
+
+                    if (match) {
+                        if (shouldUpgrade(match.source, 'concept2')) {
+                            console.log(`Reconciliation: Upgrading workout ${match.id} from ${match.source} to concept2`);
+                            record.id = match.id; // OVERRIDE existing row
+                        } else {
+                            console.log(`Reconciliation: Skipping workout. Existing source ${match.source} is higher/equal priority.`);
+                            skippedExisting++;
+                            continue; // Logic says we don't need to sync this if we have better data
+                        }
+                    }
+
                     // Fallback for Watts if missing (Estimate from Pace)
                     if (!record.watts && record.avg_split_500m) {
                         // Power = 2.80 * (velocity ^ 3)
@@ -249,12 +279,70 @@ export const useConcept2Sync = () => {
                     }
 
 
+
+                    // RECONCILIATION: Check for existing manual/other entries to upgrade
+                    const reconciledMatch = await findMatchingWorkout(supabase, {
+                        userId,
+                        date: new Date(summary.date),
+                        distance: summary.distance,
+                        timeSeconds: summary.time / 10,
+                        tolerance: {
+                            timeSeconds: 60 * 10, // +/- 10 mins matching window
+                            distanceMeters: 100,  // +/- 100m tolerance
+                            durationSeconds: 10   // +/- 10s tolerance
+                        }
+                    });
+
+                    if (reconciledMatch) {
+                        if (shouldUpgrade(reconciledMatch.source, 'concept2')) {
+                            console.log(`Reconciliation: Upgrading workout ${reconciledMatch.id} from ${reconciledMatch.source} to concept2`);
+                            // Inject ID into record for Update
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (record as any).id = reconciledMatch.id;
+                        } else {
+                            console.log(`Reconciliation: Skipping workout. Existing source ${reconciledMatch.source} is higher/equal priority.`);
+                            skippedExisting++;
+                            continue;
+                        }
+                    }
+
                     const upsertedWorkout = await upsertWorkout(record);
 
                     // Auto-match workout to template by canonical_name
                     if (upsertedWorkout && upsertedWorkout.length > 0 && record.canonical_name) {
                         const workoutId = upsertedWorkout[0].id;
-                        await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
+                        const templateId = await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
+
+                        // 3a. Assignment Linking
+                        // If we matched a template, try to complete an assignment
+                        // Wrap in Try/Catch so this never fails the sync if schema is outdated (e.g. missing columns)
+                        try {
+                            if (templateId) {
+                                const dateStr = new Date(summary.date).toISOString().split('T')[0];
+                                const { data: assignment } = await supabase
+                                    .from('daily_workout_assignments')
+                                    .select('id')
+                                    .eq('user_id', userId)
+                                    .eq('workout_date', dateStr)
+                                    .eq('original_template_id', templateId)
+                                    .eq('completed', false)
+                                    .maybeSingle();
+
+                                if (assignment) {
+                                    await supabase
+                                        .from('daily_workout_assignments')
+                                        .update({
+                                            completed: true,
+                                            completed_log_id: workoutId,
+                                            completed_at: new Date().toISOString()
+                                        })
+                                        .eq('id', assignment.id);
+                                    console.log(`Linked workout ${workoutId} to assignment ${assignment.id}`);
+                                }
+                            }
+                        } catch (assignErr) {
+                            console.warn('Assignment linking skipped:', assignErr);
+                        }
 
                         // 3b. Power Distribution (Histograms) - Work Strokes Only
                         try {

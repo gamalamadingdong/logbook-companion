@@ -718,6 +718,7 @@ CREATE TABLE public.workout_logs (
   zone_distribution jsonb DEFAULT '{}'::jsonb,
   canonical_name text,
   manual_rwn text,
+  rest_distance_meters integer,
   CONSTRAINT workout_logs_pkey PRIMARY KEY (id),
   CONSTRAINT workout_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(user_id)
 );
@@ -752,12 +753,12 @@ CREATE TABLE public.workout_templates (
   updated_at timestamp with time zone DEFAULT now(),
   training_zone text CHECK (training_zone = ANY (ARRAY['UT2'::text, 'UT1'::text, 'AT'::text, 'TR'::text, 'AN'::text])),
   workout_category text CHECK (workout_category IS NULL OR (workout_category = ANY (ARRAY['test'::text, 'interval_vo2max'::text, 'interval_threshold'::text, 'interval_mixed'::text, 'steady_state'::text, 'low_rate_progression'::text, 'warmup'::text, 'cooldown'::text, 'technical'::text, 'cross_training'::text]))),
-  signature_workout text UNIQUE,
   tags ARRAY DEFAULT '{}'::text[],
   workout_structure jsonb,
   rwn text,
-  canonical_name text,
   created_by uuid,
+  canonical_name text,
+  last_used_at timestamp with time zone,
   CONSTRAINT workout_templates_pkey PRIMARY KEY (id),
   CONSTRAINT workout_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
