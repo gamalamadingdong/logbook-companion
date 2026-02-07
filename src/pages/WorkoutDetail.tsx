@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Label } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { TemplateEditor } from '../components/TemplateEditor';
@@ -11,7 +11,7 @@ import { calculateWatts } from '../utils/prCalculator';
 import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/workoutNaming';
 import { parseRWN } from '../utils/rwnParser';
 import { structureToIntervals } from '../utils/structureAdapter';
-import { calculateBucketsFromStrokes } from '../utils/zones';
+import { calculateBucketsFromStrokes, ZONES } from '../utils/zones';
 import { getMainBlockIndices } from '../utils/workoutAnalysis';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
@@ -818,6 +818,32 @@ export const WorkoutDetail: React.FC = () => {
                                         dy={10}
                                         fontSize={12}
                                     />
+                                    {/* Training Zone Thresholds */}
+                                    {baselineWatts && ZONES.slice(0, 4).map((zone) => {
+                                        // Draw line at the TOP of the zone
+                                        const thresholdWatts = Math.round(baselineWatts * zone.maxPct);
+                                        const nextZone = ZONES.find(z => z.minPct === zone.maxPct);
+                                        const label = nextZone ? nextZone.id : 'Max';
+
+                                        return (
+                                            <ReferenceLine
+                                                key={zone.id}
+                                                yAxisId="left"
+                                                y={thresholdWatts}
+                                                stroke={nextZone?.color || zone.color}
+                                                strokeDasharray="3 3"
+                                                strokeOpacity={0.5}
+                                            >
+                                                <Label
+                                                    value={label}
+                                                    position="insideTopRight"
+                                                    fill={nextZone?.color || zone.color}
+                                                    fontSize={10}
+                                                    offset={10}
+                                                />
+                                            </ReferenceLine>
+                                        );
+                                    })}
                                     <YAxis yAxisId="left" stroke="#8884d8" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
                                     <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: '#a3a3a3' }} domain={[0, 'auto']} />
                                     <Tooltip
@@ -833,7 +859,8 @@ export const WorkoutDetail: React.FC = () => {
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                     <Line yAxisId="left" type="monotone" dataKey="watts" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="Watts" />
                                     <Line yAxisId="right" type="monotone" dataKey="hr" stroke="#fb7185" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="HR" />
-                                    <Line yAxisId="right" type="monotone" dataKey="spm" stroke="#34d399" strokeWidth={2} dot={false} activeDot={{ r: 6 }} name="SPM" />
+                                    {/* SPM hidden from chart/legend but kept for tooltip (bound to left axis to avoid distorting HR scale) */}
+                                    <Line yAxisId="left" type="monotone" dataKey="spm" stroke="none" dot={false} activeDot={false} legendType="none" name="SPM" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>

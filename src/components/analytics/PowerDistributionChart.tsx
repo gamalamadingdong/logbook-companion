@@ -17,7 +17,10 @@ export const PowerDistributionChart: React.FC<PowerDistributionChartProps> = ({
 
     const zoneData = useMemo(() => {
         if (!buckets || !baselineWatts) return [];
-        return aggregateBucketsByZone(buckets, baselineWatts);
+        return aggregateBucketsByZone(buckets, baselineWatts).map(z => ({
+            ...z,
+            name: z.zone // Legend uses 'name' by default
+        }));
     }, [buckets, baselineWatts]);
 
     if (zoneData.length === 0) {

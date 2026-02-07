@@ -203,6 +203,27 @@ export const useConcept2Sync = () => {
                         source: 'concept2',
                         notes: `RWN: ${(() => {
                             const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                            if (calculated && calculated !== 'Unknown') return calculated;
+
+                            // Shared Fallback Logic
+                            const type = summary.workout_type || '';
+                            if (['FixedDistanceSplits', 'FixedDistanceNoSplits', 'FixedDistanceInterval'].includes(type) || type === 'DistanceInterval') {
+                                return `${roundToStandardDistance(summary.distance)}m`;
+                            }
+                            if (['FixedTimeSplits', 'FixedTimeNoSplits', 'FixedTimeInterval'].includes(type) || type === 'TimeInterval') {
+                                const mins = Math.round(summary.time / 600);
+                                return `${mins}:00`;
+                            }
+                            if (['FixedCalorie', 'FixedCalorieInterval', 'FixedCalorieSplits', 'FixedCalorieNoSplits'].includes(type) || type === 'CalorieInterval') {
+                                return `${detail.calories_total} cal`;
+                            }
+                            if (['FixedWattMinute', 'FixedWattMinuteInterval', 'FixedWattSplits', 'FixedWattNoSplits'].includes(type) || type === 'WattInterval' || type === 'WattsInterval') {
+                                return `${Math.round(summary.watts || 0)}W`;
+                            }
+                            if (type === 'JustRow' || type.includes('Just Row')) {
+                                return `${Math.floor(summary.distance)}m JustRow`;
+                            }
+                            // Default to calculated (even if Unknown) or Type
                             return calculated !== 'Unknown' ? calculated : (summary.workout_type || 'Workout');
                         })()}`,
                         raw_data: fullData,

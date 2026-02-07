@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Activity, Link as LinkIcon, X, Search } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../hooks/useAuth';
+import { ZONES, splitToWatts } from '../utils/zones';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 
 export const WorkoutHistory: React.FC = () => {
     const { name } = useParams<{ name: string }>();
+    const { user } = useAuth();
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    
+    const [baselineWatts, setBaselineWatts] = useState<number | null>(null);
+
     // Bulk Template Linking State
     const [showTemplateLinking, setShowTemplateLinking] = useState(false);
     const [availableTemplates, setAvailableTemplates] = useState<Array<{
@@ -36,17 +40,50 @@ export const WorkoutHistory: React.FC = () => {
 
         const loadData = async () => {
             try {
-                const data = await workoutService.getWorkoutHistory(workoutName);
-                setHistory(data);
+                // Parallel fetch: Workout History + User Baseline
+                const [historyData, profileData] = await Promise.all([
+                    workoutService.getWorkoutHistory(workoutName),
+                    (async () => {
+                        if (!user?.id) return null;
+                        const { data } = await supabase
+                            .from('user_profiles')
+                            .select('benchmark_preferences')
+                            .eq('user_id', user.id)
+                            .single();
+
+                        const baselineStr = data?.benchmark_preferences?.['2k']?.working_baseline;
+                        if (baselineStr) {
+                            // Parse "7:00.0" -> 500m split -> Watts. 
+                            // Logic copied from BaselineInput to ensure match.
+                            // Actually better to have a helper but inline is safer for now to avoid breaking imports.
+                            const parts = baselineStr.split(':');
+                            let totalSeconds = 0;
+                            if (parts.length === 2) {
+                                totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+                            } else {
+                                totalSeconds = parseFloat(baselineStr);
+                            }
+                            if (totalSeconds > 0) {
+                                const split500m = (totalSeconds / 2000) * 500;
+                                return Math.round(splitToWatts(split500m));
+                            }
+                        }
+                        return null;
+                    })()
+                ]);
+
+                setHistory(historyData);
+                if (profileData) setBaselineWatts(profileData);
+
             } catch (err) {
-                console.error("Failed to load history", err);
+                console.error("Failed to load history or baseline", err);
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, [workoutName]);
+    }, [workoutName, user?.id]);
 
     if (loading) return (
         <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">
@@ -64,6 +101,7 @@ export const WorkoutHistory: React.FC = () => {
     const chartData = [...history].reverse().map(h => ({
         date: new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }),
         watts: h.watts,
+        split: h.avg_split, // Seconds per 500m
         dateObj: new Date(h.date) // For sorting if needed
     }));
 
@@ -95,7 +133,7 @@ export const WorkoutHistory: React.FC = () => {
                                         .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
                                         .eq('workout_type', 'erg')
                                         .order('name', { ascending: true });
-                                    
+
                                     if (error) throw error;
                                     setAvailableTemplates(data || []);
                                 } catch (err) {
@@ -128,18 +166,88 @@ export const WorkoutHistory: React.FC = () => {
                                 tickLine={false}
                                 axisLine={false}
                             />
+
+                            {/* Training Zones Background */}
+                            {baselineWatts && ZONES.map((zone) => {
+                                const y1 = Math.round(baselineWatts * zone.minPct);
+                                // Cap the top zone for visual sanity if it's infinite (AN zone)
+                                // Or just let it go high. 200% of baseline is plenty.
+                                const y2 = zone.maxPct >= 2
+                                    ? Math.round(baselineWatts * 2.0)
+                                    : Math.round(baselineWatts * zone.maxPct);
+
+                                return (
+                                    <ReferenceArea
+                                        key={zone.id}
+                                        yAxisId="left"
+                                        y1={y1}
+                                        y2={y2}
+                                        fill={zone.color}
+                                        fillOpacity={0.15}
+                                        strokeOpacity={0}
+                                        ifOverflow="extendDomain"
+                                    />
+                                );
+                            })}
+                            {/* Left Y-Axis (Watts) */}
                             <YAxis
-                                stroke="#525252"
+                                yAxisId="left"
+                                stroke="#34d399"
                                 fontSize={12}
                                 tickLine={false}
                                 axisLine={false}
                                 domain={['dataMin - 10', 'auto']}
+                                label={{ value: 'Watts', angle: -90, position: 'insideLeft', fill: '#34d399', fontSize: 10 }}
+                            />
+                            {/* Right Y-Axis (Split) - Inverted so faster is "higher" visually? No, standard is clearer for dual axis usually. */}
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                stroke="#60a5fa"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                                domain={['auto', 'auto']}
+                                tickFormatter={(val) => {
+                                    const m = Math.floor(val / 60);
+                                    const s = (val % 60).toFixed(0);
+                                    return `${m}:${s.padStart(2, '0')}`;
+                                }}
+                                label={{ value: 'Split /500m', angle: 90, position: 'insideRight', fill: '#60a5fa', fontSize: 10 }}
                             />
                             <Tooltip
                                 contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
                                 itemStyle={{ color: '#fff' }}
+                                formatter={(value: any, name: string | undefined) => {
+                                    if (value === undefined || value === null) return ['-', name || ''];
+                                    if (name === 'split') {
+                                        const m = Math.floor(Number(value) / 60);
+                                        const s = (Number(value) % 60).toFixed(1);
+                                        return [`${m}:${s.padStart(4, '0')}`, 'Pace'];
+                                    }
+                                    return [`${value}w`, 'Watts'];
+                                }}
                             />
-                            <Line type="monotone" dataKey="watts" stroke="#34d399" strokeWidth={3} dot={{ fill: '#34d399', r: 4 }} activeDot={{ r: 6 }} />
+                            <Line
+                                yAxisId="left"
+                                type="monotone"
+                                dataKey="watts"
+                                name="watts"
+                                stroke="#34d399"
+                                strokeWidth={3}
+                                dot={{ fill: '#34d399', r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                            <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="split"
+                                name="split"
+                                stroke="#60a5fa"
+                                strokeWidth={3}
+                                dot={{ fill: '#60a5fa', r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -244,7 +352,7 @@ export const WorkoutHistory: React.FC = () => {
                                 <div className="text-center py-8 text-neutral-400">
                                     Loading templates...
                                 </div>
-                            ) : availableTemplates.filter(t => 
+                            ) : availableTemplates.filter(t =>
                                 !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())
                             ).length === 0 ? (
                                 <div className="text-center py-8 text-neutral-400">
@@ -254,15 +362,15 @@ export const WorkoutHistory: React.FC = () => {
                                 availableTemplates
                                     .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
                                     .map((template) => {
-                                        const structureType = template.is_steady_state 
-                                            ? 'Steady State' 
-                                            : template.is_interval 
-                                                ? 'Interval' 
-                                                : template.workout_structure 
-                                                    ? 'Variable' 
+                                        const structureType = template.is_steady_state
+                                            ? 'Steady State'
+                                            : template.is_interval
+                                                ? 'Interval'
+                                                : template.workout_structure
+                                                    ? 'Variable'
                                                     : 'Unknown';
-                                        
-                                        const workoutInfo = template.distance 
+
+                                        const workoutInfo = template.distance
                                             ? `${template.distance}m`
                                             : template.estimated_duration
                                                 ? `${Math.floor(template.estimated_duration / 60)}min`
@@ -283,7 +391,7 @@ export const WorkoutHistory: React.FC = () => {
                                                     try {
                                                         // Get all workout IDs that need linking
                                                         const workoutIds = history.map(h => h.db_id).filter(Boolean);
-                                                        
+
                                                         if (workoutIds.length === 0) {
                                                             alert('No workout database IDs found');
                                                             return;
