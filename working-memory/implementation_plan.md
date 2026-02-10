@@ -8,23 +8,21 @@ The user wants to "Track" specific workouts (e.g., "Speed Pyramid", "4x1000m") a
 > [!NOTE]
 > Added **"Tracked Workouts"** feature. This requires schema changes (`user_preferences` or similar) to store the list of patterns a user wants to follow.
 
-## Proposed Changes
+## Pass Status
 
-### 1. Smart PR & Interval Detection (In Progress)
-**Goal**: Automatically surface Personal Bests for standard distances AND benchmark intervals (e.g., 8x500m) by parsing granular `raw_data`.
+### Pass 1 — PR Detection + UI ✅ Complete
+**Goal**: Surface PRs for standard distances and interval benchmarks with a unit toggle.
 
-#### [MODIFY] [prCalculator.ts](file:///c:/Users/samgammon/apps/LogbookAnalyzer/src/utils/prCalculator.ts)
-- **Status**: Logic partially implemented (`calculatePRs`).
-- **Update**: Ensure `PRRecord` returns data in *all* units if possible (seconds, meters, watts) so UI can toggle display.
-- **Refinement**: Improve detection of "Speed Pyramid" or named workouts.
+#### [DONE] prCalculator.ts
+- PR detection for standard distances + interval patterns using `raw_data`.
+- Watt/pace/time formatting helpers available for UI toggles.
 
-#### [NEW] [PRList.tsx / PRCard.tsx](file:///c:/Users/samgammon/apps/LogbookAnalyzer/src/components/analytics/PRList.tsx)
-- Separate "Standard Distances" (2k, 5k, etc.) from "Interval Benchmarks".
-- **Tracking UI**: Separate section for "Tracked Workouts" (User's Favorites).
-- **Unit Toggle**: Allow viewing as Split (500m), Time, or Watts.
+#### [DONE] PRList.tsx
+- Standard distances vs interval benchmarks split.
+- Unit toggle (pace/time/watts) and PR cards in the same file.
 
-### 2. User Preferences & Tracking (New)
-**Goal**: Allow users to "Pin" specific workout types and define their preferred benchmarks.
+### Pass 2 — Tracking + Preferences (Next)
+**Goal**: Allow users to pin tracked workouts and persist preferred units.
 
 #### [NEW] [schema] (user_preferences)
 - Create `user_preferences` table (or add JSONB to users/profiles):
@@ -32,10 +30,8 @@ The user wants to "Track" specific workouts (e.g., "Speed Pyramid", "4x1000m") a
   - `preferred_units`: `split` | `watts` | `time`.
   - `benchmark_2k`: existing (consolidate here if possible).
 
-#### [MODIFY] [Analytics.tsx](file:///c:/Users/samgammon/apps/LogbookAnalyzer/src/pages/Analytics.tsx)
-- Add "Preferences" modal or section.
-- Allow toggling "Is Tracked" on a workout detail view? (Maybe v2).
-- For now, simple "Manage Tracked Workouts" lists in Settings.
+#### [MODIFY] Analytics settings
+- Add a "Tracked Workouts" section and a lightweight preferences editor.
 
 ### 3. Shareable Reports (Weekly Postcard) - *Deferred*
 ### 4. Goal Tracker - *Deferred*
@@ -43,7 +39,7 @@ The user wants to "Track" specific workouts (e.g., "Speed Pyramid", "4x1000m") a
 ## Verification Plan
 
 ### Automated Tests
-- Run `scripts/verify_pr_logic.ts` to ensure "Speed Pyramid" and "4x1000m" are correctly identified.
+- Run `scripts/verify_pr_logic.ts` to ensure tracked patterns (e.g., "Speed Pyramid", "4x1000m") are correctly identified.
 
 ### Manual Verification
 1.  **PRs**: Open Analytics. Verify "Distance PRs" are correct.
