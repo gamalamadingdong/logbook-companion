@@ -17,7 +17,7 @@ export interface TemplateFilters {
 export async function fetchTemplates(filters: TemplateFilters = {}): Promise<WorkoutTemplateListItem[]> {
     let query = supabase
         .from('workout_templates')
-        .select('id, name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at');
+        .select('id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at');
 
     // Apply sorting based on sortBy parameter
     if (filters.sortBy === 'recent') {

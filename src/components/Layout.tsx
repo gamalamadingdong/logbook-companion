@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Activity, Dumbbell, BookOpen, Users } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Dumbbell, BookOpen, Users } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { supabase } from '../services/supabase';
