@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { WorkoutTemplate, WorkoutTemplateListItem, WorkoutStructure } from '../types/workoutStructure.types';
+import { computeCanonicalName } from '../utils/structureAdapter';
 
 export interface TemplateFilters {
     workoutType?: string;
@@ -88,10 +89,16 @@ export async function updateTemplate(
     id: string,
     updates: Partial<Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type' | 'training_zone' | 'workout_structure' | 'is_test'>>
 ): Promise<WorkoutTemplate | null> {
+    // Compute canonical_name from structure if provided
+    const canonical_name = updates.workout_structure
+        ? computeCanonicalName(updates.workout_structure) || null
+        : undefined;
+
     const { data, error } = await supabase
         .from('workout_templates')
         .update({
             ...updates,
+            ...(canonical_name !== undefined && { canonical_name }),
             updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -120,10 +127,16 @@ export async function createTemplate(
         throw new Error('You must be logged in to create templates');
     }
 
+    // Compute canonical_name from structure
+    const canonical_name = template.workout_structure
+        ? computeCanonicalName(template.workout_structure) || null
+        : null;
+
     const { data, error } = await supabase
         .from('workout_templates')
         .insert({
             ...template,
+            canonical_name,
             created_by: user.id,
             status: 'draft',
             validated: false

@@ -7,6 +7,8 @@
 
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 import type { C2Interval } from '../api/concept2.types';
+import { getMainBlock } from './workoutAnalysis';
+import { calculateCanonicalName } from './workoutNaming';
 
 /**
  * Convert a WorkoutStructure to an array of C2Interval objects.
@@ -75,4 +77,75 @@ export function structureToIntervals(structure: WorkoutStructure): C2Interval[] 
     }
 
     return [];
+}
+
+/**
+ * Convert only the main-block work steps of a WorkoutStructure to C2Interval objects.
+ * Strips warmup ([w]) and cooldown ([c]) blocks before conversion.
+ * Use this for canonical name generation and template matching.
+ */
+export function mainBlockToIntervals(structure: WorkoutStructure): C2Interval[] {
+    const mainSteps = getMainBlock(structure);
+    
+    // If no explicit block types are set, all steps are main — use full conversion
+    if (mainSteps.length === 0) {
+        return structureToIntervals(structure);
+    }
+    
+    // Convert main-block WorkoutSteps to C2Interval format
+    const intervals: C2Interval[] = [];
+    
+    for (let i = 0; i < mainSteps.length; i++) {
+        const step = mainSteps[i];
+        if (step.type !== 'work') continue;
+        
+        intervals.push({
+            type: step.duration_type || 'distance',
+            distance: step.duration_type === 'distance' ? step.value : 0,
+            time: step.duration_type === 'time' ? step.value * 10 : 0, // C2 deciseconds
+            stroke_rate: 0,
+            rest_time: 0,
+            calories_total: step.duration_type === 'calories' ? step.value : 0
+        });
+    }
+    
+    // Attach rest times from the original structure's pattern
+    // For interval types, all work pieces share the same rest
+    if (structure.type === 'interval' && intervals.length > 0) {
+        const restDeciSeconds = structure.rest.value * 10;
+        intervals.forEach(interval => {
+            interval.rest_time = restDeciSeconds;
+        });
+    }
+    
+    // For variable types, reconstruct rest from step sequence
+    if (structure.type === 'variable') {
+        let intervalIdx = 0;
+        for (let i = 0; i < structure.steps.length; i++) {
+            const step = structure.steps[i];
+            if (step.type === 'work') {
+                const isMain = !step.blockType || step.blockType === 'main';
+                if (isMain) intervalIdx++;
+            } else if (step.type === 'rest' && intervalIdx > 0 && intervalIdx <= intervals.length) {
+                // Only attach rest if previous work step was main
+                const prevStep = structure.steps[i - 1];
+                if (prevStep?.type === 'work' && (!prevStep.blockType || prevStep.blockType === 'main')) {
+                    intervals[intervalIdx - 1].rest_time = step.value * 10;
+                }
+            }
+        }
+    }
+    
+    return intervals;
+}
+
+/**
+ * Compute the normalized canonical name for a WorkoutStructure.
+ * Uses only main-block intervals (strips warmup/cooldown).
+ * This is the canonical name that should be stored on templates.
+ */
+export function computeCanonicalName(structure: WorkoutStructure): string {
+    const intervals = mainBlockToIntervals(structure);
+    if (intervals.length === 0) return '';
+    return calculateCanonicalName(intervals);
 }

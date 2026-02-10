@@ -104,6 +104,7 @@ export interface WorkoutTemplate {
     status: string;
     validated: boolean;
     rwn: string | null;
+    canonical_name: string | null;
     tags: string[];
     created_by: string | null;
     created_at: string;
@@ -113,5 +114,5 @@ export interface WorkoutTemplate {
 // Subset of fields for list view
 export type WorkoutTemplateListItem = Pick<WorkoutTemplate,
     'id' | 'name' | 'workout_type' | 'training_zone' | 'workout_structure' |
-    'difficulty_level' | 'validated' | 'status' | 'usage_count'
+    'difficulty_level' | 'validated' | 'status' | 'usage_count' | 'canonical_name'
 >;

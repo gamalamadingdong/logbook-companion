@@ -2,11 +2,113 @@
 # Active Context
 
 ## Current Focus
-Execution of **Phase 1: The Digital Clipboard** (Workout Capture System).
+
+### Active: CL → LC Merge (CoachingLog into LogbookCompanion) ✅ COMPLETE
+Merged CoachingLog (CL) app into LogbookCompanion (LC) as a `/coaching/*` route section.
+
+**Decisions Made (2026-02-10):**
+- `/coaching/*` prefix for all coaching routes (hidden from non-coaches)
+- Role-based gating: `roles` array on `user_profiles` includes `'coach'`
+- Nav link visible only to coaches (`isCoach` flag in AuthContext)
+- Migrate CL's 5 Dexie tables to Supabase (no local-only data)
+- Match LC's dark theme, borrow CL's design accents
+- Live Sessions (`/live`) moves to `/coaching/live`
+
+**Phase 1 — Database** ✅ DONE
+**Phase 2 — Routing & Auth Gating** ✅ DONE
+**Phase 3 — Pages & Services** ✅ DONE
+**Phase 4 — Nav & Layout** ✅ DONE
+**Phase 5 — KB & Cleanup** ✅ DONE:
+- `assistant-coach-cue-sheets.md` copied to LC's `kb/coaching-plans/`
+- CL working-memory folded into LC's `systemPatterns.md` and `activeContext.md`
+- ESLint strict compliance: `no-explicit-any` fixed (5 occurrences), `set-state-in-effect` fixed (5 files), unused `coachId` prop removed from `SessionCard`
+- CL repo ready to archive (user to archive when ready)
+- `seedSchedule.ts` can be ported later if needed
+
+### Coaching Season Context (from CL)
+- **Season starts February 17, 2026** — 11 weeks to Virginia State Championships (May 2)
+- Athletes: 13–14 year old novice boys, none have raced
+- Fleet: 2 × 8+ (both boats race at States)
+- Coaching staff: Head coach + 2–3 assistant coaches
+- Full 11-week plan exists: `kb/coaching-plans/novice-8th-boys-spring-2026.md`
+- Assistant coach cue sheets: `kb/coaching-plans/assistant-coach-cue-sheets.md`
+- Technical progression: overlapping 2-week windows (body sequence → timing → blade work → power)
+- **Open items**: Coxswain plan TBD, assistant coach experience level TBD, parent email approach TBD
+
+### Paused: Phase 1 — The Digital Clipboard (Workout Capture System)
 1.  **Architecture**: [Feature Spec: Hybrid Workout Capture System](feature-specs/workout-capture-system.md)
 2.  **Implementation**:
     - Deploying OCR Service (Azure).
     - Building "Smart Form" for manual/OCR entry in Logbook Companion.
+
+## Recent Changes (2026-02-08)
+
+### ✅ Feature: Warmup/Cooldown Detection on WorkoutDetail
+1. **`detectWarmupCooldown()` heuristic**
+   - Analyzes raw C2 intervals to identify likely warmup/cooldown pattern
+   - Detects: warmup+cooldown, warmup-only, cooldown-only
+   - Pattern: single steady piece at start/end differing from uniform middle block
+   - Returns: detection result, suggested RWN with `[w]`/`[c]` tags, main canonical name
+   - **File**: `src/utils/workoutAnalysis.ts`
+
+2. **"Did this include warmup/cooldown?" prompt**
+   - Violet-colored banner on WorkoutDetail page
+   - Only appears when: no template match, no suggestions, but warmup pattern detected AND main block matches a known template
+   - Shows detected pattern: "10:00 warmup → 8x500m/1:00r → 5:00 cooldown"
+   - Shows suggested RWN: `[w]10:00 + 8x500m/1:00r + [c]5:00`
+   - **File**: `src/pages/WorkoutDetail.tsx`
+
+3. **One-click "Yes, Apply This" action**
+   - Saves `manual_rwn` with `[w]`/`[c]` tags
+   - Auto-matches main block to existing template
+   - Auto-links workout to template
+   - "No, Keep As-Is" dismisses the prompt
+   - **File**: `src/pages/WorkoutDetail.tsx`
+
+### ✅ Fix: Template canonical_name Pipeline
+1. **`createTemplate()` now saves `canonical_name`**
+   - Computes normalized canonical name from main work block on insert
+   - Strips warmup ([w]) and cooldown ([c]) blocks automatically
+   - **File**: `src/services/templateService.ts`
+
+2. **`updateTemplate()` recomputes `canonical_name`**
+   - When workout_structure changes, canonical_name is recalculated
+   - **File**: `src/services/templateService.ts`
+
+3. **New helper: `mainBlockToIntervals()`**
+   - Converts only main-block work steps to C2Interval format
+   - Properly handles rest time reconstruction for interval/variable types
+   - **File**: `src/utils/structureAdapter.ts`
+
+4. **New helper: `computeCanonicalName()`**
+   - Single function to compute normalized canonical name from any WorkoutStructure
+   - Uses `mainBlockToIntervals()` → `calculateCanonicalName()`
+   - **File**: `src/utils/structureAdapter.ts`
+
+5. **TemplateEditor uses main-block-only canonical name**
+   - Preview now correctly shows "8x500m/1:00r" even when template includes `[w]10:00 + 8x500m/1:00r + [c]5:00`
+   - **File**: `src/components/TemplateEditor.tsx`
+
+6. **Added `canonical_name` to TypeScript types**
+   - `WorkoutTemplate.canonical_name: string | null`
+   - Added to `WorkoutTemplateListItem` Pick type
+   - **File**: `src/types/workoutStructure.types.ts`
+
+### ✅ Feature: Template Suggestions on WorkoutDetail
+1. **Smart Suggestion Banner**
+   - When viewing a workout without a linked template, automatically suggests matching templates
+   - Matches based on `canonical_name` (e.g., "8x500m/1:00r")
+   - Shows usage count and user's previous attempts on that template
+   - One-click "Link to This Template" button for instant linking
+   - "See X More" button when multiple matches exist
+   - Dismissible with X button
+   - **File**: `src/pages/WorkoutDetail.tsx`
+
+2. **Template Matching Query**
+   - Queries `workout_templates` table by `canonical_name`
+   - Orders by `usage_count` (most popular first)
+   - Fetches user's attempt count for each suggested template
+   - Limits to top 3 suggestions
 
 ## Recent Changes (2026-02-06)
 
@@ -188,31 +290,41 @@ Execution of **Phase 1: The Digital Clipboard** (Workout Capture System).
 
 ## Next Steps
 
-### Ready for Implementation
-### Analytics & Visualization
-- [x] **Zone Distribution**: Visual breakdown of training intensity (Polarized training check).
-- [x] **Global Zone Filters**: Top-level filter bar to toggle dashboard view by specific zones.
-- [x] **Weekly Volume Trends**: Chart showing volume over time with trend lines.
-- [x] **Dual Workout Comparison**:
-    - [x] Stroke-by-stroke overlay
-    - [x] Metric Switching (Watts, Pace, Rate, HR)
-    - [x] Multi-stat "Omni-Header" for detailed inspection
+### ✅ Completed Features (Verified 2026-02-08)
 
-### Current Focus
-- [ ] **Live Sessions**: Further refinement of the "Coach/Group" mode (currently experimental).
+All major analytics and visualization features are implemented:
 
-2.  **erg-link Integration**
-    - Support `target_*_max` fields (ranges) in PM5 programming
+- ✅ **Zone Distribution**: Visual breakdown in Analytics page (pie chart + zone filtering)
+- ✅ **Global Zone Filters**: Top-level zone filter bar in Analytics (`zoneFilter` state with all zones)
+- ✅ **Weekly Volume Trends**: Chart with trend lines and metrics (hours/distance toggle)
+- ✅ **Dual Workout Comparison**: Full implementation
+    - Stroke-by-stroke overlay charts
+    - Metric switching (Watts, Pace, Rate, HR)
+    - Multi-stat comparison cards
+- ✅ **Work-Only Analysis**: Implemented (`getMainBlock()` and `getMainBlockIndices()` in workoutAnalysis.ts)
+- ✅ **Template Effectiveness**:
+    - Performance Trend chart on TemplateDetail page
+    - Personal Best display with date achieved
+    - Session Pace vs Work Pace separation
+- ✅ **Live Sessions**: CoachSessions.tsx implements group rowing sessions
+    - Create/manage sessions with join codes
+    - Real-time participant tracking
+    - Workout broadcasting to group
+    - Grouping/lanes functionality
 
-### Completed / Verified
-- **Backfill Remaining Workouts**: Script confirmed all workouts are already linked to templates upon inspection (2026-02-04).
-- **Template Effectiveness**: Performance Trends & Personal Bests fully implemented.
+### Next Implementation Priorities
+
+1. **erg-link PM5 Integration** 🟡
+   - Support `target_*_max` fields (ranges) in PM5 programming
+   - Enables end-to-end range notation: RWN → Template → PM5
+   - Files to modify: erg-link PM5 programming logic
+
+2. **Future Enhancements** 🟢
+   - Historical baseline tracking (for accurate retrospective zone calculations)
+   - Additional Live Session refinements (if needed)
 
 ### Blocked/Waiting
-- **Migration Pending**: `last_used_at` field needs manual SQL execution
-  - File ready: `db/migrations/migration_add_last_used_at.sql`
-  - Run in Supabase SQL Editor
-  - After running, "Recently Used" sort will work
+- None currently
 
 ## Recent Changes (2026-02-04 Session 1)
 
@@ -431,8 +543,7 @@ function getMainBlock(workout: WorkoutStructure): WorkoutStep[] {
 3. **erg-link Integration**: Ensure erg-link can read `target_*_max` fields for PM5 programming
 
 ## Active Issues
-- **Canonical Naming**: Currently generates verbose names (e.g. `v500m/250m...`) for unrolled loops instead of concise `3x...` names
-- **Zone Calc Limitation**: `zone_distribution` uses current baseline, not historical fitness
+- **Zone Calc Limitation**: `zone_distribution` uses current baseline, not historical fitness (may require historical baseline tracking for accurate retrospective analysis)
 
 ## Architecture Notes
 - **RWN Directory**: `rwn/` contains spec and may be extracted to standalone repo

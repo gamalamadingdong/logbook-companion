@@ -23,6 +23,19 @@
 -   **Adapters**: Transform API responses into internal TypeScript interfaces immediately upon fetching.
 -   **Auth Context**: Centralized provider for managing tokens and user session.
 
+## Coaching Module (`/coaching/*`)
+-   **Route gating**: `CoachRoute` component checks `isCoach` from AuthContext (derived from `user_profiles.roles` containing `'coach'`).
+-   **Service layer**: `src/services/coaching/coachingService.ts` — full CRUD for 5 Supabase tables (`coaching_athletes`, `coaching_sessions`, `coaching_athlete_notes`, `coaching_erg_scores`, `coaching_boatings`). All with RLS.
+-   **Types**: `src/services/coaching/types.ts` — interfaces matching Supabase columns (snake_case, UUID strings, ISO date strings).
+-   **Pages**: `src/pages/coaching/` — CoachDashboard, CoachingRoster, CoachingSchedule, CoachingLog, CoachingErgScores, CoachingBoatings.
+-   **Pattern**: Initial data fetched via `.then()` in `useEffect`; event handlers use standalone `async` refresh functions (avoids `react-hooks/set-state-in-effect`).
+
+## Knowledge Base (`kb/`)
+-   Sub-folders: `coaching-plans/`, `training-plans/`, `technique/`, `physiology/`, `injury-prevention/`, `scores/`
+-   Coaching plans are athlete-group-specific (e.g., `novice-8th-boys-spring-2026.md`)
+-   Assistant Coach Cue Sheets (`assistant-coach-cue-sheets.md`) — weekly briefings with daily focus tables, common faults, drill descriptions
+-   `.optimized.md` variants exist for some files (condensed versions)
+
 ## Coding Standards
 -   **Functional Components**: Use React Functional Components with Hooks.
 -   **Strict Types**: No `any`. Define interfaces for all data structures (Workout, User, StrokeData).

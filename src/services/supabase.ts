@@ -56,6 +56,7 @@ export interface UserProfile {
     birth_date?: string;
     benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string; goal?: number }>;
     preferences?: Record<string, any>;
+    roles?: string[];
     created_at?: string;
     updated_at?: string;
 }

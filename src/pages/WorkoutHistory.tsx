@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Activity, Link as LinkIcon, X, Search } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -167,26 +167,29 @@ export const WorkoutHistory: React.FC = () => {
                                 axisLine={false}
                             />
 
-                            {/* Training Zones Background */}
-                            {baselineWatts && ZONES.map((zone) => {
-                                const y1 = Math.round(baselineWatts * zone.minPct);
-                                // Cap the top zone for visual sanity if it's infinite (AN zone)
-                                // Or just let it go high. 200% of baseline is plenty.
-                                const y2 = zone.maxPct >= 2
-                                    ? Math.round(baselineWatts * 2.0)
-                                    : Math.round(baselineWatts * zone.maxPct);
+                            {/* Training Zone Thresholds */}
+                            {baselineWatts && ZONES.slice(0, 4).map((zone) => {
+                                const thresholdWatts = Math.round(baselineWatts * zone.maxPct);
+                                const nextZone = ZONES.find(z => z.minPct === zone.maxPct);
+                                const label = nextZone ? nextZone.id : 'Max';
 
                                 return (
-                                    <ReferenceArea
+                                    <ReferenceLine
                                         key={zone.id}
                                         yAxisId="left"
-                                        y1={y1}
-                                        y2={y2}
-                                        fill={zone.color}
-                                        fillOpacity={0.15}
-                                        strokeOpacity={0}
-                                        ifOverflow="extendDomain"
-                                    />
+                                        y={thresholdWatts}
+                                        stroke={nextZone?.color || zone.color}
+                                        strokeDasharray="3 3"
+                                        strokeOpacity={0.5}
+                                    >
+                                        <Label
+                                            value={label}
+                                            position="insideTopRight"
+                                            fill={nextZone?.color || zone.color}
+                                            fontSize={10}
+                                            offset={10}
+                                        />
+                                    </ReferenceLine>
                                 );
                             })}
                             {/* Left Y-Axis (Watts) */}
@@ -203,18 +206,20 @@ export const WorkoutHistory: React.FC = () => {
                             <YAxis
                                 yAxisId="right"
                                 orientation="right"
-                                stroke="#60a5fa"
+                                stroke="#3b82f6"
                                 fontSize={12}
                                 tickLine={false}
                                 axisLine={false}
-                                domain={['auto', 'auto']}
+                                reversed={true}
+                                domain={['dataMin - 5', 'dataMax + 5']}
+                                label={{ value: 'Split / 500m', angle: 90, position: 'insideRight', fill: '#3b82f6', fontSize: 10 }}
                                 tickFormatter={(val) => {
                                     const m = Math.floor(val / 60);
                                     const s = (val % 60).toFixed(0);
                                     return `${m}:${s.padStart(2, '0')}`;
                                 }}
-                                label={{ value: 'Split /500m', angle: 90, position: 'insideRight', fill: '#60a5fa', fontSize: 10 }}
                             />
+                            <Legend />
                             <Tooltip
                                 contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
                                 itemStyle={{ color: '#fff' }}

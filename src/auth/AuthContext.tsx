@@ -19,6 +19,7 @@ interface AuthContextType {
   logout: () => void // Deprecated compatibility stub
   loginAsGuest?: () => Promise<void>
   isGuest?: boolean
+  isCoach: boolean
   refreshProfile: () => Promise<void>
 }
 
@@ -279,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword,
     loginAsGuest,
     isGuest: user?.id === 'guest_user_123',
+    isCoach: Array.isArray(profile?.roles) && profile.roles.includes('coach'),
     refreshProfile,
     // Compat
     isAuthenticated: !!session,

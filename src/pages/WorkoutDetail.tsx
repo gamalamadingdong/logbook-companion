@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search, Lightbulb, Check, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Label } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
@@ -12,7 +12,9 @@ import { calculateCanonicalName, detectIntervalsFromStrokes } from '../utils/wor
 import { parseRWN } from '../utils/rwnParser';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateBucketsFromStrokes, ZONES } from '../utils/zones';
-import { getMainBlockIndices } from '../utils/workoutAnalysis';
+import { getMainBlockIndices, detectWarmupCooldown } from '../utils/workoutAnalysis';
+import type { WarmupCooldownDetection } from '../utils/workoutAnalysis';
+import { findBestMatchingTemplate } from '../utils/templateMatching';
 import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructure.types';
@@ -57,6 +59,22 @@ export const WorkoutDetail: React.FC = () => {
     }>>([]);
     const [templateSearch, setTemplateSearch] = useState('');
     const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+    // Template Suggestion State
+    const [suggestedTemplates, setSuggestedTemplates] = useState<Array<{
+        id: string;
+        name: string;
+        rwn: string | null;
+        usage_count: number;
+        user_attempts: number;
+    }>>([]);
+    const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+    const [linkingTemplateId, setLinkingTemplateId] = useState<string | null>(null);
+
+    // Warmup/Cooldown Detection State
+    const [warmupDetection, setWarmupDetection] = useState<WarmupCooldownDetection | null>(null);
+    const [warmupDismissed, setWarmupDismissed] = useState(false);
+    const [applyingWarmup, setApplyingWarmup] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -119,6 +137,96 @@ export const WorkoutDetail: React.FC = () => {
 
         fetchData();
     }, [id, isGuest]);
+
+    // Fetch Template Suggestions based on canonical name
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            // Only suggest if no linked template and we have a canonical name
+            if (linkedTemplate || !detail || isGuest || !profile?.user_id) return;
+            
+            // Calculate the canonical name for matching
+            let matchName = '';
+            if (detail.manual_rwn) {
+                const parsed = parseRWN(detail.manual_rwn);
+                if (parsed) {
+                    matchName = calculateCanonicalName(structureToIntervals(parsed));
+                }
+            } else if (detail.workout?.intervals && detail.workout.intervals.length > 0) {
+                matchName = calculateCanonicalName(detail.workout.intervals);
+            }
+            
+            if (!matchName || matchName === 'Workout') return;
+            
+            try {
+                // Find templates that match this canonical name
+                const { data: templates, error } = await supabase
+                    .from('workout_templates')
+                    .select('id, name, rwn, usage_count')
+                    .eq('canonical_name', matchName)
+                    .eq('workout_type', 'erg')
+                    .order('usage_count', { ascending: false })
+                    .limit(3);
+                
+                if (error) throw error;
+                if (!templates || templates.length === 0) return;
+                
+                // Get user's attempt count for each template
+                const templatesWithAttempts = await Promise.all(
+                    templates.map(async (t) => {
+                        const { count } = await supabase
+                            .from('workout_logs')
+                            .select('*', { count: 'exact', head: true })
+                            .eq('template_id', t.id)
+                            .eq('user_id', profile.user_id);
+                        
+                        return {
+                            ...t,
+                            user_attempts: count || 0
+                        };
+                    })
+                );
+                
+                setSuggestedTemplates(templatesWithAttempts);
+            } catch (err) {
+                console.error('Failed to fetch template suggestions:', err);
+            }
+        };
+        
+        fetchSuggestions();
+    }, [detail, linkedTemplate, isGuest, profile?.user_id]);
+
+    // Warmup/Cooldown Detection — runs when no template suggestions found
+    useEffect(() => {
+        if (linkedTemplate || isGuest || !detail || !profile?.user_id) return;
+        // Only run if no template suggestions were found
+        if (suggestedTemplates.length > 0) return;
+        // Need raw intervals to detect
+        if (!detail.workout?.intervals || detail.workout.intervals.length < 3) return;
+        // Don't detect if user already set a manual RWN (they've already handled it)
+        if (detail.manual_rwn) return;
+        
+        const detection = detectWarmupCooldown(detail.workout.intervals);
+        if (!detection.detected) return;
+        
+        // Verify the main block's canonical name matches an existing template
+        const checkForMatch = async () => {
+            try {
+                const match = await findBestMatchingTemplate(profile.user_id, detection.mainCanonicalName);
+                if (match) {
+                    // There IS a template for the main work — show the prompt
+                    setWarmupDetection(detection);
+                } else {
+                    // No template exists for the main work either — don't prompt
+                    // (user would need to create a template first)
+                    setWarmupDetection(null);
+                }
+            } catch (err) {
+                console.error('Failed to check warmup detection match:', err);
+            }
+        };
+        
+        checkForMatch();
+    }, [detail, linkedTemplate, isGuest, profile?.user_id, suggestedTemplates]);
 
     // Fetch Baseline Watts from Profile
     useEffect(() => {
@@ -585,6 +693,188 @@ export const WorkoutDetail: React.FC = () => {
                                 className="bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                             >
                                 Unlink
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Template Suggestion Banner */}
+            {!linkedTemplate && suggestedTemplates.length > 0 && !suggestionDismissed && (
+                <div className="bg-amber-600/10 border border-amber-500/30 rounded-xl p-4 mb-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Lightbulb size={18} className="text-amber-400" />
+                                <h3 className="text-sm font-semibold text-amber-400">Template Match Found</h3>
+                            </div>
+                            <p className="text-white font-medium mb-1">
+                                This workout matches: <span className="text-amber-300">{suggestedTemplates[0].name}</span>
+                            </p>
+                            <p className="text-neutral-400 text-sm">
+                                Used by {suggestedTemplates[0].usage_count || 0} athletes
+                                {suggestedTemplates[0].user_attempts > 0 && (
+                                    <> • You've done this {suggestedTemplates[0].user_attempts} time{suggestedTemplates[0].user_attempts > 1 ? 's' : ''}</>
+                                )}
+                            </p>
+                        </div>
+                        <div className="flex gap-2 items-start">
+                            <button
+                                onClick={async () => {
+                                    if (!dbId) {
+                                        alert('Database ID not available');
+                                        return;
+                                    }
+                                    const templateId = suggestedTemplates[0].id;
+                                    setLinkingTemplateId(templateId);
+                                    try {
+                                        await workoutService.linkWorkoutToTemplate(dbId, templateId);
+                                        const template = await fetchTemplateById(templateId);
+                                        setLinkedTemplate(template);
+                                        setDetail(prev => prev ? ({ ...prev, template_id: templateId }) : null);
+                                        setSuggestedTemplates([]);
+                                    } catch (err) {
+                                        console.error('Failed to link template:', err);
+                                        alert('Failed to link template');
+                                    } finally {
+                                        setLinkingTemplateId(null);
+                                    }
+                                }}
+                                disabled={linkingTemplateId === suggestedTemplates[0].id}
+                                className="bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 hover:text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {linkingTemplateId === suggestedTemplates[0].id ? (
+                                    <><Loader2 size={14} className="animate-spin" /> Linking...</>
+                                ) : (
+                                    <><Check size={14} /> Link to This Template</>
+                                )}
+                            </button>
+                            {suggestedTemplates.length > 1 && (
+                                <button
+                                    onClick={() => {
+                                        setShowTemplateLinking(true);
+                                        // Pre-populate with suggestions
+                                        setAvailableTemplates(suggestedTemplates.map(t => ({
+                                            id: t.id,
+                                            name: t.name,
+                                            rwn: t.rwn,
+                                            workout_type: 'erg',
+                                            training_zone: null,
+                                            workout_structure: null,
+                                            is_steady_state: false,
+                                            is_interval: true,
+                                            estimated_duration: null,
+                                            distance: null
+                                        })));
+                                    }}
+                                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                                >
+                                    See {suggestedTemplates.length - 1} More
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setSuggestionDismissed(true)}
+                                className="p-1.5 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors"
+                                aria-label="Dismiss suggestion"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Warmup/Cooldown Detection Banner */}
+            {!linkedTemplate && suggestedTemplates.length === 0 && warmupDetection?.detected && !warmupDismissed && !suggestionDismissed && (
+                <div className="bg-violet-600/10 border border-violet-500/30 rounded-xl p-4 mb-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Lightbulb size={18} className="text-violet-400" />
+                                <h3 className="text-sm font-semibold text-violet-400">Did this include a warmup or cooldown?</h3>
+                            </div>
+                            <p className="text-white font-medium mb-2">
+                                This looks like it could be: <span className="text-violet-300">{warmupDetection.description}</span>
+                            </p>
+                            <p className="text-neutral-400 text-sm mb-3">
+                                The main workout <span className="text-white font-medium">{warmupDetection.mainCanonicalName}</span> matches an existing template.
+                                {warmupDetection.warmupIndices.length > 0 && warmupDetection.cooldownIndices.length > 0
+                                    ? ' We\'ll tag the first segment as warmup and last as cooldown.'
+                                    : warmupDetection.warmupIndices.length > 0
+                                        ? ' We\'ll tag the first segment as warmup.'
+                                        : ' We\'ll tag the last segment as cooldown.'
+                                }
+                            </p>
+                            <div className="flex items-center gap-2 p-2 bg-neutral-900/50 rounded-lg border border-neutral-800 mb-1">
+                                <code className="text-sm text-violet-300 font-mono">{warmupDetection.suggestedRWN}</code>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 items-start">
+                            <button
+                                onClick={async () => {
+                                    if (!dbId || !detail || !profile?.user_id) {
+                                        alert('Unable to apply — missing data');
+                                        return;
+                                    }
+                                    setApplyingWarmup(true);
+                                    try {
+                                        // 1. Save the suggested RWN as manual_rwn
+                                        await workoutService.updateWorkoutName(detail.id.toString(), {
+                                            manualRWN: warmupDetection.suggestedRWN,
+                                            isBenchmark: detail.is_benchmark || false
+                                        });
+                                        
+                                        // 2. Update local state
+                                        setDetail(prev => prev ? ({
+                                            ...prev,
+                                            manual_rwn: warmupDetection.suggestedRWN
+                                        }) : null);
+                                        setManualRWN(warmupDetection.suggestedRWN);
+                                        
+                                        // 3. Try to match the main canonical name to a template
+                                        const match = await findBestMatchingTemplate(
+                                            profile.user_id,
+                                            warmupDetection.mainCanonicalName
+                                        );
+                                        
+                                        if (match) {
+                                            // 4. Link to the matched template
+                                            await workoutService.linkWorkoutToTemplate(dbId, match.id);
+                                            const template = await fetchTemplateById(match.id);
+                                            setLinkedTemplate(template);
+                                            setDetail(prev => prev ? ({ ...prev, template_id: match.id }) : null);
+                                        }
+                                        
+                                        // 5. Clear the detection banner
+                                        setWarmupDetection(null);
+                                    } catch (err) {
+                                        console.error('Failed to apply warmup/cooldown:', err);
+                                        alert('Failed to apply — please try again');
+                                    } finally {
+                                        setApplyingWarmup(false);
+                                    }
+                                }}
+                                disabled={applyingWarmup}
+                                className="bg-violet-600/20 hover:bg-violet-600/30 text-violet-400 hover:text-violet-300 border border-violet-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {applyingWarmup ? (
+                                    <><Loader2 size={14} className="animate-spin" /> Applying...</>
+                                ) : (
+                                    <><Check size={14} /> Yes, Apply This</>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setWarmupDismissed(true)}
+                                className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                            >
+                                No, Keep As-Is
+                            </button>
+                            <button
+                                onClick={() => setWarmupDismissed(true)}
+                                className="p-1.5 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors"
+                                aria-label="Dismiss warmup detection"
+                            >
+                                <X size={16} />
                             </button>
                         </div>
                     </div>

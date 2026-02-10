@@ -20,17 +20,35 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+
+type WorkoutType = 'just_row' | 'fixed_distance' | 'fixed_time' | 'interval_distance' | 'interval_time' | 'interval';
+type StartType = 'immediate' | 'synchronized';
+
+interface WorkoutConfig {
+    type: WorkoutType;
+    value: number;
+    split_value?: number;
+    rest?: number;
+    start_type?: StartType;
+}
+
+interface ParticipantData {
+    watts?: number;
+    pace?: string;
+    pace_per_500m?: number;
+    distance?: number;
+    stroke_rate?: number;
+    heart_rate?: number;
+    elapsed_time?: number;
+}
 
 interface Session {
     id: string;
     join_code: string;
     status: 'active' | 'finished';
     created_at: string;
-    active_workout?: {
-        type: 'just_row' | 'fixed_distance' | 'fixed_time' | 'interval_distance' | 'interval_time' | 'interval';
-        value: number;
-        split_value?: number;
-    };
+    active_workout?: WorkoutConfig;
 }
 
 interface Participant {
@@ -38,7 +56,7 @@ interface Participant {
     session_id: string;
     display_name: string;
     status: 'ready' | 'active' | 'disconnected';
-    data: any; // JSONB from PM5
+    data: ParticipantData | null;
     last_heartbeat: string;
     group_name?: string | null;
 }
@@ -69,19 +87,19 @@ const SortableParticipantCard = ({ participant, onRemove }: { participant: Parti
     return (
         <div ref={setNodeRef} style={style} className="bg-neutral-800 p-3 rounded-lg border border-neutral-700 hover:border-neutral-600 group relative">
             <div className="flex items-center gap-3">
-                <button {...attributes} {...listeners} className="text-neutral-600 hover:text-white cursor-grab active:cursor-grabbing">
+                <button {...attributes} {...listeners} aria-label="Drag to reorder" className="text-neutral-600 hover:text-white cursor-grab active:cursor-grabbing">
                     <GripVertical size={16} />
                 </button>
                 <div className="flex-1 min-w-0">
                     <div className="font-medium text-white truncate">{participant.display_name}</div>
                     <div className="flex items-center gap-2 text-xs text-neutral-500">
                         <span>{participant.status === 'active' ? 'Rowing' : 'Ready'}</span>
-                        {participant.data?.watts > 0 && (
-                            <span className="text-emerald-400">{Math.round(participant.data.watts)}W</span>
+                        {(participant.data?.watts ?? 0) > 0 && (
+                            <span className="text-emerald-400">{Math.round(participant.data?.watts ?? 0)}W</span>
                         )}
                     </div>
                 </div>
-                <button onClick={() => onRemove(participant.id)} className="text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => onRemove(participant.id)} aria-label="Remove participant" className="text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     <UserMinus size={16} />
                 </button>
             </div>
@@ -97,7 +115,7 @@ const DroppableGroup = ({ id, title, participants, onRemoveParticipant, onDelete
             <div className="p-3 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/80 rounded-t-xl">
                 <h3 className="font-bold text-neutral-300 text-sm">{title} <span className="text-neutral-600 ml-2">({participants.length})</span></h3>
                 {onDeleteGroup && (
-                    <button onClick={() => onDeleteGroup(id)} className="text-neutral-600 hover:text-red-400">
+                    <button onClick={() => onDeleteGroup(id)} aria-label="Delete group" className="text-neutral-600 hover:text-red-400">
                         <X size={14} />
                     </button>
                 )}
@@ -136,10 +154,39 @@ export const CoachSessions: React.FC = () => {
         })
     );
 
+    const fetchSessions = async () => {
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('erg_sessions')
+            .select('*')
+            .eq('status', 'active')
+            .eq('created_by', user.id)
+            .order('created_at', { ascending: false });
+        if (!error && data) setSessions(data as Session[]);
+    };
+
+    const fetchParticipants = async (sessionId: string) => {
+        const { data, error } = await supabase.from('erg_session_participants').select('*').eq('session_id', sessionId);
+        if (!error && data) setParticipants(data as Participant[]);
+    };
+
+    const handleRealtimeUpdate = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        if (payload.eventType === 'INSERT') {
+            setParticipants(prev => [...prev, payload.new as unknown as Participant]);
+        } else if (payload.eventType === 'UPDATE') {
+            const newParticipant = payload.new as unknown as Participant;
+            setParticipants(prev => prev.map(p => p.id === newParticipant.id ? newParticipant : p));
+        } else if (payload.eventType === 'DELETE') {
+            const oldParticipant = payload.old as unknown as { id: string };
+            setParticipants(prev => prev.filter(p => p.id !== oldParticipant.id));
+        }
+    };
+
     useEffect(() => {
         if (user) {
             fetchSessions();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
     useEffect(() => {
@@ -168,39 +215,13 @@ export const CoachSessions: React.FC = () => {
         setGroups(prev => Array.from(new Set([...prev, ...uniqueGroups])));
     }, [participants]);
 
-    const fetchSessions = async () => {
-        if (!user) return;
-        const { data, error } = await supabase
-            .from('erg_sessions')
-            .select('*')
-            .eq('status', 'active')
-            .eq('created_by', user.id)
-            .order('created_at', { ascending: false });
-        if (!error && data) setSessions(data as any);
-    };
-
-    const fetchParticipants = async (sessionId: string) => {
-        const { data, error } = await supabase.from('erg_session_participants').select('*').eq('session_id', sessionId);
-        if (!error && data) setParticipants(data as any);
-    };
-
-    const handleRealtimeUpdate = (payload: any) => {
-        if (payload.eventType === 'INSERT') {
-            setParticipants(prev => [...prev, payload.new]);
-        } else if (payload.eventType === 'UPDATE') {
-            setParticipants(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
-        } else if (payload.eventType === 'DELETE') {
-            setParticipants(prev => prev.filter(p => p.id !== payload.old.id));
-        }
-    };
-
     const createSession = async () => {
         if (!user) return;
         setLoading(true);
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const { data } = await supabase.from('erg_sessions').insert({ join_code: code, status: 'active', created_by: user.id } as any).select().single();
+        const { data } = await supabase.from('erg_sessions').insert({ join_code: code, status: 'active', created_by: user.id }).select().single();
         if (data) {
-            setSessions(prev => [data as any, ...prev]);
+            setSessions(prev => [data as Session, ...prev]);
             setSelectedSessionId(data.id);
             setParticipants([]);
         }
@@ -209,7 +230,7 @@ export const CoachSessions: React.FC = () => {
 
     const endSession = async (sessionId: string) => {
         if (!window.confirm('End session?')) return;
-        await supabase.from('erg_sessions').update({ status: 'finished', ended_at: new Date().toISOString() } as any).eq('id', sessionId);
+        await supabase.from('erg_sessions').update({ status: 'finished', ended_at: new Date().toISOString() }).eq('id', sessionId);
         setSessions(prev => prev.filter(s => s.id !== sessionId));
         if (selectedSessionId === sessionId) { setSelectedSessionId(null); setParticipants([]); }
     };
@@ -312,7 +333,7 @@ export const CoachSessions: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="grid grid-cols-4 gap-2">
                                     {[{ id: 'just_row', label: 'Just Row' }, { id: 'fixed_distance', label: 'Distance' }, { id: 'fixed_time', label: 'Time' }, { id: 'interval', label: 'Interval' }].map(type => (
-                                        <button key={type.id} onClick={() => setWorkoutType(type.id as any)} className={`p-2 rounded-lg text-xs font-medium transition-colors ${workoutType === type.id || (workoutType.startsWith('interval') && type.id === 'interval') ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>{type.label}</button>
+                                        <button key={type.id} onClick={() => setWorkoutType(type.id as WorkoutType)} className={`p-2 rounded-lg text-xs font-medium transition-colors ${workoutType === type.id || (workoutType.startsWith('interval') && type.id === 'interval') ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'}`}>{type.label}</button>
                                     ))}
                                 </div>
 
@@ -369,7 +390,7 @@ export const CoachSessions: React.FC = () => {
                                     // Capture logic here because modifying state in render is bad, and we added uncontrolled inputs
                                     if (!selectedSessionId) return;
 
-                                    let finalType: any = workoutType;
+                                    let finalType: WorkoutType = workoutType;
                                     // Handle generic 'interval' selection defaulting
                                     if (finalType === 'interval') finalType = 'interval_distance';
 
@@ -383,7 +404,7 @@ export const CoachSessions: React.FC = () => {
                                         rest: restValue,
                                         start_type: startType
                                     };
-                                    await supabase.from('erg_sessions').update({ active_workout: workoutConfig as any, race_state: 0 }).eq('id', selectedSessionId);
+                                    await supabase.from('erg_sessions').update({ active_workout: workoutConfig, race_state: 0 }).eq('id', selectedSessionId);
                                     setWorkoutModalOpen(false);
                                     setSessions(prev => prev.map(s => s.id === selectedSessionId ? { ...s, active_workout: workoutConfig } : s));
                                 }} className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">Set Workout</button>
@@ -412,7 +433,7 @@ export const CoachSessions: React.FC = () => {
                             <div key={session.id} onClick={() => setSelectedSessionId(session.id)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedSessionId === session.id ? 'bg-neutral-800 border-emerald-500/50 shadow-lg' : 'bg-neutral-900/50 border-neutral-800 hover:border-neutral-700'}`}>
                                 <div className="flex justify-between items-start mb-2"><div className="text-xs text-neutral-500">Join Code</div>{selectedSessionId === session.id && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}</div>
                                 <div className="text-3xl font-mono font-bold text-white tracking-wider mb-3">{session.join_code}</div>
-                                <div className="flex justify-between items-center"><div className="text-xs text-neutral-500">{new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><button onClick={(e) => { e.stopPropagation(); endSession(session.id); }} className="p-1.5 text-neutral-600 hover:text-red-400"><Trash2 size={14} /></button></div>
+                                <div className="flex justify-between items-center"><div className="text-xs text-neutral-500">{new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><button onClick={(e) => { e.stopPropagation(); endSession(session.id); }} aria-label="End session" className="p-1.5 text-neutral-600 hover:text-red-400"><Trash2 size={14} /></button></div>
                             </div>
                         ))}
                     </div>
@@ -430,12 +451,12 @@ export const CoachSessions: React.FC = () => {
                                         </button>
                                     </div>
                                     <div className="flex items-center gap-2 bg-neutral-800/50 p-1 rounded-lg border border-neutral-800">
-                                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-neutral-700 text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}><ListIcon size={18} /></button>
-                                        <button onClick={() => setViewMode('board')} className={`p-2 rounded-md transition-colors ${viewMode === 'board' ? 'bg-neutral-700 text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setViewMode('list')} aria-label="List view" className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-neutral-700 text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}><ListIcon size={18} /></button>
+                                        <button onClick={() => setViewMode('board')} aria-label="Board view" className={`p-2 rounded-md transition-colors ${viewMode === 'board' ? 'bg-neutral-700 text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-300'}`}><LayoutGrid size={18} /></button>
                                     </div>
                                 </div>
 
-                                {selectedSession?.active_workout && (selectedSession.active_workout as any).start_type === 'synchronized' && (
+                                {selectedSession?.active_workout && selectedSession.active_workout.start_type === 'synchronized' && (
                                     <div className="bg-purple-900/20 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="bg-purple-500/20 p-2 rounded-lg text-purple-400">
@@ -449,7 +470,7 @@ export const CoachSessions: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={async () => {
-                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 8 } as any).eq('id', selectedSessionId);
+                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 8 }).eq('id', selectedSessionId);
                                                     if (error) { console.error('SET failed:', error); alert('Failed to set race state'); }
                                                 }}
                                                 className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm font-bold border border-neutral-700 transition-colors"
@@ -458,7 +479,7 @@ export const CoachSessions: React.FC = () => {
                                             </button>
                                             <button
                                                 onClick={async () => {
-                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 9 } as any).eq('id', selectedSessionId);
+                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 9 }).eq('id', selectedSessionId);
                                                     if (error) { console.error('GO failed:', error); alert('Failed to set race state'); }
                                                 }}
                                                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-colors"
@@ -467,7 +488,7 @@ export const CoachSessions: React.FC = () => {
                                             </button>
                                             <button
                                                 onClick={async () => {
-                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 10 } as any).eq('id', selectedSessionId);
+                                                    const { error } = await supabase.from('erg_sessions').update({ race_state: 10 }).eq('id', selectedSessionId);
                                                     if (error) { console.error('False Start failed:', error); alert('Failed to set race state'); }
                                                 }}
                                                 className="px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg text-xs font-medium border border-red-900/50 transition-colors"
@@ -506,7 +527,7 @@ export const CoachSessions: React.FC = () => {
                                                                 <td className="px-6 py-4 text-right text-yellow-400 font-mono text-lg">{Math.round(p.data?.watts || 0)}</td>
                                                                 <td className="px-6 py-4 text-right font-mono text-white">{Math.round(p.data?.distance || 0)}m</td>
                                                                 <td className="px-6 py-4 text-right font-mono text-emerald-400">{p.data?.stroke_rate || '--'}</td>
-                                                                <td className="px-6 py-4 text-right"><button onClick={() => removeParticipant(p.id)} className="text-neutral-600 hover:text-red-400"><UserMinus size={16} /></button></td>
+                                                                <td className="px-6 py-4 text-right"><button onClick={() => removeParticipant(p.id)} aria-label="Remove participant" className="text-neutral-600 hover:text-red-400"><UserMinus size={16} /></button></td>
                                                             </tr>
                                                         ))
                                                     )}

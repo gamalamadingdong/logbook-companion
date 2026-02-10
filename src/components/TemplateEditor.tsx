@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2, Eye, HelpCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { fetchTemplateById, updateTemplate, createTemplate, findDuplicateTemplate } from '../services/templateService';
 import type { WorkoutTemplate, WorkoutStructure, IntervalStep, WorkoutStep, RestStep } from '../types/workoutStructure.types';
-import { structureToIntervals } from '../utils/structureAdapter';
+import { mainBlockToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/workoutNaming';
 import { parseRWN, validateRWN, estimateDuration, formatDuration } from '../utils/rwnParser';
 import { structureToRWN } from '../utils/structureToRWN';
@@ -321,8 +321,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
         const struct = buildStructure();
         if (!struct) return '—';
 
-        // Use the real canonical name calculator via the adapter
-        const intervals = structureToIntervals(struct);
+        // Use main-block-only intervals (strips warmup/cooldown)
+        const intervals = mainBlockToIntervals(struct);
         if (intervals.length === 0) return '—';
 
         return calculateCanonicalName(intervals);

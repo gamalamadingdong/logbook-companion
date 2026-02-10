@@ -18,6 +18,12 @@ import { TemplateLibrary } from './pages/TemplateLibrary';
 import { TemplateDetail } from './pages/TemplateDetail';
 import { Documentation } from './pages/Documentation';
 import DownloadC2Data from './pages/DownloadC2Data';
+import { CoachDashboard } from './pages/coaching/CoachDashboard';
+import { CoachingRoster } from './pages/coaching/CoachingRoster';
+import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
+import { CoachingLog } from './pages/coaching/CoachingLog';
+import { CoachingErgScores } from './pages/coaching/CoachingErgScores';
+import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -34,6 +40,24 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  return <Layout>{children}</Layout>;
+};
+
+const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading, isCoach } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isCoach) {
+    return <Navigate to="/" replace />;
+  }
+
   return <Layout>{children}</Layout>;
 };
 
@@ -113,10 +137,63 @@ function App() {
           />
           <Route
             path="/live"
+            element={<Navigate to="/coaching/live" replace />}
+          />
+          {/* Coaching Routes (coach role required) */}
+          <Route
+            path="/coaching"
             element={
-              <ProtectedRoute>
+              <CoachRoute>
+                <CoachDashboard />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/live"
+            element={
+              <CoachRoute>
                 <CoachSessions />
-              </ProtectedRoute>
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/roster"
+            element={
+              <CoachRoute>
+                <CoachingRoster />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/schedule"
+            element={
+              <CoachRoute>
+                <CoachingSchedule />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/log"
+            element={
+              <CoachRoute>
+                <CoachingLog />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/ergs"
+            element={
+              <CoachRoute>
+                <CoachingErgScores />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/boatings"
+            element={
+              <CoachRoute>
+                <CoachingBoatings />
+              </CoachRoute>
             }
           />
           <Route

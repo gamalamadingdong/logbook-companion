@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Activity, Dumbbell, BookOpen } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Activity, Dumbbell, BookOpen, Users } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { supabase } from '../services/supabase';
@@ -11,7 +11,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const { logout, profile, user } = useAuth();
+    const { logout, profile, user, isCoach } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -48,7 +48,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/sync', label: 'Sync Data', icon: Database },
         { path: '/templates', label: 'Library', icon: Dumbbell, badge: 'Alpha' },
         { path: '/preferences', label: 'Settings', icon: Settings },
-        { path: '/live', label: 'Live Sessions', icon: Activity, badge: 'Alpha' },
+        ...(isCoach ? [
+            { path: '/coaching', label: 'Coaching', icon: Users, badge: 'Alpha' },
+        ] : []),
         { path: '/docs', label: 'Documentation', icon: BookOpen },
         ...(isAdmin ? [
             { path: '/feedback', label: 'Feedback', icon: MessageSquare }

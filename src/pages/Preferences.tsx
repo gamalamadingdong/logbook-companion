@@ -244,6 +244,7 @@ export const Preferences: React.FC = () => {
                                     <input
                                         type="checkbox"
                                         className="sr-only peer"
+                                        aria-label="Toggle recommended workouts"
                                         checked={formData.preferences?.show_recommended_workouts !== false}
                                         onChange={() => toggleGeneralPreference('show_recommended_workouts')}
                                     />
