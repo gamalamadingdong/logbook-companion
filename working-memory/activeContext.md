@@ -41,6 +41,19 @@ Merged CoachingLog (CL) app into LogbookCompanion (LC) as a `/coaching/*` route 
     - Deploying OCR Service (Azure).
     - Building "Smart Form" for manual/OCR entry in Logbook Companion.
 
+### Next Feature Dev Tasks — Personal Analytics Enhancements
+1. **Smart PR & Interval Detection**
+   - Expand `prCalculator.ts` to return PR metrics in seconds, meters, and watts for unit toggles.
+   - Improve named workout detection (e.g., "Speed Pyramid", "4x1000m") using `raw_data`.
+2. **Analytics UI for PRs**
+   - Build `PRList` / `PRCard` components to separate Standard Distances vs Interval Benchmarks.
+   - Add a "Tracked Workouts" section and unit toggle (Split/Time/Watts).
+3. **User Preferences & Tracking**
+   - Add `user_preferences` (or profile JSON) to store `tracked_patterns` and `preferred_units`.
+   - Surface a Preferences/Tracking editor in `Analytics.tsx`.
+4. **Verification**
+   - Run `scripts/verify_pr_logic.ts` and confirm PR sections render as expected.
+
 ## Recent Changes (2026-02-08)
 
 ### ✅ Feature: Warmup/Cooldown Detection on WorkoutDetail
