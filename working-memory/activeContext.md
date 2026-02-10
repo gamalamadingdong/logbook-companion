@@ -12,7 +12,7 @@ Merged CoachingLog (CL) app into LogbookCompanion (LC) as a `/coaching/*` route 
 - Nav link visible only to coaches (`isCoach` flag in AuthContext)
 - Migrate CL's 5 Dexie tables to Supabase (no local-only data)
 - Match LC's dark theme, borrow CL's design accents
-- Live Sessions (`/live`) moves to `/coaching/live`
+- Live Sessions (`/live`) moves to `/coaching/live`; Coaching Log now at `/coaching/log`
 
 **Phase 1 — Database** ✅ DONE
 **Phase 2 — Routing & Auth Gating** ✅ DONE
@@ -43,8 +43,8 @@ Merged CoachingLog (CL) app into LogbookCompanion (LC) as a `/coaching/*` route 
 
 ### Personal Analytics Enhancements — Pass Status
 **Pass 1 ✅ Complete**
-- PR detection logic in `prCalculator.ts` (standard distances + interval benchmarks).
-- `PRList` UI with unit toggle and PR cards in `src/components/analytics/PRList.tsx`.
+- CoachingLog → LogbookCompanion merge completed with `/coaching/*` routing.
+- PR detection logic in `prCalculator.ts` plus `PRList` UI (unit toggle + PR cards).
 
 **Pass 2 — Next**
 1. **Tracked Workouts + Preferences**

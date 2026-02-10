@@ -10,8 +10,11 @@ The user wants to "Track" specific workouts (e.g., "Speed Pyramid", "4x1000m") a
 
 ## Pass Status
 
-### Pass 1 — PR Detection + UI ✅ Complete
-**Goal**: Surface PRs for standard distances and interval benchmarks with a unit toggle.
+### Pass 1 — Coaching Merge + PR Detection ✅ Complete
+**Goal**: Complete CoachingLog merge and surface PRs for standard distances and interval benchmarks with a unit toggle.
+
+#### [DONE] Coaching routes
+- `/coaching/*` routing complete (log and live sessions under `/coaching/log` and `/coaching/live`).
 
 #### [DONE] prCalculator.ts
 - PR detection for standard distances + interval patterns using `raw_data`.
