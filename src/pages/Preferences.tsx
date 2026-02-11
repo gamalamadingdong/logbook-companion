@@ -7,9 +7,11 @@ import { fetchUserPRs } from '../utils/prDetection';
 import { Loader2, Database } from 'lucide-react';
 import { GoalsManager } from '../components/GoalsManager';
 import { PowerBackfill } from '../components/debug/PowerBackfill';
+import { useTheme, type ThemePreference } from '../hooks/useTheme';
 
 export const Preferences: React.FC = () => {
     const { profile, loading: authLoading, refreshProfile } = useAuth();
+    const { themePreference, setThemePreference } = useTheme();
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'benchmarks' | 'goals'>('profile');
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -20,6 +22,10 @@ export const Preferences: React.FC = () => {
     // Dynamic Benchmarks
     const [extraBenchmarks, setExtraBenchmarks] = useState<{ key: string, label: string, type: 'Distance' | 'Interval' }[]>([]);
     const [loadingBenchmarks, setLoadingBenchmarks] = useState(false);
+
+    const isThemePreference = (value: unknown): value is ThemePreference => (
+        value === 'dark' || value === 'light' || value === 'system'
+    );
 
     useEffect(() => {
         if (profile) {
@@ -178,6 +184,44 @@ export const Preferences: React.FC = () => {
         }
     };
 
+    const updateThemePreference = async (nextTheme: ThemePreference) => {
+        if (!profile?.user_id) return;
+        const currentPrefs = formData.preferences || {};
+        const previousTheme = isThemePreference(currentPrefs.theme) ? currentPrefs.theme : themePreference;
+        const updatedPrefs = {
+            ...currentPrefs,
+            theme: nextTheme
+        };
+
+        setFormData(prev => ({
+            ...prev,
+            preferences: updatedPrefs
+        }));
+        setThemePreference(nextTheme);
+
+        try {
+            const { error } = await supabase
+                .from('user_profiles')
+                .update({ preferences: updatedPrefs })
+                .eq('user_id', profile.user_id);
+
+            if (error) throw error;
+
+            await refreshProfile();
+        } catch (err) {
+            console.error('[Preferences] Theme update failed:', err);
+            setMessage({ type: 'error', text: 'Failed to save theme preference.' });
+            setFormData(prev => ({
+                ...prev,
+                preferences: {
+                    ...prev.preferences,
+                    theme: previousTheme
+                }
+            }));
+            setThemePreference(previousTheme);
+        }
+    };
+
     if (authLoading) return <div className="p-8 text-neutral-400">Loading profile...</div>;
 
     const allBenchmarks = [
@@ -245,6 +289,29 @@ export const Preferences: React.FC = () => {
                                         onChange={() => toggleGeneralPreference('show_recommended_workouts')}
                                     />
                                     <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-medium text-neutral-200 mb-4">Appearance</h3>
+                            <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-lg">
+                                <div>
+                                    <h4 className="font-medium text-neutral-200">Theme</h4>
+                                    <p className="text-sm text-neutral-500 mt-1">
+                                        Choose between light, dark, or system mode.
+                                    </p>
+                                </div>
+                                <label className="text-sm text-neutral-400">
+                                    <span className="sr-only">Theme preference</span>
+                                    <select
+                                        className="bg-neutral-900 border border-neutral-700 text-neutral-100 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+                                        value={themePreference}
+                                        onChange={(event) => updateThemePreference(event.target.value as ThemePreference)}
+                                    >
+                                        <option value="dark">Dark</option>
+                                        <option value="light">Light</option>
+                                        <option value="system">System</option>
+                                    </select>
                                 </label>
                             </div>
                         </div>

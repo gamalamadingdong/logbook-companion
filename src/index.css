@@ -9,5 +9,133 @@ body,
 }
 
 body {
-  @apply bg-neutral-950 text-neutral-50 antialiased;
+  @apply bg-neutral-50 text-neutral-900 antialiased;
+}
+
+html.dark body {
+  @apply bg-neutral-950 text-neutral-50;
+}
+
+@layer utilities {
+  html.light .bg-neutral-950 {
+    @apply bg-neutral-50;
+  }
+
+  html.light .bg-neutral-950\/95 {
+    @apply bg-white/95;
+  }
+
+  html.light .bg-neutral-950\/50 {
+    @apply bg-neutral-50/70;
+  }
+
+  html.light .bg-neutral-900 {
+    @apply bg-white;
+  }
+
+  html.light .bg-neutral-900\/80 {
+    @apply bg-white/90;
+  }
+
+  html.light .bg-neutral-900\/60 {
+    @apply bg-white/80;
+  }
+
+  html.light .bg-neutral-900\/50 {
+    @apply bg-white/70;
+  }
+
+  html.light .bg-neutral-900\/40 {
+    @apply bg-white/60;
+  }
+
+  html.light .bg-neutral-900\/30 {
+    @apply bg-white/50;
+  }
+
+  html.light .bg-neutral-900\/20 {
+    @apply bg-white/40;
+  }
+
+  html.light .bg-neutral-800 {
+    @apply bg-neutral-100;
+  }
+
+  html.light .bg-neutral-800\/80 {
+    @apply bg-neutral-100/90;
+  }
+
+  html.light .bg-neutral-800\/60 {
+    @apply bg-neutral-100/80;
+  }
+
+  html.light .bg-neutral-800\/50 {
+    @apply bg-neutral-100/70;
+  }
+
+  html.light .bg-neutral-800\/40 {
+    @apply bg-neutral-100/60;
+  }
+
+  html.light .bg-neutral-800\/30 {
+    @apply bg-neutral-100/50;
+  }
+
+  html.light .bg-neutral-800\/20 {
+    @apply bg-neutral-100/40;
+  }
+
+  html.light .bg-neutral-700 {
+    @apply bg-neutral-200;
+  }
+
+  html.light .bg-neutral-700\/50 {
+    @apply bg-neutral-200/70;
+  }
+
+  html.light .text-white,
+  html.light .text-neutral-50 {
+    @apply text-neutral-900;
+  }
+
+  html.light .text-neutral-100 {
+    @apply text-neutral-900;
+  }
+
+  html.light .text-neutral-200 {
+    @apply text-neutral-800;
+  }
+
+  html.light .text-neutral-300 {
+    @apply text-neutral-700;
+  }
+
+  html.light .text-neutral-400 {
+    @apply text-neutral-600;
+  }
+
+  html.light .border-neutral-900,
+  html.light .border-neutral-800 {
+    @apply border-neutral-200;
+  }
+
+  html.light .border-neutral-800\/50 {
+    @apply border-neutral-200/80;
+  }
+
+  html.light .border-neutral-700 {
+    @apply border-neutral-300;
+  }
+
+  html.light .border-neutral-700\/50 {
+    @apply border-neutral-300/80;
+  }
+
+  html.light .divide-neutral-800 {
+    @apply divide-neutral-200;
+  }
+
+  html.light .divide-neutral-800\/50 {
+    @apply divide-neutral-200/80;
+  }
 }
