@@ -15,7 +15,7 @@ import { WeeklyReport } from '../components/analytics/WeeklyReport';
 import { SteadyStateAnalysis } from '../components/analytics/SteadyStateAnalysis';
 
 import { useAuth } from '../hooks/useAuth';
-import { calculateWatts } from '../utils/prCalculator';
+import { getUserBaseline2kWatts } from '../utils/paceCalculator';
 import { workoutService } from '../services/workoutService';
 import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
 import { getLinearRegressionStats } from '../utils/math';
@@ -59,51 +59,7 @@ export const Analytics: React.FC = () => {
         setGoals(userGoals);
 
         // 1. Determine Baseline Watts
-        // Priority:
-        // A. "Working Baseline" for 2k from Preferences (Re-fetch to get latest)
-        // B. "pr_2k_watts" from user_baseline_metrics (Legacy/Auto)
-        // C. Default 202 (~2:00 split)
-
-        let bWatts = 202;
-
-        // Re-fetch profile to get latest baseline preferences
-        const { data: freshProfile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', profile.user_id)
-            .single();
-
-        if (freshProfile?.benchmark_preferences?.['2k']?.working_baseline) {
-            // Parse "MM:SS" or "SS.s" -> Watts
-            // For 2k, the baseline string is usually a time like "7:00.0"
-            // We need to convert that to a 500m split, then variables.
-            const timeStr = freshProfile.benchmark_preferences['2k'].working_baseline;
-            const parts = timeStr.split(':');
-            let totalSeconds = 0;
-            if (parts.length === 2) {
-                totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
-            } else {
-                totalSeconds = parseFloat(timeStr);
-            }
-
-            if (totalSeconds > 0) {
-                // Assuming 2k distance
-                const pace = (totalSeconds / 2000) * 500;
-                bWatts = calculateWatts(pace);
-            }
-        }
-
-        if (bWatts === 202) {
-            // Try fetching legacy if no preference set
-            const { data: baseline } = await supabase
-                .from('user_baseline_metrics')
-                .select('pr_2k_watts')
-                .eq('user_id', profile.user_id)
-                .single();
-
-            if (baseline?.pr_2k_watts) bWatts = baseline.pr_2k_watts;
-        }
-
+        const bWatts = await getUserBaseline2kWatts(profile.user_id, supabase);
         setBaselineWatts(bWatts);
 
         // 2. Get Workouts (ALL TIME)

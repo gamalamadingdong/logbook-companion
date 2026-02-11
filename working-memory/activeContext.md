@@ -39,10 +39,10 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 ## Next Work Plan
 
 ### Sprint 2: Error Handling & Missing Pages
-- [ ] Create 404/NotFound page + catch-all route
-- [ ] Add toast notification system (Sonner) — replace `alert()` calls
-- [ ] Extract baseline watts utility (duplicated in Analytics + WorkoutDetail)
-- [ ] Centralize `isAdmin` in AuthContext (replace hardcoded UUID checks)
+- [x] Create 404/NotFound page + catch-all route
+- [x] Add toast notification system (Sonner) — replace `alert()` calls
+- [x] Extract baseline watts utility (duplicated in Analytics + WorkoutDetail)
+- [x] Centralize `isAdmin` in AuthContext (replace hardcoded UUID checks)
 
 ### Sprint 3: Robustness & Data Quality
 - [ ] Dashboard: handle service errors gracefully (show error states, not silent fail)

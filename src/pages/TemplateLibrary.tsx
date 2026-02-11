@@ -6,13 +6,13 @@ import { TemplateEditor } from '../components/TemplateEditor';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
+import { toast } from 'sonner';
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 
 export const TemplateLibrary: React.FC = () => {
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const navigate = useNavigate();
-    const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
     const [templates, setTemplates] = useState<WorkoutTemplateListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -89,7 +89,7 @@ export const TemplateLibrary: React.FC = () => {
             loadTemplates();
         } catch (err) {
             console.error('Failed to delete template:', err);
-            alert('Failed to delete template. Please try again.');
+            toast.error('Failed to delete template. Please try again.');
         }
     };
 
@@ -111,7 +111,7 @@ export const TemplateLibrary: React.FC = () => {
             loadTemplates();
         } catch (err) {
             console.error('Failed to delete templates:', err);
-            alert('Failed to delete some templates. Please try again.');
+            toast.error('Failed to delete some templates. Please try again.');
         } finally {
             setDeleting(false);
         }

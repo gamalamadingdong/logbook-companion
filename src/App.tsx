@@ -28,9 +28,11 @@ import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
 import { TeamSetup } from './pages/coaching/TeamSetup';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
+import { NotFound } from './pages/NotFound';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
+import { Toaster } from 'sonner';
 
 // ... (previous imports)
 
@@ -66,11 +68,12 @@ const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
-  return (
-    <AuthProvider>
-      <AutoSync />
-      <BrowserRouter>
-        <Routes>
+    return (
+        <AuthProvider>
+            <AutoSync />
+            <Toaster position="top-right" richColors theme="dark" />
+            <BrowserRouter>
+                <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/about" element={<About />} />
@@ -261,6 +264,14 @@ function App() {
             }
           />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route
+            path="*"
+            element={
+              <Layout>
+                <NotFound />
+              </Layout>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </AuthProvider >

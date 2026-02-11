@@ -11,13 +11,11 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const { logout, profile, user, isCoach } = useAuth();
+    const { logout, profile, user, isCoach, isAdmin } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [newFeedbackCount, setNewFeedbackCount] = useState(0);
-
-    const isAdmin = user?.id === '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
     // Fetch new feedback count for admin
     useEffect(() => {

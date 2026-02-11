@@ -8,6 +8,7 @@ import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope, Sh
 import { calculateZoneDistribution } from '../utils/zones';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { toast } from 'sonner';
 
 export const Sync: React.FC = () => {
     const {
@@ -346,13 +347,13 @@ export const Sync: React.FC = () => {
                                     const { data: logs, error } = await query;
 
                                     if (error) throw error;
-                                    if (!logs || logs.length === 0) {
-                                        if (!forceExport && userInt?.google_sheet_id) {
-                                            alert("No new workouts since last export. Check 'Force Resync' to export all.");
-                                            return;
+                                        if (!logs || logs.length === 0) {
+                                            if (!forceExport && userInt?.google_sheet_id) {
+                                                toast.message("No new workouts since last export. Check 'Force Resync' to export all.");
+                                                return;
+                                            }
+                                            throw new Error("No data to export.");
                                         }
-                                        throw new Error("No data to export.");
-                                    }
 
                                     setLocalStatus(`Processing ${logs.length} new workouts...`);
 
@@ -507,7 +508,7 @@ export const Sync: React.FC = () => {
 
                             if (error) throw error;
                             if (!allLogs || allLogs.length === 0) {
-                                alert("No workouts found in database.");
+                                toast.message("No workouts found in database.");
                                 setLocalStatus('No workouts found.');
                                 return;
                             }
@@ -539,7 +540,7 @@ export const Sync: React.FC = () => {
 
                             if (idsToDelete.length === 0) {
                                 const msg = `Scan complete. Checked ${allLogs.length} workouts, no duplicates found.`;
-                                alert(msg);
+                                toast.success(msg);
                                 setLocalStatus('Database is clean.');
                                 return;
                             }
@@ -556,7 +557,7 @@ export const Sync: React.FC = () => {
 
                             const msg = `Success! Cleaned ${idsToDelete.length} duplicate records.`;
                             setLocalStatus(msg);
-                            alert(msg);
+                            toast.success(msg);
 
                         } catch (err: any) {
                             console.error(err);
@@ -597,7 +598,7 @@ export const Sync: React.FC = () => {
 
                             if (error) throw error;
                             if (!allLogs || allLogs.length === 0) {
-                                alert("No workouts with raw data found.");
+                                toast.message("No workouts with raw data found.");
                                 return;
                             }
 
@@ -655,7 +656,7 @@ export const Sync: React.FC = () => {
 
                             const msg = `Deep Analysis Complete! Updated ${updatedCount} workouts with granular zone data.`;
                             setLocalStatus(msg);
-                            alert(msg);
+                            toast.success(msg);
 
                         } catch (err: any) {
                             console.error(err);

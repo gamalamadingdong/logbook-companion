@@ -6,6 +6,7 @@ import { mainBlockToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/workoutNaming';
 import { parseRWN, validateRWN, estimateDuration, formatDuration } from '../utils/rwnParser';
 import { structureToRWN } from '../utils/structureToRWN';
+import { toast } from 'sonner';
 
 interface TemplateEditorProps {
     templateId: string | null; // null = new template
@@ -330,7 +331,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
 
     const handleSave = async () => {
         if (!template.name?.trim()) {
-            alert('Please enter a template name');
+            toast.error('Please enter a template name');
             return;
         }
 
@@ -383,7 +384,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
             console.error('Failed to save template:', err);
             // Show the actual error message
             const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
-            alert(`Failed to save template: ${errorMessage}`);
+            toast.error(`Failed to save template: ${errorMessage}`);
         } finally {
             setSaving(false);
         }

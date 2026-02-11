@@ -113,7 +113,7 @@ export const TemplateDetail: React.FC = () => {
                 navigate(`/workouts/${workout.id}`);
             } catch (err) {
                 console.error('Failed to start workout:', err);
-                alert('Failed to start workout. Please try again.');
+                toast.error('Failed to start workout. Please try again.');
             } finally {
                 setStarting(false);
             }
