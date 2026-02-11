@@ -50,7 +50,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const stored = getStoredTheme();
         const profileTheme = getProfileTheme(profile);
         const nextPreference = stored ?? profileTheme ?? 'dark';
-        setThemePreference(prev => (prev === nextPreference ? prev : nextPreference));
+        setThemePreference(nextPreference);
 
         if (!stored && profileTheme) {
             localStorage.setItem(THEME_STORAGE_KEY, profileTheme);

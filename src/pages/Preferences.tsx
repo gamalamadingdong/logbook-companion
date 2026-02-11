@@ -306,7 +306,12 @@ export const Preferences: React.FC = () => {
                                     <select
                                         className="bg-neutral-900 border border-neutral-700 text-neutral-100 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
                                         value={themePreference}
-                                        onChange={(event) => updateThemePreference(event.target.value as ThemePreference)}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (isThemePreference(value)) {
+                                                updateThemePreference(value);
+                                            }
+                                        }}
                                     >
                                         <option value="dark">Dark</option>
                                         <option value="light">Light</option>
