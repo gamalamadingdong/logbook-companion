@@ -205,10 +205,10 @@ export async function findDuplicateTemplate(
 
 export interface TemplateHistoryItem {
     id: string;
-    workout_date: string;
-    distance: number;
-    time: number; // deciseconds
-    stroke_rate: number;
+    completed_at: string;
+    distance_meters: number;
+    duration_seconds: number;
+    average_stroke_rate: number;
     watts: number | null;
 }
 
@@ -223,10 +223,10 @@ export async function getTemplateHistory(templateId: string, userId: string): Pr
     // We want the most recent ones first
     const { data, error } = await supabase
         .from('workout_logs')
-        .select('id, workout_date, distance, time, stroke_rate, watts')
+        .select('id, completed_at, distance_meters, duration_seconds, average_stroke_rate, watts')
         .eq('template_id', templateId)
         .eq('user_id', userId)
-        .order('workout_date', { ascending: true }); // Ascending for chart
+        .order('completed_at', { ascending: true }); // Ascending for chart
 
     if (error) {
         console.error('Error fetching template history:', error);
@@ -248,7 +248,7 @@ export async function getTemplatePersonalBest(templateId: string, userId: string
 
     const { data, error } = await supabase
         .from('workout_logs')
-        .select('id, workout_date, distance, time, stroke_rate, watts')
+        .select('id, completed_at, distance_meters, duration_seconds, average_stroke_rate, watts')
         .eq('template_id', templateId)
         .eq('user_id', userId)
         .order('watts', { ascending: false })

@@ -3,9 +3,11 @@ import React, { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { Download, X, Trophy, Activity, Calendar } from 'lucide-react';
 import { ZONES } from '../../utils/zones';
+import type { WorkoutLog } from '../../services/supabase';
+import type { TrainingZone } from '../../utils/zones';
 
 interface WeeklyReportProps {
-    workouts: any[];
+    workouts: WorkoutLog[];
     startDate: Date;
     endDate: Date;
     onClose: () => void;
@@ -31,8 +33,7 @@ export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate,
         // rudimentary classification if pre-calculated distribution missing
         // using the same logic as Analytics.tsx effectively, or relying on `training_zone`
         if (w.training_zone && ZONES.find(z => z.id === w.training_zone)) {
-            // @ts-ignore
-            zoneDist[w.training_zone]++;
+            zoneDist[w.training_zone as TrainingZone]++;
         }
     });
 
@@ -64,7 +65,7 @@ export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate,
                 {/* Controls */}
                 <div className="flex justify-between items-center text-white">
                     <h3 className="font-bold text-lg">Weekly Report</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-neutral-800 rounded-full transition-colors">
+                    <button type="button" title="Close report" onClick={onClose} className="p-2 hover:bg-neutral-800 rounded-full transition-colors">
                         <X size={20} />
                     </button>
                 </div>

@@ -68,7 +68,7 @@ export const Login: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-6 mt-8 text-sm font-medium">
-                    <span className="text-neutral-500">&copy; 2025 Logbook Companion</span>
+                    <span className="text-neutral-500">&copy; 2026 Logbook Companion</span>
                 </div>
             </div>
 

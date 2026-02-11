@@ -75,8 +75,8 @@ export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workou
         return { totalDistance, totalSeconds, count: logs.length, distribution };
     };
 
-    const currentStats = useMemo(() => calculateStats(thisWeekWorkouts), [thisWeekWorkouts]);
-    const lastStats = useMemo(() => calculateStats(lastWeekWorkouts), [lastWeekWorkouts]);
+    const currentStats = calculateStats(thisWeekWorkouts);
+    const lastStats = calculateStats(lastWeekWorkouts);
 
     // 4. Trends
     const getTrend = (current: number, last: number) => {
@@ -109,13 +109,15 @@ export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workou
                         Week at a Glance
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
-                        <button onClick={handlePrevWeek} className="p-1 hover:bg-neutral-800 rounded transition-colors text-neutral-400 hover:text-white">
+                        <button type="button" title="Previous week" onClick={handlePrevWeek} className="p-1 hover:bg-neutral-800 rounded transition-colors text-neutral-400 hover:text-white">
                             <ChevronLeft size={14} />
                         </button>
                         <p className="text-neutral-500 text-xs tabular-nums">
                             {format(currentWeekStart, 'MMM d')} - {format(currentWeekEnd, 'MMM d')}
                         </p>
                         <button
+                            type="button"
+                            title="Next week"
                             onClick={handleNextWeek}
                             disabled={isCurrentWeek}
                             className={`p-1 rounded transition-colors ${isCurrentWeek ? 'text-neutral-700 cursor-not-allowed' : 'hover:bg-neutral-800 text-neutral-400 hover:text-white'}`}
@@ -202,7 +204,7 @@ export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workou
                                 {chartData.length > 0 && <Tooltip
                                     contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px', fontSize: '12px' }}
                                     itemStyle={{ color: '#fff' }}
-                                    formatter={(val: number | string | Array<any> | undefined) => [`${val} mins`, 'Duration']}
+                                    formatter={(val: number | string | Array<number | string> | undefined) => [`${val} mins`, 'Duration']}
                                 />}
                             </PieChart>
                         </ResponsiveContainer>

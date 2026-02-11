@@ -31,27 +31,30 @@ export function CoachingAthleteDetail() {
 
   useEffect(() => {
     if (!teamId || !athleteId || isLoadingTeam) return;
-    getAthletes(teamId)
-      .then((athletes) => {
+    
+    const loadData = async () => {
+      try {
+        const athletes = await getAthletes(teamId);
         const found = athletes.find((a) => a.id === athleteId);
         if (found) {
           setAthlete(found);
-          return Promise.all([
+          const [scores, notes] = await Promise.all([
             getErgScoresForAthlete(athleteId, 10),
             getNotesForAthlete(athleteId, 30),
           ]);
+          setErgScores(scores);
+          setAthleteNotes(notes);
+        } else {
+          setError('Athlete not found');
         }
-        setError('Athlete not found');
-        return null;
-      })
-      .then((results) => {
-        if (results) {
-          setErgScores(results[0]);
-          setAthleteNotes(results[1]);
-        }
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load athlete'))
-      .finally(() => setIsLoading(false));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load athlete');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
   }, [teamId, athleteId, isLoadingTeam]);
 
   const handleSave = async (data: Partial<CoachingAthlete>) => {

@@ -261,7 +261,7 @@ export const TemplateDetail: React.FC = () => {
                             <LineChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                                 <XAxis
-                                    dataKey="workout_date"
+                                    dataKey="completed_at"
                                     stroke="#666"
                                     tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                     tick={{ fontSize: 12 }}
@@ -274,7 +274,7 @@ export const TemplateDetail: React.FC = () => {
                                 />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#171717', borderColor: '#333', color: '#fff' }}
-                                    formatter={(value: any) => [`${Math.round(value)}w`, 'Power']}
+                                    formatter={(value: number | string | undefined) => [`${Math.round(Number(value ?? 0))}w`, 'Power']}
                                     labelFormatter={(label) => new Date(label).toLocaleDateString()}
                                 />
                                 <Line
@@ -303,7 +303,7 @@ export const TemplateDetail: React.FC = () => {
                             <div>
                                 <div className="text-amber-200 font-bold text-lg">Personal Best</div>
                                 <div className="text-amber-500/80 text-sm">
-                                    Achieved on {new Date(personalBest.workout_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                    Achieved on {new Date(personalBest.completed_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                                 </div>
                             </div>
                         </div>
@@ -316,10 +316,10 @@ export const TemplateDetail: React.FC = () => {
                     </div>
 
                     {/* Show split if available */}
-                    {personalBest.time > 0 && personalBest.distance > 0 && (
+                    {personalBest.duration_seconds > 0 && personalBest.distance_meters > 0 && (
                         <div className="mt-2 text-sm text-neutral-400">
                             Split: <span className="text-white font-mono">
-                                {formatDuration(500 * (personalBest.time / 10) / personalBest.distance)}
+                                {formatDuration(500 * personalBest.duration_seconds / personalBest.distance_meters)}
                             </span>
                         </div>
                     )}

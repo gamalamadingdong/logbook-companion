@@ -52,9 +52,17 @@ interface WorkoutSummaryCardProps {
 }
 
 // Helper Components
+const colorTextClasses: Record<string, string> = {
+    blue: 'text-blue-500',
+    emerald: 'text-emerald-500',
+    indigo: 'text-indigo-500',
+    amber: 'text-amber-500',
+    red: 'text-red-500',
+};
+
 const StatBox = ({ label, value, unit, icon: Icon, color }: StatBoxProps) => (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col items-center justify-center gap-2">
-        <div className={`text-${color}-500 opacity-80`}>
+        <div className={`${colorTextClasses[color] || 'text-neutral-500'} opacity-80`}>
             <Icon size={16} />
         </div>
         <div className="text-2xl font-bold font-mono text-white">{value}<span className="text-xs text-neutral-500 font-sans ml-1">{unit}</span></div>

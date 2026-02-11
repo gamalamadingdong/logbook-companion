@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { getProfile, getResults, getResultDetail, getStrokes } from '../api/concept2';
-import type { C2Result } from '../api/concept2.types';
+import type { C2Interval, C2Result } from '../api/concept2.types';
 import { supabase, upsertWorkout } from '../services/supabase';
+import type { WorkoutLog } from '../services/supabase';
 import { workoutService } from '../services/workoutService';
 import { calculateZoneDistribution } from '../utils/zones';
 import { calculatePowerBuckets } from '../utils/powerBucketing';
@@ -184,8 +185,7 @@ export const useConcept2Sync = () => {
                     const distribution = calculateZoneDistribution(fullData, baseWatts);
 
                     // Map to DB Schema
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const record: any = {
+                    const record: Partial<WorkoutLog> & { id?: string } = {
                         external_id: summary.id.toString(),
                         user_id: userId,
                         workout_name: summary.workout_type || 'Workout',
@@ -299,34 +299,6 @@ export const useConcept2Sync = () => {
                         record.watts = Math.min(calculated, 3000);
                     }
 
-
-
-                    // RECONCILIATION: Check for existing manual/other entries to upgrade
-                    const reconciledMatch = await findMatchingWorkout(supabase, {
-                        userId,
-                        date: new Date(summary.date),
-                        distance: summary.distance,
-                        timeSeconds: summary.time / 10,
-                        tolerance: {
-                            timeSeconds: 60 * 10, // +/- 10 mins matching window
-                            distanceMeters: 100,  // +/- 100m tolerance
-                            durationSeconds: 10   // +/- 10s tolerance
-                        }
-                    });
-
-                    if (reconciledMatch) {
-                        if (shouldUpgrade(reconciledMatch.source, 'concept2')) {
-                            console.log(`Reconciliation: Upgrading workout ${reconciledMatch.id} from ${reconciledMatch.source} to concept2`);
-                            // Inject ID into record for Update
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (record as any).id = reconciledMatch.id;
-                        } else {
-                            console.log(`Reconciliation: Skipping workout. Existing source ${reconciledMatch.source} is higher/equal priority.`);
-                            skippedExisting++;
-                            continue;
-                        }
-                    }
-
                     const upsertedWorkout = await upsertWorkout(record);
 
                     // Auto-match workout to template by canonical_name
@@ -368,7 +340,12 @@ export const useConcept2Sync = () => {
                         // 3b. Power Distribution (Histograms) - Work Strokes Only
                         try {
                             // fullData contains 'strokes' and typically 'workout.intervals'
-                            const intervals = fullData.workout?.intervals || ((fullData as any).data && (fullData as any).data.intervals);
+                            const fullDataRecord = fullData as Record<string, unknown>;
+                            const nestedData = fullDataRecord.data as Record<string, unknown> | undefined;
+                            const nestedIntervals = Array.isArray(nestedData?.intervals)
+                                ? (nestedData?.intervals as C2Interval[])
+                                : undefined;
+                            const intervals = fullData.workout?.intervals ?? nestedIntervals;
                             if (fullData.strokes && fullData.strokes.length > 0) {
                                 const buckets = calculatePowerBuckets(fullData.strokes, intervals);
                                 await workoutService.savePowerDistribution(workoutId, buckets);

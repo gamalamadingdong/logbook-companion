@@ -18,6 +18,7 @@ import { TemplateLibrary } from './pages/TemplateLibrary';
 import { TemplateDetail } from './pages/TemplateDetail';
 import { Documentation } from './pages/Documentation';
 import DownloadC2Data from './pages/DownloadC2Data';
+import { ResetPassword } from './pages/ResetPassword';
 import { CoachDashboard } from './pages/coaching/CoachDashboard';
 import { CoachingRoster } from './pages/coaching/CoachingRoster';
 import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
@@ -259,6 +260,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider >

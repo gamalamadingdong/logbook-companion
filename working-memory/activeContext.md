@@ -2,40 +2,61 @@
 
 > Last updated: 2026-02-11
 
-## Current Focus: Unified Athletes Data Model — COMPLETE
+## Current Focus: Application Audit — Sprint 1 Bug Fixes ✅ COMPLETE
 
-### Data Model Unification (2026-02-11) ✅ COMPLETE
-Retired the siloed `coaching_athletes` table in favor of a unified model:
+### Sprint 1: Critical Bug Fixes (2026-02-11) ✅ COMPLETE
 
-**New DB Schema:**
-- `athletes` table — single source of truth for all people. Has `first_name`, `last_name`, optional `user_id` FK to `auth.users`, `created_by` FK to track who added them.
-- `team_athletes` junction table — links athletes to teams with `status` (active/inactive/graduated).
-- All coaching tables (`coaching_sessions`, `coaching_athlete_notes`, `coaching_erg_scores`, `coaching_boatings`) now have `team_id` column for team-scoped access.
-- `team_members` role constraint updated: `coach`, `coxswain`, `member` (removed `captain`).
+Full application audit identified 6 bugs + 1 bonus fix. All fixed and build verified (zero errors).
 
-**Migration:** `db/migrations/20260211_unified_athletes.sql` — applied to production via Supabase MCP (5 phases).
+| Bug | File | Fix |
+|---|---|---|
+| B1 | `WorkoutComparison.tsx` | Dynamic Tailwind `text-${color}-500` replaced with static class map |
+| B2 | `templateService.ts` + `TemplateDetail.tsx` | Wrong column names (`workout_date`→`completed_at`, `distance`→`distance_meters`, `time`→`duration_seconds`, `stroke_rate`→`average_stroke_rate`) |
+| B3 | `App.tsx` + new `ResetPassword.tsx` | Missing `/reset-password` route — created page + added route |
+| B4 | `Layout.tsx` | Brand name "Analyzer" → "Companion" |
+| B5 | `Feedback.tsx` | No admin guard — added UUID check + `<Navigate>` redirect |
+| B6 | `useConcept2Sync.ts` | Duplicate `findMatchingWorkout` block removed (~20 lines) |
+| Bonus | `Login.tsx` | Copyright "2025" → "2026" |
 
-**TypeScript Changes:**
-- `types.ts` — New `Athlete`, `CoachingAthlete` (extends Athlete with computed `name`), `TeamAthlete` interfaces. All coaching interfaces got `team_id` field.
-- `coachingService.ts` — All queries now team-scoped (`.eq('team_id', teamId)` instead of `.eq('coach_user_id', coachUserId)`). Athletes queried via inner join on `team_athletes`. New `getTeamForUser()` helper. `createAthlete()` inserts into both `athletes` + `team_athletes`. `createNote/Session/ErgScore/Boating` all accept `(teamId, coachUserId, ...)`.
-- `useCoachingContext.ts` — New hook resolving `userId` + `teamId` for coaching pages.
-- All 6 coaching page components updated to use `useCoachingContext()` instead of `useAuth()` + `coachId`.
-- Roster + AthleteDetail forms updated for `first_name`/`last_name` fields (was single `name`).
+### Build Fix Follow-ups (2026-02-11) ✅ COMPLETE
+- Added `notes` + `training_zone` to `WorkoutLog` type to match DB usage
+- Fixed `useConcept2Sync` interval typing for power buckets
+- Typed `Promise.all` results in `CoachingAthleteDetail`
+- Updated `Feedback` to use shared `useAuth` hook
+- Allowed `TemplateDetail` tooltip formatter to accept `undefined`
 
-**Build:** `tsc --noEmit` — zero errors.
+### Team Management UX (2026-02-11) ✅ COMPLETE
+- Created `TeamSetup.tsx` (onboarding for first-time coaches)
+- Created `CoachingSettings.tsx` (team name, invite code, member management)
+- Added routes `/coaching/setup` and `/coaching/settings`
+- Dashboard redirects to setup when no team exists
 
-**Role hierarchy:** coach (full CRUD) > coxswain (view + add/edit scores) > member (view only).
-
-### Prior Work (same session)
-- Weekly Schedule View, Athlete Detail Page, Vertical Roster List — all implemented earlier.
+### Unified Athletes Data Model (2026-02-11) ✅ COMPLETE
+Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All coaching queries team-scoped.
 
 ---
 
-## Immediate Next Steps
-- [ ] Smoke test the coaching UI end-to-end (create athlete, session, score, boating)
-- [ ] Verify RLS policies work correctly for team-scoped access
-- [ ] Consider adding `coaching_athletes` table cleanup (currently still exists but FKs repointed)
-- [ ] Pass 3 enhancements: Dynamic dashboard, form validation, duplicate-athlete check
+## Next Work Plan
+
+### Sprint 2: Error Handling & Missing Pages
+- [ ] Create 404/NotFound page + catch-all route
+- [ ] Add toast notification system (Sonner) — replace `alert()` calls
+- [ ] Extract baseline watts utility (duplicated in Analytics + WorkoutDetail)
+- [ ] Centralize `isAdmin` in AuthContext (replace hardcoded UUID checks)
+
+### Sprint 3: Robustness & Data Quality
+- [ ] Dashboard: handle service errors gracefully (show error states, not silent fail)
+- [ ] C2 token refresh: proactive refresh before expiry, not just on 401
+- [ ] Template matching: surface unmatched workouts to user
+- [ ] Sync: add progress indicator (X of Y workouts)
+
+### Sprint 4: UX Polish
+- [ ] Loading skeletons for Dashboard, Analytics, WorkoutHistory
+- [ ] Empty states for all list pages (no workouts, no templates, etc.)
+- [ ] Remove `console.log` statements from production code
+- [ ] Mobile nav: highlight active tab
+
+---
 
 ## App Status
 

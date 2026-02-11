@@ -66,7 +66,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
                             <Waves size={24} />
                         </div>
-                        <h1 className="text-xl font-bold tracking-tight">Logbook<br /><span className="text-neutral-500 font-medium">Analyzer</span></h1>
+                        <h1 className="text-xl font-bold tracking-tight">Logbook<br /><span className="text-neutral-500 font-medium">Companion</span></h1>
                     </div>
                 </div>
 

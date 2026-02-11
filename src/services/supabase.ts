@@ -27,7 +27,10 @@ export type WorkoutLog = {
     rest_distance_meters?: number; // Added for C2 Rest
     external_id?: string; // c2 result id
     source: string; // 'concept2'
-    raw_data?: any; // full json
+    notes?: string;
+    training_zone?: string;
+    zone_distribution?: Record<string, number>;
+    raw_data?: unknown; // full json
 
     // Derived/Optional
     duration_seconds?: number;
@@ -55,7 +58,7 @@ export interface UserProfile {
     weight_lbs?: number;
     birth_date?: string;
     benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string; goal?: number }>;
-    preferences?: Record<string, any>;
+    preferences?: Record<string, unknown>;
     roles?: string[];
     created_at?: string;
     updated_at?: string;
