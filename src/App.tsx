@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
+import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { Login } from './pages/Login';
 import { Callback } from './pages/Callback';
 import { Dashboard } from './pages/Dashboard';
@@ -67,11 +68,13 @@ const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <Layout>{children}</Layout>;
 };
 
-function App() {
+const AppContent: React.FC = () => {
+    const { resolvedTheme } = useTheme();
+
     return (
-        <AuthProvider>
+        <>
             <AutoSync />
-            <Toaster position="top-right" richColors theme="dark" />
+            <Toaster position="top-right" richColors theme={resolvedTheme} />
             <BrowserRouter>
                 <Routes>
           <Route path="/login" element={<Login />} />
@@ -274,8 +277,18 @@ function App() {
           />
         </Routes>
       </BrowserRouter>
-    </AuthProvider >
-  );
+    </>
+    );
+};
+
+function App() {
+    return (
+        <AuthProvider>
+            <ThemeProvider>
+                <AppContent />
+            </ThemeProvider>
+        </AuthProvider >
+    );
 }
 
 export default App;
