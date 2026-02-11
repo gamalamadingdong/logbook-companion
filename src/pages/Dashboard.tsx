@@ -8,6 +8,29 @@ import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget
 import { splitToWatts } from '../utils/zones';
 import { useDashboardData } from '../hooks/useDashboardData';
 
+const DashboardSkeleton: React.FC = () => (
+    <div className="min-h-screen bg-neutral-900 text-white p-8">
+        <div className="max-w-6xl mx-auto space-y-8 mt-6 animate-pulse">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 space-y-3">
+                    <div className="h-3 w-20 bg-neutral-700 rounded"></div>
+                    <div className="h-8 w-48 bg-neutral-700 rounded"></div>
+                    <div className="h-3 w-32 bg-neutral-800 rounded"></div>
+                </div>
+                <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 space-y-3">
+                    <div className="h-3 w-24 bg-neutral-700 rounded"></div>
+                    <div className="h-10 w-40 bg-neutral-700 rounded"></div>
+                </div>
+            </div>
+            <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 h-56"></div>
+            <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                <div className="h-5 w-40 bg-neutral-800 rounded"></div>
+                <div className="h-32 bg-neutral-800 rounded"></div>
+            </div>
+        </div>
+    </div>
+);
+
 export const Dashboard: React.FC = () => {
     const { user, profile: userProfile, logout, isGuest } = useAuth();
     const {
@@ -18,6 +41,7 @@ export const Dashboard: React.FC = () => {
         totalMeters,
         loading,
         workoutsLoading,
+        error,
         fetchRecentWorkouts
     } = useDashboardData();
 
@@ -63,6 +87,10 @@ export const Dashboard: React.FC = () => {
 
         return 200;
     }, [userProfile, userGoals]);
+
+    if (loading) {
+        return <DashboardSkeleton />;
+    }
 
     if (showConnectSplash) {
         return (
@@ -115,6 +143,16 @@ export const Dashboard: React.FC = () => {
                             >
                                 Reconnect
                             </button>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-start gap-3 text-red-200">
+                            <AlertCircle size={20} className="text-red-500 mt-0.5" />
+                            <div>
+                                <h3 className="font-semibold">Dashboard load issue</h3>
+                                <p className="text-sm text-red-200/70">{error}</p>
+                            </div>
                         </div>
                     )}
 

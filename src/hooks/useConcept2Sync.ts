@@ -50,7 +50,6 @@ export const useConcept2Sync = () => {
                 const diff = Date.now() - parseInt(lastSync, 10);
                 const oneHour = 60 * 60 * 1000;
                 if (diff < oneHour) {
-                    console.log(`Skipping sync. Last sync was ${Math.round(diff / 60000)} minutes ago.`);
                     return; // Silently skip
                 }
             }
@@ -65,13 +64,11 @@ export const useConcept2Sync = () => {
             // 1. Get C2 Profile & Match to Supabase User
             setStatus('Matching user profile...');
             const profile = await getProfile();
-            console.log('C2 Profile:', profile);
 
             const userId = await findSupabaseUser(profile.email);
             if (!userId) {
                 throw new Error(`Could not find a Supabase user for email: ${profile.email}. Please ensure your "Logbook Companion" account email matches your Concept2 logbook email.`);
             }
-            console.log('Matched Supabase User:', userId);
 
             // 1b. Get Baseline for ongoing calculations
             const { data: baseline } = await supabase
@@ -136,7 +133,6 @@ export const useConcept2Sync = () => {
                 .eq('user_id', userId);
 
             const existingIds = new Set(existingRecords?.map(r => r.external_id) || []);
-            console.log(`Found ${existingIds.size} existing workouts in DB.`);
 
             // 3. Process & Upsert
             let processed = 0;
@@ -281,10 +277,8 @@ export const useConcept2Sync = () => {
 
                     if (match) {
                         if (shouldUpgrade(match.source, 'concept2')) {
-                            console.log(`Reconciliation: Upgrading workout ${match.id} from ${match.source} to concept2`);
                             record.id = match.id; // OVERRIDE existing row
                         } else {
-                            console.log(`Reconciliation: Skipping workout. Existing source ${match.source} is higher/equal priority.`);
                             skippedExisting++;
                             continue; // Logic says we don't need to sync this if we have better data
                         }
@@ -330,7 +324,6 @@ export const useConcept2Sync = () => {
                                             completed_at: new Date().toISOString()
                                         })
                                         .eq('id', assignment.id);
-                                    console.log(`Linked workout ${workoutId} to assignment ${assignment.id}`);
                                 }
                             }
                         } catch (assignErr) {

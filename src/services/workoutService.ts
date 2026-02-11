@@ -182,7 +182,6 @@ export const workoutService = {
             if (error) {
                 // Gracefully handle RLS/404/406 errors
                 if (error.code === 'PGRST116' || error.message?.includes('406') || error.message?.includes('Not Acceptable')) {
-                    console.log('Power distribution not available for this workout');
                     return null;
                 }
                 console.error('Error fetching power buckets:', error);
@@ -339,7 +338,6 @@ export const workoutService = {
             throw new Error('Failed to update workout - no rows affected');
         }
 
-        console.log('Successfully linked workout:', data);
         return data[0];
     },
 

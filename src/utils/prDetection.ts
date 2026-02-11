@@ -38,7 +38,6 @@ export async function fetchUserPRs(userId: string): Promise<PRRecord[]> {
 export async function saveFilteredPRs(userId: string): Promise<void> {
     if (userId === 'guest_user_123') return;
 
-    console.log(`Analyzing PRs for persistence (User: ${userId})...`);
 
     // 1. Calculate All PRs from raw history
     const allPrs = await fetchUserPRs(userId);
@@ -99,7 +98,6 @@ export async function saveFilteredPRs(userId: string): Promise<void> {
         }
     });
 
-    console.log(`Saving ${Object.keys(trackedRecords).length} Tracked PRs to profile...`);
 
     // 4. Save
     await supabase

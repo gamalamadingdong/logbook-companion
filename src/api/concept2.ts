@@ -27,7 +27,6 @@ async function clearAllTokens() {
                 concept2_refresh_token: null,
                 concept2_expires_at: null
             }).eq('user_id', user.id);
-            console.log('Cleared C2 tokens from database');
         }
     } catch (err) {
         console.error('Failed to clear C2 tokens from database:', err);
@@ -43,7 +42,6 @@ let refreshPromise: Promise<string> | null = null;
 async function refreshAccessToken(refreshToken: string): Promise<string> {
     // Deduplicate requests in the SAME tab
     if (refreshPromise) {
-        console.log('Refresh already in progress (local), attaching to existing promise...');
         return refreshPromise;
     }
 
@@ -60,7 +58,6 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
             const isFresh = currentExpiresAt && (new Date(currentStoredRefresh ? currentExpiresAt : '').getTime() > Date.now() + 5 * 60 * 1000);
 
             if ((currentStoredRefresh && currentStoredRefresh !== refreshToken) || (isFresh && currentStoredToken)) {
-                console.log('Token was refreshed by another tab/process. Using updated token.');
                 if (currentStoredToken) return currentStoredToken;
             }
 
@@ -84,7 +81,6 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
             params.append('scope', 'user:read,results:read');
 
             try {
-                console.log('Initiating unique token refresh request (network)...');
                 const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                 });
@@ -111,7 +107,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
                             concept2_expires_at: response.data.expires_in
                                 ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
                                 : undefined
-                        }, { onConflict: 'user_id' }).then(() => console.log('DB Token Update Success'));
+                        }, { onConflict: 'user_id' });
                     }
                 });
 
@@ -123,7 +119,6 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
                     // Check ONE LAST TIME if storage updated differently
                     const finalCheckRefresh = localStorage.getItem('concept2_refresh_token');
                     if (finalCheckRefresh && finalCheckRefresh !== refreshToken) {
-                        console.log('Refresh failed (400) but token rotated in storage. Recovering...');
                         const finalCheckToken = localStorage.getItem('concept2_token');
                         if (finalCheckToken) return finalCheckToken;
                     }
@@ -156,7 +151,6 @@ concept2Client.interceptors.request.use(async (config) => {
         const expiryTime = new Date(expiresAt).getTime();
         const buffer = 5 * 60 * 1000; // 5 minutes
         if (Date.now() > expiryTime - buffer) {
-            console.log('Token expiring soon, refreshing proactively...');
             try {
                 const newToken = await refreshAccessToken(refreshToken);
                 config.headers.Authorization = `Bearer ${newToken}`;
@@ -196,7 +190,6 @@ concept2Client.interceptors.response.use(
             if (originalRequest._retryCount < 3) {
                 originalRequest._retryCount++;
                 const delay = Math.pow(2, originalRequest._retryCount) * 1000; // 2s, 4s, 8s
-                console.log(`API Error (Status: ${error.response?.status || 'Network'}). Retrying in ${delay}ms (Attempt ${originalRequest._retryCount}/3)...`);
 
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return concept2Client(originalRequest);
@@ -210,11 +203,9 @@ concept2Client.interceptors.response.use(
 
             if (refreshToken) {
                 try {
-                    console.log('Concept2 Token expired. Refreshing...');
                     // Reuse the helper logic (which handles env vars and 400s) instead of rewriting it
                     const newToken = await refreshAccessToken(refreshToken);
 
-                    console.log('Token refresh successful.');
                     // Update header and retry
                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
                     return concept2Client(originalRequest);
@@ -232,7 +223,6 @@ concept2Client.interceptors.response.use(
 
 export const getProfile = async (): Promise<C2Profile> => {
     const response = await concept2Client.get<any>('/users/me');
-    console.log('Profile Response:', response.data);
     // Unpack if wrapped in 'data'
     if (response.data && response.data.data) {
         return response.data.data;

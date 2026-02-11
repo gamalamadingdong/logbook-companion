@@ -64,7 +64,6 @@ export default function DownloadC2Data() {
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
 
-            console.log(`Fetched ${allResults.length} workouts`);
 
             // Save summary immediately
             await fetch('/api/save-workout', {
@@ -124,7 +123,6 @@ export default function DownloadC2Data() {
                         }
                     } catch (err) {
                         // Stroke data not available for this workout
-                        console.log(`No stroke data for workout ${result.id}`);
                     }
 
                     detailedWorkouts.push(detail);
