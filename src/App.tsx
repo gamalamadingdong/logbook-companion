@@ -24,6 +24,9 @@ import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
 // CoachingLog merged into CoachingSchedule
 import { CoachingErgScores } from './pages/coaching/CoachingErgScores';
 import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
+import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
+import { TeamSetup } from './pages/coaching/TeamSetup';
+import { CoachingSettings } from './pages/coaching/CoachingSettings';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -165,6 +168,14 @@ function App() {
             }
           />
           <Route
+            path="/coaching/roster/:athleteId"
+            element={
+              <CoachRoute>
+                <CoachingAthleteDetail />
+              </CoachRoute>
+            }
+          />
+          <Route
             path="/coaching/schedule"
             element={
               <CoachRoute>
@@ -189,6 +200,22 @@ function App() {
             element={
               <CoachRoute>
                 <CoachingBoatings />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/setup"
+            element={
+              <CoachRoute>
+                <TeamSetup />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/coaching/settings"
+            element={
+              <CoachRoute>
+                <CoachingSettings />
               </CoachRoute>
             }
           />

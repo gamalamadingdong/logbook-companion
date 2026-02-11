@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getBoatings,
@@ -17,8 +17,7 @@ import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2 } from 'l
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingBoatings() {
-  const { user } = useAuth();
-  const coachId = user?.id ?? '';
+  const { userId, teamId, isLoadingTeam } = useCoachingContext();
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
   const [boatings, setBoatings] = useState<CoachingBoating[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -28,20 +27,20 @@ export function CoachingBoatings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!coachId) return;
-    Promise.all([getAthletes(coachId), getBoatings(coachId)])
+    if (!teamId || isLoadingTeam) return;
+    Promise.all([getAthletes(teamId), getBoatings(teamId)])
       .then(([a, b]) => {
         setAthletes(a);
         setBoatings(b);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
-  }, [coachId]);
+  }, [teamId, isLoadingTeam]);
 
   const refreshData = async () => {
-    if (!coachId) return;
+    if (!teamId) return;
     try {
-      const [a, b] = await Promise.all([getAthletes(coachId), getBoatings(coachId)]);
+      const [a, b] = await Promise.all([getAthletes(teamId), getBoatings(teamId)]);
       setAthletes(a);
       setBoatings(b);
     } catch (err) {
@@ -50,7 +49,7 @@ export function CoachingBoatings() {
   };
 
   const handleSave = async (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => {
-    await createBoating(coachId, data);
+    await createBoating(teamId, userId, data);
     setIsAdding(false);
     await refreshData();
   };
@@ -68,7 +67,7 @@ export function CoachingBoatings() {
   };
 
   const handleDuplicate = async (boating: CoachingBoating) => {
-    await duplicateBoating(coachId, boating);
+    await duplicateBoating(teamId, userId, boating);
     await refreshData();
   };
 

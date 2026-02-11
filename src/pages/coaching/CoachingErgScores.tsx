@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getErgScores,
@@ -14,8 +14,7 @@ import { Plus, X, TrendingUp, TrendingDown, Minus, Loader2, Trash2 } from 'lucid
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingErgScores() {
-  const { user } = useAuth();
-  const coachId = user?.id ?? '';
+  const { userId, teamId, isLoadingTeam } = useCoachingContext();
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
   const [scores, setScores] = useState<CoachingErgScore[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -24,20 +23,20 @@ export function CoachingErgScores() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!coachId) return;
-    Promise.all([getAthletes(coachId), getErgScores(coachId)])
+    if (!teamId || isLoadingTeam) return;
+    Promise.all([getAthletes(teamId), getErgScores(teamId)])
       .then(([a, s]) => {
         setAthletes(a);
         setScores(s);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
-  }, [coachId]);
+  }, [teamId, isLoadingTeam]);
 
   const refreshData = async () => {
-    if (!coachId) return;
+    if (!teamId) return;
     try {
-      const [a, s] = await Promise.all([getAthletes(coachId), getErgScores(coachId)]);
+      const [a, s] = await Promise.all([getAthletes(teamId), getErgScores(teamId)]);
       setAthletes(a);
       setScores(s);
     } catch (err) {
@@ -48,8 +47,8 @@ export function CoachingErgScores() {
   const filteredScores = selectedDistance === 'all' ? scores : scores.filter((s) => s.distance === selectedDistance);
   const distances = [...new Set(scores.map((s) => s.distance))].sort((a, b) => a - b);
 
-  const handleAddScore = async (score: Omit<Parameters<typeof createErgScore>[1], 'athlete_id'> & { athlete_id: string }) => {
-    await createErgScore(coachId, score);
+  const handleAddScore = async (score: Omit<Parameters<typeof createErgScore>[2], 'athlete_id'> & { athlete_id: string }) => {
+    await createErgScore(teamId, userId, score);
     setIsAdding(false);
     await refreshData();
   };

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Calendar, Gauge, Ship, Radio, ChevronRight } from 'lucide-react';
+import { Users, Calendar, Gauge, Ship, Radio, Settings, ChevronRight } from 'lucide-react';
 
 const tabs = [
   { path: '/coaching/roster', label: 'Roster', icon: Users },
@@ -7,6 +7,7 @@ const tabs = [
   { path: '/coaching/ergs', label: 'Ergs', icon: Gauge },
   { path: '/coaching/boatings', label: 'Boatings', icon: Ship },
   { path: '/coaching/live', label: 'Live', icon: Radio },
+  { path: '/coaching/settings', label: 'Settings', icon: Settings },
 ];
 
 export function CoachingNav() {

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Users, Calendar, Gauge, Ship, Radio } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
+import { Users, Calendar, Gauge, Ship, Radio, Loader2 } from 'lucide-react';
+import { useCoachingContext } from '../../hooks/useCoachingContext';
 
 const sections = [
   { path: '/coaching/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
@@ -11,6 +12,21 @@ const sections = [
 ];
 
 export const CoachDashboard: React.FC = () => {
+  const { hasTeam, isLoadingTeam } = useCoachingContext();
+
+  if (isLoadingTeam) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+      </div>
+    );
+  }
+
+  // No team yet — send to onboarding
+  if (hasTeam === false) {
+    return <Navigate to="/coaching/setup" replace />;
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-8">

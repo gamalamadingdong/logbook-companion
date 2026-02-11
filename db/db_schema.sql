@@ -111,6 +111,73 @@ CREATE TABLE public.ai_usage_logs (
   CONSTRAINT ai_usage_logs_pkey PRIMARY KEY (id),
   CONSTRAINT ai_usage_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.coaching_athlete_notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_user_id uuid NOT NULL,
+  session_id uuid NOT NULL,
+  athlete_id uuid NOT NULL,
+  note text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT coaching_athlete_notes_pkey PRIMARY KEY (id),
+  CONSTRAINT coaching_athlete_notes_coach_user_id_fkey FOREIGN KEY (coach_user_id) REFERENCES public.user_profiles(user_id),
+  CONSTRAINT coaching_athlete_notes_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.coaching_sessions(id),
+  CONSTRAINT coaching_athlete_notes_athlete_id_fkey FOREIGN KEY (athlete_id) REFERENCES public.coaching_athletes(id)
+);
+CREATE TABLE public.coaching_athletes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_user_id uuid NOT NULL,
+  name text NOT NULL,
+  grade text,
+  experience_level text CHECK (experience_level IS NULL OR (experience_level = ANY (ARRAY['novice'::text, 'freshman'::text, 'jv'::text, 'varsity'::text]))),
+  side text CHECK (side IS NULL OR (side = ANY (ARRAY['port'::text, 'starboard'::text, 'coxswain'::text, 'both'::text]))),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT coaching_athletes_pkey PRIMARY KEY (id),
+  CONSTRAINT coaching_athletes_coach_user_id_fkey FOREIGN KEY (coach_user_id) REFERENCES public.user_profiles(user_id)
+);
+CREATE TABLE public.coaching_boatings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_user_id uuid NOT NULL,
+  date date NOT NULL,
+  boat_name text NOT NULL,
+  boat_type text NOT NULL CHECK (boat_type = ANY (ARRAY['8+'::text, '4+'::text, '4x'::text, '2x'::text, '1x'::text, '2-'::text, '4-'::text])),
+  positions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT coaching_boatings_pkey PRIMARY KEY (id),
+  CONSTRAINT coaching_boatings_coach_user_id_fkey FOREIGN KEY (coach_user_id) REFERENCES public.user_profiles(user_id)
+);
+CREATE TABLE public.coaching_erg_scores (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_user_id uuid NOT NULL,
+  athlete_id uuid NOT NULL,
+  date date NOT NULL,
+  distance integer NOT NULL,
+  time numeric NOT NULL,
+  split numeric,
+  watts numeric,
+  stroke_rate integer,
+  heart_rate integer,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT coaching_erg_scores_pkey PRIMARY KEY (id),
+  CONSTRAINT coaching_erg_scores_coach_user_id_fkey FOREIGN KEY (coach_user_id) REFERENCES public.user_profiles(user_id),
+  CONSTRAINT coaching_erg_scores_athlete_id_fkey FOREIGN KEY (athlete_id) REFERENCES public.coaching_athletes(id)
+);
+CREATE TABLE public.coaching_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_user_id uuid NOT NULL,
+  date date NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['water'::text, 'erg'::text, 'land'::text, 'meeting'::text])),
+  focus text,
+  general_notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT coaching_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT coaching_sessions_coach_user_id_fkey FOREIGN KEY (coach_user_id) REFERENCES public.user_profiles(user_id)
+);
 CREATE TABLE public.content_review_queue (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   content_type text NOT NULL CHECK (content_type = ANY (ARRAY['workout_template'::text, 'drill'::text, 'training_plan'::text])),
@@ -148,7 +215,7 @@ CREATE TABLE public.daily_workout_assignments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   team_id uuid,
-  plan_id uuid NOT NULL,
+  plan_id uuid,
   workout_date date NOT NULL,
   day_of_week integer NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
   week_number integer NOT NULL,
@@ -164,12 +231,14 @@ CREATE TABLE public.daily_workout_assignments (
   completed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  group_assignment_id uuid,
   CONSTRAINT daily_workout_assignments_pkey PRIMARY KEY (id),
   CONSTRAINT daily_workout_assignments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(user_id),
   CONSTRAINT daily_workout_assignments_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.training_plans(id),
   CONSTRAINT daily_workout_assignments_original_template_id_fkey FOREIGN KEY (original_template_id) REFERENCES public.workout_templates(id),
   CONSTRAINT daily_workout_assignments_substituted_template_id_fkey FOREIGN KEY (substituted_template_id) REFERENCES public.workout_templates(id),
-  CONSTRAINT daily_workout_assignments_completed_log_id_fkey FOREIGN KEY (completed_log_id) REFERENCES public.workout_logs(id)
+  CONSTRAINT daily_workout_assignments_completed_log_id_fkey FOREIGN KEY (completed_log_id) REFERENCES public.workout_logs(id),
+  CONSTRAINT daily_workout_assignments_group_assignment_id_fkey FOREIGN KEY (group_assignment_id) REFERENCES public.group_assignments(id)
 );
 CREATE TABLE public.drill_ratings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -370,6 +439,20 @@ END,
   CONSTRAINT generated_workout_candidates_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.user_profiles(user_id),
   CONSTRAINT generated_workout_candidates_promoted_to_template_id_fkey FOREIGN KEY (promoted_to_template_id) REFERENCES public.workout_templates(id),
   CONSTRAINT generated_workout_candidates_similar_to_template_id_fkey FOREIGN KEY (similar_to_template_id) REFERENCES public.workout_templates(id)
+);
+CREATE TABLE public.group_assignments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  team_id uuid NOT NULL,
+  template_id uuid NOT NULL,
+  scheduled_date date NOT NULL,
+  title text,
+  instructions text,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT group_assignments_pkey PRIMARY KEY (id),
+  CONSTRAINT group_assignments_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id),
+  CONSTRAINT group_assignments_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.workout_templates(id),
+  CONSTRAINT group_assignments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.pacing_recommendations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

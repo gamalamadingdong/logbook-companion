@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getSessions,
@@ -16,8 +16,7 @@ import { format } from 'date-fns';
 import { Plus, ChevronDown, ChevronUp, X, MessageSquare, Edit2, Trash2, Loader2 } from 'lucide-react';
 
 export function CoachingLog() {
-  const { user } = useAuth();
-  const coachId = user?.id ?? '';
+  const { userId, teamId, isLoadingTeam } = useCoachingContext();
   const [sessions, setSessions] = useState<CoachingSession[]>([]);
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -27,18 +26,18 @@ export function CoachingLog() {
   const [notesVersion, setNotesVersion] = useState(0);
 
   useEffect(() => {
-    if (!coachId) return;
-    Promise.all([getSessions(coachId), getAthletes(coachId)])
+    if (!teamId || isLoadingTeam) return;
+    Promise.all([getSessions(teamId), getAthletes(teamId)])
       .then(([s, a]) => {
         setSessions(s);
         setAthletes(a);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
-  }, [coachId]);
+  }, [teamId, isLoadingTeam]);
 
   const handleAddNote = async (sessionId: string, athleteId: string, note: string) => {
-    await createNote(coachId, { session_id: sessionId, athlete_id: athleteId, note });
+    await createNote(teamId, userId, { session_id: sessionId, athlete_id: athleteId, note });
     setAddingNoteFor(null);
     setNotesVersion((v) => v + 1);
   };

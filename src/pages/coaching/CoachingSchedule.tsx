@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import {
@@ -18,19 +18,27 @@ import {
 } from '../../services/coaching/coachingService';
 import {
   format,
+  startOfWeek,
+  endOfWeek,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
   isSameDay,
   isSameMonth,
+  addWeeks,
+  subWeeks,
   addMonths,
   subMonths,
+  isToday as isDateToday,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays } from 'lucide-react';
+
+type ViewMode = 'week' | 'month';
 
 export function CoachingSchedule() {
-  const { user } = useAuth();
-  const coachId = user?.id ?? '';
+  const { userId, teamId, isLoadingTeam } = useCoachingContext();
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [currentWeek, setCurrentWeek] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -43,25 +51,45 @@ export function CoachingSchedule() {
   const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
   const [notesVersion, setNotesVersion] = useState(0);
 
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
   useEffect(() => {
-    if (!coachId) return;
-    const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-    const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+    if (!teamId || isLoadingTeam) return;
+    let start: string, end: string;
+    if (viewMode === 'week') {
+      const ws = startOfWeek(currentWeek, { weekStartsOn: 0 });
+      const we = endOfWeek(currentWeek, { weekStartsOn: 0 });
+      start = format(ws, 'yyyy-MM-dd');
+      end = format(we, 'yyyy-MM-dd');
+    } else {
+      start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+      end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+    }
     Promise.all([
-      getSessionsByDateRange(coachId, start, end),
-      getAthletes(coachId),
+      getSessionsByDateRange(teamId, start, end),
+      getAthletes(teamId),
     ])
       .then(([s, a]) => { setSessions(s); setAthletes(a); })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sessions'))
       .finally(() => setIsLoading(false));
-  }, [coachId, currentMonth]);
+  }, [teamId, isLoadingTeam, viewMode, currentWeek, currentMonth]);
 
   const refreshSessions = async () => {
-    if (!coachId) return;
+    if (!teamId) return;
     try {
-      const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-      const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-      setSessions(await getSessionsByDateRange(coachId, start, end));
+      let start: string, end: string;
+      if (viewMode === 'week') {
+        const ws = startOfWeek(currentWeek, { weekStartsOn: 0 });
+        const we = endOfWeek(currentWeek, { weekStartsOn: 0 });
+        start = format(ws, 'yyyy-MM-dd');
+        end = format(we, 'yyyy-MM-dd');
+      } else {
+        start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+        end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+      }
+      setSessions(await getSessionsByDateRange(teamId, start, end));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh');
     }
@@ -77,7 +105,7 @@ export function CoachingSchedule() {
 
   const handleAddSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'>) => {
     if (!selectedDate) return;
-    await createSession(coachId, {
+    await createSession(teamId, userId, {
       ...data,
       date: format(selectedDate, 'yyyy-MM-dd'),
     });
@@ -98,7 +126,7 @@ export function CoachingSchedule() {
   };
 
   const handleAddNote = async (sessionId: string, athleteId: string, note: string) => {
-    await createNote(coachId, { session_id: sessionId, athlete_id: athleteId, note });
+    await createNote(teamId, userId, { session_id: sessionId, athlete_id: athleteId, note });
     setAddingNoteFor(null);
     setNotesVersion((v) => v + 1);
   };
@@ -125,18 +153,66 @@ export function CoachingSchedule() {
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">Schedule</h1>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setIsLoading(true); setCurrentMonth(subMonths(currentMonth, 1)); }}
-              className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title="Previous month">
-              <ChevronLeft className="w-5 h-5 text-neutral-400" />
-            </button>
-            <span className="text-lg font-semibold min-w-[160px] text-center px-4 py-2 bg-neutral-800 rounded-lg text-white">
-              {format(currentMonth, 'MMMM yyyy')}
-            </span>
-            <button onClick={() => { setIsLoading(true); setCurrentMonth(addMonths(currentMonth, 1)); }}
-              className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title="Next month">
-              <ChevronRight className="w-5 h-5 text-neutral-400" />
-            </button>
+          <div className="flex items-center gap-3">
+            {/* View mode toggle */}
+            <div className="flex items-center bg-neutral-800 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('week')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'week'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <CalendarDays className="w-4 h-4" />
+                Week
+              </button>
+              <button
+                onClick={() => setViewMode('month')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'month'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                Month
+              </button>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                setIsLoading(true);
+                if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
+                else setCurrentMonth(subMonths(currentMonth, 1));
+              }}
+                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
+                <ChevronLeft className="w-5 h-5 text-neutral-400" />
+              </button>
+              <span className="text-lg font-semibold min-w-[200px] text-center px-4 py-2 bg-neutral-800 rounded-lg text-white">
+                {viewMode === 'week'
+                  ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
+                  : format(currentMonth, 'MMMM yyyy')
+                }
+              </span>
+              <button onClick={() => {
+                setIsLoading(true);
+                if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
+                else setCurrentMonth(addMonths(currentMonth, 1));
+              }}
+                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title={viewMode === 'week' ? 'Next week' : 'Next month'}>
+                <ChevronRight className="w-5 h-5 text-neutral-400" />
+              </button>
+              <button onClick={() => {
+                setIsLoading(true);
+                setCurrentWeek(new Date());
+                setCurrentMonth(new Date());
+              }}
+                className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium">
+                Today
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -156,7 +232,98 @@ export function CoachingSchedule() {
         </div>
       ) : (
         <>
-      {/* Calendar Grid */}
+      {/* ── Weekly View ──────────────────────────────────────────────── */}
+      {viewMode === 'week' && (
+        <div className="space-y-3">
+          {weekDays.map((day) => {
+            const daySessions = getSessionsForDay(day);
+            const today = isDateToday(day);
+            const isSelected = selectedDate && isSameDay(day, selectedDate);
+            const dayName = format(day, 'EEE');
+            const dayDate = format(day, 'MMM d');
+
+            return (
+              <div
+                key={day.toISOString()}
+                className={`bg-neutral-900 border rounded-xl overflow-hidden transition-all ${
+                  today ? 'border-indigo-500/50 ring-1 ring-indigo-500/20' :
+                  isSelected ? 'border-indigo-500/30' :
+                  'border-neutral-800'
+                }`}
+              >
+                {/* Day header row */}
+                <div
+                  className={`flex items-center justify-between px-5 py-3 cursor-pointer ${
+                    today ? 'bg-indigo-500/5' : 'hover:bg-neutral-800/50'
+                  }`}
+                  onClick={() => setSelectedDate(isSameDay(selectedDate ?? new Date(0), day) ? null : day)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`text-sm font-bold w-10 ${today ? 'text-indigo-400' : 'text-neutral-500'}`}>
+                      {dayName}
+                    </div>
+                    <div className={`text-base font-semibold ${today ? 'text-white' : 'text-neutral-300'}`}>
+                      {dayDate}
+                    </div>
+                    {today && (
+                      <span className="px-2 py-0.5 text-xs font-semibold bg-indigo-600 text-white rounded-full">Today</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {daySessions.length > 0 && (
+                      <span className="text-xs text-neutral-500 font-medium">
+                        {daySessions.length} session{daySessions.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedDate(day); setIsAdding(true); }}
+                      className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors"
+                      title="Add session"
+                    >
+                      <Plus className="w-4 h-4 text-neutral-500 hover:text-indigo-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sessions for this day */}
+                {daySessions.length > 0 && (
+                  <div className="border-t border-neutral-800 px-5 py-3 space-y-2">
+                    {daySessions.map((session) => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        athletes={athletes}
+                        isExpanded={expandedSession === session.id}
+                        onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
+                        addingNoteFor={addingNoteFor}
+                        onStartAddNote={(athleteId) => setAddingNoteFor(athleteId)}
+                        onAddNote={(athleteId, note) => handleAddNote(session.id, athleteId, note)}
+                        onCancelNote={() => setAddingNoteFor(null)}
+                        onDeleteNote={handleDeleteNote}
+                        onEditNote={handleEditNote}
+                        onEdit={() => setEditingSession(session)}
+                        onDelete={() => handleDeleteSession(session.id)}
+                        notesVersion={notesVersion}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty day — show subtle prompt */}
+                {daySessions.length === 0 && (
+                  <div className="border-t border-neutral-800/50 px-5 py-2">
+                    <p className="text-xs text-neutral-600 italic">No sessions</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Monthly View (existing calendar grid) ────────────────────── */}
+      {viewMode === 'month' && (
+        <>
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
         {/* Day headers */}
         <div className="grid grid-cols-7 bg-indigo-600">
@@ -229,7 +396,7 @@ export function CoachingSchedule() {
             <h2 className="text-lg font-semibold text-white">
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </h2>
-            <button onClick={() => setIsAdding(true)}
+            <button onClick={() => { setSelectedDate(selectedDate); setIsAdding(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors text-sm">
               <Plus className="w-4 h-4" />
               Add Session
@@ -267,11 +434,14 @@ export function CoachingSchedule() {
           )}
         </div>
       )}
+        </>
+      )}
+      {/* end viewMode === 'month' */}
 
       {/* Add Session Modal */}
       {isAdding && selectedDate && (
         <SessionForm
-          title={`Add Session — ${format(selectedDate, 'MMM d')}`}
+          title={`Add Session — ${format(selectedDate, 'EEE, MMM d')}`}
           onSave={handleAddSession}
           onCancel={() => setIsAdding(false)}
         />
