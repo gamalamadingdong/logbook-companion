@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getBoatings,
   getAthletes,
@@ -140,7 +141,7 @@ export function CoachingBoatings() {
             <div key={dateKey}>
               <h3 className="font-semibold text-neutral-500 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                {format(new Date(dateKey), 'EEEE, MMMM d, yyyy')}
+                {format(parseLocalDate(dateKey), 'EEEE, MMMM d, yyyy')}
               </h3>
               <div className="space-y-3">
                 {dayBoatings.map((boating) => (
@@ -213,12 +214,13 @@ export function CoachingBoatings() {
       )}
 
       {isAdding && (
-        <BoatingForm athletes={athletes} onSave={handleSave} onCancel={() => setIsAdding(false)} />
+        <BoatingForm athletes={athletes} allBoatings={boatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
       )}
 
       {editingBoating && (
         <BoatingForm
           athletes={athletes}
+          allBoatings={boatings}
           boating={editingBoating}
           onSave={handleEdit}
           onCancel={() => setEditingBoating(null)}
@@ -292,11 +294,13 @@ function BoatDiagram({
 
 function BoatingForm({
   athletes,
+  allBoatings,
   boating,
   onSave,
   onCancel,
 }: {
   athletes: CoachingAthlete[];
+  allBoatings: CoachingBoating[];
   boating?: CoachingBoating;
   onSave: (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => void;
   onCancel: () => void;
@@ -306,6 +310,24 @@ function BoatingForm({
   const [date, setDate] = useState(boating?.date?.slice(0, 10) ?? format(new Date(), 'yyyy-MM-dd'));
   const [positions, setPositions] = useState<BoatPosition[]>(boating?.positions ?? []);
   const [notes, setNotes] = useState(boating?.notes ?? '');
+
+  // Athlete IDs already seated in OTHER boats on this date
+  const takenAthleteIds = new Set(
+    allBoatings
+      .filter((b) => b.date.slice(0, 10) === date && b.id !== boating?.id)
+      .flatMap((b) => b.positions.map((p) => p.athlete_id))
+  );
+
+  /** Returns available athletes for a given seat, excluding those in other boats or other seats of this boat */
+  const getAvailableAthletes = (seat: number) => {
+    const currentId = getAthleteForSeat(seat);
+    const otherSeatIds = new Set(
+      positions.filter((p) => p.seat !== seat).map((p) => p.athlete_id)
+    );
+    return athletes.filter(
+      (a) => a.id === currentId || (!takenAthleteIds.has(a.id) && !otherSeatIds.has(a.id))
+    );
+  };
 
   const seatCount =
     boatType === '8+' ? 8 :
@@ -397,8 +419,8 @@ function BoatingForm({
                 <select id="seat-cox" value={getAthleteForSeat(0)} onChange={(e) => setPosition(0, e.target.value)}
                   className="flex-1 px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
                   <option value="">— Select —</option>
-                  {athletes.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
+                  {getAvailableAthletes(0).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}{a.side === 'coxswain' ? ' ⚓' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -414,7 +436,7 @@ function BoatingForm({
                 <select id={`seat-${seat}`} value={getAthleteForSeat(seat)} onChange={(e) => setPosition(seat, e.target.value)}
                   className="flex-1 px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
                   <option value="">— Select —</option>
-                  {athletes.map((a) => (
+                  {getAvailableAthletes(seat).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>

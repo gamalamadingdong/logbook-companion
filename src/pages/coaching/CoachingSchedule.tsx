@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getSessionsByDateRange,
   createSession,
@@ -57,7 +58,7 @@ export function CoachingSchedule() {
   });
 
   const getSessionsForDay = (date: Date) =>
-    sessions.filter((s) => isSameDay(new Date(s.date), date));
+    sessions.filter((s) => isSameDay(parseLocalDate(s.date), date));
 
   const handleAddSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'>) => {
     if (!selectedDate) return;
@@ -82,7 +83,7 @@ export function CoachingSchedule() {
   };
 
   const selectedDaySessions = selectedDate
-    ? sessions.filter((s) => isSameDay(new Date(s.date), selectedDate))
+    ? sessions.filter((s) => isSameDay(parseLocalDate(s.date), selectedDate))
     : [];
 
   return (

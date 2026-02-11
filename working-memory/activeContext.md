@@ -12,6 +12,11 @@ Season starts **February 17, 2026**. Passes 1 and 2 complete. Build is clean.
 - Removed remaining `any` cast in `FeedbackModal.tsx` (typed feedback type options)
 - Removed `any` from `RWNPlayground.tsx` by using `WorkoutStructure | null`
 - Refactored `RWNPlayground.tsx` to derive parsed output via `useMemo` (no setState-in-effect)
+- Enabled RLS on `group_assignments` with team-member policies (migration applied via MCP)
+- `coaching_athletes.side`: added `'coxswain'` option (port/starboard/coxswain/both)
+- `coaching_athletes.experience_level`: changed from novice/intermediate/experienced → novice/freshman/jv/varsity
+- Athlete Detail panel now shows session notes timeline (via `getNotesForAthlete()`)
+- Boating Form: athlete dropdowns now exclude athletes already seated in other boats for the same date
 
 ### Pass 2 — Pre-Season Polish: ✅ COMPLETE
 - [x] Remove "Alpha" badges from Library and Coaching nav links in `Layout.tsx`

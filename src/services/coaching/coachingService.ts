@@ -148,6 +148,26 @@ export async function getNotesForSession(sessionId: string): Promise<CoachingAth
   );
 }
 
+/** Get all notes for a specific athlete across all sessions, newest first */
+export async function getNotesForAthlete(
+  athleteId: string,
+  limit = 20
+): Promise<(CoachingAthleteNote & { session?: CoachingSession })[]> {
+  const notes = throwOnError(
+    await supabase
+      .from('coaching_athlete_notes')
+      .select('*, coaching_sessions(*)')
+      .eq('athlete_id', athleteId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+  ) as (CoachingAthleteNote & { coaching_sessions?: CoachingSession })[];
+
+  return notes.map(({ coaching_sessions, ...note }) => ({
+    ...note,
+    session: coaching_sessions ?? undefined,
+  }));
+}
+
 export async function createNote(
   coachUserId: string,
   note: Pick<CoachingAthleteNote, 'session_id' | 'athlete_id' | 'note'>

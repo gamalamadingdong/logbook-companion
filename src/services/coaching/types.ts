@@ -5,8 +5,8 @@ export interface CoachingAthlete {
   coach_user_id: string;
   name: string;
   grade?: string;
-  experience_level?: 'novice' | 'intermediate' | 'experienced';
-  side?: 'port' | 'starboard' | 'both';
+  experience_level?: 'novice' | 'freshman' | 'jv' | 'varsity';
+  side?: 'port' | 'starboard' | 'coxswain' | 'both';
   notes?: string;
   created_at: string;
   updated_at: string;

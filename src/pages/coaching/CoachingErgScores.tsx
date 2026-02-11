@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getErgScores,
   getAthletes,
@@ -140,7 +141,7 @@ export function CoachingErgScores() {
             <div key={dateKey} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
               <div className="px-5 py-3 bg-indigo-500/5 border-b border-neutral-800">
                 <h3 className="font-semibold text-white">
-                  {format(new Date(dateKey), 'EEEE, MMMM d, yyyy')}
+                  {format(parseLocalDate(dateKey), 'EEEE, MMMM d, yyyy')}
                 </h3>
               </div>
               <div className="divide-y divide-neutral-800">
@@ -341,9 +342,9 @@ function getScoreTrend(
       (s) =>
         s.athlete_id === current.athlete_id &&
         s.distance === current.distance &&
-        new Date(s.date) < new Date(current.date)
+        parseLocalDate(s.date) < parseLocalDate(current.date)
     )
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime());
 
   if (previousScores.length === 0) return null;
 

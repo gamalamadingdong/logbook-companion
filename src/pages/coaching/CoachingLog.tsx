@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getSessions,
   getAthletes,
@@ -160,8 +161,8 @@ function SessionCard({
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-600 rounded-xl flex flex-col items-center justify-center text-white shadow-md">
-            <div className="text-xl font-bold leading-none">{format(new Date(session.date), 'd')}</div>
-            <div className="text-xs opacity-80">{format(new Date(session.date), 'MMM')}</div>
+            <div className="text-xl font-bold leading-none">{format(parseLocalDate(session.date), 'd')}</div>
+            <div className="text-xs opacity-80">{format(parseLocalDate(session.date), 'MMM')}</div>
           </div>
           <div>
             <div className="flex items-center gap-2">

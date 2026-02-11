@@ -6,10 +6,14 @@ import {
   updateAthlete,
   deleteAthlete,
   getErgScoresForAthlete,
+  getNotesForAthlete,
   type CoachingAthlete,
   type CoachingErgScore,
+  type CoachingAthleteNote,
+  type CoachingSession,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { format } from 'date-fns';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
 
 export function CoachingRoster() {
   const { user } = useAuth();
@@ -128,12 +132,14 @@ export function CoachingRoster() {
                 className={`inline-block mt-3 px-3 py-1 rounded-full text-xs font-medium ${
                   athlete.experience_level === 'novice'
                     ? 'bg-green-900/30 text-green-400'
-                    : athlete.experience_level === 'intermediate'
+                    : athlete.experience_level === 'freshman'
                     ? 'bg-amber-900/30 text-amber-400'
+                    : athlete.experience_level === 'jv'
+                    ? 'bg-purple-900/30 text-purple-400'
                     : 'bg-blue-900/30 text-blue-400'
                 }`}
               >
-                {athlete.experience_level}
+                {athlete.experience_level.toUpperCase()}
               </span>
             )}
           </div>
@@ -265,6 +271,7 @@ function AthleteForm({
                 <option value="both">Both</option>
                 <option value="port">Port</option>
                 <option value="starboard">Starboard</option>
+                <option value="coxswain">Coxswain</option>
               </select>
             </div>
           </div>
@@ -274,8 +281,9 @@ function AthleteForm({
             <select id="athlete-experience" value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value as CoachingAthlete['experience_level'])}
               className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
               <option value="novice">Novice</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="experienced">Experienced</option>
+              <option value="freshman">Freshman</option>
+              <option value="jv">JV</option>
+              <option value="varsity">Varsity</option>
             </select>
           </div>
 
@@ -316,9 +324,11 @@ function AthleteDetail({
   onDelete: () => void;
 }) {
   const [ergScores, setErgScores] = useState<CoachingErgScore[]>([]);
+  const [athleteNotes, setAthleteNotes] = useState<(CoachingAthleteNote & { session?: CoachingSession })[]>([]);
 
   useEffect(() => {
     getErgScoresForAthlete(athlete.id, 5).then(setErgScores).catch(console.error);
+    getNotesForAthlete(athlete.id, 20).then(setAthleteNotes).catch(console.error);
   }, [athlete.id]);
 
   return (
@@ -350,10 +360,11 @@ function AthleteDetail({
             {athlete.experience_level && (
               <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
                 athlete.experience_level === 'novice' ? 'bg-green-900/30 text-green-400' :
-                athlete.experience_level === 'intermediate' ? 'bg-amber-900/30 text-amber-400' :
+                athlete.experience_level === 'freshman' ? 'bg-amber-900/30 text-amber-400' :
+                athlete.experience_level === 'jv' ? 'bg-purple-900/30 text-purple-400' :
                 'bg-blue-900/30 text-blue-400'
               }`}>
-                {athlete.experience_level}
+                {athlete.experience_level.toUpperCase()}
               </span>
             )}
           </div>
@@ -373,6 +384,40 @@ function AthleteDetail({
                   <div key={score.id} className="flex items-center justify-between p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-lg">
                     <span className="font-semibold text-neutral-300">{score.distance}m</span>
                     <span className="text-indigo-400 font-mono">{formatTime(score.time_seconds)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {athleteNotes.length > 0 && (
+            <div>
+              <h3 className="font-medium mb-3 text-sm text-neutral-500 uppercase tracking-wide flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Session Notes ({athleteNotes.length})
+              </h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {athleteNotes.map((n) => (
+                  <div key={n.id} className="p-3 bg-neutral-800/60 border border-neutral-700/50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      {n.session && (
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          n.session.type === 'water' ? 'bg-blue-900/30 text-blue-400' :
+                          n.session.type === 'erg' ? 'bg-amber-900/30 text-amber-400' :
+                          n.session.type === 'land' ? 'bg-green-900/30 text-green-400' :
+                          'bg-neutral-700 text-neutral-300'
+                        }`}>
+                          {n.session.type.toUpperCase()}
+                        </span>
+                      )}
+                      <span className="text-xs text-neutral-500">
+                        {format(new Date(n.created_at), 'MMM d, yyyy')}
+                      </span>
+                      {n.session?.focus && (
+                        <span className="text-xs text-indigo-400">· {n.session.focus}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-neutral-300">{n.note}</p>
                   </div>
                 ))}
               </div>
