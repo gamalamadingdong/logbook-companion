@@ -1,14 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Terminal, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { parseRWN } from '../utils/rwnParser';
 import { structureToIntervals } from '../utils/structureAdapter';
 import { calculateCanonicalName } from '../utils/workoutNaming';
+import type { WorkoutStructure } from '../types/workoutStructure.types';
 
 export const RWNPlayground: React.FC = () => {
     const [input, setInput] = useState('3 x 2000m / 4:00r');
-    const [parsed, setParsed] = useState<any>(null);
-    const [canonicalName, setCanonicalName] = useState<string>('—');
-    const [error, setError] = useState<string | null>(null);
+
+    const { parsed, error, canonicalName } = useMemo((): {
+        parsed: WorkoutStructure | null;
+        error: string | null;
+        canonicalName: string;
+    } => {
+        if (!input.trim()) {
+            return { parsed: null, error: null, canonicalName: '—' };
+        }
+
+        const result = parseRWN(input);
+        if (!result) {
+            return { parsed: null, error: 'Invalid RWN Syntax', canonicalName: '—' };
+        }
+
+        try {
+            const intervals = structureToIntervals(result);
+            const name = calculateCanonicalName(intervals);
+            return { parsed: result, error: null, canonicalName: name };
+        } catch {
+            return { parsed: result, error: null, canonicalName: 'Error generating name' };
+        }
+    }, [input]);
 
     const EXAMPLES = [
         { label: 'Intervals', value: '4x500m/1:00r', desc: 'Distance Sprints', category: 'Basic' },
@@ -28,34 +49,6 @@ export const RWNPlayground: React.FC = () => {
         { label: 'Circuit', value: '[w]Row: 5:00 + Row: 2000m + Bike: 5000m + Ski: 2000m + [c]Row: 5:00', desc: 'Cross-training', category: 'Multi-Modal' },
         { label: 'Team Circuit', value: '[w]Row: 10:00 + 3x(Row: 2000m/2:00r + Bike: 5000m/2:00r + Run: 800m/2:00r) + [c]Row: 5:00', desc: 'Full circuit', category: 'Multi-Modal' },
     ];
-
-    useEffect(() => {
-        if (!input.trim()) {
-            setParsed(null);
-            setError(null);
-            setCanonicalName('—');
-            return;
-        }
-
-        const result = parseRWN(input);
-        if (result) {
-            setParsed(result);
-            setError(null);
-
-            // Try to generate canonical name
-            try {
-                const intervals = structureToIntervals(result);
-                const name = calculateCanonicalName(intervals);
-                setCanonicalName(name);
-            } catch (e) {
-                setCanonicalName('Error generating name');
-            }
-        } else {
-            setParsed(null);
-            setError('Invalid RWN Syntax');
-            setCanonicalName('—');
-        }
-    }, [input]);
 
     return (
         <div className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden shadow-sm">

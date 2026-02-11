@@ -9,6 +9,9 @@ Season starts **February 17, 2026**. Passes 1 and 2 complete. Build is clean.
 ### Recent Fixes
 - Removed stale `badge` rendering in `Layout.tsx` to unblock builds
 - Accessibility cleanup: added `type="button"`, label associations, and icon-button `aria-label`s in `GoalsManager.tsx` and `ReconnectPrompt.tsx`
+- Removed remaining `any` cast in `FeedbackModal.tsx` (typed feedback type options)
+- Removed `any` from `RWNPlayground.tsx` by using `WorkoutStructure | null`
+- Refactored `RWNPlayground.tsx` to derive parsed output via `useMemo` (no setState-in-effect)
 
 ### Pass 2 — Pre-Season Polish: ✅ COMPLETE
 - [x] Remove "Alpha" badges from Library and Coaching nav links in `Layout.tsx`

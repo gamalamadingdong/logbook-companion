@@ -8,9 +8,11 @@ interface FeedbackModalProps {
     onClose: () => void;
 }
 
+type FeedbackType = 'bug' | 'feature' | 'other';
+
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
     const { user } = useAuth();
-    const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'other'>('feature');
+    const [feedbackType, setFeedbackType] = useState<FeedbackType>('feature');
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -49,7 +51,12 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
 
     if (!isOpen) return null;
 
-    const typeOptions = [
+    const typeOptions: Array<{
+        value: FeedbackType;
+        label: string;
+        icon: typeof Lightbulb;
+        color: string;
+    }> = [
         { value: 'feature', label: 'Feature Request', icon: Lightbulb, color: 'text-blue-400' },
         { value: 'bug', label: 'Bug Report', icon: Bug, color: 'text-red-400' },
         { value: 'other', label: 'Other', icon: MessageCircle, color: 'text-neutral-400' }
@@ -93,7 +100,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
                                     <button
                                         key={option.value}
                                         type="button"
-                                        onClick={() => setFeedbackType(option.value as any)}
+                                        onClick={() => setFeedbackType(option.value)}
                                         className={`p-4 rounded-xl border-2 transition-all ${isSelected
                                                 ? 'border-emerald-500 bg-emerald-500/10'
                                                 : 'border-neutral-800 bg-neutral-800/50 hover:border-neutral-700'

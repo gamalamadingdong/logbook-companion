@@ -2,9 +2,19 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight } from 'lucide-react';
 
+interface RecentWorkoutSummary {
+    id: number | string;
+    date: string;
+    distance: number;
+    time_formatted?: string | null;
+    time?: number | null;
+    type?: string | null;
+    name: string;
+}
+
 interface RecentWorkoutsProps {
     userId?: number | string;
-    workouts: any[];
+    workouts: RecentWorkoutSummary[];
     isLoading?: boolean;
     currentPage: number;
     hasMore: boolean;
@@ -69,11 +79,11 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 <td className="py-4">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-neutral-800 rounded-lg">
-                                            {getMachineIcon(workout.type || 'rower')}
+                                            {getMachineIcon(workout.type ?? 'rower')}
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{workout.name}</div>
-                                            <div className="text-xs text-neutral-500">{formatMachineType(workout.type || '')}</div>
+                                            <div className="text-xs text-neutral-500">{formatMachineType(workout.type ?? '')}</div>
                                         </div>
                                     </div>
                                 </td>
