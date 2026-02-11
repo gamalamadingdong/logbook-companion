@@ -301,7 +301,7 @@ function BoatingForm({
   onSave: (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => void;
   onCancel: () => void;
 }) {
-  const [boatName, setBoatName] = useState(boating?.boat_name ?? 'A Boat');
+  const [boatName, setBoatName] = useState(boating?.boat_name ?? '');
   const [boatType, setBoatType] = useState<CoachingBoating['boat_type']>(boating?.boat_type ?? '8+');
   const [date, setDate] = useState(boating?.date?.slice(0, 10) ?? format(new Date(), 'yyyy-MM-dd'));
   const [positions, setPositions] = useState<BoatPosition[]>(boating?.positions ?? []);
@@ -362,7 +362,8 @@ function BoatingForm({
             <div>
               <label htmlFor="boat-name" className="block text-sm font-medium text-neutral-300 mb-2">Boat Name</label>
               <input id="boat-name" type="text" value={boatName} onChange={(e) => setBoatName(e.target.value)}
-                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+                placeholder="e.g. Varsity 8+"
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
             </div>
             <div>
               <label htmlFor="boat-type" className="block text-sm font-medium text-neutral-300 mb-2">Boat Type</label>

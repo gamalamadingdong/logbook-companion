@@ -19,6 +19,12 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
     const [splitInput, setSplitInput] = useState<string>(''); // MM:SS
     const [deadline, setDeadline] = useState<string>(''); // YYYY-MM-DD
 
+    const goalTypeSelectId = 'goal-type';
+    const benchmarkSelectId = 'benchmark-metric';
+    const splitInputId = 'benchmark-split';
+    const deadlineInputId = 'benchmark-deadline';
+    const targetValueInputId = 'target-value';
+
     // Load goals on mount
     useEffect(() => {
         loadGoals();
@@ -107,6 +113,7 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                 </div>
                 {!isAdding && (
                     <button
+                        type="button"
                         onClick={() => setIsAdding(true)}
                         className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-colors text-sm font-medium"
                     >
@@ -120,10 +127,11 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                 <div className="bg-neutral-800/50 p-4 rounded-xl border border-neutral-700 animate-in fade-in slide-in-from-top-2 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-neutral-400 mb-1">Goal Type</label>
+                            <label htmlFor={goalTypeSelectId} className="block text-xs font-medium text-neutral-400 mb-1">Goal Type</label>
                             <select
+                                id={goalTypeSelectId}
                                 value={newType}
-                                onChange={(e) => setNewType(e.target.value as any)}
+                                onChange={(e) => setNewType(e.target.value as UserGoal['type'])}
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
                             >
                                 <option value="weekly_distance">Weekly Distance</option>
@@ -136,8 +144,9 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                         {newType === 'benchmark_goal' ? (
                             <>
                                 <div>
-                                    <label className="block text-xs font-medium text-neutral-400 mb-1">Benchmark</label>
+                                    <label htmlFor={benchmarkSelectId} className="block text-xs font-medium text-neutral-400 mb-1">Benchmark</label>
                                     <select
+                                        id={benchmarkSelectId}
                                         value={newMetricKey}
                                         onChange={(e) => setNewMetricKey(e.target.value)}
                                         className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500/50 outline-none"
@@ -153,8 +162,9 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
 
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                        <label className="block text-xs font-medium text-neutral-400 mb-1">Target Split (MM:SS.t /500m)</label>
+                                        <label htmlFor={splitInputId} className="block text-xs font-medium text-neutral-400 mb-1">Target Split (MM:SS.t /500m)</label>
                                         <input
+                                            id={splitInputId}
                                             type="text"
                                             placeholder="1:45.0"
                                             value={splitInput}
@@ -163,8 +173,9 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-neutral-400 mb-1">Deadline (Optional)</label>
+                                        <label htmlFor={deadlineInputId} className="block text-xs font-medium text-neutral-400 mb-1">Deadline (Optional)</label>
                                         <input
+                                            id={deadlineInputId}
                                             type="date"
                                             value={deadline}
                                             onChange={(e) => setDeadline(e.target.value)}
@@ -175,13 +186,14 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                             </>
                         ) : (
                             <div>
-                                <label className="block text-xs font-medium text-neutral-400 mb-1">
+                                <label htmlFor={targetValueInputId} className="block text-xs font-medium text-neutral-400 mb-1">
                                     Target Value
                                     {newType === 'weekly_distance' && ' (Meters)'}
                                     {newType === 'weekly_time' && ' (Minutes)'}
                                     {newType === 'weekly_sessions' && ' (Count)'}
                                 </label>
                                 <input
+                                    id={targetValueInputId}
                                     type="number"
                                     placeholder="0"
                                     value={newValue}
@@ -194,12 +206,14 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
 
                     <div className="flex justify-end gap-2 pt-2">
                         <button
+                            type="button"
                             onClick={() => setIsAdding(false)}
                             className="px-3 py-2 text-neutral-400 hover:text-white text-sm transition-colors"
                         >
                             Cancel
                         </button>
                         <button
+                            type="button"
                             onClick={handleSave}
                             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
                         >
@@ -252,8 +266,11 @@ export const GoalsManager: React.FC<GoalsManagerProps> = ({ userId }) => {
                                 </div>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => handleDelete(goal.id)}
                                 className="p-2 text-neutral-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                aria-label="Delete goal"
+                                title="Delete goal"
                             >
                                 <Trash2 size={16} />
                             </button>

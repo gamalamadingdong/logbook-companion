@@ -67,9 +67,12 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
                         <h2 className="text-xl font-bold text-white">Send Feedback</h2>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="text-neutral-500 hover:text-white transition-colors"
                         disabled={isSubmitting}
+                        aria-label="Close feedback modal"
+                        title="Close"
                     >
                         <X size={20} />
                     </button>

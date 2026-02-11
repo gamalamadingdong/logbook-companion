@@ -1,562 +1,86 @@
-
 # Active Context
 
-## Current Focus
+> Last updated: 2026-02-10
 
-### Active: CL → LC Merge (CoachingLog into LogbookCompanion) ✅ COMPLETE
-Merged CoachingLog (CL) app into LogbookCompanion (LC) as a `/coaching/*` route section.
+## Current Focus: Pass 3 — Post-Season-Start Enhancements
 
-**Decisions Made (2026-02-10):**
-- `/coaching/*` prefix for all coaching routes (hidden from non-coaches)
-- Role-based gating: `roles` array on `user_profiles` includes `'coach'`
-- Nav link visible only to coaches (`isCoach` flag in AuthContext)
-- Migrate CL's 5 Dexie tables to Supabase (no local-only data)
-- Match LC's dark theme, borrow CL's design accents
-- Live Sessions (`/live`) moves to `/coaching/live`
+Season starts **February 17, 2026**. Passes 1 and 2 complete. Build is clean.
 
-**Phase 1 — Database** ✅ DONE
-**Phase 2 — Routing & Auth Gating** ✅ DONE
-**Phase 3 — Pages & Services** ✅ DONE
-**Phase 4 — Nav & Layout** ✅ DONE
-**Phase 5 — KB & Cleanup** ✅ DONE:
-- `assistant-coach-cue-sheets.md` copied to LC's `kb/coaching-plans/`
-- CL working-memory folded into LC's `systemPatterns.md` and `activeContext.md`
-- ESLint strict compliance: `no-explicit-any` fixed (5 occurrences), `set-state-in-effect` fixed (5 files), unused `coachId` prop removed from `SessionCard`
-- CL repo ready to archive (user to archive when ready)
-- `seedSchedule.ts` can be ported later if needed
+### Recent Fixes
+- Removed stale `badge` rendering in `Layout.tsx` to unblock builds
+- Accessibility cleanup: added `type="button"`, label associations, and icon-button `aria-label`s in `GoalsManager.tsx` and `ReconnectPrompt.tsx`
 
-### Coaching Season Context (from CL)
-- **Season starts February 17, 2026** — 11 weeks to Virginia State Championships (May 2)
-- Athletes: 13–14 year old novice boys, none have raced
-- Fleet: 2 × 8+ (both boats race at States)
-- Coaching staff: Head coach + 2–3 assistant coaches
-- Full 11-week plan exists: `kb/coaching-plans/novice-8th-boys-spring-2026.md`
-- Assistant coach cue sheets: `kb/coaching-plans/assistant-coach-cue-sheets.md`
-- Technical progression: overlapping 2-week windows (body sequence → timing → blade work → power)
-- **Open items**: Coxswain plan TBD, assistant coach experience level TBD, parent email approach TBD
+### Pass 2 — Pre-Season Polish: ✅ COMPLETE
+- [x] Remove "Alpha" badges from Library and Coaching nav links in `Layout.tsx`
+- [x] Replace `window.confirm()` with styled dark-theme modal in `CoachingRoster.tsx`
+- [x] Fix copyright `© 2024` → `© 2026` in `Layout.tsx`
+- [x] Change default boat name from `'A Boat'` to placeholder in `CoachingBoatings.tsx`
+- [x] Build verification (`tsc --noEmit` + `eslint src/`)
 
-### Paused: Phase 1 — The Digital Clipboard (Workout Capture System)
-1.  **Architecture**: [Feature Spec: Hybrid Workout Capture System](feature-specs/workout-capture-system.md)
-2.  **Implementation**:
-    - Deploying OCR Service (Azure).
-    - Building "Smart Form" for manual/OCR entry in Logbook Companion.
+### GitHub Copilot Coding Agent: ✅ CONFIG FILES CREATED
+- [x] Strengthened copilot-instructions.md — working memory rules promoted to Section 0
+- [x] Created `.github/workflows/copilot-setup-steps.yml` (Node 20, npm ci, tsc --noEmit)
+- [x] Created `.github/CODING_AGENT_SETUP.md` — MCP config reference (Supabase, Vercel, GitHub enhanced)
+- [ ] **User action needed**: Paste MCP JSON into repo Settings → Copilot → Coding agent
+- [ ] **User action needed**: Create `copilot` environment + add secrets (see CODING_AGENT_SETUP.md)
 
-## Recent Changes (2026-02-08)
+### Pass 3 (Post-Season-Start Enhancements)
+- Dynamic coaching dashboard (aggregate stats, upcoming sessions)
+- Form validation improvements (required fields, date ranges)
+- Duplicate-athlete check on Roster add
 
-### ✅ Feature: Warmup/Cooldown Detection on WorkoutDetail
-1. **`detectWarmupCooldown()` heuristic**
-   - Analyzes raw C2 intervals to identify likely warmup/cooldown pattern
-   - Detects: warmup+cooldown, warmup-only, cooldown-only
-   - Pattern: single steady piece at start/end differing from uniform middle block
-   - Returns: detection result, suggested RWN with `[w]`/`[c]` tags, main canonical name
-   - **File**: `src/utils/workoutAnalysis.ts`
+---
 
-2. **"Did this include warmup/cooldown?" prompt**
-   - Violet-colored banner on WorkoutDetail page
-   - Only appears when: no template match, no suggestions, but warmup pattern detected AND main block matches a known template
-   - Shows detected pattern: "10:00 warmup → 8x500m/1:00r → 5:00 cooldown"
-   - Shows suggested RWN: `[w]10:00 + 8x500m/1:00r + [c]5:00`
-   - **File**: `src/pages/WorkoutDetail.tsx`
+## App Status
 
-3. **One-click "Yes, Apply This" action**
-   - Saves `manual_rwn` with `[w]`/`[c]` tags
-   - Auto-matches main block to existing template
-   - Auto-links workout to template
-   - "No, Keep As-Is" dismisses the prompt
-   - **File**: `src/pages/WorkoutDetail.tsx`
+### CL → LC Merge: ✅ COMPLETE
+All 5 phases done. CL repo (`gamalamadingdong/coaching-log`) archived on GitHub. Coaching module lives at `/coaching/*` with role-based gating (`isCoach` in AuthContext).
 
-### ✅ Fix: Template canonical_name Pipeline
-1. **`createTemplate()` now saves `canonical_name`**
-   - Computes normalized canonical name from main work block on insert
-   - Strips warmup ([w]) and cooldown ([c]) blocks automatically
-   - **File**: `src/services/templateService.ts`
+### Pass 1 — Coaching Module Hardening: ✅ COMPLETE (2026-02-10)
+All 5 coaching pages have loading/error states, edit/delete UI, ESLint strict compliance:
+- **CoachingSchedule** — Edit/delete sessions, `SessionForm` edit mode
+- **CoachingLog** — Inline note editing, `notesVersion` counter (replaced setTimeout hack)
+- **CoachingErgScores** — Delete scores
+- **CoachingBoatings** — Edit/delete boatings, `BoatingForm` edit mode
+- **CoachingRoster** — Full CRUD (from prior session)
 
-2. **`updateTemplate()` recomputes `canonical_name`**
-   - When workout_structure changes, canonical_name is recalculated
-   - **File**: `src/services/templateService.ts`
+### Service Layer: `src/services/coaching/coachingService.ts`
+Full CRUD for all 5 Supabase coaching tables. Uses `throwOnError<T>()` with `PostgrestError`.
 
-3. **New helper: `mainBlockToIntervals()`**
-   - Converts only main-block work steps to C2Interval format
-   - Properly handles rest time reconstruction for interval/variable types
-   - **File**: `src/utils/structureAdapter.ts`
+### Other Fixes (2026-02-10)
+- `Preferences.tsx`: Added `aria-label` on sr-only toggle checkbox (axe compliance)
+- `templateService.ts`: Added `canonical_name` to `fetchTemplates()` select clause
 
-4. **New helper: `computeCanonicalName()`**
-   - Single function to compute normalized canonical name from any WorkoutStructure
-   - Uses `mainBlockToIntervals()` → `calculateCanonicalName()`
-   - **File**: `src/utils/structureAdapter.ts`
+---
 
-5. **TemplateEditor uses main-block-only canonical name**
-   - Preview now correctly shows "8x500m/1:00r" even when template includes `[w]10:00 + 8x500m/1:00r + [c]5:00`
-   - **File**: `src/components/TemplateEditor.tsx`
+## Coaching Season Context
+- **Season**: Feb 17 – May 2, 2026 (11 weeks to Virginia State Championships)
+- **Athletes**: 13–14 year old novice boys, none have raced
+- **Fleet**: 2 × 8+ (both boats race at States)
+- **Staff**: Head coach + 2–3 assistants
+- **Plans**: `kb/coaching-plans/novice-8th-boys-spring-2026.md`, `kb/coaching-plans/assistant-coach-cue-sheets.md`
+- **Open items**: Coxswain plan TBD, assistant experience level TBD, parent email TBD
 
-6. **Added `canonical_name` to TypeScript types**
-   - `WorkoutTemplate.canonical_name: string | null`
-   - Added to `WorkoutTemplateListItem` Pick type
-   - **File**: `src/types/workoutStructure.types.ts`
+---
 
-### ✅ Feature: Template Suggestions on WorkoutDetail
-1. **Smart Suggestion Banner**
-   - When viewing a workout without a linked template, automatically suggests matching templates
-   - Matches based on `canonical_name` (e.g., "8x500m/1:00r")
-   - Shows usage count and user's previous attempts on that template
-   - One-click "Link to This Template" button for instant linking
-   - "See X More" button when multiple matches exist
-   - Dismissible with X button
-   - **File**: `src/pages/WorkoutDetail.tsx`
+## Paused Work
 
-2. **Template Matching Query**
-   - Queries `workout_templates` table by `canonical_name`
-   - Orders by `usage_count` (most popular first)
-   - Fetches user's attempt count for each suggested template
-   - Limits to top 3 suggestions
+### Digital Clipboard (Workout Capture via OCR)
+Spec: `feature-specs/workout-capture-system.md`. Paused — requires Azure OCR deployment. Resume post-season.
 
-## Recent Changes (2026-02-06)
+---
 
-### ✅ Feature: Workout Capture Engine (Backend)
-1. **Reconciliation Logic Implemented**
-   - **Source Priority**: `Concept2 (Gold)` > `ErgLink (Silver)` > `Manual (Bronze)`
-   - **Strict Upgrades**: High-quality data replaces low-quality data (no duplicates)
-   - **Matching**: +/- 10 min window, strict distance/time tolerance
-   - **File**: `src/utils/reconciliation.ts`
+## Key Architecture (Quick Reference)
+- **RWN**: Rowing Workout Notation — interchange format. Spec in `rwn/RWN_spec.md`
+- **Canonical Name**: Computed from main-block-only structure, used for template matching by string equality
+- **Template Matching**: `canonical_name` is the join key. User templates prioritized over community.
+- **Block Tags**: `[w]`/`[c]`/`[t]` for warmup/cooldown/test. Untagged = main. Tags stripped from canonical name.
+- **Data Fetch Pattern**: `isLoading` initialized `true`, `.then()` in `useEffect`, `.finally(() => setIsLoading(false))`
+- **ESLint**: Strict — `no-explicit-any`, `set-state-in-effect`, `no-unused-vars`
+- **Sam's user ID**: `93c46300-57eb-48c8-b35c-cc49c76cfa66`, roles: `['athlete', 'coach']`
 
-2. **RWN Canonization & Block Support**
-   - **Complex Blocks**: `2 x (4 x 500m)` structures now parsed/named correctly
-   - **Notes Integration**: Canonical RWN string saved to workout notes
-   - **Fixes**: Unrolled loops (v500m...) now detected as repeating blocks
-   - **File**: `src/utils/workoutNaming.ts`
+---
 
-3. **Assignment Linking**
-   - **Auto-Link**: Sync process checks `daily_workout_assignments`
-   - **Schema**: `group_assignments` table created (migration ready)
-   - **Safety**: Robust error handling (try/catch) for missing schema/columns
-
-4. **Documentation Hub Refinement**
-   - **Core Concepts**: Added deep-dive explanations for Syncing, Templates, and Library.
-   - **Contextual Help**: Clarified "Why" behind features (e.g. why templates are global).
-   - **Navigation**: Linked Documentation from About page.
-   - **File**: `src/pages/Documentation.tsx`
-
-5. **Power Distribution & Zone Analytics**
-   - **Bucketing Fix**: Fixed histograms to correctly calculate Time in Zone.
-   - **Sync**: Now fetching and storing stroke-level power distribution from C2.
-   - **Visualization**: Enabled precise "Zone Distribution" charts using authentic data.
-   - **File**: `src/hooks/useConcept2Sync.ts`
-
-## Recent Changes (2026-02-04 Session 3)
-
-### ✅ Fixed: Token Refresh Race Conditions & Scopes
-1.  **Web Locks Implemented**:
-    - Problem: Multiple tabs refreshing token simultaneously caused race conditions and 400 Bad Request errors.
-    - Solution: Used `navigator.locks` to mutex-guard the network refresh.
-    - Added optimistic check to reuse tokens refreshed by other tabs.
-    - **File**: [`concept2.ts`](src/api/concept2.ts)
-
-2.  **Scope Mismatch Fixed**:
-    - Problem: Old tokens had `results:write` scope which is no longer valid/configured, causing `invalid_grant`.
-    - Solution: Explicitly downscoped refresh request to `user:read,results:read`.
-
-### ✅ Implemented: Work-Only Analysis & Template Trends
-1.  **Work-Only Metrics**:
-    - **Session Pace**: Cleanly separated from Work Pace/Distance.
-    - **Logic**: `getMainBlockIndices()` filters out warmups/cooldowns.
-    - **UI**: Added "Session Pace" card to `WorkoutDetail.tsx`.
-
-2.  **Template Effectiveness Chart**:
-    - Added **Performance Trend** chart to `TemplateDetail.tsx`.
-    - Visualizes historical Watts for the specific template over time.
-
-3.  **Personal Bests per Template**:
-    - **Service**: Added `getTemplatePersonalBest` query (Max Watts).
-    - **UI**: Added prominent "Personal Best" card to Template Detail.
-    - Shows best power, date achieved, and calculated split time.
-
-## Recent Changes (2026-02-04 Session 2)
-
-### ✅ Fixed: Template Linking & Display Issues
-1. **Power Distribution 406 Error Fixed**
-   - Added graceful error handling in `getPowerBuckets()` function
-   - Catches PGRST116 and 406 errors when RLS blocks access or data doesn't exist
-   - Returns null instead of crashing when power distribution unavailable
-   - **File**: [workoutService.ts](src/services/workoutService.ts)
-
-2. **Template Linking Not Showing - FIXED**
-   - Root cause: `getWorkoutDetail()` was only returning C2 API data (`raw_data`)
-   - Database fields (`template_id`, `manual_rwn`, `is_benchmark`) were being stripped
-   - **Solution**: Merge database fields into returned object
-   - WorkoutDetail page now properly displays linked templates
-   - **File**: [workoutService.ts](src/services/workoutService.ts)
-
-### ✅ Menu & Terminology Updates
-1. **"Templates" → "Library"**
-   - Navigation menu item renamed for clarity
-   - **File**: [Layout.tsx](src/components/Layout.tsx)
-
-2. **"Analytics" → "Analysis"**
-   - Tab renamed per user preference
-   - **File**: [Layout.tsx](src/components/Layout.tsx)
-
-### ✅ Template Library Enhancements
-
-#### Global vs Personal Data Decision
-**DECISION**: Templates are global/shared, but usage stats show personal data
-- **Templates**: Shared across all users (good for teams/coaching)
-- **Usage Count (on template detail)**: Shows global usage (all users)
-- **"X workouts categorized" stat**: Shows YOUR workouts linked to templates
-- **Rationale**: See popular templates globally, track personal progress individually
-
-#### Usage Statistics Added
-- Replaced "X templates linked" with "X workouts categorized"
-- Counts personal workouts (`user_id` filtered) that have `template_id` not null
-- Shows meaningful adoption metric: "347 workouts categorized"
-- **File**: [TemplateLibrary.tsx](src/pages/TemplateLibrary.tsx)
-
-#### Template Sorting by Popularity & Recency
-1. **Added `last_used_at` field** to track most recent workout link
-2. **Created migration**: [migration_add_last_used_at.sql](db/migrations/migration_add_last_used_at.sql)
-   - Adds `last_used_at TIMESTAMP WITH TIME ZONE` column
-   - Creates index for efficient sorting
-   - Updates trigger to maintain `last_used_at` automatically
-   - Backfills existing data from workout_logs
-3. **Added sort dropdown** with two modes:
-   - **Most Popular** (default): Sorts by `usage_count DESC`
-   - **Recently Used**: Sorts by `last_used_at DESC`
-4. **Files Changed**:
-   - [templateService.ts](src/services/templateService.ts) — Added `sortBy` parameter
-   - [TemplateLibrary.tsx](src/pages/TemplateLibrary.tsx) — Sort UI controls
-   - [migration_add_last_used_at.sql](db/migrations/migration_add_last_used_at.sql) — Database migration
-
-**Note**: Migration must be run manually in Supabase SQL Editor (MCP lacks DDL permissions)
-
-### ✅ RWN Playground Enhancements
-
-#### Categorized Examples with Multi-Modal Support
-- **Reorganized examples** into 4 categories:
-  - **Basic**: Intervals, steady state, time-based
-  - **Pace**: Training zones, relative pace, rate/pace ranges
-  - **Advanced**: Warmup/cooldown, rate pyramids, nested blocks
-  - **Multi-Modal**: BikeErg, SkiErg, Circuit training, Team circuits
-- **New multi-modal examples**:
-  - `Bike: 15000m` — Single modality
-  - `Ski: 8x500m/3:30r` — Ski intervals
-  - `Row: 2000m + Bike: 5000m + Ski: 2000m` — Cross-training circuit
-  - `3x(Row: 2000m/2:00r + Bike: 5000m/2:00r + Run: 800m/2:00r)` — Full team circuit
-- **UI Improvements**:
-  - Examples grouped by category with headers
-  - Parsed structure now uses flex layout to match examples height
-  - Better visual hierarchy
-- **File**: [RWNPlayground.tsx](src/components/RWNPlayground.tsx)
-
-### ✅ RWN Specification Updates
-
-#### Documented Chained Guidance Parameters
-- **Added Section 4.4**: Chaining Guidance Parameters
-- **Syntax**: Multiple `@` symbols can be chained together
-- **Examples**:
-  - `30:00@UT2@r20` → 30 mins at UT2 pace, holding rate 20
-  - `5000m@2k+5@r28` → 5k at 2k+5 pace, holding rate 28
-  - `8x500m/1:00r@1:50@r32` → 500m intervals at 1:50 split and rate 32
-  - `60:00@r18..22@UT2` → Hour piece at UT2, rate range 18-22
-- **Parser behavior**: Order doesn't matter (`@UT2@r20` = `@r20@UT2`)
-- **File**: [RWN_spec.md](rwn/RWN_spec.md)
-
-## Architecture Decisions Made Today
-
-### Template System Design
-1. **Global Template Library**
-   - All users see same templates (community/team resource)
-   - Templates created by any user are visible to all
-   - Good for coaching platforms and team coordination
-
-2. **Personal Usage Tracking**
-   - Each user's workout links are private
-   - "Workouts categorized" stat shows personal progress
-   - Template detail shows global `usage_count` (community popularity)
-
-3. **Template Sorting**
-   - Default: Most Popular (usage_count DESC)
-   - Alternative: Recently Used (last_used_at DESC)
-   - Helps discover both popular templates and recently active ones
-
-### Data Quality & Error Handling
-1. **Graceful Degradation**
-   - Missing power distribution data doesn't crash UI
-   - 406/RLS errors logged but don't block page rendering
-   - Null-safe rendering for optional data
-
-2. **Database Triggers for Data Integrity**
-   - `usage_count` automatically maintained on workout_logs changes
-   - `last_used_at` automatically updated when templates linked
-   - No manual maintenance required
-
-## Next Steps
-
-### ✅ Completed Features (Verified 2026-02-08)
-
-All major analytics and visualization features are implemented:
-
-- ✅ **Zone Distribution**: Visual breakdown in Analytics page (pie chart + zone filtering)
-- ✅ **Global Zone Filters**: Top-level zone filter bar in Analytics (`zoneFilter` state with all zones)
-- ✅ **Weekly Volume Trends**: Chart with trend lines and metrics (hours/distance toggle)
-- ✅ **Dual Workout Comparison**: Full implementation
-    - Stroke-by-stroke overlay charts
-    - Metric switching (Watts, Pace, Rate, HR)
-    - Multi-stat comparison cards
-- ✅ **Work-Only Analysis**: Implemented (`getMainBlock()` and `getMainBlockIndices()` in workoutAnalysis.ts)
-- ✅ **Template Effectiveness**:
-    - Performance Trend chart on TemplateDetail page
-    - Personal Best display with date achieved
-    - Session Pace vs Work Pace separation
-- ✅ **Live Sessions**: CoachSessions.tsx implements group rowing sessions
-    - Create/manage sessions with join codes
-    - Real-time participant tracking
-    - Workout broadcasting to group
-    - Grouping/lanes functionality
-
-### Next Implementation Priorities
-
-1. **erg-link PM5 Integration** 🟡
-   - Support `target_*_max` fields (ranges) in PM5 programming
-   - Enables end-to-end range notation: RWN → Template → PM5
-   - Files to modify: erg-link PM5 programming logic
-
-2. **Future Enhancements** 🟢
-   - Historical baseline tracking (for accurate retrospective zone calculations)
-   - Additional Live Session refinements (if needed)
-
-### Blocked/Waiting
-- None currently
-
-## Recent Changes (2026-02-04 Session 1)
-
-### ✅ Implemented: Block Tag Notation in RWN Spec & Parser
-- **Grammar Addition**: `[w]`, `[c]`, `[t]` bracket prefixes for warmup/cooldown/test
-- **Files Changed**:
-  - [RWN_spec.md](rwn/RWN_spec.md) — Added Section 10.1 Block Tags
-  - [workoutStructure.types.ts](src/types/workoutStructure.types.ts) — Added `BlockType` enum and `blockType` field
-  - [rwnParser.ts](src/utils/rwnParser.ts) — Parses bracket tags and sets `blockType` on steps
-  - [test_roundtrip.ts](scripts/test_roundtrip.ts) — Updated to output canonical bracket notation
-- **Canonical Form**: `[w]10:00 + 5x500m/1:00r + [c]5:00` (bracket notation preferred)
-- **Legacy Support**: `#warmup`, `#cooldown`, `#test` still parse correctly
-
-### ✅ Design Decisions Finalized
-1. **"Main" is implicit** — Untagged blocks default to `blockType: 'main'`
-2. **Naming: `getMainBlock()`** — Not "getWorkIntervalsOnly" (work can be intervals OR fixed distance/time)
-3. **Tags don't affect matching** — Canonical name strips tags; matching is by structure only
-4. **Multiple template priority**: User's template first → Most popular community template
-
-### ✅ Trinity Verification Updated
-- **Round-trip Tests**: 7/10 passing (test file updated with bracket notation tests)
-- **"Failures" are expected canonicalization**: Legacy `#warmup` → `[w]` output
-- **Core semantic matching**: `blockType` preserved in all cases ✓
-
-### ✅ Created: Workflow Requirements Document
-- **File**: [workflow-requirements.md](workflow-requirements.md)
-- **Purpose**: Define immutable constraints for data sync, matching, and analysis
-- **Key Principles**:
-  1. **Trinity**: RWN ↔ Structure ↔ Canonical Name (must be lossless round-trip)
-  2. **Matching by String Equality**: canonical_name is the join key (no fuzzy matching for MVP)
-  3. **Tags are Metadata**: `[w]`, `[c]` inform analysis but NOT matching
-  4. **Guidance Stripped from Canonical**: `4x500m@2k/2:00r` → `4x500m/2:00r`
-
-### ✅ Created: Pacing Calculator Library (2026-02-03)
-- **File**: [paceCalculator.ts](src/utils/paceCalculator.ts)
-- **Purpose**: Decoupled pacing calculations for personalized targets
-- **Key Functions**: `calculateActualPace()`, `parsePaceToSeconds()`, `formatSplit()`
-- **Bug Fixed**: `parsePaceToSeconds("2k+20")` was returning 2 (now returns null)
-
-## Next Steps: Template Matching Implementation
-
-### ✅ Phase 1: Database Schema (COMPLETED 2026-02-04)
-1. ✅ Verified `template_id` column exists in `workout_logs` table
-2. ✅ Added `canonical_name` column to `workout_templates` table
-3. ✅ Created indexes for efficient lookups:
-   - `idx_workout_templates_canonical_name` on workout_templates
-   - `idx_workout_logs_template_id` on workout_logs
-   - `idx_workout_logs_canonical_name` on workout_logs
-4. ✅ Created migration script: [migration_add_canonical_name_to_templates.sql](db/migrations/migration_add_canonical_name_to_templates.sql)
-5. ✅ Created backfill script: [backfill_canonical_names.ts](scripts/backfill_canonical_names.ts)
-6. ✅ Applied migration via Supabase MCP
-7. ✅ **Backfilled 89 templates successfully** - All templates now have canonical_name
-
-**Files Changed**:
-- [db_schema.sql](db/db_schema.sql) — Added `canonical_name` column to workout_templates
-- [migration_add_canonical_name_to_templates.sql](db/migrations/migration_add_canonical_name_to_templates.sql) — Migration file
-- [backfill_canonical_names.ts](scripts/backfill_canonical_names.ts) — Backfill script
-- [structureToRWN.ts](src/utils/structureToRWN.ts) — NEW: Extracted trinity regeneration function
-- [migrations/README.md](db/migrations/README.md) — Migration documentation
-
-**Results**: 89/89 templates updated with canonical RWN notation ✨
-
-### ✅ Phase 2: Auto-Matching in Sync (COMPLETED 2026-02-04)
-**Goal**: Automatically match workouts to templates when syncing from Concept2
-
-**Implementation**:
-1. ✅ Created `templateMatching.ts` utility with priority matching logic
-2. ✅ Integrated into `useConcept2Sync.ts` after workout upsert
-3. ✅ Matching priority implemented:
-   - User's own templates (created_by = user_id) FIRST
-   - Then most popular community template (highest usage_count)
-4. ✅ Edge cases handled:
-   - No canonical_name → skip matching
-   - No matching templates → template_id stays null
-   - Silent failure on error (workout still synced)
-
-**Files Changed**:
-- [templateMatching.ts](src/utils/templateMatching.ts) — NEW: Template matching utility functions
-- [useConcept2Sync.ts](src/hooks/useConcept2Sync.ts) — Added auto-matching after workout upsert
-
-**How It Works**:
-```typescript
-// After creating workout in database
-const upsertedWorkout = await upsertWorkout(record);
-
-// Auto-match by canonical_name
-if (upsertedWorkout && record.canonical_name) {
-  const workoutId = upsertedWorkout[0].id;
-  await matchWorkoutToTemplate(workoutId, userId, record.canonical_name);
-}
-```
-
-**Priority Logic**:
-1. Query all templates WHERE canonical_name = workout.canonical_name
-2. If user has their own template → use it
-3. Else → use most popular community template (ORDER BY usage_count DESC)
-4. Update workout_logs.template_id
-
-### Phase 3: Work-Only Analysis (Next)
-**Goal**: Extract and analyze only the "work" portion of workouts (excluding warmup/cooldown)
-
-**Implementation Plan**:
-1. Create `getMainBlock()` utility function in `src/utils/workoutAnalysis.ts`
-2. Filter steps by `blockType !== 'warmup' && blockType !== 'cooldown'`
-3. Update stats calculations to use main block only:
-   - `WorkoutComparison.tsx` — Compare work intervals only
-   - `WorkoutDetail.tsx` — Show work vs warmup/cooldown separately
-   - Stats calculations — Calculate averages on main block
-
-**Design**:
-```typescript
-function getMainBlock(workout: WorkoutStructure): WorkoutStep[] {
-  if (workout.type === 'variable') {
-    return workout.steps.filter(step => 
-      step.blockType !== 'warmup' && 
-      step.blockType !== 'cooldown'
-    );
-  }
-  // For steady_state/interval, check top-level blockType
-  if (workout.blockType === 'warmup' || workout.blockType === 'cooldown') {
-    return [];
-  }
-  return [workout]; // Return the whole workout as main block
-}
-```
-
-**Use Cases**:
-- Template matching: Match on full structure INCLUDING warmup/cooldown
-- Stats analysis: Calculate on MAIN BLOCK ONLY (work intervals)
-- Comparison: Compare main blocks between workouts
-
-### Phase 2: Auto-Matching in Sync (Next)
-**Goal**: When user syncs from Concept2, automatically match workouts to templates by canonical_name
-
-**Implementation Plan**:
-1. Update `useConcept2Sync.ts` to query templates after workout creation
-2. Implement matching logic:
-   ```typescript
-   // After creating workout in database
-   const canonicalName = structureToRWN(workoutStructure);
-   
-   // Query for matching template (user's first, then community)
-   const matchedTemplate = await findBestMatchingTemplate(userId, canonicalName);
-   
-   if (matchedTemplate) {
-     await supabase
-       .from('workout_logs')
-       .update({ template_id: matchedTemplate.id })
-       .eq('id', workoutLog.id);
-   }
-   ```
-3. Create `findBestMatchingTemplate()` utility with priority:
-   - User's own templates (created_by = user_id) first
-   - Then community templates sorted by usage_count DESC
-4. Handle edge cases:
-   - No matching templates → `template_id` stays null
-   - Multiple matches → Pick highest priority (user's first, then most popular)
-
-### Phase 2: Auto-Matching During Sync
-1. In `useConcept2Sync.ts`, after calculating canonical_name:
-   - Query templates for matching canonical_name
-   - Priority: user's own → most popular
-   - Set `template_id` on workout_log
-
-### Phase 3: Work-Only Analysis
-1. Create `getMainBlock(workout, template)` utility
-2. Update stats calculations to filter by blockType
-
-## Recent Changes (2026-02-03)
-
-### ✅ Completed: Absolute Range Notation Support
-- **Problem**: Coaches/athletes want to prescribe intensity bands (e.g., "hold 1:48-1:52")
-- **Solution**: Extended RWN spec and parser to support absolute ranges
-- **Notation Added**:
-  - Pace range: `@1:48-1:52` (target 1:48-1:52 split)
-  - Rate range: `@28-32spm` or `@r24-28` (target 24-28 spm)
-  - Combined: `@1:48-1:52@28-32spm` (both ranges)
-- **Files Changed**:
-  - [RWN_spec.md](rwn/RWN_spec.md) — Documented new syntax in sections 4.1 and 4.2
-  - [workoutStructure.types.ts](src/types/workoutStructure.types.ts) — Added `target_rate_max` and `target_pace_max` fields
-  - [rwnParser.ts](src/utils/rwnParser.ts) — Updated guidance parsing to recognize ranges
-  - [rwnParser.test.ts](src/utils/rwnParser.test.ts) — Added comprehensive test suite for ranges
-- **Explicitly NOT Supported**: Relative ranges (`@2k+5-2k+10`) deferred to avoid parsing ambiguity
-
-### ✅ Completed: Chained `@` Parameter Support
-- **Problem**: Parser couldn't handle multiple guidance parameters (e.g., pace AND stroke rate in same segment)
-- **Solution**: Modified [`rwnParser.ts`](file:///c:/Users/samgammon/apps/LogbookCompanion/src/utils/rwnParser.ts) to split guidance by `@` and parse each independently
-- **Examples Now Working**:
-  - `10 x 500m@2k@32spm/3:00r` → Parses both pace (`2k`) and rate (`32 spm`)
-  - `5000m@2k+10@22spm` → Steady state with pace and rate guidance
-
-### ✅ Completed: Training Zone Abbreviations
-- **Problem**: Zone identifiers (UT2, UT1, AT, TR, AN) not recognized as valid pace guidance
-- **Solution**: Added regex pattern to recognize training zones as `target_pace` values
-- **Examples Now Working**:
-  - `2 x (12:00@UT2 + 9:00@UT1 + 6:00@AT)/5:00r` → Each segment has proper zone guidance
-  - `30:00@UT2` → Steady state with zone target
-
-### ✅ Completed: Template Delete Functionality
-- **Feature**: Added admin-only delete button to Template Library
-- **Implementation**: [`TemplateLibrary.tsx`](file:///c:/Users/samgammon/apps/LogbookCompanion/src/pages/TemplateLibrary.tsx)
-- **UX**: Trash icon with confirmation dialog, auto-refresh on success
-
-## RWN as Community Standard
-- **Vision**: RWN is the interchange format for the rowing community
-- **Pipeline**: RWN → LogbookCompanion templates → erg-link → PM5
-- **Guidance Philosophy**: Multiple valid ways to prescribe intensity:
-  - Zones: `@UT2` (abstract, coach decides)
-  - Relative: `@2k+10` (personalized to athlete)
-  - Absolute: `@1:48` (exact target)
-  - Ranges: `@1:48-1:52` (band of acceptable paces)
-
-## Immediate Next Steps
-1. **Canonical Naming Fix**: Update `workoutNaming.ts` to detect repeating patterns in unrolled variable structures
-2. **UI Display**: Optionally update TemplateEditor/WorkoutDetail to display ranges nicely
-3. **erg-link Integration**: Ensure erg-link can read `target_*_max` fields for PM5 programming
-
-## Active Issues
-- **Zone Calc Limitation**: `zone_distribution` uses current baseline, not historical fitness (may require historical baseline tracking for accurate retrospective analysis)
-
-## Architecture Notes
-- **RWN Directory**: `rwn/` contains spec and may be extracted to standalone repo
-- **Workout Structure Types**: `SteadyStateStructure`, `IntervalStructure`, `VariableStructure` in `workoutStructure.types.ts`
-- **Adapter Pattern**: `structureToIntervals()` converts template JSON to C2Interval format for consistent naming
-- **Canonical Naming**: Single source of truth via `calculateCanonicalName()` in `workoutNaming.ts`
-- **Parser Enhancement**: Guidance now supports chained parameters via `@` splitting (2026-02-03)
-
-## Test Files Created
-- [`rwnParser.test.ts`](file:///c:/Users/samgammon/apps/LogbookCompanion/src/utils/rwnParser.test.ts) - Comprehensive test suite
-- [`test-parser.ts`](file:///c:/Users/samgammon/apps/LogbookCompanion/test-parser.ts) - Manual verification script
-- [`test-guidance.ts`](file:///c:/Users/samgammon/apps/LogbookCompanion/test-guidance.ts) - Training zone tests
-
-## Documentation
-- [`walkthrough.md`](file:///C:/Users/samgammon/.gemini/antigravity/brain/147ddb98-76ac-4909-99ac-e0ee19c92529/walkthrough.md) - Recent enhancements summary
-- [`rwn-grouped-workouts-analysis.md`](file:///C:/Users/samgammon/.gemini/antigravity/brain/147ddb98-76ac-4909-99ac-e0ee19c92529/rwn-grouped-workouts-analysis.md) - Grouped workout notation guide
+## ErgLink Integration (Future)
+- Support `target_*_max` fields (ranges) in PM5 programming
+- Enables: RWN → LC templates → ErgLink → PM5

@@ -28,8 +28,11 @@ export const ReconnectPrompt: React.FC = () => {
     return (
         <div className="fixed bottom-4 right-4 max-w-sm bg-amber-900/90 border border-amber-700 rounded-lg shadow-xl p-4 z-50 animate-fade-in">
             <button
+                type="button"
                 onClick={() => setVisible(false)}
                 className="absolute top-2 right-2 text-amber-400 hover:text-amber-200"
+                aria-label="Dismiss reconnect prompt"
+                title="Dismiss"
             >
                 <X size={16} />
             </button>
@@ -41,6 +44,7 @@ export const ReconnectPrompt: React.FC = () => {
                         Your Concept2 session has expired. Please reconnect to continue syncing workouts.
                     </p>
                     <button
+                        type="button"
                         onClick={handleReconnect}
                         className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 text-white text-sm px-3 py-1.5 rounded transition-colors"
                     >

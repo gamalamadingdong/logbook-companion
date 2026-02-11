@@ -9,7 +9,7 @@ import {
   type CoachingAthlete,
   type CoachingErgScore,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 
 export function CoachingRoster() {
   const { user } = useAuth();
@@ -21,6 +21,7 @@ export function CoachingRoster() {
   const [isEditing, setIsEditing] = useState<CoachingAthlete | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState<CoachingAthlete | null>(null);
+  const [deletingAthlete, setDeletingAthlete] = useState<CoachingAthlete | null>(null);
 
   useEffect(() => {
     if (!coachId) return;
@@ -52,11 +53,10 @@ export function CoachingRoster() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Delete this athlete? This will also delete their notes and scores.')) {
-      await deleteAthlete(id);
-      setSelectedAthlete(null);
-      await refreshAthletes();
-    }
+    await deleteAthlete(id);
+    setSelectedAthlete(null);
+    setDeletingAthlete(null);
+    await refreshAthletes();
   };
 
   return (
@@ -169,8 +169,42 @@ export function CoachingRoster() {
           athlete={selectedAthlete}
           onClose={() => setSelectedAthlete(null)}
           onEdit={() => { setIsEditing(selectedAthlete); setSelectedAthlete(null); }}
-          onDelete={() => handleDelete(selectedAthlete.id)}
+          onDelete={() => setDeletingAthlete(selectedAthlete)}
         />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingAthlete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-900/30 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Delete Athlete</h2>
+            </div>
+            <p className="text-neutral-300 mb-1">
+              Are you sure you want to delete <span className="font-semibold text-white">{deletingAthlete.name}</span>?
+            </p>
+            <p className="text-neutral-500 text-sm mb-6">
+              This will also delete their notes and erg scores. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeletingAthlete(null)}
+                className="px-4 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deletingAthlete.id)}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

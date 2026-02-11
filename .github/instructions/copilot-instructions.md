@@ -9,7 +9,47 @@ applyTo: '**'
 
 ---
 
-## 0. App Ecosystem
+## 0. ⛔ WORKING MEMORY — READ THIS FIRST
+
+**Non-negotiable.** You maintain long-term project memory in `working-memory/`. These files persist across sessions. Chat context does not.
+
+### The Rules
+
+1. **BEFORE doing anything**: Read `working-memory/activeContext.md`. No exceptions.
+2. **BEFORE implementing**: Check `working-memory/systemPatterns.md` for established patterns.
+3. **AFTER making changes**: Update `working-memory/activeContext.md` with what changed, what's next, and any blockers.
+4. **AFTER reaching a milestone**: Update `working-memory/implementationLog.md`.
+5. **AFTER architectural decisions**: Add an ADR to `working-memory/decisionLog.md`.
+
+### What "Update" Means
+
+When updating `activeContext.md`, you must:
+- Mark completed items as done (check boxes, move to completed section)
+- Add any new items, blockers, or context discovered during work
+- Keep the file **concise** — current state only, not a changelog (history goes in `implementationLog.md`)
+
+### Hard Stops
+
+- ⛔ **STOP** if about to implement without reading `activeContext.md` first.
+- ⛔ **STOP** if about to finish a session without updating `activeContext.md`.
+- ⛔ **STOP** if using generic "best practices" instead of checking `systemPatterns.md`.
+- ⛔ **STOP** if making changes but not documenting them in working memory.
+
+### Working Memory Files
+
+| File | Purpose | When |
+|---|---|---|
+| `activeContext.md` | Current focus, next steps, blockers | Read EVERY session. Write EVERY session. |
+| `systemPatterns.md` | Architecture, coding standards, patterns | Read before implementation. |
+| `projectBrief.md` | Core mission, non-negotiable requirements | Reference as needed. |
+| `productContext.md` | User problems, business model, target users | Reference as needed. |
+| `techContext.md` | Tech stack versions, API keys, deployment | Reference as needed. |
+| `decisionLog.md` | ADRs — *why* choices were made | Write on architectural decisions. |
+| `implementationLog.md` | What's been built, what worked/failed | Write on milestones. |
+
+---
+
+## 1. App Ecosystem
 
 This project is part of a multi-app workspace. All three apps share Supabase backend and auth.
 
@@ -19,11 +59,11 @@ This project is part of a multi-app workspace. All three apps share Supabase bac
 | **EL** | ErgLink | `erg-link` | Mobile app — PM5 Bluetooth relay, live racing, interval programming |
 | **CL** | CoachingLog | `CoachingLog` | Coaching app — season plans, schedule seeding, knowledge base |
 
-Each app has its own `working-memory/` and `.agent/` — read the correct one based on which app is being discussed. CL may merge into LC in the future.
+Each app has its own `working-memory/` and `.agent/` — read the correct one based on which app is being discussed. CL has been merged into LC.
 
 ---
 
-## 1. Interaction Modes
+## 2. Interaction Modes
 
 Determine the user's mode and adjust behavior. Users can switch at any time.
 
@@ -55,34 +95,9 @@ For non-technical stakeholders. Explain-first, plain language, analogies, busine
 
 ---
 
-## 2. Working Memory System
+## 3. Working Memory — Extended Files
 
-**CRITICAL**: You maintain long-term project memory via file-system context in `working-memory/`. You do NOT rely solely on chat context.
-
-### Mandatory Protocol
-1. **Session Start** → Read `working-memory/activeContext.md`. Understand current state before doing anything.
-2. **During Work** → Cross-reference `working-memory/systemPatterns.md` for architectural consistency.
-3. **Session End** → Update `working-memory/activeContext.md` with what changed, what's next, and any blockers. Update `working-memory/implementationLog.md` if a milestone was reached.
-
-### ⛔ Hard Stops
-- **STOP** if about to implement without reading `activeContext.md` first.
-- **STOP** if about to finish without updating `activeContext.md`.
-- **STOP** if using generic "best practices" instead of checking `systemPatterns.md`.
-
-### Working Memory Files
-
-**Core (always present):**
-| File | Purpose | Read/Write Frequency |
-|---|---|---|
-| `activeContext.md` | Current focus, immediate next steps, blockers | Every session (R/W) |
-| `systemPatterns.md` | Architectural decisions, coding standards, patterns | Before implementation (R) |
-| `projectBrief.md` | Core mission, non-negotiable requirements | Reference (R) |
-| `productContext.md` | User problems, business model, target users | Reference (R) |
-| `techContext.md` | Tech stack versions, API keys, deployment config | Reference (R) |
-| `decisionLog.md` | ADRs — *why* specific choices were made | On architectural decisions (W) |
-| `implementationLog.md` | What's been built, what worked, what failed | On milestones (W) |
-
-**Extended (project-specific):**
+**Project-specific context files (beyond core):**
 | File | Purpose |
 |---|---|
 | `feature-specs/` | Detailed feature specifications |
@@ -93,7 +108,7 @@ For non-technical stakeholders. Explain-first, plain language, analogies, busine
 
 ---
 
-## 3. Multi-Perspective Agent System
+## 4. Multi-Perspective Agent System
 
 This project uses a **virtual expert team** defined in `.agent/`. When invoked, you MUST read the agent's prompt file and strictly adopt that persona.
 
@@ -143,7 +158,7 @@ This project uses a **virtual expert team** defined in `.agent/`. When invoked, 
 
 ---
 
-## 4. Plan & Act Workflow
+## 5. Plan & Act Workflow
 
 To prevent "agentic drift" where code works but diverges from user intent:
 
@@ -161,7 +176,7 @@ To prevent "agentic drift" where code works but diverges from user intent:
 
 ---
 
-## 5. Tool Selection Strategy
+## 6. Tool Selection Strategy
 
 ### Prefer MCP Servers Over CLI
 When an MCP server is available for a service, always prefer it over CLI tools.
@@ -178,7 +193,7 @@ When an MCP server is available for a service, always prefer it over CLI tools.
 
 ---
 
-## 6. Code Quality Standards
+## 7. Code Quality Standards
 
 ### Data-First Design
 Define data structures and entities FIRST. Then relationships and invariants. Then business logic. Then implementation.
@@ -199,7 +214,7 @@ Always check `working-memory/systemPatterns.md` before implementing. Use project
 
 ---
 
-## 7. Behavioral Guidelines
+## 8. Behavioral Guidelines
 
 ### Pre-Flight Check (Before Every Non-Trivial Response)
 ```
@@ -227,7 +242,7 @@ If you realize mid-response you skipped context: acknowledge it, read the file, 
 
 ---
 
-## 8. Session Lifecycle
+## 9. Session Lifecycle
 
 ### New Session
 1. Read `working-memory/activeContext.md`
@@ -247,7 +262,7 @@ If you realize mid-response you skipped context: acknowledge it, read the file, 
 
 ---
 
-## 9. Communication Style
+## 10. Communication Style
 
 - **Be direct and concise.** Present options with trade-offs.
 - **Explain reasoning** for implementation decisions.
