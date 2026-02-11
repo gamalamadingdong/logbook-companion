@@ -14,17 +14,14 @@ export const AutoSync: React.FC = () => {
         // Check user preference (default: true)
         const autoSyncEnabled = (profile as any)?.preferences?.auto_sync !== false;
         if (!autoSyncEnabled) {
-            console.log('AutoSync: Disabled by user preference');
             return;
         }
 
         const token = localStorage.getItem('concept2_token');
         if (user && token && !hasSynced.current && !syncing) {
-            console.log('AutoSync: Triggering automatic sync (Last 30 days)...');
             hasSynced.current = true;
 
             startSync({ range: '30days', skipIfRecent: true })
-                .then(() => console.log('AutoSync: Complete'))
                 .catch(err => console.error('AutoSync: Failed', err));
         }
     }, [user, profile, tokensReady, startSync, syncing]);

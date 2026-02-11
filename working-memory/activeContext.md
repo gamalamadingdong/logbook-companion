@@ -38,7 +38,7 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 
 ## Next Work Plan
 
-### Sprint 2: Error Handling & Missing Pages
+### Sprint 2: Error Handling & Missing Pages ✅ COMPLETE
 - [x] Create 404/NotFound page + catch-all route
 - [x] Add toast notification system (Sonner) — replace `alert()` calls
 - [x] Extract baseline watts utility (duplicated in Analytics + WorkoutDetail)
@@ -46,15 +46,15 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 
 ### Sprint 3: Robustness & Data Quality
 - [ ] Dashboard: handle service errors gracefully (show error states, not silent fail)
-- [ ] C2 token refresh: proactive refresh before expiry, not just on 401
-- [ ] Template matching: surface unmatched workouts to user
-- [ ] Sync: add progress indicator (X of Y workouts)
+- [x] C2 token refresh: proactive refresh before expiry, not just on 401 (see `src/api/concept2.ts`)
+- [x] Template matching: surface unmatched workouts to user (WorkoutDetail suggestion banners)
+- [x] Sync: add progress indicator (X of Y workouts)
 
 ### Sprint 4: UX Polish
-- [ ] Loading skeletons for Dashboard, Analytics, WorkoutHistory
-- [ ] Empty states for all list pages (no workouts, no templates, etc.)
-- [ ] Remove `console.log` statements from production code
-- [ ] Mobile nav: highlight active tab
+- [x] Loading skeletons for Dashboard, Analytics, WorkoutHistory
+- [x] Empty states for all list pages (no workouts, no templates, etc.)
+- [x] Remove `console.log` statements from production code
+- [x] Mobile nav: highlight active tab
 
 ---
 

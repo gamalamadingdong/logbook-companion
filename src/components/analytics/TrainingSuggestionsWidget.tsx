@@ -51,7 +51,6 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
                     // Try to find the template
                     const savedTemplate = templates.find(t => t.id === savedRec.template_id);
                     if (savedTemplate) {
-                        console.log("Using Persisted Recommendation:", savedTemplate.name);
                         setSuggestion({
                             template: savedTemplate,
                             reason: savedRec.reason,
@@ -63,7 +62,6 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
             }
 
             // 2. Generate NEW
-            console.log("Generating NEW Recommendation (Force: " + force + ")...");
             const result = getSuggestedWorkout(recentWorkouts, userGoals, templates, userProfile || undefined);
 
             if (result) {

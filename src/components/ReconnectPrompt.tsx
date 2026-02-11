@@ -10,7 +10,6 @@ export const ReconnectPrompt: React.FC = () => {
 
     useEffect(() => {
         const handleReconnectRequired = () => {
-            console.log('ReconnectPrompt: Reconnection required');
             setVisible(true);
         };
 

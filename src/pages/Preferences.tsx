@@ -74,7 +74,6 @@ export const Preferences: React.FC = () => {
         if (!profile?.user_id) return;
         setSaving(true);
         setMessage(null);
-        console.log('[Preferences] Saving formData:', formData);
 
         try {
             const { error } = await supabase
@@ -84,7 +83,6 @@ export const Preferences: React.FC = () => {
 
             if (error) throw error;
 
-            console.log('[Preferences] Save successful, refreshing profile...');
             await refreshProfile();
             setMessage({ type: 'success', text: 'Preferences saved successfully.' });
         } catch (err: unknown) {
@@ -142,7 +140,6 @@ export const Preferences: React.FC = () => {
         // If currentVal is false, nextVal true.
         const nextVal = currentVal === undefined ? false : !currentVal;
 
-        console.log(`[Preferences] Toggling ${key} to:`, nextVal);
 
         // Optimistic Update
         const updatedPrefs = {
@@ -164,7 +161,6 @@ export const Preferences: React.FC = () => {
 
             if (error) throw error;
 
-            console.log('[Preferences] Auto-saved preference:', key);
             await refreshProfile();
             // Optional: show a transient success message if needed, 
             // but for toggle usually visual state is enough.

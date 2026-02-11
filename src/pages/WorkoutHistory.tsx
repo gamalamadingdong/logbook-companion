@@ -36,6 +36,19 @@ export const WorkoutHistory: React.FC = () => {
 
     const workoutName = decodeURIComponent(name || '');
 
+    const LoadingSkeleton = () => (
+        <div className="min-h-screen bg-neutral-950 p-6 md:p-12 font-sans text-white pb-24">
+            <div className="max-w-5xl mx-auto space-y-8 animate-pulse">
+                <div className="space-y-4">
+                    <div className="h-4 w-32 bg-neutral-800 rounded"></div>
+                    <div className="h-8 w-64 bg-neutral-800 rounded"></div>
+                    <div className="h-3 w-24 bg-neutral-800 rounded"></div>
+                </div>
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl h-[400px]"></div>
+            </div>
+        </div>
+    );
+
     useEffect(() => {
         if (!workoutName) return;
 
@@ -86,11 +99,7 @@ export const WorkoutHistory: React.FC = () => {
         loadData();
     }, [workoutName, user?.id]);
 
-    if (loading) return (
-        <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">
-            Loading...
-        </div>
-    );
+    if (loading) return <LoadingSkeleton />;
 
     if (history.length === 0) return (
         <div className="min-h-screen bg-neutral-950 p-12 text-center text-neutral-400">

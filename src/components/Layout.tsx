@@ -55,6 +55,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         ] : [])
     ];
 
+    const isLinkActive = (path: string) => {
+        if (path === '/') {
+            return location.pathname === '/';
+        }
+        return location.pathname.startsWith(path);
+    };
+
     return (
         <div className="min-h-screen bg-neutral-950 text-white font-sans flex flex-col md:flex-row">
             {/* Desktop Sidebar */}
@@ -99,7 +106,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     {links.map(link => {
                         const Icon = link.icon;
-                        const isActive = location.pathname === link.path;
+                        const isActive = isLinkActive(link.path);
                         return (
                             <Link
                                 key={link.path}
@@ -192,7 +199,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                     key={link.path}
                                     to={link.path}
                                     onClick={() => setMobileMenuOpen(false)}
-                                    className={`flex items-center gap-4 px-4 py-4 rounded-xl text-lg ${location.pathname === link.path
+                                    className={`flex items-center gap-4 px-4 py-4 rounded-xl text-lg ${isLinkActive(link.path)
                                         ? 'bg-neutral-800 text-white font-bold'
                                         : 'text-neutral-400'
                                         }`}

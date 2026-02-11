@@ -7,7 +7,7 @@ import { PRList } from '../components/analytics/PRList';
 import { classifyWorkout, ZONES, aggregateBucketsByZone } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Line } from 'recharts';
-import { Loader2, Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -23,6 +23,36 @@ import { getLinearRegressionStats } from '../utils/math';
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 
 type TimeRangePreset = 'thisMonth' | 'lastMonth' | 'ytd' | '3m' | '6m' | '1y' | 'all' | 'custom';
+
+const AnalyticsSkeleton: React.FC = () => (
+    <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24">
+        <div className="max-w-6xl mx-auto space-y-8 animate-pulse">
+            <div className="flex space-x-6 border-b border-neutral-800">
+                <div className="h-6 w-24 bg-neutral-800 rounded"></div>
+                <div className="h-6 w-40 bg-neutral-800 rounded"></div>
+                <div className="h-6 w-32 bg-neutral-800 rounded"></div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <div className="h-4 w-24 bg-neutral-800 rounded"></div>
+                    <div className="h-8 w-32 bg-neutral-800 rounded"></div>
+                    <div className="h-3 w-20 bg-neutral-800 rounded"></div>
+                </div>
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <div className="h-4 w-28 bg-neutral-800 rounded"></div>
+                    <div className="h-10 w-40 bg-neutral-800 rounded"></div>
+                    <div className="h-3 w-24 bg-neutral-800 rounded"></div>
+                </div>
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <div className="h-4 w-32 bg-neutral-800 rounded"></div>
+                    <div className="h-8 w-24 bg-neutral-800 rounded"></div>
+                    <div className="h-3 w-20 bg-neutral-800 rounded"></div>
+                </div>
+            </div>
+            <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl h-80"></div>
+        </div>
+    </div>
+);
 
 export const Analytics: React.FC = () => {
     const { profile, loading: authLoading, isGuest } = useAuth();
@@ -310,9 +340,23 @@ export const Analytics: React.FC = () => {
     const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + (w.duration_seconds || (w.duration_minutes * 60) || 0), 0);
 
     if (loading) {
+        return <AnalyticsSkeleton />;
+    }
+
+    if (workouts.length === 0) {
         return (
-            <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">
-                <Loader2 className="animate-spin" size={32} />
+            <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24">
+                <div className="max-w-3xl mx-auto text-center space-y-4">
+                    <div className="flex justify-center">
+                        <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-400">
+                            <Activity size={32} />
+                        </div>
+                    </div>
+                    <h2 className="text-2xl font-bold">No workouts yet</h2>
+                    <p className="text-neutral-400">
+                        Sync your Concept2 logbook to start tracking analytics and personal records.
+                    </p>
+                </div>
             </div>
         );
     }

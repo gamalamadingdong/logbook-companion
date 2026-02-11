@@ -513,7 +513,6 @@ export const Sync: React.FC = () => {
                                 return;
                             }
 
-                            console.log(`Scanned ${allLogs.length} logs for duplicates...`);
 
                             const groups: Record<string, typeof allLogs> = {};
                             allLogs.forEach(log => {
@@ -546,7 +545,6 @@ export const Sync: React.FC = () => {
                             }
 
                             setLocalStatus(`Removing ${idsToDelete.length} duplicates...`);
-                            console.log('Deleting IDs:', idsToDelete);
 
                             const { error: delError } = await supabase
                                 .from('workout_logs')

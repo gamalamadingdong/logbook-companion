@@ -113,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data?.concept2_token) {
         localStorage.setItem('concept2_token', data.concept2_token);
-        console.log('Restored C2 token from database');
       }
       if (data?.concept2_refresh_token) {
         localStorage.setItem('concept2_refresh_token', data.concept2_refresh_token);

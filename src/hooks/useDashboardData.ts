@@ -16,11 +16,13 @@ export const useDashboardData = () => {
     const [totalMeters, setTotalMeters] = useState(0);
     const [loading, setLoading] = useState(true);
     const [workoutsLoading, setWorkoutsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Initial Load
     useEffect(() => {
         async function loadData() {
             setLoading(true);
+            setError(null);
 
             if (isGuest) {
                 // --- GUEST MODE ---
@@ -84,6 +86,10 @@ export const useDashboardData = () => {
                         .gte('completed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
                 ]);
 
+                if (logsParams.error || historyData.error) {
+                    setError('Unable to load dashboard data. Please try again.');
+                }
+
                 if (!logsParams.error && logsParams.data) {
                     const total = logsParams.data.reduce((sum, log) => sum + (log.distance_meters || 0), 0);
                     setTotalMeters(total);
@@ -102,6 +108,7 @@ export const useDashboardData = () => {
 
             } catch (err) {
                 console.error("Dashboard Load Error", err);
+                setError('Unable to load dashboard data. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -141,9 +148,13 @@ export const useDashboardData = () => {
 
     const fetchRecentWorkoutsReal = async (page: number) => {
         setWorkoutsLoading(true);
+        setError(null);
         try {
             const data = await workoutService.getRecentWorkouts(10, page);
             setRecentWorkouts(data);
+        } catch (err) {
+            console.error('Failed to load recent workouts', err);
+            setError('Unable to load recent workouts. Please try again.');
         } finally {
             setWorkoutsLoading(false);
         }
@@ -157,6 +168,7 @@ export const useDashboardData = () => {
         totalMeters,
         loading,
         workoutsLoading,
+        error,
         fetchRecentWorkouts
     };
 };

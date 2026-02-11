@@ -1230,7 +1230,6 @@ export const WorkoutDetail: React.FC = () => {
                                     setDetail({ ...detail, template_id: templateId });
                                 }
 
-                                console.log('Template created and linked successfully!');
                             } catch (err) {
                                 console.error('Failed to link workout to template:', err);
                                 toast.error('Template created but failed to link to this workout');
@@ -1333,7 +1332,6 @@ export const WorkoutDetail: React.FC = () => {
                                                             setDetail({ ...detail, template_id: template.id });
                                                         }
                                                         setShowTemplateLinking(false);
-                                                        console.log('Template linked successfully!');
                                                     } catch (err) {
                                                         console.error('Failed to link template:', err);
                                                         toast.error('Failed to link template');
