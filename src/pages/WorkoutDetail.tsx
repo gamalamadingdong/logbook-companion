@@ -19,6 +19,8 @@ import { supabase } from '../services/supabase';
 import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/concept2.types';
 import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructure.types';
 import { DEMO_WORKOUTS } from '../data/demoData';
+import { getUserBaseline2kWatts } from '../utils/paceCalculator';
+import { toast } from 'sonner';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -231,41 +233,19 @@ export const WorkoutDetail: React.FC = () => {
     // Fetch Baseline Watts from Profile
     useEffect(() => {
         const fetchBaseline = async () => {
+            if (isGuest) {
+                setBaselineWatts(202);
+                return;
+            }
+
             if (!profile?.user_id) return;
 
-            let bWatts = 202; // Default
-
-            // Try working baseline from preferences
-            if (profile?.benchmark_preferences?.['2k']?.working_baseline) {
-                const timeStr = profile.benchmark_preferences['2k'].working_baseline;
-                const parts = timeStr.split(':');
-                let totalSeconds = 0;
-                if (parts.length === 2) {
-                    totalSeconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
-                } else {
-                    totalSeconds = parseFloat(timeStr);
-                }
-                if (totalSeconds > 0) {
-                    const pace = (totalSeconds / 2000) * 500;
-                    bWatts = calculateWatts(pace);
-                }
-            }
-
-            // Fallback to legacy baseline
-            if (bWatts === 202) {
-                const { data: baseline } = await supabase
-                    .from('user_baseline_metrics')
-                    .select('pr_2k_watts')
-                    .eq('user_id', profile.user_id)
-                    .single();
-                if (baseline?.pr_2k_watts) bWatts = baseline.pr_2k_watts;
-            }
-
+            const bWatts = await getUserBaseline2kWatts(profile.user_id, supabase);
             setBaselineWatts(bWatts);
         };
 
         fetchBaseline();
-    }, [profile, isGuest]);
+    }, [profile?.user_id, isGuest]);
 
     // Calculate Canonical Name (must be before early returns per Rules of Hooks)
     const canonicalName = useMemo(() => {
@@ -676,7 +656,7 @@ export const WorkoutDetail: React.FC = () => {
                                     if (window.confirm('Unlink this template from the workout?')) {
                                         try {
                                             if (!dbId) {
-                                                alert('Database ID not available');
+                                                toast.error('Database ID not available');
                                                 return;
                                             }
                                             await workoutService.linkWorkoutToTemplate(dbId, null);
@@ -686,7 +666,7 @@ export const WorkoutDetail: React.FC = () => {
                                             }
                                         } catch (err) {
                                             console.error('Failed to unlink template:', err);
-                                            alert('Failed to unlink template');
+                                            toast.error('Failed to unlink template');
                                         }
                                     }
                                 }}
@@ -722,7 +702,7 @@ export const WorkoutDetail: React.FC = () => {
                             <button
                                 onClick={async () => {
                                     if (!dbId) {
-                                        alert('Database ID not available');
+                                        toast.error('Database ID not available');
                                         return;
                                     }
                                     const templateId = suggestedTemplates[0].id;
@@ -735,7 +715,7 @@ export const WorkoutDetail: React.FC = () => {
                                         setSuggestedTemplates([]);
                                     } catch (err) {
                                         console.error('Failed to link template:', err);
-                                        alert('Failed to link template');
+                                        toast.error('Failed to link template');
                                     } finally {
                                         setLinkingTemplateId(null);
                                     }
@@ -813,7 +793,7 @@ export const WorkoutDetail: React.FC = () => {
                             <button
                                 onClick={async () => {
                                     if (!dbId || !detail || !profile?.user_id) {
-                                        alert('Unable to apply — missing data');
+                                        toast.error('Unable to apply — missing data');
                                         return;
                                     }
                                     setApplyingWarmup(true);
@@ -849,7 +829,7 @@ export const WorkoutDetail: React.FC = () => {
                                         setWarmupDetection(null);
                                     } catch (err) {
                                         console.error('Failed to apply warmup/cooldown:', err);
-                                        alert('Failed to apply — please try again');
+                                        toast.error('Failed to apply — please try again');
                                     } finally {
                                         setApplyingWarmup(false);
                                     }
@@ -1253,7 +1233,7 @@ export const WorkoutDetail: React.FC = () => {
                                 console.log('Template created and linked successfully!');
                             } catch (err) {
                                 console.error('Failed to link workout to template:', err);
-                                alert('Template created but failed to link to this workout');
+                                toast.error('Template created but failed to link to this workout');
                             }
                         } else if (saved && linkedTemplate) {
                             // If editing existing template, just refresh the template data
@@ -1342,7 +1322,7 @@ export const WorkoutDetail: React.FC = () => {
                                                 key={template.id}
                                                 onClick={async () => {
                                                     if (!dbId) {
-                                                        alert('Database ID not available');
+                                                        toast.error('Database ID not available');
                                                         return;
                                                     }
                                                     try {
@@ -1356,7 +1336,7 @@ export const WorkoutDetail: React.FC = () => {
                                                         console.log('Template linked successfully!');
                                                     } catch (err) {
                                                         console.error('Failed to link template:', err);
-                                                        alert('Failed to link template');
+                                                        toast.error('Failed to link template');
                                                     }
                                                 }}
                                                 className="w-full text-left bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded-lg p-4 transition-colors group"

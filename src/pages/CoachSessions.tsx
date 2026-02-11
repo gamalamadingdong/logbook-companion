@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { Plus, Trash2, Activity, UserMinus, LayoutGrid, List as ListIcon, GripVertical, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { CoachingNav } from '../components/coaching/CoachingNav';
+import { toast } from 'sonner';
 import {
     DndContext,
     DragOverlay,
@@ -474,7 +475,7 @@ export const CoachSessions: React.FC = () => {
                                             <button
                                                 onClick={async () => {
                                                     const { error } = await supabase.from('erg_sessions').update({ race_state: 8 }).eq('id', selectedSessionId);
-                                                    if (error) { console.error('SET failed:', error); alert('Failed to set race state'); }
+                                                    if (error) { console.error('SET failed:', error); toast.error('Failed to set race state'); }
                                                 }}
                                                 className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm font-bold border border-neutral-700 transition-colors"
                                             >
@@ -483,7 +484,7 @@ export const CoachSessions: React.FC = () => {
                                             <button
                                                 onClick={async () => {
                                                     const { error } = await supabase.from('erg_sessions').update({ race_state: 9 }).eq('id', selectedSessionId);
-                                                    if (error) { console.error('GO failed:', error); alert('Failed to set race state'); }
+                                                    if (error) { console.error('GO failed:', error); toast.error('Failed to set race state'); }
                                                 }}
                                                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-colors"
                                             >
@@ -492,7 +493,7 @@ export const CoachSessions: React.FC = () => {
                                             <button
                                                 onClick={async () => {
                                                     const { error } = await supabase.from('erg_sessions').update({ race_state: 10 }).eq('id', selectedSessionId);
-                                                    if (error) { console.error('False Start failed:', error); alert('Failed to set race state'); }
+                                                    if (error) { console.error('False Start failed:', error); toast.error('Failed to set race state'); }
                                                 }}
                                                 className="px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg text-xs font-medium border border-red-900/50 transition-colors"
                                             >
@@ -606,4 +607,3 @@ export const CoachSessions: React.FC = () => {
         </>
     );
 };
-

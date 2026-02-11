@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { MessageSquare, Bug, Lightbulb, MessageCircle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface FeedbackItem {
     id: string;
@@ -20,17 +21,15 @@ interface UserProfile {
     email?: string;
 }
 
-const ADMIN_USER_ID = '93c46300-57eb-48c8-b35c-cc49c76cfa66';
-
 export const Feedback: React.FC = () => {
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
     const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'new' | 'reviewed' | 'resolved'>('all');
 
     // Admin-only page
-    if (!user || user.id !== ADMIN_USER_ID) {
+    if (!user || !isAdmin) {
         return <Navigate to="/" replace />;
     }
 
@@ -117,7 +116,7 @@ export const Feedback: React.FC = () => {
             setReplyingTo(null);
         } catch (error) {
             console.error('Failed to save response:', error);
-            alert('Failed to save response');
+            toast.error('Failed to save response');
         }
     };
 

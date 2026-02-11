@@ -7,6 +7,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { ZONES, splitToWatts } from '../utils/zones';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
+import { toast } from 'sonner';
 
 export const WorkoutHistory: React.FC = () => {
     const { name } = useParams<{ name: string }>();
@@ -398,7 +399,7 @@ export const WorkoutHistory: React.FC = () => {
                                                         const workoutIds = history.map(h => h.db_id).filter(Boolean);
 
                                                         if (workoutIds.length === 0) {
-                                                            alert('No workout database IDs found');
+                                                            toast.error('No workout database IDs found');
                                                             return;
                                                         }
 
@@ -410,11 +411,11 @@ export const WorkoutHistory: React.FC = () => {
 
                                                         if (error) throw error;
 
-                                                        alert(`Successfully linked ${workoutIds.length} workouts to "${template.name}"`);
+                                                        toast.success(`Successfully linked ${workoutIds.length} workouts to "${template.name}"`);
                                                         setShowTemplateLinking(false);
                                                     } catch (err) {
                                                         console.error('Failed to link templates:', err);
-                                                        alert('Failed to link templates. See console for details.');
+                                                        toast.error('Failed to link templates. See console for details.');
                                                     } finally {
                                                         setLinking(false);
                                                     }

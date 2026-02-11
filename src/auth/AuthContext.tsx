@@ -20,10 +20,13 @@ interface AuthContextType {
   loginAsGuest?: () => Promise<void>
   isGuest?: boolean
   isCoach: boolean
+  isAdmin: boolean
   refreshProfile: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null)
+
+const ADMIN_USER_ID = '93c46300-57eb-48c8-b35c-cc49c76cfa66';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -267,6 +270,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, fetchProfile]);
 
+  const isAdmin = user?.id === ADMIN_USER_ID;
+
   const value = {
     user,
     profile,
@@ -281,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginAsGuest,
     isGuest: user?.id === 'guest_user_123',
     isCoach: Array.isArray(profile?.roles) && profile.roles.includes('coach'),
+    isAdmin,
     refreshProfile,
     // Compat
     isAuthenticated: !!session,
