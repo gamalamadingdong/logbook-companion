@@ -21,7 +21,7 @@ import DownloadC2Data from './pages/DownloadC2Data';
 import { CoachDashboard } from './pages/coaching/CoachDashboard';
 import { CoachingRoster } from './pages/coaching/CoachingRoster';
 import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
-import { CoachingLog } from './pages/coaching/CoachingLog';
+// CoachingLog merged into CoachingSchedule
 import { CoachingErgScores } from './pages/coaching/CoachingErgScores';
 import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 
@@ -174,11 +174,7 @@ function App() {
           />
           <Route
             path="/coaching/log"
-            element={
-              <CoachRoute>
-                <CoachingLog />
-              </CoachRoute>
-            }
+            element={<Navigate to="/coaching/schedule" replace />}
           />
           <Route
             path="/coaching/ergs"

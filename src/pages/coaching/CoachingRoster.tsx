@@ -14,6 +14,7 @@ import {
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
 import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
+import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingRoster() {
   const { user } = useAuth();
@@ -64,6 +65,8 @@ export function CoachingRoster() {
   };
 
   return (
+    <>
+    <CoachingNav />
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
@@ -213,6 +216,7 @@ export function CoachingRoster() {
         </div>
       )}
     </div>
+    </>
   );
 }
 

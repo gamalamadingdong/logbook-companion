@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { Plus, Trash2, Activity, UserMinus, LayoutGrid, List as ListIcon, GripVertical, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { CoachingNav } from '../components/coaching/CoachingNav';
 import {
     DndContext,
     DragOverlay,
@@ -323,6 +324,8 @@ export const CoachSessions: React.FC = () => {
 
 
     return (
+        <>
+        <CoachingNav />
         <div className="min-h-screen bg-neutral-950 p-6 md:p-12">
             {/* Modal ... */}
             {workoutModalOpen && (
@@ -600,6 +603,7 @@ export const CoachSessions: React.FC = () => {
                 </div>
             </div>
         </div>
+        </>
     );
 };
 

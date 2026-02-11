@@ -1,11 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Calendar, ClipboardList, Gauge, Ship, Radio } from 'lucide-react';
+import { Users, Calendar, Gauge, Ship, Radio } from 'lucide-react';
 
 const sections = [
   { path: '/coaching/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
-  { path: '/coaching/schedule', label: 'Schedule', icon: Calendar, description: 'Practice calendar' },
-  { path: '/coaching/log', label: 'Training Log', icon: ClipboardList, description: 'Session notes' },
+  { path: '/coaching/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
   { path: '/coaching/ergs', label: 'Erg Scores', icon: Gauge, description: 'Test results' },
   { path: '/coaching/boatings', label: 'Boatings', icon: Ship, description: 'Lineups' },
   { path: '/coaching/live', label: 'Live Sessions', icon: Radio, description: 'Real-time monitoring' },

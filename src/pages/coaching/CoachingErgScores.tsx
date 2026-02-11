@@ -11,6 +11,7 @@ import {
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
 import { Plus, X, TrendingUp, TrendingDown, Minus, Loader2, Trash2 } from 'lucide-react';
+import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingErgScores() {
   const { user } = useAuth();
@@ -70,8 +71,9 @@ export function CoachingErgScores() {
   }, {} as Record<string, CoachingErgScore[]>);
 
   return (
+    <>
+    <CoachingNav />
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -201,6 +203,7 @@ export function CoachingErgScores() {
         <AddScoreForm athletes={athletes} onSave={handleAddScore} onCancel={() => setIsAdding(false)} />
       )}
     </div>
+    </>
   );
 }
 
