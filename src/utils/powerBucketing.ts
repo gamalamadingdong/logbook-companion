@@ -1,22 +1,22 @@
 
 import type { C2Interval, C2Stroke } from '../api/concept2.types';
-import { getWorkStrokes } from './zones'; // Import the new helper
+import { getWorkStrokes } from './zones';
+import { calculateWattsFromSplit } from './paceCalculator';
 
 export interface PowerBucket {
     watts: number; // Floor of bucket (150, 155, 160)
     seconds: number;
 }
 
+/**
+ * Convert C2 stroke pace (deciseconds per 500m) to watts.
+ * NOTE: C2 API stroke.p is in deciseconds (e.g. 1179 = 1:57.9).
+ * The /10 conversion happens here at the boundary.
+ * Canonical formula lives in paceCalculator.ts.
+ */
 export const paceToWatts = (paceVal: number): number => {
-    // paceVal is "time per 500m" in 0.1s units (e.g. 1179 = 1:57.9)
     if (paceVal <= 0) return 0;
-
-    const paceSeconds = paceVal / 10; // 117.9
-    const timePerMeter = paceSeconds / 500;
-    // C2 Formula: Watts = 2.80 / (sec/m)^3
-    const watts = 2.80 / Math.pow(timePerMeter, 3);
-
-    return Math.round(watts);
+    return Math.round(calculateWattsFromSplit(paceVal / 10));
 };
 
 export const calculatePowerBuckets = (strokes: C2Stroke[], intervals?: C2Interval[]): Record<string, number> => {

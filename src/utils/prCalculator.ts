@@ -1,5 +1,6 @@
 import type { C2ResultDetail, C2Interval } from '../api/concept2.types';
 import { calculateCanonicalName, detectIntervalsFromStrokes, formatRest } from './workoutNaming';
+import { calculateWattsFromSplit, calculateSplitFromWatts } from './paceCalculator';
 
 // Standard rowing distances to track PRs for
 export const PR_DISTANCES = [
@@ -21,16 +22,27 @@ export const BENCHMARK_PATTERNS = [
     '4x500m', '8x500m', '4x1000m', '5x1500m', '4x2000m', '30:00'
 ];
 
+/**
+ * Time-based standard tests (distance varies per athlete).
+ * Kept separate from PR_DISTANCES to avoid breaking distance-matching logic.
+ */
+export const TIME_BASED_TESTS = [
+    { seconds: 60, label: '1:00 Test', shortLabel: '1:00' },
+    { seconds: 1800, label: '30:00 Test', shortLabel: '30:00' },
+];
+
 export interface PRRecord {
     distance: number;
     label: string;
     shortLabel: string;
     time: number; // seconds
     pace: number; // seconds per 500m
+    watts: number; // computed from pace
     date: string;
     workoutId: string;
     isInterval?: boolean;
     intervalPattern?: string;
+    isTimeBased?: boolean; // true for 1:00, 30:00 tests
     source?: 'distance' | 'interval_split' | 'interval_session';
 }
 
@@ -53,20 +65,21 @@ export function formatPace(paceSeconds: number): string {
 }
 
 /**
- * Calculate Watts from Pace (seconds/500m)
- * Formula: Watts = 2.80 / ((pace/500)^3)
+ * Calculate Watts from Pace (seconds/500m).
+ * Rounds to integer for display. Canonical formula in paceCalculator.ts.
  */
 export function calculateWatts(paceSeconds: number): number {
     if (!paceSeconds) return 0;
-    const pacePerMeter = paceSeconds / 500;
-    // C2 formula: Watts = 2.80 / (pace_per_meter ^ 3)
-    return Math.round(2.80 / Math.pow(pacePerMeter, 3));
+    return Math.round(calculateWattsFromSplit(paceSeconds));
 }
 
-// Inverse: Watts to Pace (seconds per 500m)
+/**
+ * Inverse: Watts to Pace (seconds per 500m).
+ * Canonical formula in paceCalculator.ts.
+ */
 export function calculatePaceFromWatts(watts: number): number {
     if (!watts) return 0;
-    return 500 * Math.pow(2.80 / watts, 1.0 / 3.0);
+    return calculateSplitFromWatts(watts);
 }
 
 
@@ -219,12 +232,14 @@ export function calculatePRs(workouts: any[]): PRRecord[] {
     for (const [meters, { workout, time }] of distanceBests) {
         const distInfo = PR_DISTANCES.find(d => d.meters === meters);
         if (distInfo) {
+            const pace = (time / meters) * 500;
             prs.push({
                 distance: meters,
                 label: distInfo.label,
                 shortLabel: distInfo.shortLabel,
                 time,
-                pace: (time / meters) * 500,
+                pace,
+                watts: calculateWatts(pace),
                 date: workout.completed_at,
                 workoutId: workout.id,
                 source: workout.is_split_pr ? 'interval_split' : 'distance'
@@ -240,6 +255,7 @@ export function calculatePRs(workouts: any[]): PRRecord[] {
             shortLabel: label,
             time: workout.duration_seconds || (workout.duration_minutes * 60),
             pace: avgSplit,
+            watts: calculateWatts(avgSplit),
             date: workout.completed_at,
             workoutId: workout.id,
             isInterval: true,

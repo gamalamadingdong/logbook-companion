@@ -1,4 +1,5 @@
 import type { C2Stroke, C2Split, C2Interval, C2ResultDetail } from '../api/concept2.types';
+import { calculateWattsFromSplit, calculateSplitFromWatts } from './paceCalculator';
 
 export type TrainingZone = 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN';
 
@@ -20,15 +21,15 @@ export const ZONES: ZoneDefinition[] = [
     { id: 'AN', label: 'AN (Anaerobic)', minPct: 1.05, maxPct: 2.00, color: '#ef4444', description: 'Sprints (Max effort)' }          // > 105%
 ];
 
-// Split <-> Watts Conversion
+// Split <-> Watts Conversion (canonical source: paceCalculator.ts)
 export const splitToWatts = (splitSeconds: number): number => {
     if (splitSeconds <= 0) return 0;
-    return 2.8 / Math.pow(splitSeconds / 500, 3);
+    return calculateWattsFromSplit(splitSeconds);
 };
 
 export const wattsToSplit = (watts: number): number => {
     if (watts <= 0) return 0;
-    return 500 * Math.pow(2.8 / watts, 1 / 3);
+    return calculateSplitFromWatts(watts);
 };
 
 export const formatSplit = (seconds: number): string => {

@@ -13,6 +13,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 import { WeeklyReport } from '../components/analytics/WeeklyReport';
 import { SteadyStateAnalysis } from '../components/analytics/SteadyStateAnalysis';
+import { PowerProfileTab } from '../components/analytics/PowerProfileTab';
 
 import { useAuth } from '../hooks/useAuth';
 import { getUserBaseline2kWatts } from '../utils/paceCalculator';
@@ -56,7 +57,7 @@ const AnalyticsSkeleton: React.FC = () => (
 
 export const Analytics: React.FC = () => {
     const { profile, loading: authLoading, isGuest } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'records' | 'steadystate'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'records' | 'steadystate' | 'powerprofile'>('overview');
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
     const [showReport, setShowReport] = useState(false);
@@ -385,6 +386,12 @@ export const Analytics: React.FC = () => {
                     >
                         Steady State
                     </button>
+                    <button
+                        onClick={() => setActiveTab('powerprofile')}
+                        className={`pb-3 px-1 text-lg font-medium transition-colors ${activeTab === 'powerprofile' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-neutral-400 hover:text-neutral-200'}`}
+                    >
+                        Power Profile
+                    </button>
                 </div>
 
                 {activeTab === 'overview' && (
@@ -398,8 +405,8 @@ export const Analytics: React.FC = () => {
                                 workouts={workouts}
                                 initialGoals={isGuest ? goals : undefined}
                                 initialPRs={isGuest ? [
-                                    { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance' },
-                                    { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
+                                    { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance', watts: 302 },
+                                    { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance', watts: 237 }
                                 ] : undefined}
                             />
                         )}
@@ -783,6 +790,11 @@ export const Analytics: React.FC = () => {
                 <div className="bg-neutral-900/30 border border-neutral-800/50 rounded-2xl p-6 mt-6">
                     <SteadyStateAnalysis baselineWatts={baselineWatts} />
                 </div>
+            )}
+
+            {/* Power Profile Section */}
+            {activeTab === 'powerprofile' && (
+                <PowerProfileTab baselineWatts={baselineWatts} />
             )}
         </div>
     );

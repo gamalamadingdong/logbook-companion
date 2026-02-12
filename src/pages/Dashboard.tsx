@@ -208,8 +208,8 @@ export const Dashboard: React.FC = () => {
                                     workouts={recentWorkouts}
                                     initialGoals={userGoals}
                                     initialPRs={isGuest ? [
-                                        { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance' },
-                                        { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
+                                        { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance', watts: 302 },
+                                        { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance', watts: 237 }
                                     ] : undefined}
                                 />
                             )}
