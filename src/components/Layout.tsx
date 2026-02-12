@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, Dumbbell, BookOpen, Users } from 'lucide-react';
+import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { supabase } from '../services/supabase';
@@ -44,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/', label: 'Log Dashboard', icon: Home },
         { path: '/analytics', label: 'Analysis', icon: TrendingUp },
         { path: '/sync', label: 'Sync Data', icon: Database },
-        { path: '/templates', label: 'Library', icon: Dumbbell },
+        { path: '/templates', label: 'Library', icon: Library },
         { path: '/preferences', label: 'Settings', icon: Settings },
         ...(isCoach ? [
             { path: '/coaching', label: 'Coaching', icon: Users },
@@ -131,6 +131,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="p-4 border-t border-neutral-800 space-y-2">
                     {user && !localStorage.getItem('concept2_token') && (
                         <button
+                            type="button"
                             onClick={() => {
                                 const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
                                 const redirect_uri = `${window.location.origin}/callback`;
@@ -145,6 +146,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     )}
                     {user ? (
                         <button
+                            type="button"
                             onClick={() => logout()}
                             className="flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
                         >
@@ -172,17 +174,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Mobile Header */}
             <div className="md:hidden flex items-center justify-between p-4 bg-neutral-900 border-b border-neutral-800 sticky top-0 z-50">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-sm border border-emerald-500/20">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-sm border border-emerald-500/20 shrink-0">
                         {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-bold text-lg truncate max-w-[200px]">
+                    <span className="font-bold text-lg truncate">
                         {profile?.display_name || 'Logbook Companion'}
                     </span>
                 </div>
                 <button
+                    type="button"
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="p-2 text-neutral-400 hover:text-white"
+                    className="p-2 text-neutral-400 hover:text-white shrink-0"
+                    aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                 >
                     {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
@@ -190,8 +194,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="md:hidden fixed inset-0 z-40 bg-neutral-950/95 pt-20 px-6 backdrop-blur-sm animate-in fade-in slide-in-from-top-4 duration-200">
-                    <nav className="space-y-4">
+                <div className="md:hidden fixed inset-0 z-40 bg-neutral-950/95 pt-20 px-6 backdrop-blur-sm animate-in fade-in slide-in-from-top-4 duration-200 overflow-y-auto">
+                    <nav className="space-y-4 pb-8">
                         {links.map(link => {
                             const Icon = link.icon;
                             return (
@@ -210,6 +214,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                             );
                         })}
                         <button
+                            type="button"
                             onClick={() => {
                                 setMobileMenuOpen(false);
                                 logout();
@@ -230,12 +235,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Floating Feedback Button */}
             <button
+                type="button"
                 onClick={() => setFeedbackOpen(true)}
-                className="fixed bottom-6 right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center gap-2 group"
+                className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-3 md:p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center gap-2 group"
                 title="Send Feedback"
             >
-                <MessageSquare size={24} />
-                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 whitespace-nowrap">
+                <MessageSquare size={20} className="md:w-6 md:h-6" />
+                <span className="hidden md:inline max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 whitespace-nowrap">
                     Feedback
                 </span>
             </button>

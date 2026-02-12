@@ -13,6 +13,8 @@ import type {
   CoachingErgScore,
   CoachingBoating,
   BoatPosition,
+  CoachingWeeklyPlan,
+  WeeklyPlanInput,
 } from './types';
 
 // Re-export types for convenience
@@ -29,6 +31,8 @@ export type {
   CoachingErgScore,
   CoachingBoating,
   BoatPosition,
+  CoachingWeeklyPlan,
+  WeeklyPlanInput,
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -492,4 +496,51 @@ export async function duplicateBoating(
     positions: source.positions,
     notes: `Copied from ${source.date}`,
   });
+}
+
+// ─── Weekly Plans ───────────────────────────────────────────────────────────
+
+/** Get the Monday of the week containing the given date */
+export function getWeekStart(date: Date = new Date()): string {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ...
+  const diff = day === 0 ? -6 : 1 - day; // roll back to Monday
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Fetch weekly plan for a specific week (by week_start date) */
+export async function getWeeklyPlan(
+  teamId: string,
+  weekStart: string
+): Promise<CoachingWeeklyPlan | null> {
+  const { data, error } = await supabase
+    .from('coaching_weekly_plans')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('week_start', weekStart)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Upsert a weekly plan (insert or update on team_id + week_start) */
+export async function upsertWeeklyPlan(
+  input: WeeklyPlanInput
+): Promise<CoachingWeeklyPlan> {
+  return throwOnError(
+    await supabase
+      .from('coaching_weekly_plans')
+      .upsert(input, { onConflict: 'team_id,week_start' })
+      .select()
+      .single()
+  );
+}
+
+/** Delete a weekly plan */
+export async function deleteWeeklyPlan(id: string): Promise<void> {
+  throwOnError(
+    await supabase.from('coaching_weekly_plans').delete().eq('id', id)
+  );
 }

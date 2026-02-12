@@ -12,6 +12,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  getWeekStart,
   type CoachingSession,
   type CoachingAthlete,
   type CoachingAthleteNote,
@@ -32,11 +33,14 @@ import {
   isToday as isDateToday,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays } from 'lucide-react';
+import { WeeklyFocusBanner } from '../../components/coaching/WeeklyFocusBanner';
+import { useNavigate } from 'react-router-dom';
 
 type ViewMode = 'week' | 'month';
 
 export function CoachingSchedule() {
   const { userId, teamId, isLoadingTeam } = useCoachingContext();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -148,17 +152,18 @@ export function CoachingSchedule() {
   return (
     <>
     <CoachingNav />
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h1 className="text-2xl font-bold text-white">Schedule</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* View mode toggle */}
             <div className="flex items-center bg-neutral-800 rounded-lg p-1">
               <button
+                type="button"
                 onClick={() => setViewMode('week')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   viewMode === 'week'
                     ? 'bg-indigo-600 text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
@@ -168,8 +173,9 @@ export function CoachingSchedule() {
                 Week
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode('month')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   viewMode === 'month'
                     ? 'bg-indigo-600 text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
@@ -181,35 +187,35 @@ export function CoachingSchedule() {
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center gap-2">
-              <button onClick={() => {
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button type="button" onClick={() => {
                 setIsLoading(true);
                 if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
                 else setCurrentMonth(subMonths(currentMonth, 1));
               }}
-                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
+                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
                 <ChevronLeft className="w-5 h-5 text-neutral-400" />
               </button>
-              <span className="text-lg font-semibold min-w-[200px] text-center px-4 py-2 bg-neutral-800 rounded-lg text-white">
+              <span className="text-sm sm:text-lg font-semibold text-center flex-1 sm:flex-initial sm:min-w-[200px] px-2 sm:px-4 py-2 bg-neutral-800 rounded-lg text-white truncate">
                 {viewMode === 'week'
                   ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
                   : format(currentMonth, 'MMMM yyyy')
                 }
               </span>
-              <button onClick={() => {
+              <button type="button" onClick={() => {
                 setIsLoading(true);
                 if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
                 else setCurrentMonth(addMonths(currentMonth, 1));
               }}
-                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title={viewMode === 'week' ? 'Next week' : 'Next month'}>
+                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" title={viewMode === 'week' ? 'Next week' : 'Next month'}>
                 <ChevronRight className="w-5 h-5 text-neutral-400" />
               </button>
-              <button onClick={() => {
+              <button type="button" onClick={() => {
                 setIsLoading(true);
                 setCurrentWeek(new Date());
                 setCurrentMonth(new Date());
               }}
-                className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium">
+                className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium shrink-0">
                 Today
               </button>
             </div>
@@ -235,6 +241,14 @@ export function CoachingSchedule() {
       {/* ── Weekly View ──────────────────────────────────────────────── */}
       {viewMode === 'week' && (
         <div className="space-y-3">
+          {/* Weekly Focus Banner */}
+          {teamId && (
+            <WeeklyFocusBanner
+              teamId={teamId}
+              weekStart={getWeekStart(startOfWeek(currentWeek, { weekStartsOn: 1 }))}
+              onEdit={() => navigate('/coaching')}
+            />
+          )}
           {weekDays.map((day) => {
             const daySessions = getSessionsForDay(day);
             const today = isDateToday(day);

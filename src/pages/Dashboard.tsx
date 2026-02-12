@@ -3,10 +3,11 @@ import { useAuth } from '../hooks/useAuth';
 import { RecentWorkouts } from '../components/RecentWorkouts';
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
-import { Waves, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Waves, Link as LinkIcon, AlertCircle, RefreshCw } from 'lucide-react';
 import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
 import { splitToWatts } from '../utils/zones';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { SectionError } from '../components/SectionError';
 
 const DashboardSkeleton: React.FC = () => (
     <div className="min-h-screen bg-neutral-900 text-white p-8">
@@ -41,7 +42,9 @@ export const Dashboard: React.FC = () => {
         totalMeters,
         loading,
         workoutsLoading,
-        error,
+        errors,
+        hasErrors,
+        retry,
         fetchRecentWorkouts
     } = useDashboardData();
 
@@ -146,13 +149,17 @@ export const Dashboard: React.FC = () => {
                         </div>
                     )}
 
-                    {error && (
-                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-start gap-3 text-red-200">
-                            <AlertCircle size={20} className="text-red-500 mt-0.5" />
-                            <div>
-                                <h3 className="font-semibold">Dashboard load issue</h3>
-                                <p className="text-sm text-red-200/70">{error}</p>
-                            </div>
+                    {hasErrors && (
+                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-center gap-3 text-red-200">
+                            <AlertCircle size={20} className="text-red-500 shrink-0" />
+                            <span className="text-sm flex-1">Some sections couldn't load. Check below for details.</span>
+                            <button
+                                onClick={retry}
+                                className="flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                                <RefreshCw size={12} />
+                                Retry All
+                            </button>
                         </div>
                     )}
 
@@ -166,28 +173,46 @@ export const Dashboard: React.FC = () => {
 
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
                             <div className="text-neutral-400 text-sm mb-1">Lifetime Meters</div>
-                            <div className="text-4xl font-bold text-emerald-400">
-                                {totalMeters.toLocaleString()} <span className="text-lg font-normal text-neutral-500">m</span>
-                            </div>
+                            {errors.meters ? (
+                                <SectionError message={errors.meters} onRetry={retry} compact />
+                            ) : (
+                                <div className="text-4xl font-bold text-emerald-400">
+                                    {totalMeters.toLocaleString()} <span className="text-lg font-normal text-neutral-500">m</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Week at a Glance */}
                     <div className="mb-8">
-                        <WeekAtAGlanceWidget workouts={statsHistory} baselineWatts={derivedBaselineWatts} />
+                        {errors.history ? (
+                            <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
+                                <div className="text-neutral-400 text-sm mb-3">Week at a Glance</div>
+                                <SectionError message={errors.history} onRetry={retry} />
+                            </div>
+                        ) : (
+                            <WeekAtAGlanceWidget workouts={statsHistory} baselineWatts={derivedBaselineWatts} />
+                        )}
                     </div>
 
                     {user && (
                         <>
-                            <GoalProgressWidget
-                                userId={user.id}
-                                workouts={recentWorkouts}
-                                initialGoals={userGoals}
-                                initialPRs={isGuest ? [
-                                    { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance' },
-                                    { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
-                                ] : undefined}
-                            />
+                            {errors.goals ? (
+                                <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50">
+                                    <div className="text-neutral-400 text-sm mb-3">Goal Progress</div>
+                                    <SectionError message={errors.goals} onRetry={retry} />
+                                </div>
+                            ) : (
+                                <GoalProgressWidget
+                                    userId={user.id}
+                                    workouts={recentWorkouts}
+                                    initialGoals={userGoals}
+                                    initialPRs={isGuest ? [
+                                        { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance' },
+                                        { label: '5k', pace: 114, date: '', distance: 5000, workoutId: 'mock2', time: 1140, shortLabel: '5k', source: 'distance' }
+                                    ] : undefined}
+                                />
+                            )}
                             {/* Check preference, default to true */}
                             {userProfile?.preferences?.show_recommended_workouts !== false && (
                                 <TrainingSuggestionsWidget
@@ -201,14 +226,20 @@ export const Dashboard: React.FC = () => {
 
 
                     {/* Recent Workouts List (Paginated) */}
-                    {/* Render even if no profile, but need user ID for legacy or just consistency */}
-                    <RecentWorkouts
-                        workouts={recentWorkouts}
-                        currentPage={page}
-                        isLoading={workoutsLoading}
-                        hasMore={recentWorkouts.length === LIMIT}
-                        onPageChange={handlePageChange}
-                    />
+                    {errors.workouts ? (
+                        <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6">
+                            <div className="text-neutral-400 text-sm mb-3">Recent Workouts</div>
+                            <SectionError message={errors.workouts} onRetry={() => fetchRecentWorkouts(page)} />
+                        </div>
+                    ) : (
+                        <RecentWorkouts
+                            workouts={recentWorkouts}
+                            currentPage={page}
+                            isLoading={workoutsLoading}
+                            hasMore={recentWorkouts.length === LIMIT}
+                            onPageChange={handlePageChange}
+                        />
+                    )}
                 </main>
             </div>
         </div>

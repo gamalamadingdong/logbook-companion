@@ -1,19 +1,20 @@
 import React from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Users, Calendar, Loader2 } from 'lucide-react';
+import { Users, Calendar, Loader2, Trophy, Activity } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
-import { ErgIcon, RowingShellIcon, CoxboxIcon } from '../../components/icons/RowingIcons';
+import { RowingShellIcon } from '../../components/icons/RowingIcons';
+import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
 
 const sections = [
   { path: '/coaching/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
   { path: '/coaching/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
-  { path: '/coaching/ergs', label: 'Erg Scores', icon: ErgIcon, description: 'Test results' },
+  { path: '/coaching/ergs', label: 'Erg Scores', icon: Trophy, description: 'Test results' },
   { path: '/coaching/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
-  { path: '/coaching/live', label: 'Live Sessions', icon: CoxboxIcon, description: 'Real-time monitoring' },
+  { path: '/coaching/live', label: 'Live Sessions', icon: Activity, description: 'Real-time monitoring' },
 ];
 
 export const CoachDashboard: React.FC = () => {
-  const { hasTeam, isLoadingTeam } = useCoachingContext();
+  const { hasTeam, isLoadingTeam, teamId, userId } = useCoachingContext();
 
   if (isLoadingTeam) {
     return (
@@ -29,11 +30,18 @@ export const CoachDashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white">Coaching</h1>
         <p className="text-neutral-400 mt-1">Manage your team, schedule, and lineups.</p>
       </div>
+
+      {/* Weekly Focus */}
+      {teamId && (
+        <div className="mb-6">
+          <WeeklyFocusCard teamId={teamId} userId={userId} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {sections.map(({ path, label, icon: Icon, description }) => (

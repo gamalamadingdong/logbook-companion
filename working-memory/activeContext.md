@@ -1,8 +1,8 @@
 # Active Context
 
-> Last updated: 2026-02-11
+> Last updated: 2026-02-12
 
-## Current Focus: Application Audit — Sprint 1 Bug Fixes ✅ COMPLETE
+## Current Focus: Sprint 3 Wrap-up & Pre-Season Prep
 
 ### Sprint 1: Critical Bug Fixes (2026-02-11) ✅ COMPLETE
 
@@ -44,8 +44,8 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - [x] Extract baseline watts utility (duplicated in Analytics + WorkoutDetail)
 - [x] Centralize `isAdmin` in AuthContext (replace hardcoded UUID checks)
 
-### Sprint 3: Robustness & Data Quality
-- [ ] Dashboard: handle service errors gracefully (show error states, not silent fail)
+### Sprint 3: Robustness & Data Quality ✅ COMPLETE
+- [x] Dashboard: handle service errors gracefully (show error states, not silent fail)
 - [x] C2 token refresh: proactive refresh before expiry, not just on 401 (see `src/api/concept2.ts`)
 - [x] Template matching: surface unmatched workouts to user (WorkoutDetail suggestion banners)
 - [x] Sync: add progress indicator (X of Y workouts)
@@ -55,6 +55,11 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - [x] Empty states for all list pages (no workouts, no templates, etc.)
 - [x] Remove `console.log` statements from production code
 - [x] Mobile nav: highlight active tab
+
+### Recent Changes
+- **Dashboard error handling (Sprint 3 complete)**: Refactored `useDashboardData` to track per-section errors independently. Created reusable `SectionError` component. Each dashboard section (meters, goals, history, workouts, C2 profile) now fails gracefully with inline error + retry, instead of one generic banner. `retry()` function exposed for "Retry All".
+- **Weekly Focus card**: New `coaching_weekly_plans` table (migration in `db/migrations/`). `WeeklyFocusCard` on CoachDashboard — set/edit weekly theme, focus points (bullet list), and notes. Week navigation with prev/next. Integrated via `upsertWeeklyPlan()` (upsert on team_id + week_start). Migration needs manual execution in Supabase.
+- **Icon overhaul (feature/rowing-icons branch)**: RowingShellIcon (top-down 8+), ErgIcon (C2 motif), CoxboxIcon (pulse waveform). Nav swapped to Lucide: Ergs=Trophy, Live=Activity, Library=Library. Dead code: ErgIcon/CoxboxIcon exports in RowingIcons.tsx no longer imported.
 
 ---
 

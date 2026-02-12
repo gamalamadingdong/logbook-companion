@@ -124,3 +124,29 @@ export interface BoatPosition {
   seat: number; // 0 = cox, 1 = bow, N = stroke
   athlete_id: string;
 }
+
+// ─── Weekly Plans ───────────────────────────────────────────────────────────
+
+export interface CoachingWeeklyPlan {
+  id: string;
+  team_id: string;
+  week_start: string; // ISO date — Monday of the target week
+  theme?: string | null;
+  focus_points: string[];
+  notes?: string | null;
+  reflection?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Shape for creating/updating a weekly plan */
+export interface WeeklyPlanInput {
+  team_id: string;
+  week_start: string;
+  theme?: string | null;
+  focus_points: string[];
+  notes?: string | null;
+  reflection?: string | null;
+  created_by: string;
+}
