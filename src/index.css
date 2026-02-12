@@ -17,6 +17,30 @@ html.dark body {
 }
 
 @layer utilities {
+  /* ===================================================================
+   * LIGHT THEME OVERRIDES
+   * The app is built dark-first. These rules remap dark-mode utility
+   * classes to light-safe equivalents so components don't need
+   * conditional className logic.
+   *
+   * Palette philosophy (light mode):
+   *   Backgrounds:  neutral-950 → neutral-50 (page)
+   *                 neutral-900 → white      (cards / surfaces)
+   *                 neutral-800 → neutral-100 (secondary surfaces)
+   *                 neutral-700 → neutral-200 (tertiary / wells)
+   *   Text:         white/50/100 → neutral-900  (primary text)
+   *                 200          → neutral-800   (strong secondary)
+   *                 300          → neutral-700   (secondary)
+   *                 400          → neutral-500   (muted — 7:1 on white)
+   *                 500          → neutral-500   (unchanged — passes AA)
+   *   Accent text:  -200/-300    → -800          (strong accent text)
+   *                 -400         → -700          (accent text ≥ 7:1)
+   *                 -500         → -600          (buttons / links ≥ 5.5:1)
+   *   Accent bg:    -900/xx      → -50/xx or -100/xx (tinted surfaces)
+   * =================================================================== */
+
+  /* ── Page / Card Backgrounds ────────────────────────────────────── */
+
   html.light .bg-neutral-950 {
     @apply bg-neutral-50;
   }
@@ -93,6 +117,8 @@ html.dark body {
     @apply bg-neutral-200/70;
   }
 
+  /* ── Neutral Text ───────────────────────────────────────────────── */
+
   html.light .text-white,
   html.light .text-neutral-50 {
     @apply text-neutral-900;
@@ -111,8 +137,366 @@ html.dark body {
   }
 
   html.light .text-neutral-400 {
-    @apply text-neutral-600;
+    @apply text-neutral-500;
   }
+
+  /* ── Emerald (primary brand — athlete) ──────────────────────────── */
+
+  html.light .text-emerald-200 {
+    @apply text-emerald-800;
+  }
+
+  html.light .text-emerald-300 {
+    @apply text-emerald-800;
+  }
+
+  html.light .text-emerald-400 {
+    @apply text-emerald-700;
+  }
+
+  html.light .text-emerald-500 {
+    @apply text-emerald-600;
+  }
+
+  html.light .bg-emerald-900 {
+    @apply bg-emerald-50;
+  }
+
+  html.light .bg-emerald-900\/10,
+  html.light .bg-emerald-900\/20 {
+    @apply bg-emerald-50;
+  }
+
+  html.light .bg-emerald-900\/30,
+  html.light .bg-emerald-900\/40 {
+    @apply bg-emerald-100;
+  }
+
+  html.light .bg-emerald-500\/10 {
+    @apply bg-emerald-50;
+  }
+
+  html.light .bg-emerald-500\/20 {
+    @apply bg-emerald-100;
+  }
+
+  html.light .border-emerald-500\/20 {
+    @apply border-emerald-300;
+  }
+
+  html.light .border-emerald-500\/30 {
+    @apply border-emerald-300;
+  }
+
+  html.light .border-emerald-800 {
+    @apply border-emerald-200;
+  }
+
+  html.light .border-emerald-900 {
+    @apply border-emerald-200;
+  }
+
+  /* ── Indigo (coaching brand) ────────────────────────────────────── */
+
+  html.light .text-indigo-200 {
+    @apply text-indigo-800;
+  }
+
+  html.light .text-indigo-300 {
+    @apply text-indigo-800;
+  }
+
+  html.light .text-indigo-400 {
+    @apply text-indigo-700;
+  }
+
+  html.light .text-indigo-500 {
+    @apply text-indigo-600;
+  }
+
+  html.light .bg-indigo-900 {
+    @apply bg-indigo-50;
+  }
+
+  html.light .bg-indigo-900\/10,
+  html.light .bg-indigo-900\/20 {
+    @apply bg-indigo-50;
+  }
+
+  html.light .bg-indigo-900\/30,
+  html.light .bg-indigo-900\/40 {
+    @apply bg-indigo-100;
+  }
+
+  html.light .bg-indigo-500\/10 {
+    @apply bg-indigo-50;
+  }
+
+  html.light .bg-indigo-500\/20 {
+    @apply bg-indigo-100;
+  }
+
+  html.light .border-indigo-500\/20 {
+    @apply border-indigo-300;
+  }
+
+  html.light .border-indigo-500\/30 {
+    @apply border-indigo-300;
+  }
+
+  html.light .border-indigo-800 {
+    @apply border-indigo-200;
+  }
+
+  html.light .border-indigo-900 {
+    @apply border-indigo-200;
+  }
+
+  /* ── Blue (informational / secondary) ───────────────────────────── */
+
+  html.light .text-blue-200 {
+    @apply text-blue-800;
+  }
+
+  html.light .text-blue-300 {
+    @apply text-blue-800;
+  }
+
+  html.light .text-blue-400 {
+    @apply text-blue-700;
+  }
+
+  html.light .text-blue-500 {
+    @apply text-blue-600;
+  }
+
+  html.light .bg-blue-900 {
+    @apply bg-blue-50;
+  }
+
+  html.light .bg-blue-900\/10,
+  html.light .bg-blue-900\/20 {
+    @apply bg-blue-50;
+  }
+
+  html.light .bg-blue-900\/30,
+  html.light .bg-blue-900\/40 {
+    @apply bg-blue-100;
+  }
+
+  html.light .bg-blue-500\/10 {
+    @apply bg-blue-50;
+  }
+
+  html.light .bg-blue-500\/20 {
+    @apply bg-blue-100;
+  }
+
+  html.light .border-blue-500\/20 {
+    @apply border-blue-300;
+  }
+
+  html.light .border-blue-500\/30 {
+    @apply border-blue-300;
+  }
+
+  html.light .border-blue-800 {
+    @apply border-blue-200;
+  }
+
+  html.light .border-blue-900 {
+    @apply border-blue-200;
+  }
+
+  /* ── Red (destructive / error) ──────────────────────────────────── */
+
+  html.light .text-red-200 {
+    @apply text-red-800;
+  }
+
+  html.light .text-red-300 {
+    @apply text-red-800;
+  }
+
+  html.light .text-red-400 {
+    @apply text-red-700;
+  }
+
+  html.light .text-red-500 {
+    @apply text-red-600;
+  }
+
+  html.light .bg-red-900 {
+    @apply bg-red-50;
+  }
+
+  html.light .bg-red-900\/10,
+  html.light .bg-red-900\/20 {
+    @apply bg-red-50;
+  }
+
+  html.light .bg-red-900\/30,
+  html.light .bg-red-900\/40 {
+    @apply bg-red-100;
+  }
+
+  html.light .bg-red-500\/10 {
+    @apply bg-red-50;
+  }
+
+  html.light .bg-red-500\/20 {
+    @apply bg-red-100;
+  }
+
+  html.light .border-red-500\/20 {
+    @apply border-red-300;
+  }
+
+  html.light .border-red-500\/30 {
+    @apply border-red-300;
+  }
+
+  html.light .border-red-800 {
+    @apply border-red-200;
+  }
+
+  html.light .border-red-900 {
+    @apply border-red-200;
+  }
+
+  /* ── Amber (warning / caution) ──────────────────────────────────── */
+
+  html.light .text-amber-200 {
+    @apply text-amber-800;
+  }
+
+  html.light .text-amber-300 {
+    @apply text-amber-800;
+  }
+
+  html.light .text-amber-400 {
+    @apply text-amber-700;
+  }
+
+  html.light .text-amber-500 {
+    @apply text-amber-600;
+  }
+
+  html.light .bg-amber-900 {
+    @apply bg-amber-50;
+  }
+
+  html.light .bg-amber-900\/10,
+  html.light .bg-amber-900\/20 {
+    @apply bg-amber-50;
+  }
+
+  html.light .bg-amber-900\/30,
+  html.light .bg-amber-900\/40 {
+    @apply bg-amber-100;
+  }
+
+  html.light .bg-amber-500\/10 {
+    @apply bg-amber-50;
+  }
+
+  html.light .bg-amber-500\/20 {
+    @apply bg-amber-100;
+  }
+
+  html.light .border-amber-500\/20 {
+    @apply border-amber-300;
+  }
+
+  html.light .border-amber-500\/30 {
+    @apply border-amber-300;
+  }
+
+  /* ── Yellow ─────────────────────────────────────────────────────── */
+
+  html.light .text-yellow-200 {
+    @apply text-yellow-800;
+  }
+
+  html.light .text-yellow-300 {
+    @apply text-yellow-800;
+  }
+
+  html.light .text-yellow-400 {
+    @apply text-yellow-700;
+  }
+
+  html.light .text-yellow-500 {
+    @apply text-yellow-600;
+  }
+
+  html.light .bg-yellow-900\/10,
+  html.light .bg-yellow-900\/20 {
+    @apply bg-yellow-50;
+  }
+
+  html.light .bg-yellow-900\/30,
+  html.light .bg-yellow-900\/40 {
+    @apply bg-yellow-100;
+  }
+
+  /* ── Green (distinct from emerald) ──────────────────────────────── */
+
+  html.light .text-green-300 {
+    @apply text-green-800;
+  }
+
+  html.light .text-green-400 {
+    @apply text-green-700;
+  }
+
+  html.light .text-green-500 {
+    @apply text-green-600;
+  }
+
+  /* ── Rose / Cyan / Purple / Orange / Teal (minor accents) ───────── */
+
+  html.light .text-rose-300 {
+    @apply text-rose-800;
+  }
+
+  html.light .text-rose-400 {
+    @apply text-rose-700;
+  }
+
+  html.light .text-cyan-300 {
+    @apply text-cyan-800;
+  }
+
+  html.light .text-cyan-400 {
+    @apply text-cyan-700;
+  }
+
+  html.light .text-purple-300 {
+    @apply text-purple-800;
+  }
+
+  html.light .text-purple-400 {
+    @apply text-purple-700;
+  }
+
+  html.light .text-orange-300 {
+    @apply text-orange-800;
+  }
+
+  html.light .text-orange-400 {
+    @apply text-orange-700;
+  }
+
+  html.light .text-teal-300 {
+    @apply text-teal-800;
+  }
+
+  html.light .text-teal-400 {
+    @apply text-teal-700;
+  }
+
+  /* ── Neutral Borders ────────────────────────────────────────────── */
 
   html.light .border-neutral-900,
   html.light .border-neutral-800 {
@@ -131,11 +515,33 @@ html.dark body {
     @apply border-neutral-300/80;
   }
 
+  /* ── Neutral Dividers ───────────────────────────────────────────── */
+
   html.light .divide-neutral-800 {
     @apply divide-neutral-200;
   }
 
   html.light .divide-neutral-800\/50 {
     @apply divide-neutral-200/80;
+  }
+
+  /* ── Ring overrides ─────────────────────────────────────────────── */
+
+  html.light .ring-emerald-500\/20 {
+    @apply ring-emerald-500/40;
+  }
+
+  html.light .ring-indigo-500\/20 {
+    @apply ring-indigo-500/40;
+  }
+
+  /* ── Placeholder text ───────────────────────────────────────────── */
+
+  html.light .placeholder-neutral-600 {
+    @apply placeholder-neutral-400;
+  }
+
+  html.light .placeholder-neutral-500 {
+    @apply placeholder-neutral-400;
   }
 }

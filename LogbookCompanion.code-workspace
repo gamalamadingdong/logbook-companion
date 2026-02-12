@@ -7,5 +7,10 @@
 			"path": "../erg-link"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"chat.tools.terminal.autoApprove": {
+			"ForEach-Object": true,
+			"Group-Object": true
+		}
+	}
 }

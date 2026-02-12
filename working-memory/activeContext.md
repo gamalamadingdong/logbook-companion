@@ -60,6 +60,7 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - **Dashboard error handling (Sprint 3 complete)**: Refactored `useDashboardData` to track per-section errors independently. Created reusable `SectionError` component. Each dashboard section (meters, goals, history, workouts, C2 profile) now fails gracefully with inline error + retry, instead of one generic banner. `retry()` function exposed for "Retry All".
 - **Weekly Focus card**: New `coaching_weekly_plans` table (migration in `db/migrations/`). `WeeklyFocusCard` on CoachDashboard — set/edit weekly theme, focus points (bullet list), and notes. Week navigation with prev/next. Integrated via `upsertWeeklyPlan()` (upsert on team_id + week_start). Migration needs manual execution in Supabase.
 - **Icon overhaul (feature/rowing-icons branch)**: RowingShellIcon (top-down 8+), ErgIcon (C2 motif), CoxboxIcon (pulse waveform). Nav swapped to Lucide: Ergs=Trophy, Live=Activity, Library=Library. Dead code: ErgIcon/CoxboxIcon exports in RowingIcons.tsx no longer imported.
+- **Light theme palette fix**: CSS overrides in `index.css` expanded from neutral-only to full accent coverage. Added overrides for emerald, indigo, blue, red, amber, yellow, green, rose, cyan, purple, orange, teal text colors (-200/-300→-800, -400→-700, -500→-600). Added accent bg overrides (-900/xx→-50/-100, -500/10/20→-50/-100). Added accent border overrides. Neutral text-400→text-500 (was text-600 — bumped for better muted readability). ~1,100+ accent color instances now properly theme-aware.
 
 ---
 
