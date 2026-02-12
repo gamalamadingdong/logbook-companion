@@ -1,12 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Calendar, Gauge, Ship, Radio, Settings, ChevronRight } from 'lucide-react';
+import { Users, Calendar, Settings, ChevronRight } from 'lucide-react';
+import { ErgIcon, RowingShellIcon, CoxboxIcon } from '../icons/RowingIcons';
 
 const tabs = [
   { path: '/coaching/roster', label: 'Roster', icon: Users },
   { path: '/coaching/schedule', label: 'Schedule', icon: Calendar },
-  { path: '/coaching/ergs', label: 'Ergs', icon: Gauge },
-  { path: '/coaching/boatings', label: 'Boatings', icon: Ship },
-  { path: '/coaching/live', label: 'Live', icon: Radio },
+  { path: '/coaching/ergs', label: 'Ergs', icon: ErgIcon },
+  { path: '/coaching/boatings', label: 'Boatings', icon: RowingShellIcon },
+  { path: '/coaching/live', label: 'Live', icon: CoxboxIcon },
   { path: '/coaching/settings', label: 'Settings', icon: Settings },
 ];
 

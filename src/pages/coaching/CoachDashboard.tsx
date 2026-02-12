@@ -1,14 +1,15 @@
 import React from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Users, Calendar, Gauge, Ship, Radio, Loader2 } from 'lucide-react';
+import { Users, Calendar, Loader2 } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
+import { ErgIcon, RowingShellIcon, CoxboxIcon } from '../../components/icons/RowingIcons';
 
 const sections = [
   { path: '/coaching/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
   { path: '/coaching/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
-  { path: '/coaching/ergs', label: 'Erg Scores', icon: Gauge, description: 'Test results' },
-  { path: '/coaching/boatings', label: 'Boatings', icon: Ship, description: 'Lineups' },
-  { path: '/coaching/live', label: 'Live Sessions', icon: Radio, description: 'Real-time monitoring' },
+  { path: '/coaching/ergs', label: 'Erg Scores', icon: ErgIcon, description: 'Test results' },
+  { path: '/coaching/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
+  { path: '/coaching/live', label: 'Live Sessions', icon: CoxboxIcon, description: 'Real-time monitoring' },
 ];
 
 export const CoachDashboard: React.FC = () => {
