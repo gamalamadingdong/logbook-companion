@@ -112,10 +112,9 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
                 });
 
                 return newToken;
-            } catch (error: any) {
-                // If 400 Invalid Grant, checking race condition again is redundant due to lock,
-                // BUT if we raced with the server usage elsewhere (unlikely with this setup), it might fail.
-                if (error.response && error.response.status === 400) {
+            } catch (error: unknown) {
+                const axiosErr = error as { response?: { status?: number; data?: { error?: string; message?: string } } };
+                if (axiosErr.response && axiosErr.response.status === 400) {
                     // Check ONE LAST TIME if storage updated differently
                     const finalCheckRefresh = localStorage.getItem('concept2_refresh_token');
                     if (finalCheckRefresh && finalCheckRefresh !== refreshToken) {
@@ -123,9 +122,18 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
                         if (finalCheckToken) return finalCheckToken;
                     }
 
-                    console.error("Fatal: Invalid Refresh Token or Config (400). Clearing session.");
-                    await clearAllTokens();
-                    throw new Error("FATAL_REFRESH_ERROR");
+                    // Only treat "invalid_grant" as truly fatal (expired/revoked refresh token).
+                    // Other 400s (bad request, rate limit, temporary C2 issues) are transient.
+                    const errorCode = axiosErr.response.data?.error || axiosErr.response.data?.message || '';
+                    if (typeof errorCode === 'string' && errorCode.toLowerCase().includes('invalid_grant')) {
+                        console.error("Fatal: Refresh token revoked/expired (invalid_grant). Clearing C2 tokens.");
+                        await clearAllTokens();
+                        throw new Error("FATAL_REFRESH_ERROR");
+                    }
+
+                    // Non-fatal 400 — don't nuke tokens, just throw so caller can retry later
+                    console.warn("C2 token refresh got 400 (non-fatal):", errorCode);
+                    throw error;
                 }
                 throw error;
             }
@@ -156,9 +164,10 @@ concept2Client.interceptors.request.use(async (config) => {
                 config.headers.Authorization = `Bearer ${newToken}`;
                 config.headers['Accept'] = 'application/vnd.c2logbook.v1+json';
                 return config;
-            } catch (err: any) {
+            } catch (err: unknown) {
+                const refreshErr = err as { message?: string; response?: { status?: number } };
                 console.error('Proactive token refresh failed:', err);
-                if (err.message === "FATAL_REFRESH_ERROR" || (err.response && err.response.status === 400)) {
+                if (refreshErr.message === "FATAL_REFRESH_ERROR" || (refreshErr.response && refreshErr.response.status === 400)) {
                     // Stop the request if we know auth is dead
                     return Promise.reject(err);
                 }

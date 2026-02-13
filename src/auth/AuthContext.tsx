@@ -3,7 +3,7 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 
 /** How long to wait for initial session before giving up (ms) */
-const SESSION_TIMEOUT_MS = 8_000
+const SESSION_TIMEOUT_MS = 15_000
 
 interface AuthContextType {
   user: User | null
@@ -150,9 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
-          // Stale/invalid session in storage — clear it and start fresh
-          console.warn('Session recovery failed, signing out:', error.message)
-          await supabase.auth.signOut().catch(() => { /* ignore */ })
+          // Session check returned an error — but DON'T nuke the session.
+          // It could be a transient network issue. Let onAuthStateChange handle recovery.
+          console.warn('Session check error (non-fatal):', error.message)
+          // Fall through: treat as "no session for now" but don't sign out
           setTokensReady(true)
           setLoading(false)
           return
@@ -167,29 +168,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTokensReady(true) // No user, no tokens to restore
           setLoading(false)
         }
-      } catch {
-        // Network error during session check — clear stale state
-        console.warn('Network error checking session, clearing stored session')
-        await supabase.auth.signOut().catch(() => { /* ignore */ })
+      } catch (err) {
+        // Network error during session check — DON'T clear session.
+        // It may still be valid once connectivity is restored.
+        console.warn('Network error checking session (non-fatal):', err)
         setTokensReady(true)
         setLoading(false)
       }
     }
     getInitialSession()
 
-    // 1b. Safety timeout — if loading doesn't resolve, force-clear session
+    // 1b. Safety timeout — if loading doesn't resolve, stop waiting but DON'T destroy the session.
+    // The manual clearStaleSession() escape hatch exists for genuinely stuck sessions.
     const safetyTimeout = setTimeout(() => {
       setLoading(prev => {
         if (prev) {
-          console.warn(`Session check timed out after ${SESSION_TIMEOUT_MS}ms, clearing stale session`)
-          // Clear Supabase auth keys from localStorage
-          Object.keys(localStorage)
-            .filter(k => k.startsWith('sb-'))
-            .forEach(k => localStorage.removeItem(k))
-          supabase.auth.signOut().catch(() => { /* ignore */ })
-          setSession(null)
-          setUser(null)
-          setProfile(null)
+          console.warn(`Session check timed out after ${SESSION_TIMEOUT_MS}ms — unlocking UI (session preserved)`)
           setTokensReady(true)
           return false
         }
@@ -201,12 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'TOKEN_REFRESHED' && !session) {
-          // Refresh failed — stale session
-          console.warn('Token refresh failed, clearing session')
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-          setLoading(false)
+          // Unusual: refresh event without session. Log but don't nuke — SDK may retry.
+          console.warn('TOKEN_REFRESHED fired without session — ignoring (SDK will retry)')
           return
         }
         if (session?.user) {
