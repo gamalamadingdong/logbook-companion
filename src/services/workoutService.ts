@@ -46,11 +46,11 @@ export const workoutService = {
                 }
             }
 
-            // Fallbacks
+            // Fallbacks — workout_name holds C2 workout_type (e.g. 'FixedDistanceSplits') due to column swap in DB
             if (!canonicalName) {
-                if (log.workout_type === 'FixedDistanceSplits' || log.workout_type === 'FixedDistanceNoSplits') canonicalName = `${log.distance_meters}m`;
-                else if (log.workout_type === 'FixedTimeSplits' || log.workout_type === 'FixedTimeNoSplits') canonicalName = `${Math.round(log.duration_minutes)}:00`;
-                else if (log.workout_type === 'JustRow') canonicalName = 'Just Row';
+                if (log.workout_name === 'FixedDistanceSplits' || log.workout_name === 'FixedDistanceNoSplits') canonicalName = `${log.distance_meters}m`;
+                else if (log.workout_name === 'FixedTimeSplits' || log.workout_name === 'FixedTimeNoSplits') canonicalName = `${Math.round(log.duration_minutes)}:00`;
+                else if (log.workout_name === 'JustRow') canonicalName = 'Just Row';
                 else canonicalName = log.workout_name;
             }
 

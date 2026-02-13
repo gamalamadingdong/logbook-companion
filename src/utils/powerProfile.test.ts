@@ -14,8 +14,8 @@ function makeWorkout(overrides: Partial<WorkoutLog> & { distance_meters: number;
     return {
         id: 'w-' + Math.random().toString(36).slice(2, 8),
         user_id: 'user-1',
-        workout_name: 'Test',
-        workout_type: 'FixedDistance',
+        workout_name: 'FixedDistanceSplits', // C2 workout_type goes in workout_name (column swap)
+        workout_type: 'rower',                // C2 machine type goes in workout_type
         completed_at: '2026-01-15',
         distance_meters,
         duration_minutes: duration_seconds / 60,
@@ -67,12 +67,13 @@ describe('extractBestEfforts', () => {
     it('extracts interval splits at standard distances', () => {
         const workout = makeWorkout({
             id: 'w-intervals',
+            workout_name: 'FixedDistanceInterval',
             distance_meters: 4000,
             duration_seconds: 900,
             raw_data: {
                 workout: {
                     intervals: [
-                        { type: 'distance', distance: 2000, time: 4100, stroke_rate: 28 }, // 410s → better than whole workout
+                        { type: 'distance', distance: 2000, time: 4100, stroke_rate: 28 }, // 410s → better than either interval
                         { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
                         { type: 'distance', distance: 2000, time: 4300, stroke_rate: 27 },
                     ]
@@ -146,6 +147,283 @@ describe('extractBestEfforts', () => {
         for (let i = 1; i < points.length; i++) {
             expect(points[i].distance).toBeGreaterThanOrEqual(points[i - 1].distance);
         }
+    });
+
+    // ─── Interval workout handling ───────────────────────────────────────
+
+    it('does NOT treat a 2x1000m interval as a 2k best effort', () => {
+        // This is the exact bug: a 2x1000m/9:55r has distance_meters=2000
+        // but is NOT a continuous 2k. It should NOT match the 2k anchor.
+        const interval2x1k = makeWorkout({
+            id: 'w-2x1k',
+            workout_name: 'FixedDistanceInterval', // C2 interval workout type
+            distance_meters: 2000,                  // total work distance (2 × 1000m)
+            duration_seconds: 398,                   // ~3:19 work pace → 1:39.5/500m
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 1000, time: 1990, stroke_rate: 30 },  // 199.0s → ~1:39.5/500m
+                        { type: 'rest', distance: 0, time: 5950, stroke_rate: 0 },           // 9:55 rest
+                        { type: 'distance', distance: 1000, time: 1990, stroke_rate: 30 },  // 199.0s → ~1:39.5/500m
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([interval2x1k]);
+
+        // Should NOT have a 2k anchor from the whole-workout total
+        const twoK = points.find(p => p.anchorKey === '2k');
+        expect(twoK).toBeUndefined();
+
+        // SHOULD have a 1k anchor from the individual interval splits
+        const oneK = points.find(p => p.anchorKey === '1k');
+        expect(oneK).toBeDefined();
+        expect(oneK!.source).toBe('interval_split');
+        expect(oneK!.distance).toBe(1000);
+    });
+
+    it('does NOT treat a 3x10:00 interval as a 30:00 time test', () => {
+        // FixedTimeInterval with total ~30min should NOT match the 30:00 anchor
+        const interval3x10 = makeWorkout({
+            id: 'w-3x10',
+            workout_name: 'FixedTimeInterval',
+            distance_meters: 7500,
+            duration_seconds: 1800, // 30:00 total work time
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'time', distance: 2500, time: 6000, stroke_rate: 24 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'time', distance: 2500, time: 6000, stroke_rate: 24 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'time', distance: 2500, time: 6000, stroke_rate: 24 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([interval3x10]);
+
+        // Should NOT match 30:00 time-based test anchor
+        const thirtyMin = points.find(p => p.anchorKey === '30:00');
+        expect(thirtyMin).toBeUndefined();
+
+        // Should NOT match non-standard distance from whole-workout
+        const wholeWorkout = points.find(p => p.source === 'whole_workout');
+        expect(wholeWorkout).toBeUndefined();
+    });
+
+    it('does NOT match non-standard distance for interval workouts', () => {
+        // A 5x1500m has distance_meters=7500 — should NOT appear as a 7500m bucket
+        const interval5x1500 = makeWorkout({
+            id: 'w-5x1500',
+            workout_name: 'FixedDistanceInterval',
+            distance_meters: 7500,
+            duration_seconds: 1560,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 1500, time: 3120, stroke_rate: 27 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'distance', distance: 1500, time: 3120, stroke_rate: 27 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'distance', distance: 1500, time: 3120, stroke_rate: 27 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'distance', distance: 1500, time: 3120, stroke_rate: 27 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'distance', distance: 1500, time: 3120, stroke_rate: 27 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([interval5x1500]);
+
+        // Should have zero whole_workout entries
+        const wholeWorkout = points.filter(p => p.source === 'whole_workout');
+        expect(wholeWorkout).toHaveLength(0);
+    });
+
+    it('handles VariableInterval workout types correctly', () => {
+        const variableInterval = makeWorkout({
+            id: 'w-variable',
+            workout_name: 'VariableInterval',
+            distance_meters: 3500,
+            duration_seconds: 750,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 500, time: 950, stroke_rate: 32 },
+                        { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
+                        { type: 'distance', distance: 1000, time: 2000, stroke_rate: 30 },
+                        { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
+                        { type: 'distance', distance: 2000, time: 4200, stroke_rate: 28 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([variableInterval]);
+
+        // Should NOT match whole-workout totals (3500m doesn't match any standard, but also shouldn't be bucketed)
+        expect(points.filter(p => p.source === 'whole_workout')).toHaveLength(0);
+
+        // Should extract individual intervals as anchors
+        const fiveHundred = points.find(p => p.anchorKey === '500m');
+        expect(fiveHundred).toBeDefined();
+        expect(fiveHundred!.source).toBe('interval_split');
+
+        const oneK = points.find(p => p.anchorKey === '1k');
+        expect(oneK).toBeDefined();
+        expect(oneK!.source).toBe('interval_split');
+
+        const twoK = points.find(p => p.anchorKey === '2k');
+        expect(twoK).toBeDefined();
+        expect(twoK!.source).toBe('interval_split');
+    });
+
+    it('continuous 2k is still recognized (FixedDistanceSplits)', () => {
+        // Regression test: a straight 2000m should still match the 2k anchor
+        const straight2k = makeWorkout({
+            workout_name: 'FixedDistanceSplits',
+            distance_meters: 2000,
+            duration_seconds: 420,
+        });
+
+        const points = extractBestEfforts([straight2k]);
+        const twoK = points.find(p => p.anchorKey === '2k');
+        expect(twoK).toBeDefined();
+        expect(twoK!.source).toBe('whole_workout');
+    });
+
+    it('prefers standalone 2k over interval-split 2k when both exist', () => {
+        // Straight 2k at 7:00 (420s) → ~302W
+        const straight2k = makeWorkout({
+            id: 'w-straight-2k',
+            workout_name: 'FixedDistanceSplits',
+            distance_meters: 2000,
+            duration_seconds: 420,
+        });
+
+        // 2x2000m intervals at 6:40 (400s) → ~355W (faster because of rest)
+        const interval2x2k = makeWorkout({
+            id: 'w-interval-2x2k',
+            workout_name: 'FixedDistanceInterval',
+            distance_meters: 4000,
+            duration_seconds: 800,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 2000, time: 4000, stroke_rate: 30 },
+                        { type: 'rest', distance: 0, time: 3000, stroke_rate: 0 },
+                        { type: 'distance', distance: 2000, time: 4000, stroke_rate: 28 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([straight2k, interval2x2k]);
+        const twoK = points.find(p => p.anchorKey === '2k');
+        expect(twoK).toBeDefined();
+
+        // The interval split 2k (400s) produces more watts than the straight 2k (420s),
+        // so the interval split wins. This is CORRECT — a 2k interval split IS a valid
+        // 2k effort (even with rest, the split itself was rowed). The key fix is that
+        // the whole-workout aggregate (4000m at average pace) does NOT get treated as
+        // any standard anchor.
+        expect(twoK!.workoutId).toBe('w-interval-2x2k');
+        expect(twoK!.source).toBe('interval_split');
+    });
+
+    // ─── Canonical name detection (primary signal) ───────────────────────
+
+    it('detects interval via canonical_name even when workout_name is generic', () => {
+        // canonical_name says "2x1000m/9:55r" → interval, regardless of workout_name
+        const w = makeWorkout({
+            id: 'w-cn-2x1k',
+            canonical_name: '2x1000m/9:55r',
+            workout_name: 'FixedDistanceSplits',  // misleading — but canonical_name wins
+            distance_meters: 2000,
+            duration_seconds: 398,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 1000, time: 1990, stroke_rate: 30 },
+                        { type: 'rest', distance: 0, time: 5950, stroke_rate: 0 },
+                        { type: 'distance', distance: 1000, time: 1990, stroke_rate: 30 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([w]);
+        // canonical_name "2x1000m/..." triggers interval detection → no whole_workout match
+        expect(points.filter(p => p.source === 'whole_workout')).toHaveLength(0);
+        const oneK = points.find(p => p.anchorKey === '1k');
+        expect(oneK).toBeDefined();
+        expect(oneK!.source).toBe('interval_split');
+    });
+
+    it('detects variable interval via canonical_name "v500/1000/1500m"', () => {
+        const w = makeWorkout({
+            id: 'w-cn-variable',
+            canonical_name: 'v500/1000/1500m',
+            workout_name: 'VariableInterval',
+            distance_meters: 3000,
+            duration_seconds: 660,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 500, time: 950, stroke_rate: 32 },
+                        { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
+                        { type: 'distance', distance: 1000, time: 2050, stroke_rate: 30 },
+                        { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
+                        { type: 'distance', distance: 1500, time: 3200, stroke_rate: 28 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([w]);
+        expect(points.filter(p => p.source === 'whole_workout')).toHaveLength(0);
+    });
+
+    it('detects block structure via canonical_name with parens', () => {
+        const w = makeWorkout({
+            id: 'w-cn-block',
+            canonical_name: '4 x (5 x 500m)',
+            workout_name: 'FixedDistanceInterval',
+            distance_meters: 10000,
+            duration_seconds: 2000,
+            raw_data: {
+                workout: {
+                    intervals: [
+                        { type: 'distance', distance: 500, time: 1000, stroke_rate: 28 },
+                        { type: 'rest', distance: 0, time: 600, stroke_rate: 0 },
+                        { type: 'distance', distance: 500, time: 1000, stroke_rate: 28 },
+                    ]
+                }
+            },
+        });
+
+        const points = extractBestEfforts([w]);
+        expect(points.filter(p => p.source === 'whole_workout')).toHaveLength(0);
+    });
+
+    it('treats continuous piece as non-interval even when canonical_name exists', () => {
+        // canonical_name "5000m" is a single piece → NOT an interval
+        const w = makeWorkout({
+            canonical_name: '5000m',
+            workout_name: 'FixedDistanceSplits',
+            distance_meters: 5000,
+            duration_seconds: 1200,
+        });
+
+        const points = extractBestEfforts([w]);
+        const fiveK = points.find(p => p.anchorKey === '5k');
+        expect(fiveK).toBeDefined();
+        expect(fiveK!.source).toBe('whole_workout');
     });
 });
 

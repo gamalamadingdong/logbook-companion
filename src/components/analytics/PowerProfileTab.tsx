@@ -268,7 +268,7 @@ export const PowerProfileTab: React.FC<PowerProfileTabProps> = ({ baselineWatts 
                 // We need: id, distance_meters, duration_seconds, duration_minutes, completed_at, raw_data (for intervals + strokes)
                 const { data: workouts } = await supabase
                     .from('workout_logs')
-                    .select('id, distance_meters, duration_seconds, duration_minutes, completed_at, raw_data, workout_type')
+                    .select('id, distance_meters, duration_seconds, duration_minutes, completed_at, raw_data, workout_type, workout_name, canonical_name')
                     .eq('source', 'concept2')
                     .not('distance_meters', 'is', null)
                     .order('completed_at', { ascending: false });

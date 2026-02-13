@@ -101,6 +101,40 @@ const SHORT_ANCHORS = ['max_watts', '1:00', '500m', '1k'];
 const LONG_ANCHORS = ['5k', '6k', '30:00', '10k', 'HM', 'FM'];
 const MID_ANCHORS = ['5k', '6k'];
 
+/**
+ * Determine if a workout is an interval workout (NOT a single continuous effort).
+ *
+ * Uses canonical_name as the primary signal because it's computed from actual
+ * interval data during sync and is the most reliable indicator of workout structure:
+ *   - "2x1000m/9:55r" → interval (has Nx prefix)
+ *   - "5000m" → continuous (no prefix)
+ *   - "30:00" → continuous
+ *   - "v500/1000/1500m" → variable interval
+ *   - "3 x (5 x 500m)" → block interval
+ *
+ * Falls back to workout_name (which holds the C2 workout_type string due to
+ * column swap in DB) if canonical_name is missing.
+ */
+function isIntervalWorkout(workout: { canonical_name?: string; workout_name?: string }): boolean {
+    const canonical = workout.canonical_name;
+    if (canonical) {
+        // Multi-rep patterns: "2x1000m", "3x10:00/3:00r", "4 x (5 x 500m)", "2x 500m/1000m"
+        if (/^\d+\s*x\s*/i.test(canonical)) return true;
+        // Variable intervals: "v500/1000/1500m"
+        if (/^v\d/i.test(canonical)) return true;
+        // Explicit block structure with parens
+        if (canonical.includes('(') && canonical.includes(')')) return true;
+        // If canonical_name exists and none matched → continuous piece
+        return false;
+    }
+
+    // Fallback: check C2 workout_type in workout_name column
+    const workoutName = workout.workout_name;
+    if (workoutName && workoutName.includes('Interval')) return true;
+
+    return false;
+}
+
 /** Gap suggestion messages */
 const GAP_MESSAGES: Record<string, string> = {
     'max_watts': 'Enter your max watts manually (Settings → Power Profile) or do a few all-out strokes and note the peak.',
@@ -144,64 +178,76 @@ export function extractBestEfforts(
 
         const watts = calculateWattsFromSplit(pace);
 
-        // --- A. Check standard distances ---
-        let matchedAnchor: string | null = null;
-        for (const stdDist of PR_DISTANCES) {
-            if (Math.abs(totalDistance - stdDist.meters) / stdDist.meters < 0.01) {
-                const anchorKey = DISTANCE_TO_ANCHOR[stdDist.meters];
-                if (anchorKey) {
-                    matchedAnchor = anchorKey;
-                    updateBest(bestByAnchor, anchorKey, {
+        // Interval workouts (e.g. 2x1000m, 3x10:00, VariableInterval) have total metrics
+        // that are the SUM of all intervals — NOT a single continuous effort.
+        // A 2x1000m has distance_meters=2000 but is NOT a 2k test.
+        // For intervals, skip whole-workout matching (A, B, C) and only use
+        // individual interval splits (D).
+        //
+        // Uses canonical_name as primary signal (e.g. "2x1000m/9:55r" → interval),
+        // falls back to workout_name (C2 workout_type) if canonical_name is missing.
+        const isInterval = isIntervalWorkout(workout);
+
+        if (!isInterval) {
+            // --- A. Check standard distances (continuous workouts only) ---
+            let matchedAnchor: string | null = null;
+            for (const stdDist of PR_DISTANCES) {
+                if (Math.abs(totalDistance - stdDist.meters) / stdDist.meters < 0.01) {
+                    const anchorKey = DISTANCE_TO_ANCHOR[stdDist.meters];
+                    if (anchorKey) {
+                        matchedAnchor = anchorKey;
+                        updateBest(bestByAnchor, anchorKey, {
+                            distance: totalDistance,
+                            watts,
+                            pace,
+                            date: workoutDate,
+                            workoutId,
+                            source: 'whole_workout',
+                            label: stdDist.label,
+                            anchorKey,
+                        });
+                    }
+                    break;
+                }
+            }
+
+            // --- B. Check time-based tests (continuous workouts only) ---
+            for (const test of TIME_BASED_TESTS) {
+                const tolerance = test.seconds <= 60 ? 5 : 30; // ±5s for 1min, ±30s for 30min
+                if (Math.abs(totalTime - test.seconds) <= tolerance) {
+                    updateBest(bestByAnchor, test.shortLabel, {
+                        distance: totalDistance,
+                        watts,
+                        pace,
+                        date: workoutDate,
+                        workoutId,
+                        source: 'time_test',
+                        label: test.label,
+                        anchorKey: test.shortLabel,
+                    });
+                }
+            }
+
+            // --- C. Non-standard distance (continuous workouts only) ---
+            if (!matchedAnchor) {
+                const bucketKey = Math.round(totalDistance / 100) * 100;
+                const existing = bestByDistance.get(bucketKey);
+                if (!existing || watts > existing.watts) {
+                    bestByDistance.set(bucketKey, {
                         distance: totalDistance,
                         watts,
                         pace,
                         date: workoutDate,
                         workoutId,
                         source: 'whole_workout',
-                        label: stdDist.label,
-                        anchorKey,
+                        label: `${Math.round(totalDistance)}m`,
+                        anchorKey: null,
                     });
                 }
-                break;
             }
         }
 
-        // --- B. Check time-based tests ---
-        for (const test of TIME_BASED_TESTS) {
-            const tolerance = test.seconds <= 60 ? 5 : 30; // ±5s for 1min, ±30s for 30min
-            if (Math.abs(totalTime - test.seconds) <= tolerance) {
-                updateBest(bestByAnchor, test.shortLabel, {
-                    distance: totalDistance,
-                    watts,
-                    pace,
-                    date: workoutDate,
-                    workoutId,
-                    source: 'time_test',
-                    label: test.label,
-                    anchorKey: test.shortLabel,
-                });
-            }
-        }
-
-        // --- C. Non-standard distance (anything not matched above) ---
-        if (!matchedAnchor) {
-            const bucketKey = Math.round(totalDistance / 100) * 100;
-            const existing = bestByDistance.get(bucketKey);
-            if (!existing || watts > existing.watts) {
-                bestByDistance.set(bucketKey, {
-                    distance: totalDistance,
-                    watts,
-                    pace,
-                    date: workoutDate,
-                    workoutId,
-                    source: 'whole_workout',
-                    label: `${Math.round(totalDistance)}m`,
-                    anchorKey: null,
-                });
-            }
-        }
-
-        // --- D. Interval split analysis ---
+        // --- D. Interval split analysis (all workouts — but only fires when raw_data has intervals) ---
         const rawData = parseRawData(workout.raw_data);
         if (rawData) {
             const intervals = rawData.workout?.intervals ?? [];

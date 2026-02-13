@@ -24,7 +24,8 @@ export const getSuggestedWorkout = (
 
     // If completed > 4 hard sessions, suggest recovery
     // (This is a placeholder for real Impulse-Response logic)
-    const hardSessionCount = recentLogs.filter(w => w.workout_type && w.workout_type.includes('Interval')).length;
+    // Note: workout_name holds C2 workout_type (e.g. 'FixedDistanceInterval') due to column swap in DB
+    const hardSessionCount = recentLogs.filter(w => w.workout_name && w.workout_name.includes('Interval')).length;
     let reason = "Balanced training suggestion.";
 
     if (hardSessionCount > 3) {
