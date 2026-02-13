@@ -194,6 +194,144 @@ export async function removeTeamMember(memberId: string): Promise<void> {
   );
 }
 
+// ─── Join Team by Invite Code ───────────────────────────────────────────────
+
+/** Look up a team by its invite code */
+export async function getTeamByInviteCode(code: string): Promise<Team | null> {
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*')
+    .eq('invite_code', code.toUpperCase().trim())
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as Team | null;
+}
+
+/** Join a team using an invite code. Returns the role assigned. */
+export async function joinTeamByInviteCode(
+  userId: string,
+  code: string,
+  role: TeamRole = 'member'
+): Promise<{ team: Team; membership: TeamMember }> {
+  // 1. Find the team
+  const team = await getTeamByInviteCode(code);
+  if (!team) throw new Error('Invalid invite code. Please check and try again.');
+
+  // 2. Check if already a member
+  const { data: existing } = await supabase
+    .from('team_members')
+    .select('id')
+    .eq('team_id', team.id)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existing) throw new Error('You are already a member of this team.');
+
+  // 3. Add as member
+  const membership = throwOnError(
+    await supabase
+      .from('team_members')
+      .insert({
+        team_id: team.id,
+        user_id: userId,
+        role,
+      })
+      .select()
+      .single()
+  ) as TeamMember;
+
+  return { team, membership };
+}
+
+/** Get current user's team membership info (team + role) */
+export async function getMyTeamMembership(
+  userId: string
+): Promise<{ team: Team; role: TeamRole; memberId: string } | null> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*, teams(*)')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const { teams: teamData, ...memberData } = data as TeamMember & { teams: Team };
+  return {
+    team: teamData,
+    role: memberData.role,
+    memberId: memberData.id,
+  };
+}
+
+/** Leave a team (member self-service) */
+export async function leaveTeam(memberId: string): Promise<void> {
+  throwOnError(
+    await supabase
+      .from('team_members')
+      .delete()
+      .eq('id', memberId)
+  );
+}
+
+// ─── Athlete Self-Service Queries ───────────────────────────────────────────
+
+/** Get erg scores for a specific athlete (self-service view) */
+export async function getMyErgScores(
+  userId: string,
+  teamId: string
+): Promise<CoachingErgScore[]> {
+  // Find the athlete record linked to this user
+  const { data: athleteLink } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!athleteLink) return [];
+
+  return throwOnError(
+    await supabase
+      .from('coaching_erg_scores')
+      .select('*')
+      .eq('team_id', teamId)
+      .eq('athlete_id', athleteLink.id)
+      .order('date', { ascending: false })
+  );
+}
+
+/** Get session notes about a specific athlete (self-service view) */
+export async function getMySessionNotes(
+  userId: string,
+  teamId: string,
+  limit = 30
+): Promise<(CoachingAthleteNote & { session?: CoachingSession })[]> {
+  // Find the athlete record linked to this user
+  const { data: athleteLink } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!athleteLink) return [];
+
+  const notes = throwOnError(
+    await supabase
+      .from('coaching_athlete_notes')
+      .select('*, coaching_sessions(*)')
+      .eq('team_id', teamId)
+      .eq('athlete_id', athleteLink.id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+  ) as (CoachingAthleteNote & { coaching_sessions?: CoachingSession })[];
+
+  return notes.map(({ coaching_sessions, ...note }) => ({
+    ...note,
+    session: coaching_sessions ?? undefined,
+  }));
+}
+
 // ─── Athletes (unified: athletes + team_athletes) ───────────────────────────
 
 export async function getAthletes(teamId: string): Promise<CoachingAthlete[]> {
