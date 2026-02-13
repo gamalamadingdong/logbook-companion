@@ -7,6 +7,7 @@ import {
   getErgScoresForAthlete,
   getNotesForAthlete,
   updateAthlete,
+  updateAthleteSquad,
   deleteAthlete,
   type CoachingAthlete,
   type CoachingErgScore,
@@ -22,6 +23,7 @@ export function CoachingAthleteDetail() {
   const { teamId, isLoadingTeam } = useCoachingContext();
 
   const [athlete, setAthlete] = useState<CoachingAthlete | null>(null);
+  const [allAthletes, setAllAthletes] = useState<CoachingAthlete[]>([]);
   const [ergScores, setErgScores] = useState<CoachingErgScore[]>([]);
   const [athleteNotes, setAthleteNotes] = useState<(CoachingAthleteNote & { session?: CoachingSession })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,6 +37,7 @@ export function CoachingAthleteDetail() {
     const loadData = async () => {
       try {
         const athletes = await getAthletes(teamId);
+        setAllAthletes(athletes);
         const found = athletes.find((a) => a.id === athleteId);
         if (found) {
           setAthlete(found);
@@ -57,7 +60,7 @@ export function CoachingAthleteDetail() {
     loadData();
   }, [teamId, athleteId, isLoadingTeam]);
 
-  const handleSave = async (data: Partial<CoachingAthlete>) => {
+  const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string }) => {
     if (!athleteId) return;
     await updateAthlete(athleteId, {
       first_name: data.first_name,
@@ -67,9 +70,14 @@ export function CoachingAthleteDetail() {
       side: data.side,
       notes: data.notes,
     });
+    // Update squad on the junction table
+    if (data.squad !== athlete?.squad) {
+      await updateAthleteSquad(teamId, athleteId, data.squad || null);
+    }
     setIsEditing(false);
     // Refresh
     const athletes = await getAthletes(teamId);
+    setAllAthletes(athletes);
     const updated = athletes.find((a) => a.id === athleteId);
     if (updated) setAthlete(updated);
   };
@@ -145,6 +153,11 @@ export function CoachingAthleteDetail() {
                       'bg-blue-900/30 text-blue-400'
                     }`}>
                       {athlete.experience_level.toUpperCase()}
+                    </span>
+                  )}
+                  {athlete.squad && (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-cyan-900/30 text-cyan-400">
+                      {athlete.squad}
                     </span>
                   )}
                 </div>
@@ -244,6 +257,7 @@ export function CoachingAthleteDetail() {
       {isEditing && (
         <AthleteEditForm
           athlete={athlete}
+          squads={[...new Set(allAthletes.map((a) => a.squad).filter((s): s is string => !!s))].sort()}
           onSave={handleSave}
           onCancel={() => setIsEditing(false)}
         />
@@ -286,11 +300,13 @@ export function CoachingAthleteDetail() {
 
 function AthleteEditForm({
   athlete,
+  squads,
   onSave,
   onCancel,
 }: {
   athlete: CoachingAthlete;
-  onSave: (data: Partial<CoachingAthlete>) => void;
+  squads: string[];
+  onSave: (data: Partial<CoachingAthlete> & { squad?: string }) => void;
   onCancel: () => void;
 }) {
   const [firstName, setFirstName] = useState(athlete.first_name);
@@ -300,6 +316,7 @@ function AthleteEditForm({
     athlete.experience_level ?? 'novice'
   );
   const [side, setSide] = useState<CoachingAthlete['side']>(athlete.side ?? 'both');
+  const [squad, setSquad] = useState(athlete.squad ?? '');
   const [notes, setNotes] = useState(athlete.notes ?? '');
 
   return (
@@ -315,7 +332,7 @@ function AthleteEditForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, notes: notes || undefined } as Partial<CoachingAthlete>);
+            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, squad: squad || undefined, notes: notes || undefined } as Partial<CoachingAthlete> & { squad?: string });
           }}
           className="space-y-4"
         >
@@ -359,6 +376,18 @@ function AthleteEditForm({
               <option value="jv">JV</option>
               <option value="varsity">Varsity</option>
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="athlete-squad" className="block text-sm font-medium text-neutral-300 mb-1">Squad</label>
+            <input id="athlete-squad" type="text" list="squad-options-detail" value={squad} onChange={(e) => setSquad(e.target.value)}
+              placeholder="e.g. Novice Boys, JV, Varsity"
+              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+            {squads.length > 0 && (
+              <datalist id="squad-options-detail">
+                {squads.map((s) => <option key={s} value={s} />)}
+              </datalist>
+            )}
           </div>
 
           <div>

@@ -25,12 +25,14 @@
 
 ## Coaching Module (`/coaching/*`)
 -   **Route gating**: `CoachRoute` component checks `isCoach` from AuthContext (derived from `user_profiles.roles` containing `'coach'`).
--   **Data model (unified)**: Single `athletes` table + `team_athletes` junction. All coaching tables (`coaching_sessions`, `coaching_athlete_notes`, `coaching_erg_scores`, `coaching_boatings`) are team-scoped via `team_id` column.
--   **Service layer**: `src/services/coaching/coachingService.ts` — full CRUD. All queries use `.eq('team_id', teamId)`. Athletes fetched via inner join on `team_athletes`. Inserts include both `team_id` and `coach_user_id`. `getTeamForUser()` resolves team from `team_members`.
--   **Types**: `src/services/coaching/types.ts` — `Athlete` (DB row), `CoachingAthlete` (extends Athlete with computed `name`), `TeamAthlete` (junction). All coaching interfaces include optional `team_id`.
+-   **Data model (unified)**: Single `athletes` table + `team_athletes` junction (with optional `squad` TEXT column). All coaching tables (`coaching_sessions`, `coaching_athlete_notes`, `coaching_erg_scores`, `coaching_boatings`) are team-scoped via `team_id` column.
+-   **Service layer**: `src/services/coaching/coachingService.ts` — full CRUD. All queries use `.eq('team_id', teamId)`. Athletes fetched via inner join on `team_athletes` (includes `squad`). Inserts include both `team_id` and `coach_user_id`. `getTeamForUser()` resolves team from `team_members`. Squad-specific: `getTeamSquads()` returns distinct names, `updateAthleteSquad()` updates junction row.
+-   **Types**: `src/services/coaching/types.ts` — `Athlete` (DB row), `CoachingAthlete` (extends Athlete with computed `name` + optional `squad`), `TeamAthlete` (junction, includes `squad`). All coaching interfaces include optional `team_id`.
 -   **Context hook**: `src/hooks/useCoachingContext.ts` — resolves `userId` + `teamId`. All coaching pages consume this instead of `useAuth()` directly.
 -   **Pages**: `src/pages/coaching/` — CoachDashboard, CoachingRoster, CoachingSchedule, CoachingLog, CoachingErgScores, CoachingBoatings, CoachingAthleteDetail.
 -   **Role hierarchy**: coach (full CRUD) > coxswain (view + add/edit scores) > member (view only). Enforced via `team_members.role` CHECK constraint + RLS policies.
+-   **Squad model**: Free-form TEXT on `team_athletes` junction (team-specific, not athlete-global). UI uses `<datalist>` autocomplete from existing squad names. Common values: "Novice", "JV", "Varsity", "1V", "2V". Partial index on `(team_id, squad) WHERE squad IS NOT NULL`.
+-   **Multi-team path**: DB schema already supports multi-team. App currently assumes single team via `getTeamForUser()` LIMIT 1 and `useCoachingContext` storing single `teamId`. Future refactor concentrated in those 2 files only — no other single-team assumptions exist.
 -   **Pattern**: Initial data fetched via `.then()` in `useEffect`; event handlers use standalone `async` refresh functions (avoids `react-hooks/set-state-in-effect`).
 
 ## Knowledge Base (`kb/`)

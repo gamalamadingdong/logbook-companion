@@ -13,7 +13,7 @@ import {
   type BoatPosition,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingBoatings() {
@@ -25,6 +25,7 @@ export function CoachingBoatings() {
   const [expandedBoating, setExpandedBoating] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
@@ -74,6 +75,10 @@ export function CoachingBoatings() {
   const getAthleteName = (athleteId: string) =>
     athletes.find((a) => a.id === athleteId)?.name ?? 'Unknown';
 
+  // Derived: squads and filtered athletes for form
+  const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
+  const formAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
+
   // Group by date
   const boatingsByDate = boatings.reduce((acc, boating) => {
     const dateKey = boating.date.slice(0, 10);
@@ -87,21 +92,39 @@ export function CoachingBoatings() {
     <CoachingNav />
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Boatings</h1>
             <p className="text-neutral-400 mt-1">
               {boatings.length} lineup{boatings.length !== 1 ? 's' : ''} saved
             </p>
           </div>
-          <button
-            onClick={() => setIsAdding(true)}
-            disabled={athletes.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-5 h-5" />
-            New Lineup
-          </button>
+          <div className="flex items-center gap-3">
+            {squads.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-neutral-500" />
+                <select
+                  value={selectedSquad}
+                  onChange={(e) => setSelectedSquad(e.target.value)}
+                  className="px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  aria-label="Filter athletes by squad"
+                >
+                  <option value="all">All Squads</option>
+                  {squads.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button
+              onClick={() => setIsAdding(true)}
+              disabled={athletes.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-5 h-5" />
+              New Lineup
+            </button>
+          </div>
         </div>
       </div>
 
@@ -215,12 +238,12 @@ export function CoachingBoatings() {
       )}
 
       {isAdding && (
-        <BoatingForm athletes={athletes} allBoatings={boatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
+        <BoatingForm athletes={formAthletes} allBoatings={boatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
       )}
 
       {editingBoating && (
         <BoatingForm
-          athletes={athletes}
+          athletes={formAthletes}
           allBoatings={boatings}
           boating={editingBoating}
           onSave={handleEdit}

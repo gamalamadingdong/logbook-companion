@@ -55,6 +55,7 @@ export interface Athlete {
 /** Athlete with a computed `name` field for display convenience */
 export interface CoachingAthlete extends Athlete {
   name: string; // computed: `${first_name} ${last_name}`.trim()
+  squad?: string | null; // from team_athletes junction
 }
 
 /** Junction row from team_athletes */
@@ -63,6 +64,7 @@ export interface TeamAthlete {
   team_id: string;
   athlete_id: string;
   status: 'active' | 'inactive' | 'graduated';
+  squad?: string | null;
   joined_at: string;
   left_at?: string | null;
 }

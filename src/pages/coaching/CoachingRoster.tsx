@@ -5,10 +5,11 @@ import {
   getAthletes,
   createAthlete,
   updateAthlete,
+  updateAthleteSquad,
   deleteAthlete,
   type CoachingAthlete,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingRoster() {
@@ -21,6 +22,7 @@ export function CoachingRoster() {
   const [isEditing, setIsEditing] = useState<CoachingAthlete | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [deletingAthlete, setDeletingAthlete] = useState<CoachingAthlete | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
@@ -40,7 +42,7 @@ export function CoachingRoster() {
     }
   };
 
-  const handleSave = async (data: Partial<CoachingAthlete>) => {
+  const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string }) => {
     if (isEditing?.id) {
       await updateAthlete(isEditing.id, {
         first_name: data.first_name,
@@ -50,6 +52,10 @@ export function CoachingRoster() {
         side: data.side,
         notes: data.notes,
       });
+      // Update squad on the junction table
+      if (data.squad !== isEditing.squad) {
+        await updateAthleteSquad(teamId, isEditing.id, data.squad || null);
+      }
     } else {
       await createAthlete(teamId, userId, {
         first_name: data.first_name ?? '',
@@ -58,7 +64,7 @@ export function CoachingRoster() {
         experience_level: data.experience_level,
         side: data.side,
         notes: data.notes,
-      });
+      }, data.squad || null);
     }
     setIsEditing(null);
     setIsAdding(false);
@@ -71,26 +77,48 @@ export function CoachingRoster() {
     await refreshAthletes();
   };
 
+  // Derived: distinct squad names + filtered list
+  const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
+  const filteredAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
+
   return (
     <>
     <CoachingNav />
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Team Roster</h1>
             <p className="text-neutral-400 mt-1">
-              {athletes.length} athlete{athletes.length !== 1 ? 's' : ''}
+              {filteredAthletes.length}{selectedSquad !== 'all' ? ` in ${selectedSquad}` : ''} athlete{filteredAthletes.length !== 1 ? 's' : ''}{selectedSquad !== 'all' ? ` (${athletes.length} total)` : ''}
             </p>
           </div>
-          <button
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Athlete
-          </button>
+          <div className="flex items-center gap-3">
+            {squads.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-neutral-500" />
+                <select
+                  value={selectedSquad}
+                  onChange={(e) => setSelectedSquad(e.target.value)}
+                  className="px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  aria-label="Filter by squad"
+                >
+                  <option value="all">All Squads</option>
+                  {squads.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button
+              onClick={() => setIsAdding(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Athlete
+            </button>
+          </div>
         </div>
       </div>
 
@@ -112,7 +140,7 @@ export function CoachingRoster() {
       {/* Athlete List (vertical) */}
       {!isLoading && !error && (
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden divide-y divide-neutral-800">
-        {athletes.map((athlete) => (
+        {filteredAthletes.map((athlete) => (
           <div
             key={athlete.id}
             className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-neutral-800/50 transition-colors group"
@@ -148,6 +176,11 @@ export function CoachingRoster() {
                   {athlete.experience_level.toUpperCase()}
                 </span>
               )}
+              {athlete.squad && (
+                <span className="shrink-0 px-3 py-1 rounded-full text-xs font-medium bg-cyan-900/30 text-cyan-400">
+                  {athlete.squad}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -172,7 +205,7 @@ export function CoachingRoster() {
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && athletes.length === 0 && !isAdding && (
+      {!isLoading && !error && filteredAthletes.length === 0 && !isAdding && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl text-center py-16">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
             <Plus className="w-8 h-8 text-indigo-400" />
@@ -188,6 +221,7 @@ export function CoachingRoster() {
       {(isAdding || isEditing) && (
         <AthleteForm
           athlete={isEditing}
+          squads={squads}
           onSave={handleSave}
           onCancel={() => { setIsAdding(false); setIsEditing(null); }}
         />
@@ -235,11 +269,13 @@ export function CoachingRoster() {
 
 function AthleteForm({
   athlete,
+  squads,
   onSave,
   onCancel,
 }: {
   athlete: CoachingAthlete | null;
-  onSave: (data: Partial<CoachingAthlete>) => void;
+  squads: string[];
+  onSave: (data: Partial<CoachingAthlete> & { squad?: string }) => void;
   onCancel: () => void;
 }) {
   const [firstName, setFirstName] = useState(athlete?.first_name ?? '');
@@ -249,6 +285,7 @@ function AthleteForm({
     athlete?.experience_level ?? 'novice'
   );
   const [side, setSide] = useState<CoachingAthlete['side']>(athlete?.side ?? 'both');
+  const [squad, setSquad] = useState(athlete?.squad ?? '');
   const [notes, setNotes] = useState(athlete?.notes ?? '');
 
   return (
@@ -264,7 +301,7 @@ function AthleteForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, notes: notes || undefined } as Partial<CoachingAthlete>);
+            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, squad: squad || undefined, notes: notes || undefined } as Partial<CoachingAthlete> & { squad?: string });
           }}
           className="space-y-4"
         >
@@ -308,6 +345,18 @@ function AthleteForm({
               <option value="jv">JV</option>
               <option value="varsity">Varsity</option>
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="athlete-squad" className="block text-sm font-medium text-neutral-300 mb-1">Squad</label>
+            <input id="athlete-squad" type="text" list="squad-options" value={squad} onChange={(e) => setSquad(e.target.value)}
+              placeholder="e.g. Novice Boys, JV, Varsity"
+              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+            {squads.length > 0 && (
+              <datalist id="squad-options">
+                {squads.map((s) => <option key={s} value={s} />)}
+              </datalist>
+            )}
           </div>
 
           <div>

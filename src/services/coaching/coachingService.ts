@@ -339,20 +339,52 @@ export async function getAthletes(teamId: string): Promise<CoachingAthlete[]> {
   const rows = throwOnError(
     await supabase
       .from('athletes')
-      .select('*, team_athletes!inner(team_id, status)')
+      .select('*, team_athletes!inner(team_id, status, squad)')
       .eq('team_athletes.team_id', teamId)
       .eq('team_athletes.status', 'active')
       .order('last_name')
   ) as (Athlete & { team_athletes: TeamAthlete[] })[];
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  return rows.map(({ team_athletes, ...athlete }) => toCoachingAthlete(athlete as Athlete));
+  return rows.map(({ team_athletes, ...athlete }) => ({
+    ...toCoachingAthlete(athlete as Athlete),
+    squad: team_athletes[0]?.squad ?? null,
+  }));
+}
+
+/** Get distinct squad names for a team (for filter dropdowns / autocomplete) */
+export async function getTeamSquads(teamId: string): Promise<string[]> {
+  const rows = throwOnError(
+    await supabase
+      .from('team_athletes')
+      .select('squad')
+      .eq('team_id', teamId)
+      .not('squad', 'is', null)
+  ) as { squad: string }[];
+
+  return [...new Set(rows.map((r) => r.squad))].sort();
+}
+
+/** Update an athlete's squad assignment within a team */
+export async function updateAthleteSquad(
+  teamId: string,
+  athleteId: string,
+  squad: string | null
+): Promise<void> {
+  throwOnError(
+    await supabase
+      .from('team_athletes')
+      .update({ squad })
+      .eq('team_id', teamId)
+      .eq('athlete_id', athleteId)
+      .select()
+  );
 }
 
 export async function createAthlete(
   teamId: string,
   createdBy: string,
-  athlete: Pick<Athlete, 'first_name' | 'last_name' | 'grade' | 'experience_level' | 'side' | 'notes'>
+  athlete: Pick<Athlete, 'first_name' | 'last_name' | 'grade' | 'experience_level' | 'side' | 'notes'>,
+  squad?: string | null
 ): Promise<CoachingAthlete> {
   // 1. Insert into athletes
   const newAthlete = throwOnError(
@@ -363,16 +395,16 @@ export async function createAthlete(
       .single()
   ) as Athlete;
 
-  // 2. Link to team via team_athletes
+  // 2. Link to team via team_athletes (with optional squad)
   throwOnError(
     await supabase
       .from('team_athletes')
-      .insert({ team_id: teamId, athlete_id: newAthlete.id, status: 'active' })
+      .insert({ team_id: teamId, athlete_id: newAthlete.id, status: 'active', squad: squad ?? null })
       .select()
       .single()
   );
 
-  return toCoachingAthlete(newAthlete);
+  return { ...toCoachingAthlete(newAthlete), squad: squad ?? null };
 }
 
 export async function updateAthlete(

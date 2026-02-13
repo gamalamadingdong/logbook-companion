@@ -19,6 +19,7 @@ export function CoachingErgScores() {
   const [scores, setScores] = useState<CoachingErgScore[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [selectedDistance, setSelectedDistance] = useState<number | 'all'>('all');
+  const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,8 +45,16 @@ export function CoachingErgScores() {
     }
   };
 
-  const filteredScores = selectedDistance === 'all' ? scores : scores.filter((s) => s.distance === selectedDistance);
+  const filteredScores = scores.filter((s) => {
+    if (selectedDistance !== 'all' && s.distance !== selectedDistance) return false;
+    if (selectedSquad !== 'all') {
+      const athlete = athletes.find((a) => a.id === s.athlete_id);
+      if (athlete?.squad !== selectedSquad) return false;
+    }
+    return true;
+  });
   const distances = [...new Set(scores.map((s) => s.distance))].sort((a, b) => a - b);
+  const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
 
   const handleAddScore = async (score: Omit<Parameters<typeof createErgScore>[2], 'athlete_id'> & { athlete_id: string }) => {
     await createErgScore(teamId, userId, score);
@@ -82,6 +91,19 @@ export function CoachingErgScores() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {squads.length > 0 && (
+              <select
+                value={selectedSquad}
+                onChange={(e) => setSelectedSquad(e.target.value)}
+                className="px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                aria-label="Filter by squad"
+              >
+                <option value="all">All Squads</option>
+                {squads.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
             <select
               value={selectedDistance}
               onChange={(e) => setSelectedDistance(e.target.value === 'all' ? 'all' : Number(e.target.value))}
