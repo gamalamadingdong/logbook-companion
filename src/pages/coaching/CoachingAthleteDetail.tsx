@@ -147,12 +147,12 @@ export function CoachingAthleteDetail() {
                   )}
                   {athlete.experience_level && (
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      athlete.experience_level === 'novice' ? 'bg-green-900/30 text-green-400' :
-                      athlete.experience_level === 'freshman' ? 'bg-amber-900/30 text-amber-400' :
-                      athlete.experience_level === 'jv' ? 'bg-purple-900/30 text-purple-400' :
+                      athlete.experience_level === 'beginner' ? 'bg-green-900/30 text-green-400' :
+                      athlete.experience_level === 'intermediate' ? 'bg-amber-900/30 text-amber-400' :
+                      athlete.experience_level === 'experienced' ? 'bg-purple-900/30 text-purple-400' :
                       'bg-blue-900/30 text-blue-400'
                     }`}>
-                      {athlete.experience_level.toUpperCase()}
+                      {athlete.experience_level.charAt(0).toUpperCase() + athlete.experience_level.slice(1)}
                     </span>
                   )}
                   {athlete.squad && (
@@ -313,7 +313,7 @@ function AthleteEditForm({
   const [lastName, setLastName] = useState(athlete.last_name);
   const [grade, setGrade] = useState(athlete.grade ?? '');
   const [experienceLevel, setExperienceLevel] = useState<CoachingAthlete['experience_level']>(
-    athlete.experience_level ?? 'novice'
+    athlete.experience_level ?? 'beginner'
   );
   const [side, setSide] = useState<CoachingAthlete['side']>(athlete.side ?? 'both');
   const [squad, setSquad] = useState(athlete.squad ?? '');
@@ -371,17 +371,17 @@ function AthleteEditForm({
             <label htmlFor="athlete-experience" className="block text-sm font-medium text-neutral-300 mb-1">Experience Level</label>
             <select id="athlete-experience" value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value as CoachingAthlete['experience_level'])}
               className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
-              <option value="novice">Novice</option>
-              <option value="freshman">Freshman</option>
-              <option value="jv">JV</option>
-              <option value="varsity">Varsity</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="experienced">Experienced</option>
+              <option value="advanced">Advanced</option>
             </select>
           </div>
 
           <div>
             <label htmlFor="athlete-squad" className="block text-sm font-medium text-neutral-300 mb-1">Squad</label>
             <input id="athlete-squad" type="text" list="squad-options-detail" value={squad} onChange={(e) => setSquad(e.target.value)}
-              placeholder="e.g. Novice Boys, JV, Varsity"
+              placeholder="e.g. Boys A, Girls B, Development"
               className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
             {squads.length > 0 && (
               <datalist id="squad-options-detail">

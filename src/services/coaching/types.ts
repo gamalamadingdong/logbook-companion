@@ -42,7 +42,7 @@ export interface Athlete {
   email?: string | null;
   date_of_birth?: string | null;
   grade?: string;
-  experience_level?: 'novice' | 'freshman' | 'jv' | 'varsity';
+  experience_level?: 'beginner' | 'intermediate' | 'experienced' | 'advanced';
   side?: 'port' | 'starboard' | 'coxswain' | 'both';
   height_cm?: number | null;
   weight_kg?: number | null;

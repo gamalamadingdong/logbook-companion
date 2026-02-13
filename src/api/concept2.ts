@@ -122,11 +122,15 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
                         if (finalCheckToken) return finalCheckToken;
                     }
 
-                    // Only treat "invalid_grant" as truly fatal (expired/revoked refresh token).
-                    // Other 400s (bad request, rate limit, temporary C2 issues) are transient.
+                    // Check error payload for fatal indicators
                     const errorCode = axiosErr.response.data?.error || axiosErr.response.data?.message || '';
-                    if (typeof errorCode === 'string' && errorCode.toLowerCase().includes('invalid_grant')) {
-                        console.error("Fatal: Refresh token revoked/expired (invalid_grant). Clearing C2 tokens.");
+                    const errorStr = typeof errorCode === 'string' ? errorCode.toLowerCase() : '';
+                    const isFatalRefresh = errorStr.includes('invalid_grant')
+                        || errorStr.includes('refresh token is invalid')
+                        || errorStr.includes('token has been revoked');
+
+                    if (isFatalRefresh) {
+                        console.error("Fatal: Refresh token revoked/expired. Clearing C2 tokens. Reason:", errorCode);
                         await clearAllTokens();
                         throw new Error("FATAL_REFRESH_ERROR");
                     }
@@ -167,11 +171,12 @@ concept2Client.interceptors.request.use(async (config) => {
             } catch (err: unknown) {
                 const refreshErr = err as { message?: string; response?: { status?: number } };
                 console.error('Proactive token refresh failed:', err);
-                if (refreshErr.message === "FATAL_REFRESH_ERROR" || (refreshErr.response && refreshErr.response.status === 400)) {
-                    // Stop the request if we know auth is dead
+                if (refreshErr.message === "FATAL_REFRESH_ERROR") {
+                    // Auth is dead, tokens cleared, reconnect event fired — reject request
                     return Promise.reject(err);
                 }
-                // If it's network error, we might still struggle through or let 401 handler try later
+                // Non-fatal (network blip, transient 400, etc.) — proceed with existing token
+                // and let the 401 response interceptor handle it if needed
             }
         }
     }
