@@ -1,6 +1,10 @@
 import React from 'react';
 import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
+
+const GITHUB_SPONSORS_URL = import.meta.env.VITE_GITHUB_SPONSORS_URL || 'https://github.com/sponsors/gamalamadingdong';
+const PUBLIC_ROADMAP_URL = import.meta.env.VITE_PUBLIC_ROADMAP_URL || 'https://github.com/gamalamadingdong/LogbookCompanion/issues';
 
 export const About: React.FC = () => {
     return (
@@ -222,6 +226,46 @@ export const About: React.FC = () => {
                     </div>
                 </section>
 
+                {/* Community Support & Roadmap */}
+                <section className="bg-neutral-900/30 rounded-3xl p-8 md:p-12 border border-neutral-800/50 space-y-8">
+                    <div className="text-center max-w-3xl mx-auto space-y-3">
+                        <h2 className="text-3xl font-bold text-white">Community Supported</h2>
+                        <p className="text-neutral-400">
+                            Logbook Companion is free to use. If it helps your training or your team, optional support keeps it sustainable.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                            <h3 className="text-xl font-semibold text-white">Support the Project</h3>
+                            <p className="text-sm text-neutral-400">
+                                Donations help cover hosting, data storage, and future AI-powered analysis costs.
+                            </p>
+                            <a
+                                href={GITHUB_SPONSORS_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors"
+                            >
+                                Donate via GitHub Sponsors
+                            </a>
+                        </div>
+                        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                            <h3 className="text-xl font-semibold text-white">Track Features in Progress</h3>
+                            <p className="text-sm text-neutral-400">
+                                Follow active work, planned features, and release status on the public roadmap, and submit requests in-app with the Feedback button.
+                            </p>
+                            <a
+                                href={PUBLIC_ROADMAP_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-medium transition-colors"
+                            >
+                                View Public Roadmap
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Footer */}
                 <footer className="text-center pt-12 pb-8 text-neutral-600 text-sm border-t border-neutral-900 flex justify-center gap-6">
                     <Link to="/login" className="inline-flex items-center hover:text-white transition-colors gap-2">
@@ -238,7 +282,14 @@ export const About: React.FC = () => {
     );
 };
 
-const FeatureCard = ({ icon: Icon, color, title, description }: any) => (
+interface FeatureCardProps {
+    icon: LucideIcon;
+    color: 'blue' | 'yellow' | 'emerald' | 'purple';
+    title: string;
+    description: string;
+}
+
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon: Icon, color, title, description }) => (
     <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl hover:bg-neutral-900 hover:border-neutral-700 transition-all group">
         <div className={`w-12 h-12 rounded-xl bg-neutral-950 flex items-center justify-center mb-4 text-${color}-500 border border-neutral-800 group-hover:border-${color}-500/30 transition-colors`}>
             <Icon size={24} />

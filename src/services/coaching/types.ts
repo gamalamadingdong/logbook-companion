@@ -152,3 +152,53 @@ export interface WeeklyPlanInput {
   reflection?: string | null;
   created_by: string;
 }
+
+// ─── Workout Assignments ────────────────────────────────────────────────────
+
+/** A group-level workout assignment: template + date + team */
+export interface GroupAssignment {
+  id: string;
+  team_id: string;
+  template_id: string;
+  scheduled_date: string; // ISO date (YYYY-MM-DD)
+  title?: string | null;
+  instructions?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  // Joined fields (from template)
+  template_name?: string;
+  canonical_name?: string | null;
+  workout_type?: string;
+  training_zone?: string | null;
+}
+
+/** Input shape for creating a group assignment */
+export interface GroupAssignmentInput {
+  team_id: string;
+  template_id: string;
+  scheduled_date: string;
+  title?: string | null;
+  instructions?: string | null;
+  created_by: string;
+}
+
+/** Per-athlete assignment row with completion status */
+export interface AthleteAssignment {
+  id: string;
+  athlete_id: string;
+  group_assignment_id: string;
+  template_id?: string | null;
+  scheduled_date: string;
+  completed: boolean;
+  workout_log_id?: string | null;
+  // Joined fields
+  athlete_name?: string;
+}
+
+/** Completion summary for a group assignment */
+export interface AssignmentCompletion {
+  group_assignment_id: string;
+  total: number;
+  completed: number;
+  missing_athletes: Array<{ id: string; name: string }>;
+}

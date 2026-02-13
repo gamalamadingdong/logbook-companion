@@ -1,6 +1,6 @@
 # Active Context
 
-> Last updated: 2026-02-12
+> Last updated: 2026-02-13
 
 ## Current Focus: Sprint 3 Wrap-up & Pre-Season Prep
 
@@ -57,6 +57,9 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - [x] Mobile nav: highlight active tab
 
 ### Recent Changes
+- **Quick score entry completed (2026-02-13)**: Wired `QuickScoreModal` into `CoachingRoster.tsx` so clicking a red "Missing" badge opens inline quick entry for that athlete. Added roster refresh path that reloads both athletes and same-day assignment completions after save. Modal writes score via `quickScoreAndComplete()` (erg score + assignment completion linkage) or supports mark-complete-only mode. Also fixed modal assignment `<select>` accessibility naming (`htmlFor`/`id` + `aria-label`).
+- **Coaching accessibility + lint cleanup (2026-02-13)**: Fixed assignment form accessibility warnings by adding explicit label associations (`htmlFor`/`id`) and accessible names for selects in `CoachingAssignments.tsx` (template select and squad select, plus date input association). Removed dead/unused roster completion scaffolding (`completedAthleteIds`, `allAssigned`, `assignedAthleteIds`) from `CoachingRoster.tsx` to resolve TS6133 noise and keep roster logic focused on missing-athlete status.
+- **Community support messaging (2026-02-13)**: Added a new "Community Supported" section to public About page with GitHub Sponsors CTA (`VITE_GITHUB_SPONSORS_URL`, defaulting to `https://github.com/sponsors/gamalamadingdong`) and public roadmap CTA (`VITE_PUBLIC_ROADMAP_URL`, defaulting to `https://github.com/gamalamadingdong/LogbookCompanion/issues`). Also typed `FeatureCard` props in `About.tsx` (removed `any`).
 - **Squad tagging (2026-02-12)**: Added free-form `squad` TEXT column to `team_athletes` junction table (not `athletes`, because squad is team-specific). Migration: `db/migrations/20260212_add_squad_to_team_athletes.sql` — needs manual execution in Supabase. Service layer: `getAthletes()` returns squad from join, `createAthlete()` accepts optional squad, new `getTeamSquads(teamId)` returns distinct names, new `updateAthleteSquad(teamId, athleteId, squad)` updates junction row. UI: all 4 coaching pages updated — CoachingRoster (filter + badge + form field), CoachingAthleteDetail (badge + edit form field), CoachingErgScores (squad filter dropdown), CoachingBoatings (squad filter + form athletes filtered). Squad autocomplete via `<datalist>` from existing squad names. Architectural note: no new single-team assumptions introduced — future multi-team refactor still concentrated in `coachingService.ts` (LIMIT 1) and `useCoachingContext.ts` (single teamId).
 - **Dashboard error handling (Sprint 3 complete)**: Refactored `useDashboardData` to track per-section errors independently. Created reusable `SectionError` component. Each dashboard section (meters, goals, history, workouts, C2 profile) now fails gracefully with inline error + retry, instead of one generic banner. `retry()` function exposed for "Retry All".
 - **Weekly Focus card**: New `coaching_weekly_plans` table (migration in `db/migrations/`). `WeeklyFocusCard` on CoachDashboard — set/edit weekly theme, focus points (bullet list), and notes. Week navigation with prev/next. Integrated via `upsertWeeklyPlan()` (upsert on team_id + week_start). Migration needs manual execution in Supabase.
@@ -108,6 +111,44 @@ Resolves `userId` and `teamId` from `team_members`. All coaching pages consume t
 
 ---
 
-## ErgLink Integration (Future)
+## Next Up: Workout Capture Implementation Plan
+
+**Status**: Research complete, plan needed. Resume here.
+
+### Context Gathered
+Read all spec files and ran a full audit of both repos. Here's what exists vs. what's needed:
+
+| Spec Element | Status |
+|---|---|
+| C2 OAuth + Sync | **DONE** — full production sync with reconciliation |
+| Reconciliation engine | **DONE** — source priority Gold/Silver/Bronze in `reconciliation.ts` |
+| Template matching | **DONE** — auto-match by canonical name in `templateMatching.ts` |
+| Assignment DB schema | **DONE** — `group_assignments` + `daily_workout_assignments` tables |
+| Assignment linking (C2 sync) | **PARTIAL** — C2 sync auto-links, but no UI to create/manage assignments |
+| Roster "Missing" filter | **NOT BUILT** — roster filters by squad only |
+| Smart Form (template-aware entry) | **NOT BUILT** — no pre-filled interval grid |
+| OCR / Image capture | **NOT BUILT** — no `ErgImageProcessor` |
+| ErgLink BLE data reading | **DONE** — Web + Native |
+| ErgLink workout programming | **PARTIAL** — Web BLE full, Native stubbed |
+| ErgLink session join flow | **PARTIAL** — service exists, no dedicated PIN screen |
+| ErgLink → C2 upload | **NOT BUILT** — uploads to Supabase only |
+| ErgLink stroke buffering | **DONE** — IndexedDB `StrokeBuffer` |
+| ErgLink session real-time | **DONE** — Supabase Realtime + polling |
+| Coach quick-capture | **NOT BUILT** |
+| Athlete self-service entry | **NOT BUILT** — pages created but parked |
+
+### Key Spec Files (already read)
+- `working-memory/feature-specs/workout-capture-system.md` — master spec (Swiss Cheese strategy)
+- `working-memory/workflow-requirements.md` — RWN Trinity, sync workflows, canonical rules
+- `erg-link/working-memory/analysis/ux_journeys.md` — 5 UX scenarios
+- `erg-link/working-memory/systemPatterns.md` — Relay Pattern architecture
+
+### What to Do When Resuming
+1. **Develop phased implementation plan** — prioritize by season urgency (season starts Feb 17)
+2. Phase 1 candidates (immediate value, LC-only): Assignment UI, Smart Form, Roster missing filter
+3. Phase 2 candidates (ErgLink integration): Session PIN screen, Native workout programming, C2 upload
+4. Phase 3 candidates (polish): OCR, Coach quick-capture, Athlete self-service
+
+### ErgLink Integration (Future)
 - Support `target_*_max` fields (ranges) in PM5 programming
 - Enables: RWN → LC templates → ErgLink → PM5

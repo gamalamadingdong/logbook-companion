@@ -7,10 +7,14 @@ import {
   updateAthlete,
   updateAthleteSquad,
   deleteAthlete,
+  getAssignmentCompletions,
   type CoachingAthlete,
+  type AssignmentCompletion,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter, Users, CheckCircle2, XCircle } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
+import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
+import { format } from 'date-fns';
 
 export function CoachingRoster() {
   const { userId, teamId, isLoadingTeam, teamError } = useCoachingContext();
@@ -24,11 +28,30 @@ export function CoachingRoster() {
   const [deletingAthlete, setDeletingAthlete] = useState<CoachingAthlete | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
   const [isQuickAssign, setIsQuickAssign] = useState(false);
+  const [showMissingOnly, setShowMissingOnly] = useState(false);
+  const [completions, setCompletions] = useState<AssignmentCompletion[]>([]);
+  const [hasAssignmentsToday, setHasAssignmentsToday] = useState(false);
+  const [quickScoreAthlete, setQuickScoreAthlete] = useState<CoachingAthlete | null>(null);
+
+  const refreshCompletions = async (loadedAthletes: CoachingAthlete[]) => {
+    if (!teamId) return;
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const comps = await getAssignmentCompletions(teamId, todayStr, loadedAthletes);
+      setCompletions(comps);
+      setHasAssignmentsToday(comps.length > 0);
+    } catch {
+      // non-critical
+    }
+  };
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
     getAthletes(teamId)
-      .then(setAthletes)
+      .then((loadedAthletes) => {
+        setAthletes(loadedAthletes);
+        return refreshCompletions(loadedAthletes);
+      })
       .catch((err) => setError(err.message ?? 'Failed to load athletes'))
       .finally(() => setIsLoading(false));
   }, [teamId, isLoadingTeam]);
@@ -36,7 +59,9 @@ export function CoachingRoster() {
   const refreshAthletes = async () => {
     if (teamId) {
       try {
-        setAthletes(await getAthletes(teamId));
+        const loadedAthletes = await getAthletes(teamId);
+        setAthletes(loadedAthletes);
+        await refreshCompletions(loadedAthletes);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to refresh');
       }
@@ -80,7 +105,20 @@ export function CoachingRoster() {
 
   // Derived: distinct squad names + filtered list
   const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
-  const filteredAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
+
+  // Build a set of athlete IDs that are "missing" (have at least one incomplete assignment today)
+  const missingAthleteIds = new Set<string>();
+  for (const comp of completions) {
+    for (const m of comp.missing_athletes) missingAthleteIds.add(m.id);
+  }
+
+  const getMissingCompletionsForAthlete = (athleteId: string): AssignmentCompletion[] =>
+    completions.filter((comp) => comp.missing_athletes.some((m) => m.id === athleteId));
+
+  let filteredAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
+  if (showMissingOnly && hasAssignmentsToday) {
+    filteredAthletes = filteredAthletes.filter((a) => missingAthleteIds.has(a.id));
+  }
 
   // Quick-assign squad inline handler (optimistic)
   const handleQuickSquadChange = async (athlete: CoachingAthlete, newSquad: string) => {
@@ -141,6 +179,19 @@ export function CoachingRoster() {
               <Users className="w-4 h-4" />
               {isQuickAssign ? 'Done' : 'Quick Assign'}
             </button>
+            {hasAssignmentsToday && (
+              <button
+                onClick={() => setShowMissingOnly(!showMissingOnly)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  showMissingOnly
+                    ? 'bg-amber-600 text-white hover:bg-amber-500'
+                    : 'border border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+                }`}
+              >
+                <XCircle className="w-4 h-4" />
+                {showMissingOnly ? `Missing (${missingAthleteIds.size})` : 'Show Missing'}
+              </button>
+            )}
             <button
               onClick={() => setIsAdding(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
@@ -217,6 +268,28 @@ export function CoachingRoster() {
                   {athlete.squad}
                 </span>
               ) : null}
+              {/* Today's workout completion status */}
+              {hasAssignmentsToday && !isQuickAssign && (
+                missingAthleteIds.has(athlete.id) ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickScoreAthlete(athlete);
+                    }}
+                    className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
+                    title="Enter quick score"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Missing
+                  </button>
+                ) : (
+                  <span className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-900/30 text-green-400">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Done
+                  </span>
+                )
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -260,6 +333,21 @@ export function CoachingRoster() {
           squads={squads}
           onSave={handleSave}
           onCancel={() => { setIsAdding(false); setIsEditing(null); }}
+        />
+      )}
+
+      {/* Quick Score Modal */}
+      {quickScoreAthlete && teamId && (
+        <QuickScoreModal
+          athlete={quickScoreAthlete}
+          missingCompletions={getMissingCompletionsForAthlete(quickScoreAthlete.id)}
+          teamId={teamId}
+          coachUserId={userId}
+          onClose={() => setQuickScoreAthlete(null)}
+          onComplete={async () => {
+            await refreshAthletes();
+            setQuickScoreAthlete(null);
+          }}
         />
       )}
 

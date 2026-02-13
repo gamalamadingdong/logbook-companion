@@ -27,6 +27,7 @@ import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
 import { CoachingErgScores } from './pages/coaching/CoachingErgScores';
 import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
+import { CoachingAssignments } from './pages/coaching/CoachingAssignments';
 import { TeamSetup } from './pages/coaching/TeamSetup';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
 import { JoinTeam } from './pages/JoinTeam';
@@ -219,6 +220,14 @@ const AppContent: React.FC = () => {
           <Route
             path="/coaching/log"
             element={<Navigate to="/coaching/schedule" replace />}
+          />
+          <Route
+            path="/coaching/assignments"
+            element={
+              <CoachRoute>
+                <CoachingAssignments />
+              </CoachRoute>
+            }
           />
           <Route
             path="/coaching/ergs"

@@ -1,4 +1,5 @@
 import type { PostgrestError } from '@supabase/supabase-js';
+import { format } from 'date-fns';
 import { supabase } from '../supabase';
 import type {
   Athlete,
@@ -15,6 +16,10 @@ import type {
   BoatPosition,
   CoachingWeeklyPlan,
   WeeklyPlanInput,
+  GroupAssignment,
+  GroupAssignmentInput,
+  AthleteAssignment,
+  AssignmentCompletion,
 } from './types';
 
 // Re-export types for convenience
@@ -33,6 +38,10 @@ export type {
   BoatPosition,
   CoachingWeeklyPlan,
   WeeklyPlanInput,
+  GroupAssignment,
+  GroupAssignmentInput,
+  AthleteAssignment,
+  AssignmentCompletion,
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -759,4 +768,208 @@ export async function deleteWeeklyPlan(id: string): Promise<void> {
   throwOnError(
     await supabase.from('coaching_weekly_plans').delete().eq('id', id)
   );
+}
+
+// ─── Workout Assignments ─────────────────────────────────────────────────────
+
+/** Get all group assignments for a team, optionally filtered by date range */
+export async function getGroupAssignments(
+  teamId: string,
+  opts?: { from?: string; to?: string }
+): Promise<GroupAssignment[]> {
+  let query = supabase
+    .from('group_assignments')
+    .select(`
+      id, team_id, template_id, scheduled_date, title, instructions,
+      created_by, created_at,
+      workout_templates!inner ( name, canonical_name, workout_type, training_zone )
+    `)
+    .eq('team_id', teamId)
+    .order('scheduled_date', { ascending: false });
+
+  if (opts?.from) query = query.gte('scheduled_date', opts.from);
+  if (opts?.to) query = query.lte('scheduled_date', opts.to);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  // Flatten the joined template fields
+  return (data ?? []).map((row: Record<string, unknown>) => {
+    const tmpl = row.workout_templates as Record<string, unknown> | null;
+    return {
+      id: row.id as string,
+      team_id: row.team_id as string,
+      template_id: row.template_id as string,
+      scheduled_date: row.scheduled_date as string,
+      title: row.title as string | null,
+      instructions: row.instructions as string | null,
+      created_by: row.created_by as string | null,
+      created_at: row.created_at as string,
+      template_name: (tmpl?.name as string) ?? undefined,
+      canonical_name: (tmpl?.canonical_name as string | null) ?? null,
+      workout_type: (tmpl?.workout_type as string) ?? undefined,
+      training_zone: (tmpl?.training_zone as string | null) ?? null,
+    };
+  });
+}
+
+/** Get group assignments for a specific date */
+export async function getAssignmentsForDate(
+  teamId: string,
+  date: string
+): Promise<GroupAssignment[]> {
+  return getGroupAssignments(teamId, { from: date, to: date });
+}
+
+/** Create a group assignment and fan out per-athlete rows */
+export async function createGroupAssignment(
+  input: GroupAssignmentInput,
+  athleteIds: string[]
+): Promise<GroupAssignment> {
+  // 1. Insert the group assignment
+  const ga = throwOnError<Record<string, unknown>>(
+    await supabase
+      .from('group_assignments')
+      .insert(input)
+      .select()
+      .single()
+  );
+
+  // 2. Fan out daily_workout_assignments for each athlete
+  if (athleteIds.length > 0) {
+    const dateObj = new Date(input.scheduled_date + 'T00:00:00');
+    const rows = athleteIds.map((athleteId) => ({
+      athlete_id: athleteId,
+      team_id: input.team_id,
+      original_template_id: input.template_id,
+      workout_date: input.scheduled_date,
+      day_of_week: dateObj.getDay(),
+      week_number: 0,
+      scheduled_workout: { template_id: input.template_id, title: input.title },
+      group_assignment_id: ga.id as string,
+      completed: false,
+    }));
+
+    const { error } = await supabase
+      .from('daily_workout_assignments')
+      .insert(rows);
+
+    if (error) {
+      console.error('Error fanning out athlete assignments:', error);
+      // Don't throw — group assignment is created, individual rows are best-effort
+    }
+  }
+
+  return {
+    id: ga.id as string,
+    team_id: ga.team_id as string,
+    template_id: ga.template_id as string,
+    scheduled_date: ga.scheduled_date as string,
+    title: ga.title as string | null,
+    instructions: ga.instructions as string | null,
+    created_by: ga.created_by as string | null,
+    created_at: ga.created_at as string,
+  };
+}
+
+/** Delete a group assignment and its per-athlete rows */
+export async function deleteGroupAssignment(id: string): Promise<void> {
+  // Cascade: remove athlete rows first
+  await supabase
+    .from('daily_workout_assignments')
+    .delete()
+    .eq('group_assignment_id', id);
+
+  throwOnError(
+    await supabase.from('group_assignments').delete().eq('id', id)
+  );
+}
+
+/** Get completion status for assignments on a given date */
+export async function getAssignmentCompletions(
+  teamId: string,
+  date: string,
+  athletes: CoachingAthlete[]
+): Promise<AssignmentCompletion[]> {
+  // 1. Get group assignments for the date
+  const assignments = await getAssignmentsForDate(teamId, date);
+  if (assignments.length === 0) return [];
+
+  // 2. Get all daily_workout_assignments for those group assignment IDs
+  const gaIds = assignments.map((a) => a.id);
+  const { data: dailyRows, error } = await supabase
+    .from('daily_workout_assignments')
+    .select('id, athlete_id, group_assignment_id, completed, completed_log_id')
+    .in('group_assignment_id', gaIds);
+
+  if (error) throw error;
+
+  // 3. Build completion summary per group assignment
+  const athleteMap = new Map(athletes.map((a) => [a.id, a.name]));
+
+  return assignments.map((ga) => {
+    const rows = (dailyRows ?? []).filter(
+      (r) => r.group_assignment_id === ga.id
+    );
+    const completedRows = rows.filter((r) => r.completed);
+    const missingAthletes = rows
+      .filter((r) => !r.completed)
+      .map((r) => ({
+        id: r.athlete_id,
+        name: athleteMap.get(r.athlete_id) ?? 'Unknown',
+      }));
+
+    return {
+      group_assignment_id: ga.id,
+      total: rows.length,
+      completed: completedRows.length,
+      missing_athletes: missingAthletes,
+    };
+  });
+}
+
+/** Mark an athlete's assignment as completed (manual entry) */
+export async function completeAthleteAssignment(
+  groupAssignmentId: string,
+  athleteId: string,
+  workoutLogId?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('daily_workout_assignments')
+    .update({
+      completed: true,
+      completed_at: new Date().toISOString(),
+      ...(workoutLogId ? { completed_log_id: workoutLogId } : {}),
+    })
+    .eq('group_assignment_id', groupAssignmentId)
+    .eq('athlete_id', athleteId);
+
+  if (error) throw error;
+}
+
+/** Quick-score an athlete: create erg score + mark assignment complete in one step */
+export async function quickScoreAndComplete(
+  teamId: string,
+  coachUserId: string,
+  athleteId: string,
+  groupAssignmentId: string,
+  score: {
+    distance: number;
+    time_seconds: number;
+    split_500m?: number;
+    watts?: number;
+    stroke_rate?: number;
+    heart_rate?: number;
+    notes?: string;
+  }
+): Promise<void> {
+  // 1. Create the erg score
+  const ergScore = await createErgScore(teamId, coachUserId, {
+    athlete_id: athleteId,
+    date: format(new Date(), 'yyyy-MM-dd'),
+    ...score,
+  });
+
+  // 2. Mark the assignment complete, linking to the erg score
+  await completeAthleteAssignment(groupAssignmentId, athleteId, ergScore.id);
 }
