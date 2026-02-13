@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
@@ -37,11 +37,36 @@ import { Toaster } from 'sonner';
 
 // ... (previous imports)
 
+/** Loading screen with escape hatch for stuck sessions */
+const AuthLoadingScreen: React.FC = () => {
+  const { clearStaleSession } = useAuth();
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHelp(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center text-emerald-500 gap-4">
+      <div className="animate-pulse">Loading...</div>
+      {showHelp && (
+        <button
+          onClick={clearStaleSession}
+          className="text-sm text-neutral-400 hover:text-emerald-400 underline transition-colors"
+        >
+          Trouble signing in? Click here to reset your session.
+        </button>
+      )}
+    </div>
+  );
+};
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">Loading...</div>;
+    return <AuthLoadingScreen />;
   }
 
   if (!user) {
@@ -54,7 +79,7 @@ const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, isCoach } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-emerald-500">Loading...</div>;
+    return <AuthLoadingScreen />;
   }
 
   if (!user) {

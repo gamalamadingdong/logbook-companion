@@ -2,6 +2,9 @@ import { createContext, useEffect, useState, useCallback, useRef, type ReactNode
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 
+/** How long to wait for initial session before giving up (ms) */
+const SESSION_TIMEOUT_MS = 8_000
+
 interface AuthContextType {
   user: User | null
   profile: UserProfile | null
@@ -13,6 +16,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, displayName: string) => Promise<void>
   resetPassword: (email: string) => Promise<void>
+  clearStaleSession: () => Promise<void> // Manual escape hatch for stuck sessions
   isAuthenticated: boolean // Added for compatibility with existing code
   token: string | null // Added for compatibility
   login: () => void // Deprecated compatibility stub
@@ -39,6 +43,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
   const [c2Token] = useState<string | null>(localStorage.getItem('concept2_token'));
+
+  /** Manually clear a stuck/stale session — exposed to UI as escape hatch */
+  const clearStaleSession = useCallback(async () => {
+    console.warn('Manually clearing stale session')
+    // Remove Supabase auth keys from localStorage directly
+    const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+    // Also call signOut to clean up internal state
+    await supabase.auth.signOut().catch(() => { /* ignore */ })
+    setSession(null)
+    setUser(null)
+    setProfile(null)
+    setTokensReady(true)
+    setLoading(false)
+  }, [])
 
   const createBasicProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -129,7 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 1. Check Initial Session
     const getInitialSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+          // Stale/invalid session in storage — clear it and start fresh
+          console.warn('Session recovery failed, signing out:', error.message)
+          await supabase.auth.signOut().catch(() => { /* ignore */ })
+          setTokensReady(true)
+          setLoading(false)
+          return
+        }
         if (session?.user) {
           setSession(session)
           setUser(session.user)
@@ -141,14 +168,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false)
         }
       } catch {
+        // Network error during session check — clear stale state
+        console.warn('Network error checking session, clearing stored session')
+        await supabase.auth.signOut().catch(() => { /* ignore */ })
+        setTokensReady(true)
         setLoading(false)
       }
     }
     getInitialSession()
 
+    // 1b. Safety timeout — if loading doesn't resolve, force-clear session
+    const safetyTimeout = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          console.warn(`Session check timed out after ${SESSION_TIMEOUT_MS}ms, clearing stale session`)
+          // Clear Supabase auth keys from localStorage
+          Object.keys(localStorage)
+            .filter(k => k.startsWith('sb-'))
+            .forEach(k => localStorage.removeItem(k))
+          supabase.auth.signOut().catch(() => { /* ignore */ })
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setTokensReady(true)
+          return false
+        }
+        return prev
+      })
+    }, SESSION_TIMEOUT_MS)
+
     // 2. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          // Refresh failed — stale session
+          console.warn('Token refresh failed, clearing session')
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
         if (session?.user) {
           isGuestMode.current = false; // Real login overrides guest
           setSession(session)
@@ -169,7 +229,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(safetyTimeout)
+    }
   }, [fetchProfile, restoreC2Tokens])
 
   // --- Auth Actions ---
@@ -282,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     resetPassword,
+    clearStaleSession,
     loginAsGuest,
     isGuest: user?.id === 'guest_user_123',
     isCoach: Array.isArray(profile?.roles) && profile.roles.includes('coach'),
