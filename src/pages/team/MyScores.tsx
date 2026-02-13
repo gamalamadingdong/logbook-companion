@@ -51,7 +51,7 @@ export function MyScores() {
     : scores;
 
   // Compute trend indicators — compare each score to the previous at same distance
-  const getTrend = (score: CoachingErgScore, index: number): 'up' | 'down' | 'same' | null => {
+  const getTrend = (score: CoachingErgScore): 'up' | 'down' | 'same' | null => {
     const sameDistance = filtered
       .filter((s) => s.distance === score.distance)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -103,7 +103,9 @@ export function MyScores() {
       {/* Filter */}
       <div className="flex items-center gap-2 mb-4">
         <Filter className="w-4 h-4 text-neutral-500" />
+        <label htmlFor="distance-filter" className="sr-only">Filter by distance</label>
         <select
+          id="distance-filter"
           value={distanceFilter}
           onChange={(e) => setDistanceFilter(Number(e.target.value))}
           className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-neutral-300 focus:ring-1 focus:ring-emerald-500 outline-none"
@@ -126,8 +128,8 @@ export function MyScores() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((score, i) => {
-            const trend = getTrend(score, i);
+          {filtered.map((score) => {
+            const trend = getTrend(score);
 
             return (
               <div
@@ -178,9 +180,9 @@ export function MyScores() {
 
                 {/* Trend */}
                 <div className="sm:w-8 flex sm:justify-center">
-                  {trend === 'up' && <TrendingUp className="w-5 h-5 text-emerald-400" title="Faster than previous" />}
-                  {trend === 'down' && <TrendingDown className="w-5 h-5 text-red-400" title="Slower than previous" />}
-                  {trend === 'same' && <Minus className="w-5 h-5 text-neutral-500" title="Same as previous" />}
+                  {trend === 'up' && <TrendingUp className="w-5 h-5 text-emerald-400" aria-label="Faster than previous" />}
+                  {trend === 'down' && <TrendingDown className="w-5 h-5 text-red-400" aria-label="Slower than previous" />}
+                  {trend === 'same' && <Minus className="w-5 h-5 text-neutral-500" aria-label="Same as previous" />}
                 </div>
 
                 {/* Notes */}
