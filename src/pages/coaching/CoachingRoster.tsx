@@ -9,7 +9,7 @@ import {
   deleteAthlete,
   type CoachingAthlete,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter, Users } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingRoster() {
@@ -23,6 +23,7 @@ export function CoachingRoster() {
   const [isAdding, setIsAdding] = useState(false);
   const [deletingAthlete, setDeletingAthlete] = useState<CoachingAthlete | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
+  const [isQuickAssign, setIsQuickAssign] = useState(false);
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
@@ -81,6 +82,24 @@ export function CoachingRoster() {
   const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
   const filteredAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
 
+  // Quick-assign squad inline handler (optimistic)
+  const handleQuickSquadChange = async (athlete: CoachingAthlete, newSquad: string) => {
+    const trimmed = newSquad.trim() || null;
+    if (trimmed === (athlete.squad ?? null)) return;
+    // Optimistic update
+    setAthletes((prev) =>
+      prev.map((a) => (a.id === athlete.id ? { ...a, squad: trimmed } : a))
+    );
+    try {
+      await updateAthleteSquad(teamId, athlete.id, trimmed);
+    } catch {
+      // Revert on failure
+      setAthletes((prev) =>
+        prev.map((a) => (a.id === athlete.id ? { ...a, squad: athlete.squad } : a))
+      );
+    }
+  };
+
   return (
     <>
     <CoachingNav />
@@ -111,6 +130,17 @@ export function CoachingRoster() {
                 </select>
               </div>
             )}
+            <button
+              onClick={() => setIsQuickAssign(!isQuickAssign)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isQuickAssign
+                  ? 'bg-cyan-600 text-white hover:bg-cyan-500'
+                  : 'border border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              {isQuickAssign ? 'Done' : 'Quick Assign'}
+            </button>
             <button
               onClick={() => setIsAdding(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
@@ -161,7 +191,7 @@ export function CoachingRoster() {
                     `${athlete.side.charAt(0).toUpperCase() + athlete.side.slice(1)}`}
                 </p>
               </div>
-              {athlete.experience_level && (
+              {athlete.experience_level && !isQuickAssign && (
                 <span
                   className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
                     athlete.experience_level === 'beginner'
@@ -176,11 +206,17 @@ export function CoachingRoster() {
                   {athlete.experience_level.charAt(0).toUpperCase() + athlete.experience_level.slice(1)}
                 </span>
               )}
-              {athlete.squad && (
+              {isQuickAssign ? (
+                <QuickSquadInput
+                  athlete={athlete}
+                  squads={squads}
+                  onSave={handleQuickSquadChange}
+                />
+              ) : athlete.squad ? (
                 <span className="shrink-0 px-3 py-1 rounded-full text-xs font-medium bg-cyan-900/30 text-cyan-400">
                   {athlete.squad}
                 </span>
-              )}
+              ) : null}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -378,6 +414,45 @@ function AthleteForm({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/* ─── Quick Squad Inline Input ─────────────────────────────────────────────── */
+
+function QuickSquadInput({
+  athlete,
+  squads,
+  onSave,
+}: {
+  athlete: CoachingAthlete;
+  squads: string[];
+  onSave: (athlete: CoachingAthlete, squad: string) => void;
+}) {
+  const [value, setValue] = useState(athlete.squad ?? '');
+  const datalistId = `quick-squad-${athlete.id}`;
+
+  const handleCommit = () => {
+    if (value.trim() !== (athlete.squad ?? '')) {
+      onSave(athlete, value);
+    }
+  };
+
+  return (
+    <div className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="text"
+        list={datalistId}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={handleCommit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCommit(); (e.target as HTMLInputElement).blur(); } }}
+        placeholder="Squad..."
+        className="w-32 px-2.5 py-1.5 bg-neutral-800 border border-cyan-700/50 rounded-lg text-sm text-white placeholder-neutral-600 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none"
+      />
+      <datalist id={datalistId}>
+        {squads.map((s) => <option key={s} value={s} />)}
+      </datalist>
     </div>
   );
 }

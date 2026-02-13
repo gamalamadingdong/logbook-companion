@@ -194,6 +194,52 @@ export async function removeTeamMember(memberId: string): Promise<void> {
   );
 }
 
+/** Add a user to a team by their email address. Looks up user_profiles to find the user_id. */
+export async function addTeamMemberByEmail(
+  teamId: string,
+  email: string,
+  role: TeamRole = 'member'
+): Promise<TeamMemberWithProfile> {
+  // 1. Find user by email in user_profiles
+  const { data: profile, error: profileErr } = await supabase
+    .from('user_profiles')
+    .select('user_id, display_name, email')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle();
+
+  if (profileErr) throw profileErr;
+  if (!profile) throw new Error(`No account found for "${email}". They need to sign up first.`);
+
+  // 2. Check if already a member
+  const { data: existing } = await supabase
+    .from('team_members')
+    .select('id')
+    .eq('team_id', teamId)
+    .eq('user_id', profile.user_id)
+    .maybeSingle();
+
+  if (existing) throw new Error(`${profile.display_name ?? email} is already on this team.`);
+
+  // 3. Insert team_members row
+  const membership = throwOnError(
+    await supabase
+      .from('team_members')
+      .insert({
+        team_id: teamId,
+        user_id: profile.user_id,
+        role,
+      })
+      .select()
+      .single()
+  ) as TeamMember;
+
+  return {
+    ...membership,
+    display_name: profile.display_name ?? email,
+    email: profile.email ?? email,
+  };
+}
+
 // ─── Join Team by Invite Code ───────────────────────────────────────────────
 
 /** Look up a team by its invite code */

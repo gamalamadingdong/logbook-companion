@@ -29,6 +29,7 @@ import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
 import { TeamSetup } from './pages/coaching/TeamSetup';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
+import { JoinTeam } from './pages/JoinTeam';
 import { NotFound } from './pages/NotFound';
 
 import { Layout } from './components/Layout';
@@ -292,6 +293,14 @@ const AppContent: React.FC = () => {
             }
           />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route
+            path="/join"
+            element={
+              <ProtectedRoute>
+                <JoinTeam />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="*"
             element={

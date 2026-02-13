@@ -13,7 +13,7 @@ import {
   type BoatPosition,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter } from 'lucide-react';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, CopyPlus, ArrowRightLeft } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 
 export function CoachingBoatings() {
@@ -72,6 +72,36 @@ export function CoachingBoatings() {
     await refreshData();
   };
 
+  /** Copy all lineups from the most recent previous day that had lineups */
+  const handleCopyPreviousDay = async () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    // Find the most recent day before today that has boatings
+    const pastDates = Object.keys(boatingsByDate).filter((d) => d < today).sort().reverse();
+    if (pastDates.length === 0) return;
+    const sourceDate = pastDates[0];
+    const sourceBoatings = boatingsByDate[sourceDate];
+    for (const b of sourceBoatings) {
+      await duplicateBoating(teamId, userId, b);
+    }
+    await refreshData();
+  };
+
+  /** Inline update: save new positions for a boating (from diagram seat editing / swap) */
+  const handleInlinePositionUpdate = async (boatingId: string, newPositions: BoatPosition[]) => {
+    const boating = boatings.find((b) => b.id === boatingId);
+    if (!boating) return;
+    // Optimistic update
+    setBoatings((prev) =>
+      prev.map((b) => (b.id === boatingId ? { ...b, positions: newPositions } : b))
+    );
+    try {
+      await updateBoating(boatingId, { ...boating, positions: newPositions });
+    } catch {
+      // Revert on error
+      await refreshData();
+    }
+  };
+
   const getAthleteName = (athleteId: string) =>
     athletes.find((a) => a.id === athleteId)?.name ?? 'Unknown';
 
@@ -86,6 +116,10 @@ export function CoachingBoatings() {
     acc[dateKey].push(boating);
     return acc;
   }, {} as Record<string, CoachingBoating[]>);
+
+  // Check if there are previous-day lineups to copy
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const hasPreviousDay = Object.keys(boatingsByDate).some((d) => d < today);
 
   return (
     <>
@@ -115,6 +149,16 @@ export function CoachingBoatings() {
                   ))}
                 </select>
               </div>
+            )}
+            {hasPreviousDay && (
+              <button
+                onClick={handleCopyPreviousDay}
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-700 transition-colors"
+                title="Copy all lineups from the most recent previous day"
+              >
+                <CopyPlus className="w-5 h-5" />
+                Copy Prev Day
+              </button>
             )}
             <button
               onClick={() => setIsAdding(true)}
@@ -221,6 +265,11 @@ export function CoachingBoatings() {
                           boatType={boating.boat_type}
                           positions={boating.positions}
                           getAthleteName={getAthleteName}
+                          athletes={athletes}
+                          boatingId={boating.id}
+                          onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                          allBoatings={boatings}
+                          currentBoatingDate={boating.date}
                         />
                         {boating.notes && (
                           <p className="mt-4 text-sm text-neutral-400 bg-neutral-800 p-3 rounded-xl">
@@ -255,22 +304,36 @@ export function CoachingBoatings() {
   );
 }
 
-/* ─── Boat Diagram ─────────────────────────────────────────────────────────── */
+/* ─── Boat Diagram (inline editing + seat swap) ───────────────────────────── */
 
 function BoatDiagram({
   boatType,
   positions,
   getAthleteName,
+  athletes,
+  boatingId,
+  onPositionsChange,
+  allBoatings,
+  currentBoatingDate,
 }: {
   boatType: CoachingBoating['boat_type'];
   positions: BoatPosition[];
   getAthleteName: (id: string) => string;
+  athletes?: CoachingAthlete[];
+  boatingId?: string;
+  onPositionsChange?: (positions: BoatPosition[]) => void;
+  allBoatings?: CoachingBoating[];
+  currentBoatingDate?: string;
 }) {
+  const [editingSeat, setEditingSeat] = useState<number | null>(null);
+  const [swapSeat, setSwapSeat] = useState<number | null>(null);
+
   const seatCount =
     boatType === '8+' ? 8 :
     ['4+', '4x', '4-'].includes(boatType) ? 4 :
     ['2x', '2-'].includes(boatType) ? 2 : 1;
   const hasCox = boatType.includes('+');
+  const isSweep = !boatType.includes('x') && boatType !== '1x';
 
   const getSeatLabel = (seat: number) => {
     if (seat === 0) return 'Cox';
@@ -281,36 +344,161 @@ function BoatDiagram({
 
   const getAthleteForSeat = (seat: number) => {
     const pos = positions.find((p) => p.seat === seat);
-    return pos ? getAthleteName(pos.athlete_id) : '—';
+    return pos ? pos.athlete_id : '';
+  };
+
+  const getAthleteNameForSeat = (seat: number) => {
+    const id = getAthleteForSeat(seat);
+    return id ? getAthleteName(id) : '—';
+  };
+
+  /** Get athletes available for a seat (exclude those already in this boat or other boats on same date) */
+  const getAvailableForSeat = (seat: number) => {
+    if (!athletes) return [];
+    const currentId = getAthleteForSeat(seat);
+    const otherSeatIds = new Set(
+      positions.filter((p) => p.seat !== seat).map((p) => p.athlete_id)
+    );
+    const takenByOtherBoats = new Set(
+      (allBoatings ?? [])
+        .filter((b) => b.date.slice(0, 10) === currentBoatingDate?.slice(0, 10) && b.id !== boatingId)
+        .flatMap((b) => b.positions.map((p) => p.athlete_id))
+    );
+    return athletes.filter(
+      (a) => a.id === currentId || (!otherSeatIds.has(a.id) && !takenByOtherBoats.has(a.id))
+    );
+  };
+
+  /** Sort athletes by side preference for sweep boats */
+  const sortBySide = (list: CoachingAthlete[], seat: number): CoachingAthlete[] => {
+    if (!isSweep || seat === 0) return list; // cox or scull — no side preference
+    // Convention: even seats = port, odd seats = starboard (common US convention)
+    const preferredSide = seat % 2 === 0 ? 'port' : 'starboard';
+    return [...list].sort((a, b) => {
+      const aMatch = a.side === preferredSide || a.side === 'both' ? 0 : 1;
+      const bMatch = b.side === preferredSide || b.side === 'both' ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  };
+
+  const handleSeatClick = (seat: number) => {
+    if (!onPositionsChange) return; // read-only mode
+
+    // If we're in swap mode
+    if (swapSeat !== null) {
+      if (swapSeat === seat) {
+        // Cancel swap
+        setSwapSeat(null);
+        return;
+      }
+      // Perform swap
+      const aId = getAthleteForSeat(swapSeat);
+      const bId = getAthleteForSeat(seat);
+      const newPositions = positions
+        .filter((p) => p.seat !== swapSeat && p.seat !== seat)
+        .concat(
+          ...(aId ? [{ seat, athlete_id: aId }] : []),
+          ...(bId ? [{ seat: swapSeat, athlete_id: bId }] : []),
+        );
+      onPositionsChange(newPositions);
+      setSwapSeat(null);
+      return;
+    }
+
+    // Toggle inline edit dropdown
+    setEditingSeat(editingSeat === seat ? null : seat);
+  };
+
+  const handleSeatChange = (seat: number, athleteId: string) => {
+    if (!onPositionsChange) return;
+    const newPositions = athleteId
+      ? [...positions.filter((p) => p.seat !== seat), { seat, athlete_id: athleteId }]
+      : positions.filter((p) => p.seat !== seat);
+    onPositionsChange(newPositions);
+    setEditingSeat(null);
+  };
+
+  const startSwapMode = (seat: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSeat(null);
+    setSwapSeat(seat);
+  };
+
+  const renderSeatRow = (seat: number, colorClass: string, labelClass: string) => {
+    const isEditing = editingSeat === seat;
+    const isSwapSource = swapSeat === seat;
+    const isSwapTarget = swapSeat !== null && swapSeat !== seat;
+    const athleteId = getAthleteForSeat(seat);
+
+    return (
+      <div
+        key={seat}
+        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${colorClass} ${
+          onPositionsChange ? 'cursor-pointer hover:ring-1 hover:ring-indigo-500/50' : ''
+        } ${isSwapSource ? 'ring-2 ring-amber-400' : ''} ${isSwapTarget ? 'ring-1 ring-amber-400/40' : ''}`}
+        onClick={() => handleSeatClick(seat)}
+      >
+        <span className={`w-20 text-sm font-semibold ${labelClass}`}>
+          {getSeatLabel(seat)}
+        </span>
+
+        {isEditing && athletes ? (
+          <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <select
+              autoFocus
+              value={athleteId}
+              onChange={(e) => handleSeatChange(seat, e.target.value)}
+              onBlur={() => setEditingSeat(null)}
+              aria-label={`Athlete for ${getSeatLabel(seat)}`}
+              className="flex-1 px-3 py-1.5 bg-neutral-800 border border-indigo-500 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">— Empty —</option>
+              {sortBySide(getAvailableForSeat(seat), seat).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}{isSweep && a.side ? ` (${a.side === 'both' ? 'B' : a.side[0].toUpperCase()})` : ''}
+                </option>
+              ))}
+            </select>
+            {athleteId && (
+              <button
+                onClick={(e) => startSwapMode(seat, e)}
+                className="p-1 hover:bg-neutral-700 rounded transition-colors"
+                title="Swap with another seat"
+              >
+                <ArrowRightLeft className="w-4 h-4 text-amber-400" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className={`text-sm font-medium ${isSwapSource ? 'text-amber-300' : 'text-neutral-300'}`}>
+            {getAthleteNameForSeat(seat)}
+            {isSwapSource && <span className="ml-2 text-xs text-amber-500">(pick swap target)</span>}
+          </span>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="space-y-2">
-      {hasCox && (
-        <div className="flex items-center gap-3 p-3 bg-amber-900/20 border border-amber-800/30 rounded-xl">
-          <span className="w-20 text-sm font-semibold text-amber-400">Cox</span>
-          <span className="text-sm font-medium text-neutral-300">{getAthleteForSeat(0)}</span>
+      {swapSeat !== null && (
+        <div className="flex items-center gap-2 p-2 bg-amber-900/20 border border-amber-800/30 rounded-lg text-sm text-amber-400">
+          <ArrowRightLeft className="w-4 h-4" />
+          Click another seat to swap, or click the highlighted seat to cancel
         </div>
       )}
-      {Array.from({ length: seatCount }, (_, i) => seatCount - i).map((seat) => (
-        <div
-          key={seat}
-          className={`flex items-center gap-3 p-3 rounded-xl ${
-            seat === seatCount
-              ? 'bg-indigo-500/10 border border-indigo-500/20'
-              : seat === 1
-              ? 'bg-teal-900/20 border border-teal-800/30'
-              : 'bg-neutral-800'
-          }`}
-        >
-          <span className={`w-20 text-sm font-semibold ${
-            seat === seatCount ? 'text-indigo-400' : seat === 1 ? 'text-teal-400' : 'text-neutral-400'
-          }`}>
-            {getSeatLabel(seat)}
-          </span>
-          <span className="text-sm font-medium text-neutral-300">{getAthleteForSeat(seat)}</span>
-        </div>
-      ))}
+      {hasCox && renderSeatRow(0, 'bg-amber-900/20 border border-amber-800/30', 'text-amber-400')}
+      {Array.from({ length: seatCount }, (_, i) => seatCount - i).map((seat) =>
+        renderSeatRow(
+          seat,
+          seat === seatCount
+            ? 'bg-indigo-500/10 border border-indigo-500/20'
+            : seat === 1
+            ? 'bg-teal-900/20 border border-teal-800/30'
+            : 'bg-neutral-800',
+          seat === seatCount ? 'text-indigo-400' : seat === 1 ? 'text-teal-400' : 'text-neutral-400'
+        )
+      )}
     </div>
   );
 }
@@ -359,6 +547,27 @@ function BoatingForm({
     ['4+', '4x', '4-'].includes(boatType) ? 4 :
     ['2x', '2-'].includes(boatType) ? 2 : 1;
   const hasCox = boatType.includes('+');
+  const isSweep = !boatType.includes('x') && boatType !== '1x';
+
+  /** Sort athletes with preferred side first for sweep boats */
+  const sortedAvailable = (seat: number) => {
+    const available = getAvailableAthletes(seat);
+    if (!isSweep || seat === 0) return available;
+    const preferredSide = seat % 2 === 0 ? 'port' : 'starboard';
+    return [...available].sort((a, b) => {
+      const aMatch = a.side === preferredSide || a.side === 'both' ? 0 : 1;
+      const bMatch = b.side === preferredSide || b.side === 'both' ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  };
+
+  /** Side indicator for athlete name in dropdown */
+  const sideTag = (a: CoachingAthlete, seat: number) => {
+    if (!isSweep || !a.side || seat === 0) return '';
+    if (a.side === 'coxswain') return ' ⚓';
+    if (a.side === 'both') return ' (B)';
+    return ` (${a.side[0].toUpperCase()})`;
+  };
 
   const getSeatLabel = (seat: number) => {
     if (seat === 0) return 'Coxswain';
@@ -444,7 +653,7 @@ function BoatingForm({
                 <select id="seat-cox" value={getAthleteForSeat(0)} onChange={(e) => setPosition(0, e.target.value)}
                   className="flex-1 px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
                   <option value="">— Select —</option>
-                  {getAvailableAthletes(0).map((a) => (
+                  {sortedAvailable(0).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}{a.side === 'coxswain' ? ' ⚓' : ''}</option>
                   ))}
                 </select>
@@ -461,8 +670,8 @@ function BoatingForm({
                 <select id={`seat-${seat}`} value={getAthleteForSeat(seat)} onChange={(e) => setPosition(seat, e.target.value)}
                   className="flex-1 px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
                   <option value="">— Select —</option>
-                  {getAvailableAthletes(seat).map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
+                  {sortedAvailable(seat).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}{sideTag(a, seat)}</option>
                   ))}
                 </select>
               </div>

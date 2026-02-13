@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
   const [tokensReady, setTokensReady] = useState(false)
+  const [isCoachRole, setIsCoachRole] = useState(false)
   const isGuestMode = useRef(false);
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
@@ -106,6 +107,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(data)
       }
+
+      // Check if user has coach role in any team (drives isCoach for route gating)
+      const { data: coachRow } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'coach')
+        .limit(1)
+        .maybeSingle()
+      setIsCoachRole(!!coachRow)
     } catch (error) {
       console.error('Exception in fetchProfile:', error)
     } finally {
@@ -338,7 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStaleSession,
     loginAsGuest,
     isGuest: user?.id === 'guest_user_123',
-    isCoach: Array.isArray(profile?.roles) && profile.roles.includes('coach'),
+    isCoach: isCoachRole,
     isAdmin,
     refreshProfile,
     // Compat

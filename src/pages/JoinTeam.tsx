@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Loader2, AlertTriangle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -9,7 +9,8 @@ import {
 import type { Team } from '../services/coaching/types';
 
 export function JoinTeam() {
-  const { code: urlCode } = useParams<{ code?: string }>();
+  const [searchParams] = useSearchParams();
+  const urlCode = searchParams.get('code') ?? undefined;
   const { user } = useAuth();
   const navigate = useNavigate();
 

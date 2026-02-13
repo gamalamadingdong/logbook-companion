@@ -10,6 +10,8 @@ import {
   ShieldAlert,
   User,
   Trash2,
+  UserPlus,
+  Link,
 } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
@@ -20,6 +22,7 @@ import {
   getTeamMembers,
   updateTeamMemberRole,
   removeTeamMember,
+  addTeamMemberByEmail,
 } from '../../services/coaching/coachingService';
 import type { Team, TeamMemberWithProfile, TeamRole } from '../../services/coaching/types';
 
@@ -49,6 +52,16 @@ export function CoachingSettings() {
 
   // Member removal
   const [removingMember, setRemovingMember] = useState<TeamMemberWithProfile | null>(null);
+
+  // Add member by email
+  const [addEmail, setAddEmail] = useState('');
+  const [addRole, setAddRole] = useState<TeamRole>('member');
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [addMemberSuccess, setAddMemberSuccess] = useState<string | null>(null);
+
+  // Invite link copy
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
@@ -99,6 +112,33 @@ export function CoachingSettings() {
       setError(err instanceof Error ? err.message : 'Failed to regenerate code');
     } finally {
       setIsRegenerating(false);
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!team?.invite_code) return;
+    const url = `${window.location.origin}/join?code=${team.invite_code}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleAddMember = async () => {
+    if (!teamId || !addEmail.trim()) return;
+    setIsAddingMember(true);
+    setAddMemberError(null);
+    setAddMemberSuccess(null);
+    try {
+      const newMember = await addTeamMemberByEmail(teamId, addEmail.trim(), addRole);
+      setMembers((prev) => [...prev, newMember]);
+      setAddMemberSuccess(`Added ${newMember.display_name} as ${ROLE_CONFIG[addRole].label}`);
+      setAddEmail('');
+      setAddRole('member');
+      setTimeout(() => setAddMemberSuccess(null), 3000);
+    } catch (err) {
+      setAddMemberError(err instanceof Error ? err.message : 'Failed to add member');
+    } finally {
+      setIsAddingMember(false);
     }
   };
 
@@ -231,9 +271,80 @@ export function CoachingSettings() {
               <RefreshCw className={`w-5 h-5 text-neutral-400 ${isRegenerating ? 'animate-spin' : ''}`} />
             </button>
           </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCopyInviteLink}
+              className="flex items-center gap-2 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700 transition-colors text-sm text-neutral-300"
+            >
+              {linkCopied ? (
+                <><Check className="w-4 h-4 text-green-400" /> Link Copied!</>
+              ) : (
+                <><Link className="w-4 h-4" /> Copy Invite Link</>
+              )}
+            </button>
+            <span className="text-neutral-600 text-xs">Share a direct link instead of the code</span>
+          </div>
           <p className="text-neutral-500 text-xs">
             Regenerating the code will invalidate the old one. Anyone who already joined will remain on the team.
           </p>
+        </div>
+
+        {/* Add Member by Email */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-white">Add Member</h2>
+          <p className="text-neutral-400 text-sm">
+            Add someone who already has a Logbook Companion account by their email address.
+          </p>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <label htmlFor="add-email" className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
+              <input
+                id="add-email"
+                type="email"
+                value={addEmail}
+                onChange={(e) => { setAddEmail(e.target.value); setAddMemberError(null); }}
+                placeholder="coach@example.com"
+                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="w-36">
+              <label htmlFor="add-role" className="block text-sm font-medium text-neutral-300 mb-1">Role</label>
+              <select
+                id="add-role"
+                value={addRole}
+                onChange={(e) => setAddRole(e.target.value as TeamRole)}
+                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              >
+                <option value="member">Athlete</option>
+                <option value="coxswain">Coxswain</option>
+                <option value="coach">Coach</option>
+              </select>
+            </div>
+            <button
+              onClick={handleAddMember}
+              disabled={isAddingMember || !addEmail.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 h-[42px]"
+            >
+              {isAddingMember ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
+              Add
+            </button>
+          </div>
+          {addMemberError && (
+            <p className="text-red-400 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {addMemberError}
+            </p>
+          )}
+          {addMemberSuccess && (
+            <p className="text-green-400 text-sm flex items-center gap-2">
+              <Check className="w-4 h-4 shrink-0" />
+              {addMemberSuccess}
+            </p>
+          )}
         </div>
 
         {/* Members */}
