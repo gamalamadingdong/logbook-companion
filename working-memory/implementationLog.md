@@ -4,6 +4,101 @@
 
 ---
 
+## Phase 14: Train Better Program Roadmap + Execution Spec (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Added
+
+Created `working-memory/train-better-change-roadmap-spec.md` to operationalize the strategy docs into a single execution artifact.
+
+#### Included in the spec
+- Phase-gated roadmap (A-F) with objectives, deliverables, entry/exit criteria
+- Workstream specs (Brand/UX, Platform/Domains, Auth/Integrations, Analytics, Change Ops)
+- Dependencies, risks, mitigations, and governance cadence
+- Issue-ready backlog epics and program completion definition
+- Conditional execution tracks for coaching split and product rename
+
+**Result**: ✅ You now have architecture + runbook + worksheet + execution roadmap artifacts needed to begin implementation planning and commit with a complete paper trail.
+
+===
+
+## Phase 13: Split + Naming Decision Worksheet (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Added
+
+Added Section 10 to `working-memory/train-better-site-architecture.md` with a one-session decision framework:
+- App split readiness scorecard (0-5 criteria)
+- Explicit split thresholds (go/no-go)
+- Naming scorecard across multiple candidates
+- Naming decision threshold (when rename is justified)
+- Required evidence checklist before decision
+- Fill-in decision templates and immediate kickoff checklist
+
+**Result**: ✅ Repeatable, evidence-based process to decide both app split timing and product naming without ad hoc debate.
+
+===
+
+## Phase 12: Coaching Split Strategy + Naming Exploration (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Added
+
+#### 1. Split Strategy Section in Architecture Doc
+Expanded `working-memory/train-better-site-architecture.md` with:
+- Keep-unified-now recommendation for in-season execution
+- Split-readiness trigger checklist (2+ trigger gate)
+- Target post-split domain map including `coach.train-better.app`
+- Four-phase migration roadmap (boundary hardening → shell split → optimization → packaging)
+- Risk/mitigation notes for auth, UI drift, and user navigation confusion
+
+#### 2. Product Naming Exploration
+Added structured evaluation for whether to keep "Logbook Companion":
+- Naming decision criteria (clarity, scope fit, brand coherence, distinctiveness, migration cost)
+- Option analysis (keep, soft transition, full rename)
+- Recommended path: keep current name now, strengthen subtitle, revisit with post-season evidence
+
+**Result**: ✅ Decision-quality planning artifact for both app-boundary and naming strategy without forcing immediate architectural churn.
+
+===
+
+## Phase 11: Train Better Hub IA + Wireframes (February 13, 2026)
+
+**Timeline**: February 13, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Built
+
+#### 1. Umbrella Site Architecture Document
+**Problem**: Domain rollout plan existed, but there was no dedicated product/UX architecture doc for how `train-better.app` should communicate and route users across Logbook Companion and ErgLink.
+
+**Solution**:
+- Added `working-memory/train-better-site-architecture.md` as a companion to `working-memory/domain-rollout-plan.md`.
+- Defined brand model, messaging hierarchy, IA/site map, and cross-site communication strategy.
+
+#### 2. Wireframe Set (ASCII)
+**What was documented**:
+- Home page wireframes (desktop + mobile)
+- Product detail page wireframe
+- Coaches journey page wireframe
+
+#### 3. MVP Sequencing
+**Implementation order**:
+1. Ship hub homepage + product pages
+2. Add docs/community/support pages
+3. Add analytics events and funnel tracking
+4. Iterate copy and routing based on spring season usage feedback
+
+**Result**: ✅ Clear blueprint for building `train-better.app` as umbrella site while keeping app deployments independent (`log.*`, `erg.*`).
+
+===
+
 ## Phase 6: Workout Capture Engine (Backend) (February 6, 2026)
 
 **Timeline**: February 6, 2026
