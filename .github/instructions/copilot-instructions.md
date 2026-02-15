@@ -51,15 +51,25 @@ When updating `activeContext.md`, you must:
 
 ## 1. App Ecosystem
 
-This project is part of a multi-app workspace. All three apps share Supabase backend and auth.
+This project is part of a **multi-app workspace**. All three apps share a single Supabase backend and auth. CL (CoachingLog) has been merged into LC.
 
-| Shorthand | App | Repo | Role |
-|---|---|---|---|
-| **LC** | LogbookCompanion | `logbook-companion` | Web app — workout logging, RWN, templates, C2 sync, analytics |
-| **EL** | ErgLink | `erg-link` | Mobile app — PM5 Bluetooth relay, live racing, interval programming |
-| **CL** | CoachingLog | `CoachingLog` | Coaching app — season plans, schedule seeding, knowledge base |
+### Workspace Directory Map
 
-Each app has its own `working-memory/` and `.agent/` — read the correct one based on which app is being discussed. CL has been merged into LC.
+| Directory | Shorthand | Repo | Tech Stack | Deployment | Role |
+|---|---|---|---|---|---|
+| `LogbookCompanion/` | **LC** | `gamalamadingdong/logbook-companion` | React + Vite SPA, TypeScript, TailwindCSS | Vercel (`log.train-better.app`) | Workout logging, RWN, templates, C2 sync, analytics, coaching module |
+| `erg-link/` | **EL** | `gamalamadingdong/erg-link` | Capacitor + React, TypeScript, TailwindCSS | App Store / Play Store | Mobile app — PM5 Bluetooth relay, live racing, interval programming |
+| `train-better-hub/` | **Hub** | `gamalamadingdong/train-better-hub` | Next.js (App Router), TypeScript, TailwindCSS | Vercel (`train-better.app`) | Umbrella site — docs, community, roadmap, feedback, auth landing, product routing |
+
+### Shared Infrastructure
+
+- **Supabase**: Single project serving all 3 apps — shared auth, shared schema, app-specific RLS
+- **Type convention**: All repos use `src/lib/types/` with `database.ts` (Supabase generated), `shared.ts` (manual cross-app types), `supabase.ts` (typed client), `index.ts` (barrel export)
+- **Domain**: `train-better.app` (hub), `log.train-better.app` (LC), `erg.train-better.app` (EL)
+
+### Working Memory
+
+Each app has its own `working-memory/` directory — **always read the correct one based on which app is being discussed**.
 
 ---
 

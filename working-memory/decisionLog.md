@@ -462,79 +462,27 @@ Use Capacitor to wrap web app as native mobile app instead of React Native.
 
 ---
 
-## ADR-005: Supabase Over Firebase
+## ADR-005: Three-Repo Architecture with Shared Type Convention
 
-**Date**: Early development  
-**Status**: Accepted  
-**Author**: Sam Gammon
+**Date:** 2026-02-15  
+**Status:** Accepted  
+**Context:** The ecosystem has three distinct apps (LC, EL, Hub) with different runtimes and deployment targets but a shared Supabase backend. The old `train-better` repo contained mixed mobile app code and is being archived.
 
-### Context
-Need backend-as-a-service for database, auth, and serverless functions.
+**Decision:**
+- **3 separate repos**: `logbook-companion` (Next.js/Vercel), `erg-link` (React Native/Expo), `train-better-hub` (Next.js/Vercel)
+- **Shared type convention**: All repos use `src/lib/types/` with `database.ts` (generated), `shared.ts` (manual, kept in sync), `supabase.ts` (client), `index.ts` (barrel)
+- **Single Supabase project** serving all three apps (shared auth, shared schema, app-specific RLS)
+- **No shared npm package** for now — duplicate `shared.ts` across repos (< 200 LOC); revisit if drift becomes a problem
 
-### Decision
-Use Supabase (PostgreSQL-based) instead of Firebase (NoSQL).
+**Consequences:**
+- Each repo deploys independently with zero coordination
+- Type drift is possible but manageable at current scale (solo developer, 3 repos)
+- Old `train-better` repo archived as reference; OCR code documented in `working-memory/train-better-ocr-integration-brief.md`
+- Hub gets full Next.js treatment (not static) to support feedback forms, roadmap, docs, auth landing
 
-### Rationale
-1. **SQL Database**: Better for relational data (businesses, users, jobs)
-2. **RLS Built-in**: Multi-tenant isolation at database level
-3. **Open Source**: Can self-host if needed
-4. **Developer Experience**: Better tooling and TypeScript support
-
-### Consequences
-**Positive**:
-- Powerful PostgreSQL features
-- Type-safe generated types
-- Built-in RLS for security
-- Excellent documentation
-
-**Negative**:
-- Smaller ecosystem than Firebase
-- Slightly higher learning curve
-- Real-time features less mature
-
-### Alternatives Considered
-1. **Firebase**: NoSQL less ideal for relational data, rejected
-2. **AWS Amplify**: Too complex, rejected
-3. **Custom Backend**: Too much work, rejected
-4. **Hasura + PostgreSQL**: Supabase provides more out-of-box, rejected
-
----
-
-## ADR-006: Tailwind CSS + shadcn/ui Over Material-UI
-
-**Date**: Early development  
-**Status**: Accepted  
-**Author**: Sam Gammon
-
-### Context
-Need UI framework for consistent, professional-looking components.
-
-### Decision
-Use Tailwind CSS with shadcn/ui components instead of component libraries like Material-UI or Ant Design.
-
-### Rationale
-1. **Customization**: Full control over component styling
-2. **Bundle Size**: Only ship components we use
-3. **Modern**: Utility-first CSS is current best practice
-4. **Copy-Paste Components**: shadcn/ui provides starting points we own
-
-### Consequences
-**Positive**:
-- Complete style control
-- Smaller bundle sizes
-- Modern development experience
-- Easy to customize per business type
-
-**Negative**:
-- More initial setup work
-- Need to implement accessibility manually
-- Less "batteries included" than MUI
-
-### Alternatives Considered
-1. **Material-UI**: Too opinionated, hard to customize, rejected
-2. **Ant Design**: Similar issues to MUI, rejected
-3. **Chakra UI**: Good but prefer Tailwind approach, rejected
-4. **Plain CSS**: Too much work, rejected
+**Alternatives Rejected:**
+- Monorepo (Turborepo/Nx): Next.js + Expo in same monorepo creates tooling friction without team-scale benefit
+- Shared npm package: Overhead of publishing/versioning not justified for < 200 LOC of shared types
 
 ---
 

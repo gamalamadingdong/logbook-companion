@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../erg-link"
+		},
+		{
+			"path": "../train-better-hub"
 		}
 	],
 	"settings": {

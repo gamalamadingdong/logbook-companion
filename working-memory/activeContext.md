@@ -57,6 +57,10 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - [x] Mobile nav: highlight active tab
 
 ### Recent Changes
+- **Hub scaffold complete (2026-02-15)**: Scaffolded `train-better-hub` with Next.js 16 (App Router), TypeScript strict, TailwindCSS. 10 routes (Home, Products, Athletes, Coaches, Community, Docs, Roadmap, Feedback, Support, 404). Shared type convention at `src/lib/types/` (database, shared, supabase, barrel). Supabase client wired. Build verified clean. Pushed to GitHub.
+- **Workspace ecosystem docs aligned (2026-02-15)**: Updated `copilot-instructions.md` in all 3 repos (LC, EL, Hub) with identical Workspace Directory Map table documenting all directories, shorthand names, repos, tech stacks, deployment targets, and roles. Created `train-better-hub/.github/instructions/copilot-instructions.md` and `train-better-hub/working-memory/` docs (activeContext, projectBrief, systemPatterns, techContext). EL instructions got new "App Ecosystem" section. LC instructions updated from stale CL reference to current 3-repo map.
+- **OCR code preservation + deep-dive completed (2026-02-15)**: Extracted the Train Better OCR pipeline into `working-memory/extracted-ocr/` (TypeScript client/parser + Python Azure Function pipeline + requirements) and added `working-memory/train-better-ocr-deep-dive.md` with reusable concepts, migration boundaries, phased LC integration strategy, risk controls, and immediate issue-ready next task.
+- **Phase A kickoff pack created (2026-02-15)**: Added `working-memory/train-better-phase-a-kickoff-pack.md` with copy/paste-ready GitHub issue templates for Epics 1-5, recommended labels, board column/field setup, Phase A DoD, reusable Phase A task template, and suggested initial setup task list to execute the Train Better change roadmap.
 - **Train Better phased roadmap + execution spec (2026-02-15)**: Added `working-memory/train-better-change-roadmap-spec.md` as the implementation-facing artifact tying architecture and domain plans into a phase-gated program (Phase A-F), with entry/exit criteria, workstream specs, dependencies, risk controls, analytics requirements, and issue-ready epics.
 - **Decision worksheet added (2026-02-15)**: Extended `working-memory/train-better-site-architecture.md` with Section 10 "Decision Worksheet (Split + Naming)" including weighted scorecards, explicit go/no-go thresholds, required evidence checklist, decision templates, and immediate kickoff checklist for split execution.
 - **Coaching app split + naming planning (2026-02-15)**: Expanded `working-memory/train-better-site-architecture.md` with a formal app-boundary strategy: keep unified app during season, define split-readiness triggers, and document phased migration to `coach.train-better.app` while retaining shared Supabase/auth. Added naming exploration for whether to keep "Logbook Companion" (recommended short-term) vs soft/hard rename paths, with decision criteria and post-season validation gate.
@@ -120,6 +124,17 @@ Resolves `userId` and `teamId` from `team_members`. All coaching pages consume t
 ## Next Up: Workout Capture Implementation Plan
 
 **Status**: Research complete, plan needed. Resume here.
+
+## Program Execution Next Step (Train Better)
+
+Immediate execution artifact is now ready in `working-memory/train-better-phase-a-kickoff-pack.md`.
+
+Use it to:
+1. Create the Train Better project board with recommended columns/fields/labels.
+2. Open Epic 1-5 issues using the provided copy/paste templates.
+3. Complete Phase A by sizing, assigning owners, and prioritizing all Phase B tasks.
+
+OCR integration prep is now complete at planning level. Next implementation candidate is to open an issue for `[OCR][Phase 1] Add web OCR ingestion path for missing/manual workouts` using the module boundaries and deliverables in `working-memory/train-better-ocr-deep-dive.md`.
 
 ### Context Gathered
 Read all spec files and ran a full audit of both repos. Here's what exists vs. what's needed:

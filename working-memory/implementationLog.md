@@ -4,6 +4,70 @@
 
 ---
 
+## Phase 16: OCR Asset Extraction + Integration Deep Dive (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning + Preservation Complete
+
+### What Was Added
+
+#### 1. OCR source preservation inside LC
+Copied Train Better OCR artifacts into `working-memory/extracted-ocr/`:
+
+#### 2. Integration deep-dive brief
+Created `working-memory/train-better-ocr-deep-dive.md` documenting:
+
+**Result**: ✅ OCR intellectual property and implementation details are preserved in-repo and translated into an actionable LC roadmap artifact.
+
+
+
+## Phase 16: OCR Salvage Deep Dive + Integration Brief (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Added
+
+Created `working-memory/ocr-salvage-and-integration-brief.md` to convert extracted Train Better OCR code into an implementation-ready migration plan for Logbook Companion.
+
+#### Audit inputs reviewed
+- `working-memory/extracted-ocr/OcrService.train-better.ts`
+- `working-memory/extracted-ocr/ErgWorkoutParser.train-better.ts`
+- `working-memory/extracted-ocr/image_processor.train-better.py`
+- `working-memory/extracted-ocr/workout_parser.train-better.py`
+- `train-better/functions/src/processErgImages.ts`
+
+#### Included in the brief
+- Keep/adapt/drop matrix for salvage candidates
+- Minimum normalized OCR response contract
+- LC target architecture (server OCR module + web adapter + Bronze ingestion bridge)
+- Phase-aligned execution sequence tied to workout-capture Phase 1
+- Risk register (interval misclassification, stitching artifacts, schema drift, config mismatch)
+
+**Result**: ✅ OCR is now scoped as a low-risk migration stream with explicit implementation order and integration boundaries.
+
+===
+## Phase 15: Phase A Kickoff Pack (February 15, 2026)
+
+**Timeline**: February 15, 2026  
+**Status**: ✅ Planning Complete
+
+### What Was Added
+
+Created `working-memory/train-better-phase-a-kickoff-pack.md` to convert the roadmap into immediate execution assets.
+
+#### Included in the kickoff pack
+- Recommended label taxonomy for phases, workstreams, risk, and status
+- Board setup blueprint (columns + custom fields)
+- Phase A definition of done checklist
+- Copy/paste issue templates for Epics 1-5
+- Reusable Phase A task template
+- Suggested initial setup task list and 30-minute kickoff agenda
+
+**Result**: ✅ Program setup can now be executed in one pass with standardized issue structure and explicit phase gating.
+
+===
+
 ## Phase 14: Train Better Program Roadmap + Execution Spec (February 15, 2026)
 
 **Timeline**: February 15, 2026  
