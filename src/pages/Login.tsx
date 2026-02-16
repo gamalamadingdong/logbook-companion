@@ -1,18 +1,141 @@
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LoginForm } from '../components/auth/LoginForm';
 import { SignUpForm } from '../components/auth/SignUpForm';
 import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm';
 import { Waves } from 'lucide-react';
+import { emitAuthRedirectEvent } from '../utils/authTelemetry';
 
 type AuthMode = 'login' | 'signup' | 'forgot-password';
 
 export const Login: React.FC = () => {
     const { user, loginAsGuest } = useAuth();
     const [mode, setMode] = useState<AuthMode>('login');
+    const [searchParams] = useSearchParams();
+    const startEventSent = useRef(false);
+
+    const returnToRaw = searchParams.get('returnTo');
+    const authSource = searchParams.get('authSource') || 'lc';
+    const authFlowId = searchParams.get('authFlowId') || undefined;
+    const authHop = Number.parseInt(searchParams.get('authHop') || '0', 10);
+
+    useEffect(() => {
+        if (returnToRaw && !startEventSent.current) {
+            emitAuthRedirectEvent('auth_redirect_start', {
+                source: authSource,
+                flowId: authFlowId,
+                returnTo: returnToRaw,
+                hop: Number.isFinite(authHop) ? authHop : 0,
+            });
+            startEventSent.current = true;
+        }
+    }, [authFlowId, authHop, authSource, returnToRaw]);
+
+    const getSafeReturnTo = (): string | null => {
+        const raw = returnToRaw;
+        if (!raw) return null;
+
+        if (Number.isFinite(authHop) && authHop >= 4) {
+            emitAuthRedirectEvent('auth_redirect_error', {
+                source: authSource,
+                flowId: authFlowId,
+                returnTo: raw,
+                reason: 'loop_protection_triggered',
+                hop: authHop,
+            });
+            return null;
+        }
+
+        // Safe local app path
+        if (raw.startsWith('/')) {
+            if (raw.startsWith('/login') || raw.startsWith('/auth')) {
+                emitAuthRedirectEvent('auth_redirect_error', {
+                    source: authSource,
+                    flowId: authFlowId,
+                    returnTo: raw,
+                    reason: 'unsafe_local_auth_path',
+                    hop: authHop,
+                });
+                return null;
+            }
+            return raw;
+        }
+
+        // Safe absolute URL allowlist (supports both new and legacy LC domains during transition)
+        try {
+            const target = new URL(raw);
+            const allowedOrigins = new Set<string>([
+                window.location.origin,
+                'https://train-better.app',
+                'https://logbook.train-better.app',
+                'https://logbook-companion.vercel.app',
+            ]);
+
+            const hubUrl = import.meta.env.VITE_HUB_URL;
+            if (hubUrl) {
+                allowedOrigins.add(new URL(hubUrl).origin);
+            }
+
+            if (allowedOrigins.has(target.origin)) {
+                if (target.pathname.startsWith('/login') || target.pathname.startsWith('/auth')) {
+                    emitAuthRedirectEvent('auth_redirect_error', {
+                        source: authSource,
+                        flowId: authFlowId,
+                        returnTo: raw,
+                        reason: 'unsafe_absolute_auth_path',
+                        hop: authHop,
+                    });
+                    return null;
+                }
+                return target.toString();
+            }
+
+            emitAuthRedirectEvent('auth_redirect_error', {
+                source: authSource,
+                flowId: authFlowId,
+                returnTo: raw,
+                reason: 'origin_not_allowlisted',
+                hop: authHop,
+            });
+        } catch {
+            emitAuthRedirectEvent('auth_redirect_error', {
+                source: authSource,
+                flowId: authFlowId,
+                returnTo: raw,
+                reason: 'invalid_return_to_url',
+                hop: authHop,
+            });
+            return null;
+        }
+
+        return null;
+    };
 
     if (user) {
+        const safeReturnTo = getSafeReturnTo();
+
+        if (safeReturnTo) {
+            if (safeReturnTo.startsWith('/')) {
+                emitAuthRedirectEvent('auth_redirect_success', {
+                    source: authSource,
+                    flowId: authFlowId,
+                    returnTo: safeReturnTo,
+                    hop: authHop,
+                });
+                return <Navigate to={safeReturnTo} replace />;
+            }
+
+            emitAuthRedirectEvent('auth_redirect_success', {
+                source: authSource,
+                flowId: authFlowId,
+                returnTo: safeReturnTo,
+                hop: authHop,
+            });
+            window.location.replace(safeReturnTo);
+            return null;
+        }
+
         return <Navigate to="/" replace />;
     }
 
