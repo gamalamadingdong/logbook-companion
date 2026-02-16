@@ -68,6 +68,8 @@ export const Login: React.FC = () => {
             const allowedOrigins = new Set<string>([
                 window.location.origin,
                 'https://train-better.app',
+                'https://readyall.org',
+                'https://www.readyall.org',
                 'https://logbook.train-better.app',
                 'https://logbook-companion.vercel.app',
             ]);
