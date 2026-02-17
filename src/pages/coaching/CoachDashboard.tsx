@@ -77,6 +77,22 @@ export const CoachDashboard: React.FC = () => {
         <p className="text-neutral-400 mt-1">Manage your team, schedule, and lineups.</p>
       </div>
 
+      {/* Section Navigation */}
+      <div className="mb-6 bg-neutral-900 border border-neutral-800 rounded-xl p-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {sections.map(({ path, label, icon: Icon }) => (
+            <Link
+              key={path}
+              to={path}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors whitespace-nowrap"
+            >
+              <Icon className="w-4 h-4 text-indigo-400" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Weekly Focus */}
       {teamId && (
         <div className="mb-6">
@@ -190,23 +206,6 @@ export const CoachDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sections.map(({ path, label, icon: Icon, description }) => (
-          <Link
-            key={path}
-            to={path}
-            className="flex items-center gap-4 p-5 bg-neutral-900 border border-neutral-800 rounded-xl hover:border-indigo-500/50 hover:bg-neutral-800/50 transition-all group"
-          >
-            <div className="p-3 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
-              <Icon size={24} />
-            </div>
-            <div>
-              <div className="text-white font-semibold">{label}</div>
-              <div className="text-neutral-500 text-sm">{description}</div>
-            </div>
-          </Link>
-        ))}
-      </div>
     </div>
   );
 };
