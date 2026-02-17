@@ -1,10 +1,62 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Activity, Database, ArrowRight, Code } from 'lucide-react';
 import { RWNPlayground } from '../components/RWNPlayground';
 
 export const Documentation: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics'>('concepts');
-    const [rwnSubTab, setRwnSubTab] = useState<'spec' | 'playground'>('spec');
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const parseTab = (value: string | null): 'concepts' | 'rwn' | 'analytics' => {
+        if (value === 'concepts' || value === 'rwn' || value === 'analytics') return value;
+        return 'concepts';
+    };
+
+    const parseRwnSubTab = (value: string | null): 'spec' | 'playground' => {
+        if (value === 'spec' || value === 'playground') return value;
+        return 'spec';
+    };
+
+    const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics'>(() => parseTab(searchParams.get('tab')));
+    const [rwnSubTab, setRwnSubTab] = useState<'spec' | 'playground'>(() => parseRwnSubTab(searchParams.get('rwnSubTab')));
+
+    useEffect(() => {
+        const nextTab = parseTab(searchParams.get('tab'));
+        const nextSubTab = parseRwnSubTab(searchParams.get('rwnSubTab'));
+
+        if (nextTab !== activeTab) {
+            setActiveTab(nextTab);
+        }
+
+        if (nextSubTab !== rwnSubTab) {
+            setRwnSubTab(nextSubTab);
+        }
+    }, [searchParams, activeTab, rwnSubTab]);
+
+    const updateQuery = (
+        nextTab: 'concepts' | 'rwn' | 'analytics',
+        nextRwnSubTab?: 'spec' | 'playground'
+    ) => {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set('tab', nextTab);
+
+        if (nextTab === 'rwn') {
+            nextParams.set('rwnSubTab', nextRwnSubTab ?? rwnSubTab);
+        } else {
+            nextParams.delete('rwnSubTab');
+        }
+
+        setSearchParams(nextParams, { replace: true });
+    };
+
+    const handleActiveTabChange = (tab: 'concepts' | 'rwn' | 'analytics') => {
+        setActiveTab(tab);
+        updateQuery(tab, tab === 'rwn' ? rwnSubTab : undefined);
+    };
+
+    const handleRwnSubTabChange = (subTab: 'spec' | 'playground') => {
+        setRwnSubTab(subTab);
+        updateQuery('rwn', subTab);
+    };
 
     return (
         <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-8">
@@ -17,7 +69,7 @@ export const Documentation: React.FC = () => {
                 </div>
                 <div className="flex bg-neutral-900 p-1 rounded-lg border border-neutral-800">
                     <button
-                        onClick={() => setActiveTab('concepts')}
+                        onClick={() => handleActiveTabChange('concepts')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'concepts'
                             ? 'bg-neutral-800 text-white shadow-sm'
                             : 'text-neutral-400 hover:text-white'
@@ -26,7 +78,7 @@ export const Documentation: React.FC = () => {
                         Core Concepts
                     </button>
                     <button
-                        onClick={() => setActiveTab('analytics')}
+                        onClick={() => handleActiveTabChange('analytics')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'analytics'
                             ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50'
                             : 'text-neutral-400 hover:text-white'
@@ -35,7 +87,7 @@ export const Documentation: React.FC = () => {
                         Analytics & Zones
                     </button>
                     <button
-                        onClick={() => setActiveTab('rwn')}
+                        onClick={() => handleActiveTabChange('rwn')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'rwn'
                             ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50'
                             : 'text-neutral-400 hover:text-white'
@@ -165,7 +217,7 @@ export const Documentation: React.FC = () => {
                                     </div>
                                     <div className="pt-2">
                                         <button
-                                            onClick={() => setActiveTab('rwn')}
+                                            onClick={() => handleActiveTabChange('rwn')}
                                             className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
                                         >
                                             Explore the RWN Specification <ArrowRight size={14} />
@@ -334,7 +386,7 @@ export const Documentation: React.FC = () => {
                         {/* Sub-tabs for RWN Section with explicit type definition */}
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setRwnSubTab('spec')}
+                                onClick={() => handleRwnSubTabChange('spec')}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${rwnSubTab === 'spec'
                                     ? 'bg-neutral-800 text-white shadow-sm'
                                     : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
@@ -343,7 +395,7 @@ export const Documentation: React.FC = () => {
                                 Specification Guide
                             </button>
                             <button
-                                onClick={() => setRwnSubTab('playground')}
+                                onClick={() => handleRwnSubTabChange('playground')}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${rwnSubTab === 'playground'
                                     ? 'bg-neutral-800 text-white shadow-sm'
                                     : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
