@@ -19,11 +19,14 @@ import {
   type AthleteAssignment,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { ChevronLeft, Edit2, Trash2, Loader2, AlertTriangle, MessageSquare, ClipboardList, CheckCircle2, Circle, X, Timer } from 'lucide-react';
+import { ChevronLeft, Edit2, Trash2, Loader2, AlertTriangle, MessageSquare, ClipboardList, CheckCircle2, Circle, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatSplit, calculateWattsFromSplit } from '../../utils/paceCalculator';
+import { formatHeight, formatWeight } from '../../utils/unitConversion';
 import { ErgScoreProgressionChart } from '../../components/coaching/ErgScoreProgressionChart';
 import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
+import { AthleteTrainingZones } from '../../components/coaching/AthleteTrainingZones';
+import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
 
 export function CoachingAthleteDetail() {
   const { athleteId } = useParams<{ athleteId: string }>();
@@ -177,10 +180,10 @@ export function CoachingAthleteDetail() {
                 {(athlete.height_cm || athlete.weight_kg) && (
                   <div className="flex gap-3 mt-2 text-sm text-neutral-400">
                     {athlete.height_cm != null && (
-                      <span>{athlete.height_cm} cm</span>
+                      <span>{formatHeight(athlete.height_cm)}</span>
                     )}
                     {athlete.weight_kg != null && (
-                      <span>{athlete.weight_kg} kg</span>
+                      <span>{formatWeight(athlete.weight_kg)}</span>
                     )}
                   </div>
                 )}
@@ -234,6 +237,11 @@ export function CoachingAthleteDetail() {
             <TrainingZoneDonut zones={assignmentHistory.map(a => a.training_zone)} />
           </div>
         )}
+
+        {/* Training Zones (from 2k baseline) */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+          <AthleteTrainingZones ergScores={ergScores} />
+        </div>
 
         {/* Assignment History */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
@@ -427,7 +435,7 @@ export function CoachingAthleteDetail() {
 
       {/* Edit Modal */}
       {isEditing && (
-        <AthleteEditForm
+        <AthleteEditorModal
           athlete={athlete}
           squads={[...new Set(allAthletes.map((a) => a.squad).filter((s): s is string => !!s))].sort()}
           onSave={handleSave}
@@ -465,138 +473,6 @@ export function CoachingAthleteDetail() {
         </div>
       )}
     </>
-  );
-}
-
-/* ─── Athlete Edit Form ────────────────────────────────────────────────────── */
-
-function AthleteEditForm({
-  athlete,
-  squads,
-  onSave,
-  onCancel,
-}: {
-  athlete: CoachingAthlete;
-  squads: string[];
-  onSave: (data: Partial<CoachingAthlete> & { squad?: string }) => void;
-  onCancel: () => void;
-}) {
-  const [firstName, setFirstName] = useState(athlete.first_name);
-  const [lastName, setLastName] = useState(athlete.last_name);
-  const [grade, setGrade] = useState(athlete.grade ?? '');
-  const [experienceLevel, setExperienceLevel] = useState<CoachingAthlete['experience_level']>(
-    athlete.experience_level ?? 'beginner'
-  );
-  const [side, setSide] = useState<CoachingAthlete['side']>(athlete.side ?? 'both');
-  const [squad, setSquad] = useState(athlete.squad ?? '');
-  const [heightCm, setHeightCm] = useState(athlete.height_cm?.toString() ?? '');
-  const [weightKg, setWeightKg] = useState(athlete.weight_kg?.toString() ?? '');
-  const [notes, setNotes] = useState(athlete.notes ?? '');
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-md">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">Edit Athlete</h2>
-          <button onClick={onCancel} className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title="Close">
-            <X className="w-5 h-5 text-neutral-400" />
-          </button>
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, squad: squad || undefined, height_cm: heightCm ? Number(heightCm) : null, weight_kg: weightKg ? Number(weightKg) : null, notes: notes || undefined } as Partial<CoachingAthlete> & { squad?: string });
-          }}
-          className="space-y-4"
-        >
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="athlete-first-name" className="block text-sm font-medium text-neutral-300 mb-1">First Name *</label>
-              <input id="athlete-first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            </div>
-            <div>
-              <label htmlFor="athlete-last-name" className="block text-sm font-medium text-neutral-300 mb-1">Last Name</label>
-              <input id="athlete-last-name" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="athlete-grade" className="block text-sm font-medium text-neutral-300 mb-1">Grade</label>
-              <input id="athlete-grade" type="text" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="8"
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            </div>
-            <div>
-              <label htmlFor="athlete-side" className="block text-sm font-medium text-neutral-300 mb-1">Side</label>
-              <select id="athlete-side" value={side} onChange={(e) => setSide(e.target.value as CoachingAthlete['side'])}
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
-                <option value="both">Both</option>
-                <option value="port">Port</option>
-                <option value="starboard">Starboard</option>
-                <option value="coxswain">Coxswain</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="athlete-experience" className="block text-sm font-medium text-neutral-300 mb-1">Experience Level</label>
-            <select id="athlete-experience" value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value as CoachingAthlete['experience_level'])}
-              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="experienced">Experienced</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="athlete-height" className="block text-sm font-medium text-neutral-300 mb-1">Height (cm)</label>
-              <input id="athlete-height" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="180"
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            </div>
-            <div>
-              <label htmlFor="athlete-weight" className="block text-sm font-medium text-neutral-300 mb-1">Weight (kg)</label>
-              <input id="athlete-weight" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="75"
-                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="athlete-squad" className="block text-sm font-medium text-neutral-300 mb-1">Squad</label>
-            <input id="athlete-squad" type="text" list="squad-options-detail" value={squad} onChange={(e) => setSquad(e.target.value)}
-              placeholder="e.g. Boys A, Girls B, Development"
-              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
-            {squads.length > 0 && (
-              <datalist id="squad-options-detail">
-                {squads.map((s) => <option key={s} value={s} />)}
-              </datalist>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="athlete-notes" className="block text-sm font-medium text-neutral-300 mb-1">Notes</label>
-            <textarea id="athlete-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none"
-              placeholder="Any notes about this athlete..." />
-          </div>
-
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancel}
-              className="flex-1 px-4 py-2 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-800 transition-colors">
-              Cancel
-            </button>
-            <button type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 

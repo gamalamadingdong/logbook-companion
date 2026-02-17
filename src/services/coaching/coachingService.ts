@@ -436,7 +436,7 @@ export async function updateAthleteSquad(
 export async function createAthlete(
   teamId: string,
   createdBy: string,
-  athlete: Pick<Athlete, 'first_name' | 'last_name' | 'grade' | 'experience_level' | 'side' | 'notes'>,
+  athlete: Pick<Athlete, 'first_name' | 'last_name' | 'grade' | 'experience_level' | 'side' | 'height_cm' | 'weight_kg' | 'notes'>,
   squad?: string | null
 ): Promise<CoachingAthlete> {
   // 1. Insert into athletes
