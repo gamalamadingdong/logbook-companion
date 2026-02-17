@@ -18,7 +18,6 @@ import type {
   WeeklyPlanInput,
   GroupAssignment,
   GroupAssignmentInput,
-  AthleteAssignment,
   AssignmentCompletion,
 } from './types';
 
@@ -40,7 +39,6 @@ export type {
   WeeklyPlanInput,
   GroupAssignment,
   GroupAssignmentInput,
-  AthleteAssignment,
   AssignmentCompletion,
 };
 

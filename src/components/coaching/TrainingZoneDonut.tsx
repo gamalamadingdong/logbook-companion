@@ -6,6 +6,7 @@ import {
 interface ZoneData {
   zone: string;
   count: number;
+  [key: string]: unknown;
 }
 
 interface Props {

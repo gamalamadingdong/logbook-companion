@@ -85,7 +85,7 @@ export function ErgScoreProgressionChart({ scores }: Props) {
     return `${Math.round(val)}W`;
   };
 
-  const formatTooltipValue = (val: number, dist: number, entry: Record<string, number | string>) => {
+  const formatTooltipValue = (_val: number, dist: number, entry: Record<string, number | string>) => {
     const timeKey = `time_${dist}`;
     const splitKey = `split_${dist}`;
     const wattsKey = `watts_${dist}`;
