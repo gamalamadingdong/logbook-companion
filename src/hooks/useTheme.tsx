@@ -43,16 +43,16 @@ const applyTheme = (resolvedTheme: ResolvedTheme) => {
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { profile } = useAuth();
-    const [themePreference, setThemePreference] = useState<ThemePreference>('dark');
-    const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
+    const [themePreference, setThemePreference] = useState<ThemePreference>('light');
+    const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
 
     useEffect(() => {
         const stored = getStoredTheme();
         const profileTheme = getProfileTheme(profile);
-        const nextPreference = stored ?? profileTheme ?? 'dark';
+        const nextPreference = profileTheme ?? stored ?? 'light';
         setThemePreference(nextPreference);
 
-        if (!stored && profileTheme) {
+        if (profileTheme && stored !== profileTheme) {
             localStorage.setItem(THEME_STORAGE_KEY, profileTheme);
         }
     }, [profile]);
