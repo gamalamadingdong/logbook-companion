@@ -60,7 +60,7 @@ Work components define the effort phase.
 
 | Type | Syntax | Example | Note |
 |:---|:---|:---|:---|
-| **Distance** | `[Number]m` | `2000m` | integer meters |
+| **Distance** | `[Number](m|k|km)` | `2000m`, `5k`, `5km` | integer meters (k/km converted to meters) |
 | **Time** | `[M]:[SS]` | `30:00` | minutes:seconds |
 | **Calories** | `[Number]cal` | `300cal` | integer calories |
 
@@ -212,7 +212,7 @@ work_component  = distance | time | calories ;
 rest_component  = time , "r" ;
 split_config    = " [" , ( distance | time ) , "]" ;
 
-distance        = integer , "m" ;
+distance        = integer , ("m" | "k" | "km") ;
 time            = integer , ":" , integer ;
 calories        = integer , "cal" ;
 
@@ -333,7 +333,8 @@ The common rowing notation `30r20` (30 minutes at rate 20) SHOULD be accepted:
 | `1:00 r` (space before r) | `1:00r` |
 | `4 x 500m` (spaces around x) | `4x500m` |
 | `@18-22spm` (hyphen range) | `@18..22spm` |
-| `500m #warmup` (inline tag) | `[w]500m` |
+| `5k` | `5000m` |
+| `5km` | `5000m` |
 
 ### 11.3 Duration Estimation
 

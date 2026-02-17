@@ -533,4 +533,56 @@ describe('RWN Parser - Block Tag Notation', () => {
             }
         });
     });
+
+    describe('Distance Units', () => {
+        test('parses 5k as 5000m', () => {
+            const result = parseRWN('5k');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.unit).toBe('meters');
+                expect(result.value).toBe(5000);
+            }
+        });
+
+        test('parses 5km as 5000m', () => {
+            const result = parseRWN('5km');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.unit).toBe('meters');
+                expect(result.value).toBe(5000);
+            }
+        });
+
+        test('parses 2k as 2000m', () => {
+            const result = parseRWN('2k');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('steady_state');
+
+            if (result?.type === 'steady_state') {
+                expect(result.unit).toBe('meters');
+                expect(result.value).toBe(2000);
+            }
+        });
+
+        test('parses 4x5k/1:00r as 4x5000m/1:00r', () => {
+            const result = parseRWN('4x5k/1:00r');
+
+            expect(result).not.toBeNull();
+            expect(result?.type).toBe('interval');
+
+            if (result?.type === 'interval') {
+                expect(result.repeats).toBe(4);
+                expect(result.work.type).toBe('distance');
+                expect(result.work.value).toBe(5000);
+                expect(result.rest.value).toBe(60);
+            }
+        });
+    });
 });
