@@ -166,18 +166,18 @@ export function CoachingAssignments() {
   return (
     <>
       <CoachingNav />
-      <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-100">Workout Assignments</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-neutral-100">Workout Assignments</h1>
             <p className="text-sm text-neutral-400 mt-1">
               Assign workouts to your team and track completion.
             </p>
           </div>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             Assign Workout
@@ -251,7 +251,7 @@ export function CoachingAssignments() {
         ) : (
         <>
         {/* Week Grid */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
           {weekDates.map((date) => {
             const dateStr = format(date, 'yyyy-MM-dd');
             const dayAssignments = assignmentsByDate.get(dateStr) ?? [];
@@ -325,13 +325,13 @@ export function CoachingAssignments() {
                   key={a.id}
                   className="bg-neutral-800/50 rounded-lg p-4 space-y-2"
                 >
-                  <div className="flex items-center gap-3">
-                    <ClipboardList className="w-4 h-4 text-indigo-400" />
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <ClipboardList className="w-4 h-4 text-indigo-400 shrink-0 hidden sm:block" />
                     <span className="font-medium text-neutral-200">
                       {a.title || a.template_name || 'Workout'}
                     </span>
                     {a.training_zone && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800/50">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800/50 self-start">
                         {a.training_zone}
                       </span>
                     )}
@@ -342,7 +342,7 @@ export function CoachingAssignments() {
                     )}
                     <button
                       onClick={() => setBulkCompleteAssignmentId(a.id)}
-                      className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors"
+                      className="sm:ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors self-start"
                     >
                       <CheckSquare className="w-3.5 h-3.5" />
                       Enter Results
@@ -434,7 +434,7 @@ function AssignmentCard({
           </span>
         )}
       </div>
-      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
         <button
           onClick={onEdit}
           className="p-0.5 text-neutral-600 hover:text-indigo-400 transition-colors"
@@ -1117,8 +1117,8 @@ function ResultsEntryModal({
     shape.type === 'time_interval' ? 'm' : 'm:ss.s';
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-t-xl sm:rounded-xl shadow-2xl w-full sm:max-w-5xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
           <div>
@@ -1153,8 +1153,8 @@ function ResultsEntryModal({
             <p className="text-sm text-neutral-500 text-center py-4">No athletes assigned.</p>
           ) : (
             <div className="space-y-0">
-              {/* Column headers */}
-              <div className="flex items-end gap-2 pb-2 border-b border-neutral-800 text-xs font-medium text-neutral-500 uppercase">
+              {/* Column headers — desktop only */}
+              <div className="hidden md:flex items-end gap-2 pb-2 border-b border-neutral-800 text-xs font-medium text-neutral-500 uppercase">
                 <div className="w-6" />
                 <div className="w-36">Athlete</div>
                 {!isInterval && (
@@ -1199,9 +1199,9 @@ function ResultsEntryModal({
                 return (
                   <div
                     key={entry.athlete_id}
-                    className={`py-2 ${idx > 0 ? 'border-t border-neutral-800/50' : ''}`}
+                    className={`py-3 md:py-2 ${idx > 0 ? 'border-t border-neutral-800/50' : ''}`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
                       {/* Checkbox */}
                       <input
                         type="checkbox"
@@ -1213,18 +1213,19 @@ function ResultsEntryModal({
                       />
 
                       {/* Name */}
-                      <div className="w-36 truncate">
-                        <span className={`text-sm ${entry.wasCompleted ? 'text-emerald-400/60' : 'text-neutral-200'}`}>
+                      <div className="w-full md:w-36 truncate">
+                        <span className={`text-sm font-medium md:font-normal ${entry.wasCompleted ? 'text-emerald-400/60' : 'text-neutral-200'}`}>
                           {athlete?.name ?? 'Unknown'}
                         </span>
                         {athlete?.squad && (
-                          <span className="block text-[10px] text-neutral-500">{athlete.squad}</span>
+                          <span className="ml-2 md:ml-0 md:block text-[10px] text-neutral-500">{athlete.squad}</span>
                         )}
                       </div>
 
                       {/* Single-piece entry */}
                       {!isInterval && (
-                        <>
+                        <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 pl-6 md:pl-0">
+                          <div className="md:hidden text-[10px] text-neutral-500 uppercase w-10 shrink-0">{primaryLabel}</div>
                           <input
                             type="text"
                             value={entry.primary}
@@ -1232,6 +1233,7 @@ function ResultsEntryModal({
                             placeholder={primaryPlaceholder}
                             className="w-24 px-2 py-1.5 text-sm rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
                           />
+                          <div className="md:hidden text-[10px] text-neutral-500 uppercase w-8 shrink-0">SPM</div>
                           <input
                             type="text"
                             value={entry.spm}
@@ -1242,39 +1244,48 @@ function ResultsEntryModal({
                           <span className="w-20 text-sm text-neutral-500 italic">
                             {getOverallSplit(entry)}
                           </span>
-                        </>
+                        </div>
                       )}
 
                       {/* Interval entry */}
                       {isInterval && (
-                        <>
-                          {entry.reps.map((repVal, repIdx) => (
-                            <div key={repIdx} className="w-20">
-                              <input
-                                type="text"
-                                value={repVal}
-                                onChange={(e) => updateRep(idx, repIdx, e.target.value)}
-                                placeholder={repPlaceholder}
-                                className="w-full px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
-                              />
-                              {getRepSplit(entry, repIdx) && (
-                                <div className="text-[10px] text-neutral-500 italic text-center mt-0.5">
-                                  {getRepSplit(entry, repIdx)}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          <input
-                            type="text"
-                            value={entry.spm}
-                            onChange={(e) => updateEntry(idx, 'spm', e.target.value)}
-                            placeholder="spm"
-                            className="w-16 px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
-                          />
+                        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto mt-1 md:mt-0 pl-6 md:pl-0">
+                          {entry.reps.map((repVal, repIdx) => {
+                            const repHeaderLabel = shape.type === 'variable_interval' && shape.variableReps
+                              ? shape.variableReps[repIdx]?.label ?? `R${repIdx + 1}`
+                              : `R${repIdx + 1}`;
+                            return (
+                              <div key={repIdx} className="w-20">
+                                <div className="md:hidden text-[10px] text-neutral-500 uppercase mb-0.5">{repHeaderLabel}</div>
+                                <input
+                                  type="text"
+                                  value={repVal}
+                                  onChange={(e) => updateRep(idx, repIdx, e.target.value)}
+                                  placeholder={repPlaceholder}
+                                  className="w-full px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                                />
+                                {getRepSplit(entry, repIdx) && (
+                                  <div className="text-[10px] text-neutral-500 italic text-center mt-0.5">
+                                    {getRepSplit(entry, repIdx)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div>
+                            <div className="md:hidden text-[10px] text-neutral-500 uppercase mb-0.5">SPM</div>
+                            <input
+                              type="text"
+                              value={entry.spm}
+                              onChange={(e) => updateEntry(idx, 'spm', e.target.value)}
+                              placeholder="spm"
+                              className="w-16 px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
                           <span className="w-20 text-sm text-neutral-500 italic text-center">
                             {getAvgSplit(entry)}
                           </span>
-                        </>
+                        </div>
                       )}
 
                       {/* Test toggle */}
@@ -1305,13 +1316,13 @@ function ResultsEntryModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-5 border-t border-neutral-800">
-          <div className="text-xs text-neutral-600">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between p-4 sm:p-5 border-t border-neutral-800 gap-3">
+          <div className="text-xs text-neutral-600 text-center sm:text-left">
             {shape.type !== 'freeform' && (
-              <>Split auto-calculated from {shape.type === 'fixed_time' || shape.type === 'time_interval' ? 'time ÷ distance' : 'time ÷ distance'}</>
+              <>Split auto-calculated</>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 justify-end">
             <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-400 hover:text-neutral-200 transition-colors">
               Cancel
             </button>

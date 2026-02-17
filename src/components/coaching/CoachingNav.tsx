@@ -17,7 +17,7 @@ export function CoachingNav() {
   const currentTab = tabs.find((t) => pathname.startsWith(t.path));
 
   return (
-    <div className="px-6 pt-4 max-w-6xl mx-auto">
+    <div className="px-4 sm:px-6 pt-4 max-w-6xl mx-auto">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-sm text-neutral-500 mb-3">
         <Link to="/team-management" className="hover:text-indigo-400 transition-colors">
@@ -39,14 +39,15 @@ export function CoachingNav() {
             <Link
               key={path}
               to={path}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              title={label}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 isActive
                   ? 'border-indigo-500 text-indigo-400'
                   : 'border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
               }`}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
             </Link>
           );
         })}
