@@ -28,7 +28,7 @@ export function kgToLbs(kg: number): number {
 
 /** Convert lbs to kg */
 export function lbsToKg(lbs: number): number {
-  return Math.round(lbs / 2.20462 * 10) / 10; // 1 decimal
+  return Math.round(lbs / 2.20462 * 100) / 100; // 2 decimals for clean round-trip
 }
 
 /** Format height for display: "180 cm (5'11")" */

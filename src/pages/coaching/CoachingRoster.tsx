@@ -39,6 +39,7 @@ export function CoachingRoster() {
   const [quickScoreAthlete, setQuickScoreAthlete] = useState<CoachingAthlete | null>(null);
   const [ergComparison, setErgComparison] = useState<TeamErgComparison[]>([]);
   const [showCharts, setShowCharts] = useState(false);
+  const [chartSquadFilter, setChartSquadFilter] = useState<string | 'all'>('all');
 
   // Inline editing: which cell is being edited?  { athleteId, field }
   const [editingCell, setEditingCell] = useState<{ athleteId: string; field: string } | null>(null);
@@ -46,7 +47,7 @@ export function CoachingRoster() {
   const [editValue2, setEditValue2] = useState(''); // for ft/in (second field)
   const editRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
 
-  const refreshCompletions = async (loadedAthletes: CoachingAthlete[]) => {
+  const refreshCompletions = useCallback(async (loadedAthletes: CoachingAthlete[]) => {
     if (!teamId) return;
     try {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -56,7 +57,7 @@ export function CoachingRoster() {
     } catch {
       // non-critical
     }
-  };
+  }, [teamId]);
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
@@ -71,9 +72,9 @@ export function CoachingRoster() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load athletes'))
       .finally(() => setIsLoading(false));
-  }, [teamId, isLoadingTeam]);
+  }, [teamId, isLoadingTeam, refreshCompletions]);
 
-  const refreshAthletes = async () => {
+  const refreshAthletes = useCallback(async () => {
     if (teamId) {
       try {
         const loadedAthletes = await getAthletes(teamId);
@@ -83,7 +84,7 @@ export function CoachingRoster() {
         setError(err instanceof Error ? err.message : 'Failed to refresh');
       }
     }
-  };
+  }, [teamId, refreshCompletions]);
 
   const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string }) => {
     await createAthlete(teamId, userId, {
@@ -192,7 +193,7 @@ export function CoachingRoster() {
       // Revert on failure
       await refreshAthletes();
     }
-  }, [editingCell, editValue, editValue2, athletes, teamId]);
+  }, [editingCell, editValue, editValue2, athletes, teamId, refreshAthletes]);
 
   const handleCellKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
@@ -362,18 +363,51 @@ export function CoachingRoster() {
       )}
 
       {/* Charts Section */}
-      {showCharts && ergComparison.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-            <h3 className="text-sm font-medium text-neutral-400 mb-4">Squad Power Comparison</h3>
-            <SquadPowerComparisonChart data={ergComparison} />
+      {showCharts && ergComparison.length > 0 && (() => {
+        const chartErgData = chartSquadFilter === 'all'
+          ? ergComparison
+          : ergComparison.filter(e => e.squad === chartSquadFilter);
+        const chartAthletes = chartSquadFilter === 'all'
+          ? athletes
+          : athletes.filter(a => a.squad === chartSquadFilter);
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Chart filter</span>
+              <select
+                value={chartSquadFilter}
+                onChange={e => setChartSquadFilter(e.target.value)}
+                className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                aria-label="Filter charts by squad"
+              >
+                <option value="all">All Squads</option>
+                {squads.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              {chartSquadFilter !== 'all' && (
+                <span className="text-xs text-neutral-500">
+                  {chartErgData.length} result{chartErgData.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {chartErgData.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+                  <h3 className="text-sm font-medium text-neutral-400 mb-4">Squad Power Comparison</h3>
+                  <SquadPowerComparisonChart data={chartErgData} />
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+                  <h3 className="text-sm font-medium text-neutral-400 mb-4">Watts / kg Ratio</h3>
+                  <WattsPerKgChart ergData={chartErgData} athletes={chartAthletes} />
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-500">No erg data for this squad.</p>
+            )}
           </div>
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-            <h3 className="text-sm font-medium text-neutral-400 mb-4">Watts / kg Ratio</h3>
-            <WattsPerKgChart ergData={ergComparison} athletes={athletes} />
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Inline-Editable Roster Table ──────────────────────────────────── */}
       {!isLoading && !error && filteredAthletes.length > 0 && (
@@ -401,7 +435,7 @@ export function CoachingRoster() {
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'first_name')}>
                       {isEditing(athlete.id, 'first_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
-                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={inputClass} style={{ width: '100px' }} />
+                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={`${inputClass} w-24`} title="First name" />
                       ) : (
                         <span className="text-white font-medium">{athlete.first_name}</span>
                       )}
@@ -411,7 +445,7 @@ export function CoachingRoster() {
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'last_name')}>
                       {isEditing(athlete.id, 'last_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
-                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={inputClass} style={{ width: '100px' }} />
+                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={`${inputClass} w-24`} title="Last name" />
                       ) : (
                         <span className="text-white font-medium">{athlete.last_name}</span>
                       )}
@@ -423,7 +457,7 @@ export function CoachingRoster() {
                         <>
                           <input ref={r => { editRef.current = r; }} type="text" list={`sq-${athlete.id}`} value={editValue}
                             onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} onKeyDown={handleCellKeyDown}
-                            className={inputClass} style={{ width: '100px' }} />
+                            className={`${inputClass} w-24`} title="Squad" />
                           <datalist id={`sq-${athlete.id}`}>
                             {squads.map(s => <option key={s} value={s} />)}
                           </datalist>
@@ -439,7 +473,7 @@ export function CoachingRoster() {
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'grade')}>
                       {isEditing(athlete.id, 'grade') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
-                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={inputClass} style={{ width: '60px' }} />
+                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={`${inputClass} w-16`} title="Grade" />
                       ) : (
                         <span className="text-neutral-300">{athlete.grade || <span className="text-neutral-600">—</span>}</span>
                       )}
@@ -449,7 +483,7 @@ export function CoachingRoster() {
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'side')}>
                       {isEditing(athlete.id, 'side') ? (
                         <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); }}
-                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={selectClass} style={{ width: '110px' }}>
+                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={`${selectClass} w-28`} title="Side">
                           <option value="port">Port</option>
                           <option value="starboard">Starboard</option>
                           <option value="coxswain">Coxswain</option>
@@ -464,7 +498,7 @@ export function CoachingRoster() {
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'experience_level')}>
                       {isEditing(athlete.id, 'experience_level') ? (
                         <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); }}
-                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={selectClass} style={{ width: '130px' }}>
+                          onBlur={commitEdit} onKeyDown={handleCellKeyDown} className={`${selectClass} w-32`} title="Experience level">
                           <option value="beginner">Beginner</option>
                           <option value="intermediate">Intermediate</option>
                           <option value="experienced">Experienced</option>
@@ -482,14 +516,22 @@ export function CoachingRoster() {
                     {/* Height (ft/in) */}
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'height')}>
                       {isEditing(athlete.id, 'height') ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1"
+                          onClick={e => e.stopPropagation()}
+                          onBlur={e => {
+                            // Only commit when focus leaves the entire container (not moving between ft/in inputs)
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                              commitEdit();
+                            }
+                          }}
+                        >
                           <input ref={r => { editRef.current = r; }} type="number" min={0} max={8} value={editValue}
                             onChange={e => setEditValue(e.target.value)} onKeyDown={handleCellKeyDown}
-                            className={inputClass} style={{ width: '40px' }} placeholder="ft" />
+                            className={`${inputClass} w-10`} placeholder="ft" title="Height feet" />
                           <span className="text-neutral-500">'</span>
                           <input type="number" min={0} max={11} value={editValue2}
-                            onChange={e => setEditValue2(e.target.value)} onBlur={commitEdit} onKeyDown={handleCellKeyDown}
-                            className={inputClass} style={{ width: '40px' }} placeholder="in" />
+                            onChange={e => setEditValue2(e.target.value)} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-10`} placeholder="in" title="Height inches" />
                           <span className="text-neutral-500">"</span>
                         </div>
                       ) : athlete.height_cm ? (
@@ -505,7 +547,7 @@ export function CoachingRoster() {
                         <div className="flex items-center gap-1">
                           <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}
                             onChange={e => setEditValue(e.target.value)} onBlur={commitEdit} onKeyDown={handleCellKeyDown}
-                            className={inputClass} style={{ width: '60px' }} />
+                            className={`${inputClass} w-16`} title="Weight in lbs" />
                           <span className="text-neutral-500 text-xs">lbs</span>
                         </div>
                       ) : athlete.weight_kg ? (
