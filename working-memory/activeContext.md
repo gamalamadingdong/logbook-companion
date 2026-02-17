@@ -1,6 +1,6 @@
 # Active Context
 
-> Last updated: 2026-02-13
+> Last updated: 2026-02-17
 
 ## Current Focus: Sprint 3 Wrap-up & Pre-Season Prep
 
@@ -82,11 +82,12 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 **Self-service routes**: `/team` → MyTeamDashboard, `/team/scores` → MyScores. `/team/notes` and `/team/settings` pages not yet created (links exist in MyTeamDashboard but will 404).
 
 ### Recent Changes
+- **LC → Hub SSO handoff issuer (2026-02-17)**: Updated `src/pages/Login.tsx` cross-origin redirect behavior for Hub targets (`readyall.org` / `train-better.app`) to issue one-time handoff tokens via `create_sso_handoff('lc','hub',...)` and redirect to Hub `/auth/bootstrap` with short-lived session hash payload. Preserved existing local-path redirects and non-Hub absolute redirects.
 - **Unified auth hardening + telemetry (2026-02-15)**: Added loop protection and redirect safety checks to login `returnTo` handling (blocks `/login`/`/auth` loops, origin allowlist enforcement, hop threshold). Added auth redirect telemetry events (`auth_redirect_start`, `auth_redirect_success`, `auth_redirect_error`) via new `src/utils/authTelemetry.ts` with support for `gtag`/`plausible` and custom browser event dispatch.
 - **Unified auth readyall domain hardening (2026-02-16)**: Added explicit `https://readyall.org` and `https://www.readyall.org` to LC login `returnTo` allowlist in `src/pages/Login.tsx` so Hub redirects remain valid even if `VITE_HUB_URL` is not set. Added `VITE_HUB_URL=https://readyall.org` to `.env.example` for explicit environment configuration.
 - **Theme sync hardening (2026-02-16)**: Updated `src/hooks/useTheme.tsx` to default LC to light mode and to prefer `user_profiles.preferences.theme` over stale local storage when resolving theme on load, ensuring cross-app (ReadyAll ↔ LC) preference changes are respected.
 - **Documentation deep-link support (2026-02-16)**: Updated `src/pages/Documentation.tsx` to support query-param tab navigation (`tab` + `rwnSubTab`) so external surfaces (ReadyAll) can link directly to the LC RWN interactive playground tab.
-- **Hub auth handoff marker (2026-02-16)**: Updated `src/pages/Login.tsx` absolute `returnTo` redirect path to append `authState=signedIn` so ReadyAll can reflect post-login state after LC-auth round-trip.
+- **Hub auth handoff marker (2026-02-16)**: Superseded by one-time SSO handoff issuance in `src/pages/Login.tsx` (2026-02-17).
 - **Unified auth Phase 1 foundation (2026-02-15)**: Added `returnTo` auth redirect contract in LC. `ProtectedRoute`/`CoachRoute` now redirect to `/login?returnTo=...` preserving destination path. `Login.tsx` now validates and honors `returnTo` for both local paths and allowlisted absolute URLs, including transition compatibility for `https://logbook-companion.vercel.app` and new domains (`train-better.app`, `logbook.train-better.app`).
 - **Hub scaffold complete (2026-02-15)**: Scaffolded `train-better-hub` with Next.js 16 (App Router), TypeScript strict, TailwindCSS. 10 routes (Home, Products, Athletes, Coaches, Community, Docs, Roadmap, Feedback, Support, 404). Shared type convention at `src/lib/types/` (database, shared, supabase, barrel). Supabase client wired. Build verified clean. Pushed to GitHub.
 - **Workspace ecosystem docs aligned (2026-02-15)**: Updated `copilot-instructions.md` in all 3 repos (LC, EL, Hub) with identical Workspace Directory Map table documenting all directories, shorthand names, repos, tech stacks, deployment targets, and roles. Created `train-better-hub/.github/instructions/copilot-instructions.md` and `train-better-hub/working-memory/` docs (activeContext, projectBrief, systemPatterns, techContext). EL instructions got new "App Ecosystem" section. LC instructions updated from stale CL reference to current 3-repo map.
