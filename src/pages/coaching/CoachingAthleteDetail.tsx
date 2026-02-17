@@ -6,6 +6,9 @@ import {
   getAthletes,
   getErgScoresForAthlete,
   getNotesForAthlete,
+  getAssignmentsForAthlete,
+  markAssignmentAsTest,
+  deleteErgScore,
   updateAthlete,
   updateAthleteSquad,
   deleteAthlete,
@@ -13,19 +16,25 @@ import {
   type CoachingErgScore,
   type CoachingAthleteNote,
   type CoachingSession,
+  type AthleteAssignment,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { ChevronLeft, Edit2, Trash2, Loader2, AlertTriangle, MessageSquare, X } from 'lucide-react';
+import { ChevronLeft, Edit2, Trash2, Loader2, AlertTriangle, MessageSquare, ClipboardList, CheckCircle2, Circle, X, Timer } from 'lucide-react';
+import { toast } from 'sonner';
+import { formatSplit, calculateWattsFromSplit } from '../../utils/paceCalculator';
+import { ErgScoreProgressionChart } from '../../components/coaching/ErgScoreProgressionChart';
+import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
 
 export function CoachingAthleteDetail() {
   const { athleteId } = useParams<{ athleteId: string }>();
   const navigate = useNavigate();
-  const { teamId, isLoadingTeam } = useCoachingContext();
+  const { teamId, userId, isLoadingTeam } = useCoachingContext();
 
   const [athlete, setAthlete] = useState<CoachingAthlete | null>(null);
   const [allAthletes, setAllAthletes] = useState<CoachingAthlete[]>([]);
   const [ergScores, setErgScores] = useState<CoachingErgScore[]>([]);
   const [athleteNotes, setAthleteNotes] = useState<(CoachingAthleteNote & { session?: CoachingSession })[]>([]);
+  const [assignmentHistory, setAssignmentHistory] = useState<AthleteAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -41,12 +50,14 @@ export function CoachingAthleteDetail() {
         const found = athletes.find((a) => a.id === athleteId);
         if (found) {
           setAthlete(found);
-          const [scores, notes] = await Promise.all([
-            getErgScoresForAthlete(athleteId, 10),
+          const [scores, notes, assignments] = await Promise.all([
+            getErgScoresForAthlete(athleteId, 50),
             getNotesForAthlete(athleteId, 30),
+            getAssignmentsForAthlete(athleteId, 100),
           ]);
           setErgScores(scores);
           setAthleteNotes(notes);
+          setAssignmentHistory(assignments);
         } else {
           setError('Athlete not found');
         }
@@ -68,6 +79,8 @@ export function CoachingAthleteDetail() {
       grade: data.grade,
       experience_level: data.experience_level,
       side: data.side,
+      height_cm: data.height_cm,
+      weight_kg: data.weight_kg,
       notes: data.notes,
     });
     // Update squad on the junction table
@@ -85,7 +98,7 @@ export function CoachingAthleteDetail() {
   const handleDelete = async () => {
     if (!athleteId) return;
     await deleteAthlete(athleteId);
-    navigate('/coaching/roster');
+    navigate('/team-management/roster');
   };
 
   if (isLoading) {
@@ -106,7 +119,7 @@ export function CoachingAthleteDetail() {
         <div className="p-6 max-w-4xl mx-auto">
           <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-6 text-center">
             <p className="text-red-400">{error ?? 'Athlete not found'}</p>
-            <button onClick={() => navigate('/coaching/roster')}
+            <button onClick={() => navigate('/team-management/roster')}
               className="mt-4 px-4 py-2 bg-neutral-800 text-neutral-300 rounded-lg hover:bg-neutral-700 transition-colors">
               Back to Roster
             </button>
@@ -122,7 +135,7 @@ export function CoachingAthleteDetail() {
       <div className="p-6 max-w-4xl mx-auto space-y-6">
         {/* Back link */}
         <button
-          onClick={() => navigate('/coaching/roster')}
+          onClick={() => navigate('/team-management/roster')}
           className="flex items-center gap-2 text-sm text-neutral-400 hover:text-indigo-400 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -161,6 +174,16 @@ export function CoachingAthleteDetail() {
                     </span>
                   )}
                 </div>
+                {(athlete.height_cm || athlete.weight_kg) && (
+                  <div className="flex gap-3 mt-2 text-sm text-neutral-400">
+                    {athlete.height_cm != null && (
+                      <span>{athlete.height_cm} cm</span>
+                    )}
+                    {athlete.weight_kg != null && (
+                      <span>{athlete.weight_kg} kg</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -185,27 +208,176 @@ export function CoachingAthleteDetail() {
           )}
         </div>
 
-        {/* Erg Scores */}
+        {/* Erg Score Progression */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+          {ergScores.length >= 2 ? (
+            <ErgScoreProgressionChart scores={ergScores} />
+          ) : ergScores.length === 1 ? (
+            <div>
+              <h3 className="text-sm font-medium text-neutral-400 mb-3">Erg Score Progression</h3>
+              <p className="text-neutral-500 text-sm">
+                1 erg score recorded ({ergScores[0].distance}m — {formatTime(ergScores[0].time_seconds)}).
+                Mark another test to see the progression chart.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <h3 className="text-sm font-medium text-neutral-400 mb-3">Erg Score Progression</h3>
+              <p className="text-neutral-500 text-sm">No erg scores recorded yet. Mark an assignment as a test to start tracking.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Training Zone Distribution */}
+        {assignmentHistory.length > 0 && (
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+            <TrainingZoneDonut zones={assignmentHistory.map(a => a.training_zone)} />
+          </div>
+        )}
+
+        {/* Assignment History */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
-            Recent Erg Scores
-            {ergScores.length > 0 && (
-              <span className="text-sm text-neutral-500 font-normal">({ergScores.length})</span>
+            <ClipboardList className="w-5 h-5" />
+            Assignment History
+            {assignmentHistory.length > 0 && (
+              <span className="text-sm text-neutral-500 font-normal">({assignmentHistory.length})</span>
             )}
           </h2>
-          {ergScores.length === 0 ? (
-            <p className="text-neutral-500 text-sm">No erg scores recorded yet.</p>
+          {assignmentHistory.length === 0 ? (
+            <p className="text-neutral-500 text-sm">No assignments yet.</p>
           ) : (
             <div className="space-y-2">
-              {ergScores.map((score) => (
-                <div key={score.id} className="flex items-center justify-between p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-neutral-300">{score.distance}m</span>
-                    <span className="text-xs text-neutral-500">
-                      {format(new Date(score.date), 'MMM d, yyyy')}
-                    </span>
+              {assignmentHistory.map((a) => (
+                <div key={a.id} className={`p-3 rounded-lg border ${
+                  a.is_test ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-neutral-800/60 border-neutral-700/50'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {a.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-neutral-600 flex-shrink-0" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-white font-medium">
+                            {a.title || a.template_name || 'Untitled Workout'}
+                          </span>
+                          {a.is_test && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-indigo-900/30 text-indigo-400 flex items-center gap-1">
+                              <Timer className="w-3 h-3" /> Test
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-neutral-500">
+                            {format(new Date(a.workout_date + 'T00:00:00'), 'MMM d, yyyy')}
+                          </span>
+                          {a.training_zone && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                              a.training_zone === 'UT2' ? 'bg-emerald-900/30 text-emerald-400' :
+                              a.training_zone === 'UT1' ? 'bg-blue-900/30 text-blue-400' :
+                              a.training_zone === 'AT' ? 'bg-amber-900/30 text-amber-400' :
+                              a.training_zone === 'TR' ? 'bg-orange-900/30 text-orange-400' :
+                              a.training_zone === 'AN' ? 'bg-red-900/30 text-red-400' :
+                              'bg-neutral-700 text-neutral-400'
+                            }`}>
+                              {a.training_zone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Mark as Test toggle — only for completed assignments with results */}
+                      {a.completed && a.result_time_seconds && a.result_distance_meters && (
+                        <button
+                          title={a.is_test ? 'Unmark as test' : 'Mark as test / baseline'}
+                          onClick={async () => {
+                            if (!teamId || !athleteId) return;
+                            const newIsTest = !a.is_test;
+                            try {
+                              if (newIsTest) {
+                                // Mark as test — create erg score
+                                await markAssignmentAsTest(
+                                  a.id,
+                                  true,
+                                  {
+                                    teamId,
+                                    coachUserId: userId,
+                                    athleteId,
+                                    date: a.workout_date,
+                                    distance: a.result_distance_meters!,
+                                    time_seconds: a.result_time_seconds!,
+                                    split_500m: a.result_split_seconds ?? undefined,
+                                    watts: a.result_split_seconds
+                                      ? calculateWattsFromSplit(a.result_split_seconds)
+                                      : undefined,
+                                    stroke_rate: a.result_stroke_rate ?? undefined,
+                                  }
+                                );
+                                toast.success('Marked as test — erg score created');
+                              } else {
+                                // Unmark as test — remove matching erg score
+                                await markAssignmentAsTest(a.id, false);
+                                // Find and delete the matching erg score
+                                const matchingScore = ergScores.find(s =>
+                                  s.athlete_id === athleteId &&
+                                  s.distance === a.result_distance_meters &&
+                                  Number(s.time_seconds) === Number(a.result_time_seconds) &&
+                                  s.date === a.workout_date
+                                );
+                                if (matchingScore) {
+                                  await deleteErgScore(matchingScore.id);
+                                }
+                                toast.success('Unmarked as test — erg score removed');
+                              }
+                              // Update local state
+                              setAssignmentHistory(prev => prev.map(h =>
+                                h.id === a.id ? { ...h, is_test: newIsTest } : h
+                              ));
+                              // Refresh erg scores
+                              const scores = await getErgScoresForAthlete(athleteId, 50);
+                              setErgScores(scores);
+                            } catch (err) {
+                              console.error('Failed to toggle test:', err);
+                              toast.error('Failed to update test status');
+                            }
+                          }}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            a.is_test
+                              ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
+                              : 'text-neutral-600 hover:text-neutral-400 hover:bg-neutral-700/50'
+                          }`}
+                        >
+                          <Timer className="w-4 h-4" />
+                        </button>
+                      )}
+                      <span className={`text-xs font-medium ${
+                        a.completed ? 'text-emerald-400' : 'text-neutral-500'
+                      }`}>
+                        {a.completed ? 'Done' : 'Pending'}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-indigo-400 font-mono">{formatTime(score.time_seconds)}</span>
+                  {/* Results row */}
+                  {a.completed && a.result_time_seconds != null && (
+                    <div className="mt-2 ml-8 flex items-center gap-4 text-xs">
+                      {a.result_distance_meters != null && (
+                        <span className="text-neutral-300 font-mono">{a.result_distance_meters}m</span>
+                      )}
+                      <span className="text-neutral-300 font-mono">{formatTime(a.result_time_seconds)}</span>
+                      {a.result_split_seconds != null && (
+                        <span className="text-neutral-400">
+                          {formatSplit(a.result_split_seconds)} /500m
+                        </span>
+                      )}
+                      {a.result_stroke_rate != null && (
+                        <span className="text-neutral-500">{a.result_stroke_rate} spm</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -317,6 +489,8 @@ function AthleteEditForm({
   );
   const [side, setSide] = useState<CoachingAthlete['side']>(athlete.side ?? 'both');
   const [squad, setSquad] = useState(athlete.squad ?? '');
+  const [heightCm, setHeightCm] = useState(athlete.height_cm?.toString() ?? '');
+  const [weightKg, setWeightKg] = useState(athlete.weight_kg?.toString() ?? '');
   const [notes, setNotes] = useState(athlete.notes ?? '');
 
   return (
@@ -332,7 +506,7 @@ function AthleteEditForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, squad: squad || undefined, notes: notes || undefined } as Partial<CoachingAthlete> & { squad?: string });
+            onSave({ first_name: firstName, last_name: lastName, grade: grade || undefined, experience_level: experienceLevel, side, squad: squad || undefined, height_cm: heightCm ? Number(heightCm) : null, weight_kg: weightKg ? Number(weightKg) : null, notes: notes || undefined } as Partial<CoachingAthlete> & { squad?: string });
           }}
           className="space-y-4"
         >
@@ -378,6 +552,19 @@ function AthleteEditForm({
             </select>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="athlete-height" className="block text-sm font-medium text-neutral-300 mb-1">Height (cm)</label>
+              <input id="athlete-height" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="180"
+                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+            </div>
+            <div>
+              <label htmlFor="athlete-weight" className="block text-sm font-medium text-neutral-300 mb-1">Weight (kg)</label>
+              <input id="athlete-weight" type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="75"
+                className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+            </div>
+          </div>
+
           <div>
             <label htmlFor="athlete-squad" className="block text-sm font-medium text-neutral-300 mb-1">Squad</label>
             <input id="athlete-squad" type="text" list="squad-options-detail" value={squad} onChange={(e) => setSquad(e.target.value)}
@@ -412,6 +599,8 @@ function AthleteEditForm({
     </div>
   );
 }
+
+/* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);

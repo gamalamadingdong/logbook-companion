@@ -79,6 +79,7 @@ export interface CoachingSession {
   type: 'water' | 'erg' | 'land' | 'meeting';
   focus?: string;
   general_notes?: string;
+  group_assignment_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +171,8 @@ export interface GroupAssignment {
   canonical_name?: string | null;
   workout_type?: string;
   training_zone?: string | null;
+  /** Whether the workout template is flagged as a test/benchmark (from template is_test) */
+  is_test_template?: boolean;
 }
 
 /** Input shape for creating a group assignment */

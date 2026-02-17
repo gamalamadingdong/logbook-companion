@@ -11,9 +11,10 @@ import {
   type CoachingAthlete,
   type AssignmentCompletion,
 } from '../../services/coaching/coachingService';
-import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter, Users, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ChevronRight, Loader2, AlertTriangle, Filter, Users, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
+import { downloadCsv } from '../../utils/csvExport';
 import { format } from 'date-fns';
 
 export function CoachingRoster() {
@@ -199,6 +200,41 @@ export function CoachingRoster() {
               <Plus className="w-5 h-5" />
               Add Athlete
             </button>
+            <button
+              onClick={() => {
+                downloadCsv(
+                  filteredAthletes.map((a) => ({
+                    name: a.name,
+                    first_name: a.first_name,
+                    last_name: a.last_name,
+                    squad: a.squad ?? '',
+                    grade: a.grade ?? '',
+                    side: a.side ?? '',
+                    experience: a.experience_level ?? '',
+                    height_cm: a.height_cm ?? '',
+                    weight_kg: a.weight_kg ?? '',
+                    notes: a.notes ?? '',
+                  })),
+                  `roster-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+                  [
+                    { key: 'name', label: 'Name' },
+                    { key: 'squad', label: 'Squad' },
+                    { key: 'grade', label: 'Grade' },
+                    { key: 'side', label: 'Side' },
+                    { key: 'experience', label: 'Experience' },
+                    { key: 'height_cm', label: 'Height (cm)' },
+                    { key: 'weight_kg', label: 'Weight (kg)' },
+                    { key: 'notes', label: 'Notes' },
+                  ]
+                );
+              }}
+              disabled={filteredAthletes.length === 0}
+              className="flex items-center gap-2 px-4 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50"
+              title="Export roster to CSV"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
           </div>
         </div>
       </div>
@@ -225,7 +261,7 @@ export function CoachingRoster() {
           <div
             key={athlete.id}
             className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-neutral-800/50 transition-colors group"
-            onClick={() => navigate(`/coaching/roster/${athlete.id}`)}
+            onClick={() => navigate(`/team-management/roster/${athlete.id}`)}
           >
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold shrink-0">

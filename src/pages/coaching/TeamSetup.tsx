@@ -26,7 +26,7 @@ export function TeamSetup() {
         description: description.trim() || undefined,
       });
       await refreshTeam();
-      navigate('/coaching');
+      navigate('/team-management');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create team');
     } finally {

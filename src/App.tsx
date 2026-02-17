@@ -23,14 +23,14 @@ import { ResetPassword } from './pages/ResetPassword';
 import { CoachDashboard } from './pages/coaching/CoachDashboard';
 import { CoachingRoster } from './pages/coaching/CoachingRoster';
 import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
-// CoachingLog merged into CoachingSchedule
-import { CoachingErgScores } from './pages/coaching/CoachingErgScores';
 import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
 import { CoachingAssignments } from './pages/coaching/CoachingAssignments';
 import { TeamSetup } from './pages/coaching/TeamSetup';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
 import { JoinTeam } from './pages/JoinTeam';
+import { MyTeamDashboard } from './pages/team/MyTeamDashboard';
+import { MyScores } from './pages/team/MyScores';
 import { NotFound } from './pages/NotFound';
 
 import { Layout } from './components/Layout';
@@ -38,6 +38,13 @@ import { AutoSync } from './components/AutoSync';
 import { Toaster } from 'sonner';
 
 // ... (previous imports)
+
+/** Redirect old /coaching/* routes to /team-management/* preserving sub-path */
+function CoachingRedirect() {
+  const location = useLocation();
+  const newPath = location.pathname.replace('/coaching', '/team-management') + location.search + location.hash;
+  return <Navigate to={newPath} replace />;
+}
 
 /** Loading screen with escape hatch for stuck sessions */
 const AuthLoadingScreen: React.FC = () => {
@@ -178,11 +185,11 @@ const AppContent: React.FC = () => {
           />
           <Route
             path="/live"
-            element={<Navigate to="/coaching/live" replace />}
+            element={<Navigate to="/team-management/live" replace />}
           />
-          {/* Coaching Routes (coach role required) */}
+          {/* Team Management Routes (coach role required) */}
           <Route
-            path="/coaching"
+            path="/team-management"
             element={
               <CoachRoute>
                 <CoachDashboard />
@@ -190,7 +197,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/live"
+            path="/team-management/live"
             element={
               <CoachRoute>
                 <CoachSessions />
@@ -198,7 +205,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/roster"
+            path="/team-management/roster"
             element={
               <CoachRoute>
                 <CoachingRoster />
@@ -206,7 +213,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/roster/:athleteId"
+            path="/team-management/roster/:athleteId"
             element={
               <CoachRoute>
                 <CoachingAthleteDetail />
@@ -214,7 +221,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/schedule"
+            path="/team-management/schedule"
             element={
               <CoachRoute>
                 <CoachingSchedule />
@@ -222,11 +229,11 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/log"
-            element={<Navigate to="/coaching/schedule" replace />}
+            path="/team-management/log"
+            element={<Navigate to="/team-management/schedule" replace />}
           />
           <Route
-            path="/coaching/assignments"
+            path="/team-management/assignments"
             element={
               <CoachRoute>
                 <CoachingAssignments />
@@ -234,15 +241,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/ergs"
-            element={
-              <CoachRoute>
-                <CoachingErgScores />
-              </CoachRoute>
-            }
-          />
-          <Route
-            path="/coaching/boatings"
+            path="/team-management/boatings"
             element={
               <CoachRoute>
                 <CoachingBoatings />
@@ -250,7 +249,7 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/setup"
+            path="/team-management/setup"
             element={
               <CoachRoute>
                 <TeamSetup />
@@ -258,12 +257,17 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
-            path="/coaching/settings"
+            path="/team-management/settings"
             element={
               <CoachRoute>
                 <CoachingSettings />
               </CoachRoute>
             }
+          />
+          {/* Redirect old /coaching/* URLs → /team-management/* */}
+          <Route
+            path="/coaching/*"
+            element={<CoachingRedirect />}
           />
           <Route
             path="/templates"
@@ -311,6 +315,26 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <JoinTeam />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/team"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyTeamDashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/team/scores"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <MyScores />
+                </Layout>
               </ProtectedRoute>
             }
           />

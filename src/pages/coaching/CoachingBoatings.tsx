@@ -190,7 +190,7 @@ export function CoachingBoatings() {
             <Plus className="w-8 h-8 text-indigo-400" />
           </div>
           <p className="text-neutral-400 mb-4">Add athletes first to create lineups</p>
-          <a href="/coaching/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
+          <a href="/team-management/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
         </div>
       ) : Object.keys(boatingsByDate).length === 0 ? (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl text-center py-16">

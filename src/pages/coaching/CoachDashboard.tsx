@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Users, Calendar, Loader2, Trophy, Activity, ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Calendar, Loader2, Activity, ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { RowingShellIcon } from '../../components/icons/RowingIcons';
 import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
@@ -8,19 +8,25 @@ import {
   getAssignmentsForDate,
   getAssignmentCompletions,
   getAthletes,
+  getTeamStats,
+  getTeamTrainingZoneDistribution,
+  getTeamErgComparison,
   type GroupAssignment,
   type AssignmentCompletion,
   type CoachingAthlete,
+  type ZoneDistribution,
+  type TeamErgComparison,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
+import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
+import { SquadPowerComparisonChart } from '../../components/coaching/SquadPowerComparisonChart';
 
 const sections = [
-  { path: '/coaching/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
-  { path: '/coaching/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
-  { path: '/coaching/assignments', label: 'Assignments', icon: ClipboardList, description: 'Assign & track workouts' },
-  { path: '/coaching/ergs', label: 'Erg Scores', icon: Trophy, description: 'Test results' },
-  { path: '/coaching/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
-  { path: '/coaching/live', label: 'Live Sessions', icon: Activity, description: 'Real-time monitoring' },
+  { path: '/team-management/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
+  { path: '/team-management/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
+  { path: '/team-management/assignments', label: 'Assignments', icon: ClipboardList, description: 'Assign & track workouts' },
+  { path: '/team-management/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
+  { path: '/team-management/live', label: 'Live Sessions', icon: Activity, description: 'Real-time monitoring' },
 ];
 
 export const CoachDashboard: React.FC = () => {
@@ -29,6 +35,14 @@ export const CoachDashboard: React.FC = () => {
   const [todayAssignments, setTodayAssignments] = useState<GroupAssignment[]>([]);
   const [completions, setCompletions] = useState<AssignmentCompletion[]>([]);
   const [todayLoading, setTodayLoading] = useState(true);
+  const [teamStats, setTeamStats] = useState<{
+    athleteCount: number;
+    squadCount: number;
+    weeklyCompletionRate: number | null;
+    sessionsThisWeek: number;
+  } | null>(null);
+  const [zoneDistribution, setZoneDistribution] = useState<{ zones: ZoneDistribution[]; total: number } | null>(null);
+  const [ergComparison, setErgComparison] = useState<TeamErgComparison[]>([]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -39,10 +53,16 @@ export const CoachDashboard: React.FC = () => {
       getAthletes(teamId).then((athletes: CoachingAthlete[]) =>
         getAssignmentCompletions(teamId, todayStr, athletes)
       ),
+      getTeamStats(teamId),
+      getTeamTrainingZoneDistribution(teamId).catch(() => null),
+      getTeamErgComparison(teamId).catch(() => []),
     ])
-      .then(([asgn, comps]) => {
+      .then(([asgn, comps, stats, zoneDist, ergComp]) => {
         setTodayAssignments(asgn);
         setCompletions(comps);
+        setTeamStats(stats);
+        setZoneDistribution(zoneDist);
+        setErgComparison(ergComp);
       })
       .catch(() => { /* non-critical dashboard card */ })
       .finally(() => setTodayLoading(false));
@@ -58,13 +78,13 @@ export const CoachDashboard: React.FC = () => {
 
   // No team yet — send to onboarding
   if (hasTeam === false) {
-    return <Navigate to="/coaching/setup" replace />;
+    return <Navigate to="/team-management/setup" replace />;
   }
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Coaching</h1>
+        <h1 className="text-3xl font-bold text-white">Team Management</h1>
         <p className="text-neutral-400 mt-1">Manage your team, schedule, and lineups.</p>
       </div>
 
@@ -72,6 +92,52 @@ export const CoachDashboard: React.FC = () => {
       {teamId && (
         <div className="mb-6">
           <WeeklyFocusCard teamId={teamId} userId={userId} />
+        </div>
+      )}
+
+      {/* Team Stats */}
+      {teamStats && (
+        <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-white">{teamStats.athleteCount}</div>
+            <div className="text-xs text-neutral-500 mt-1 flex items-center justify-center gap-1">
+              <Users className="w-3 h-3" />
+              Athletes
+            </div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-white">{teamStats.squadCount}</div>
+            <div className="text-xs text-neutral-500 mt-1">Squads</div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-white">{teamStats.sessionsThisWeek}</div>
+            <div className="text-xs text-neutral-500 mt-1 flex items-center justify-center gap-1">
+              <Calendar className="w-3 h-3" />
+              Sessions this week
+            </div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+            {teamStats.weeklyCompletionRate !== null ? (
+              <>
+                <div className={`text-2xl font-bold ${
+                  teamStats.weeklyCompletionRate >= 80 ? 'text-green-400' :
+                  teamStats.weeklyCompletionRate >= 50 ? 'text-amber-400' :
+                  'text-red-400'
+                }`}>
+                  {teamStats.weeklyCompletionRate}%
+                </div>
+                <div className="text-xs text-neutral-500 mt-1 flex items-center justify-center gap-1">
+                  <Activity className="w-3 h-3" />
+                  Weekly completion
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-neutral-600">—</div>
+                <div className="text-xs text-neutral-500 mt-1">No assignments</div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -84,7 +150,7 @@ export const CoachDashboard: React.FC = () => {
               <h2 className="text-lg font-semibold text-neutral-100">Today&apos;s Workouts</h2>
             </div>
             <Link
-              to="/coaching/assignments"
+              to="/team-management/assignments"
               className="text-xs text-indigo-400 hover:text-indigo-300"
             >
               View all →
@@ -120,7 +186,7 @@ export const CoachDashboard: React.FC = () => {
                       </span>
                     ) : (
                       <Link
-                        to="/coaching/roster"
+                        to="/team-management/roster"
                         className="flex items-center gap-1 text-sm text-amber-400 hover:text-amber-300"
                       >
                         <XCircle className="w-4 h-4" />
@@ -132,6 +198,30 @@ export const CoachDashboard: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Team Analytics */}
+      {!todayLoading && (zoneDistribution?.total ?? 0) + ergComparison.length > 0 && (
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Training Zone Distribution */}
+          {zoneDistribution && zoneDistribution.total > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+              <TrainingZoneDonut
+                zones={zoneDistribution.zones.flatMap(z =>
+                  Array.from({ length: z.count }, () => z.zone === 'Unset' ? null : z.zone)
+                )}
+              />
+            </div>
+          )}
+
+          {/* Squad Power Comparison */}
+          {ergComparison.length > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+              <h3 className="text-sm font-medium text-neutral-400 mb-3">Squad Power Comparison</h3>
+              <SquadPowerComparisonChart data={ergComparison} />
+            </div>
+          )}
         </div>
       )}
 

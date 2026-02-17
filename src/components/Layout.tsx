@@ -47,7 +47,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/templates', label: 'Library', icon: Library },
         { path: '/preferences', label: 'Settings', icon: Settings },
         ...(isCoach ? [
-            { path: '/coaching', label: 'Coaching', icon: Users },
+            { path: '/team-management', label: 'Team Management', icon: Users },
         ] : []),
         { path: '/docs', label: 'Documentation', icon: BookOpen },
         ...(isAdmin ? [

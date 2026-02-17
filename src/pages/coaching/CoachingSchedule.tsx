@@ -6,6 +6,7 @@ import {
   getSessionsByDateRange,
   getAthletes,
   getNotesForSession,
+  getGroupAssignments,
   createSession,
   updateSession,
   deleteSession,
@@ -16,6 +17,7 @@ import {
   type CoachingSession,
   type CoachingAthlete,
   type CoachingAthleteNote,
+  type GroupAssignment,
 } from '../../services/coaching/coachingService';
 import {
   format,
@@ -32,7 +34,7 @@ import {
   subMonths,
   isToday as isDateToday,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays, ClipboardList } from 'lucide-react';
 import { WeeklyFocusBanner } from '../../components/coaching/WeeklyFocusBanner';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,6 +51,7 @@ export function CoachingSchedule() {
   const [editingSession, setEditingSession] = useState<CoachingSession | null>(null);
   const [sessions, setSessions] = useState<CoachingSession[]>([]);
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
+  const [assignments, setAssignments] = useState<GroupAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -74,8 +77,9 @@ export function CoachingSchedule() {
     Promise.all([
       getSessionsByDateRange(teamId, start, end),
       getAthletes(teamId),
+      getGroupAssignments(teamId, { from: start, to: end }),
     ])
-      .then(([s, a]) => { setSessions(s); setAthletes(a); })
+      .then(([s, a, ga]) => { setSessions(s); setAthletes(a); setAssignments(ga); })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sessions'))
       .finally(() => setIsLoading(false));
   }, [teamId, isLoadingTeam, viewMode, currentWeek, currentMonth]);
@@ -107,7 +111,7 @@ export function CoachingSchedule() {
   const getSessionsForDay = (date: Date) =>
     sessions.filter((s) => isSameDay(parseLocalDate(s.date), date));
 
-  const handleAddSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'>) => {
+  const handleAddSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & { group_assignment_id?: string | null }) => {
     if (!selectedDate) return;
     await createSession(teamId, userId, {
       ...data,
@@ -117,7 +121,7 @@ export function CoachingSchedule() {
     await refreshSessions();
   };
 
-  const handleEditSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'>) => {
+  const handleEditSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & { group_assignment_id?: string | null }) => {
     if (!editingSession) return;
     await updateSession(editingSession.id, data);
     setEditingSession(null);
@@ -246,7 +250,7 @@ export function CoachingSchedule() {
             <WeeklyFocusBanner
               teamId={teamId}
               weekStart={getWeekStart(startOfWeek(currentWeek, { weekStartsOn: 1 }))}
-              onEdit={() => navigate('/coaching')}
+              onEdit={() => navigate('/team-management')}
             />
           )}
           {weekDays.map((day) => {
@@ -307,6 +311,7 @@ export function CoachingSchedule() {
                         key={session.id}
                         session={session}
                         athletes={athletes}
+                        assignments={assignments}
                         isExpanded={expandedSession === session.id}
                         onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
                         addingNoteFor={addingNoteFor}
@@ -431,6 +436,7 @@ export function CoachingSchedule() {
                   key={session.id}
                   session={session}
                   athletes={athletes}
+                  assignments={assignments}
                   isExpanded={expandedSession === session.id}
                   onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
                   addingNoteFor={addingNoteFor}
@@ -456,6 +462,7 @@ export function CoachingSchedule() {
       {isAdding && selectedDate && (
         <SessionForm
           title={`Add Session — ${format(selectedDate, 'EEE, MMM d')}`}
+          assignments={assignments}
           onSave={handleAddSession}
           onCancel={() => setIsAdding(false)}
         />
@@ -466,6 +473,7 @@ export function CoachingSchedule() {
         <SessionForm
           title="Edit Session"
           session={editingSession}
+          assignments={assignments}
           onSave={handleEditSession}
           onCancel={() => setEditingSession(null)}
         />
@@ -482,17 +490,20 @@ export function CoachingSchedule() {
 function SessionForm({
   title,
   session,
+  assignments,
   onSave,
   onCancel,
 }: {
   title: string;
   session?: CoachingSession;
-  onSave: (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'>) => void;
+  assignments?: GroupAssignment[];
+  onSave: (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & { group_assignment_id?: string | null }) => void;
   onCancel: () => void;
 }) {
   const [type, setType] = useState<CoachingSession['type']>(session?.type ?? 'water');
   const [focus, setFocus] = useState(session?.focus ?? '');
   const [generalNotes, setGeneralNotes] = useState(session?.general_notes ?? '');
+  const [assignmentId, setAssignmentId] = useState(session?.group_assignment_id ?? '');
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -507,7 +518,12 @@ function SessionForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave({ type, focus: focus || undefined, general_notes: generalNotes || undefined });
+            onSave({
+              type,
+              focus: focus || undefined,
+              general_notes: generalNotes || undefined,
+              group_assignment_id: assignmentId || null,
+            });
           }}
           className="space-y-4"
         >
@@ -528,6 +544,24 @@ function SessionForm({
               placeholder="e.g., Body Sequence, Timing, Blade Work"
               className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
           </div>
+
+          {assignments && assignments.length > 0 && (
+            <div>
+              <label htmlFor="session-assignment" className="block text-sm font-medium text-neutral-300 mb-2">
+                <span className="flex items-center gap-1.5">
+                  <ClipboardList className="w-4 h-4 text-indigo-400" />
+                  Linked Assignment
+                </span>
+              </label>
+              <select id="session-assignment" value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                <option value="">None</option>
+                {assignments.map((a) => (
+                  <option key={a.id} value={a.id}>{a.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label htmlFor="session-notes" className="block text-sm font-medium text-neutral-300 mb-2">Notes</label>
@@ -557,6 +591,7 @@ function SessionForm({
 function SessionCard({
   session,
   athletes,
+  assignments,
   isExpanded,
   onToggle,
   addingNoteFor,
@@ -571,6 +606,7 @@ function SessionCard({
 }: {
   session: CoachingSession;
   athletes: CoachingAthlete[];
+  assignments?: GroupAssignment[];
   isExpanded: boolean;
   onToggle: () => void;
   addingNoteFor: string | null;
@@ -613,6 +649,15 @@ function SessionCard({
             {session.type.toUpperCase()}
           </span>
           {session.focus && <span className="text-sm font-semibold text-indigo-400">{session.focus}</span>}
+          {session.group_assignment_id && (() => {
+            const linked = assignments?.find((a) => a.id === session.group_assignment_id);
+            return linked ? (
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs text-indigo-400 font-medium">
+                <ClipboardList className="w-3 h-3" />
+                {linked.title}
+              </span>
+            ) : null;
+          })()}
           {!isExpanded && session.general_notes && (
             <span className="text-sm text-neutral-500 truncate max-w-[200px]">{session.general_notes}</span>
           )}

@@ -56,6 +56,31 @@ Retired `coaching_athletes` → unified `athletes` + `team_athletes` model. All 
 - [x] Remove `console.log` statements from production code
 - [x] Mobile nav: highlight active tab
 
+### Sprints 5/6/7: Coaching Module Polish (2026-02-17) ✅ COMPLETE
+
+13-item sprint across coaching module improvements. All items completed except Item 12 (deferred).
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Delete orphaned CoachingLog.tsx | ✅ Done |
+| 2 | Athlete detail assignment history | ✅ Done |
+| 3 | Athlete detail erg score sparkline chart | ✅ Done |
+| 4 | Bulk completion entry on assignments | ✅ Done |
+| 5 | Fix workout_type/name bugs (verified already fixed) | ✅ Done |
+| 6 | Assignment editing modal | ✅ Done |
+| 7 | Session-assignment linkage (SessionForm dropdown + SessionCard badge) | ✅ Done |
+| 8 | Team stats dashboard card (athletes, squads, sessions, completion %) | ✅ Done |
+| 9 | Height/weight in athlete detail (display + edit) | ✅ Done |
+| 10 | CSV export for roster + erg scores | ✅ Done |
+| 11 | Recurring assignments (daily/weekdays/weekly + repeat-until) | ✅ Done |
+| 12 | Align CoachSessions to service layer | ⏭️ Deferred — CoachSessions.tsx operates on `erg_sessions` (ErgLink domain), not `coaching_sessions` |
+| 13 | Activate self-service pages (MyTeamDashboard, MyScores routes) | ✅ Done |
+
+**New files**: `src/utils/csvExport.ts` (reusable CSV download utility)
+**Migration pending**: `db/migrations/20260217_add_assignment_to_sessions.sql` (adds `group_assignment_id` to `coaching_sessions`)
+**CoachSessions finding**: Uses `erg_sessions`/`erg_session_participants` tables (11 raw supabase calls, user-level scoped). Would need new `ergSessionService.ts` + schema changes. Deferred to future sprint.
+**Self-service routes**: `/team` → MyTeamDashboard, `/team/scores` → MyScores. `/team/notes` and `/team/settings` pages not yet created (links exist in MyTeamDashboard but will 404).
+
 ### Recent Changes
 - **Unified auth hardening + telemetry (2026-02-15)**: Added loop protection and redirect safety checks to login `returnTo` handling (blocks `/login`/`/auth` loops, origin allowlist enforcement, hop threshold). Added auth redirect telemetry events (`auth_redirect_start`, `auth_redirect_success`, `auth_redirect_error`) via new `src/utils/authTelemetry.ts` with support for `gtag`/`plausible` and custom browser event dispatch.
 - **Unified auth readyall domain hardening (2026-02-16)**: Added explicit `https://readyall.org` and `https://www.readyall.org` to LC login `returnTo` allowlist in `src/pages/Login.tsx` so Hub redirects remain valid even if `VITE_HUB_URL` is not set. Added `VITE_HUB_URL=https://readyall.org` to `.env.example` for explicit environment configuration.
@@ -127,9 +152,38 @@ Resolves `userId` and `teamId` from `team_members`. All coaching pages consume t
 
 ---
 
-## Next Up: Workout Capture Implementation Plan
+## Next Up: Smart Results Entry Modal ✅ COMPLETE
 
-**Status**: Research complete, plan needed. Resume here.
+**Completed 2026-02-17**: Upgraded Results Entry Modal from manual-entry-of-all-fields to smart workout-type-aware entry.
+
+### Architecture Decision
+Coach quick-capture results stay on `daily_workout_assignments` (lightweight), not `workout_logs` (athlete-owned). The `completed_log_id` FK exists for future upgrade when athletes have accounts. Canonical name is accessible via `group_assignments → workout_templates` join for full workout reconstruction.
+
+### Smart Entry System
+Parses canonical name (RWN) to classify workout type and show only the dependent variable:
+- **fixed_distance** (e.g. 10000m): enter time + spm → split auto-computed
+- **fixed_time** (e.g. 30:00): enter distance + spm → split auto-computed
+- **distance_interval** (e.g. 4x500m/1:00r): per-rep time + spm
+- **time_interval** (e.g. 3x10:00/2:00r): per-rep distance + spm
+- **variable_interval**: mixed per-rep details based on each rep's fixedType
+- **freeform** (unknown): time + distance + spm fallback
+
+### Files Created/Modified
+- **NEW**: `src/utils/workoutEntryClassifier.ts` — `parseCanonicalForEntry()`, `computeSplit()`, `fmtTime()`, `parseTimeInput()`, `EntryShape` type
+- **NEW**: `db/migrations/20260217_add_result_stroke_rate.sql` — adds `result_stroke_rate integer` to `daily_workout_assignments`
+- **MODIFIED**: `src/services/coaching/coachingService.ts` — `IntervalResult` + `AthleteAssignmentRow` + query/save updated with `stroke_rate`/`result_stroke_rate`
+- **MODIFIED**: `src/pages/coaching/CoachingAssignments.tsx` — ResultsEntryModal fully rewritten to use smart fields, imports from workoutEntryClassifier, removed inline fmtTime/parseTime helpers, removed manual interval +/− controls (reps come from canonical)
+
+### UI Labels
+- Uses "SPM" (strokes per minute) not "SR" per user preference
+- Split shown as read-only auto-computed field
+- Interval rep headers show rep labels from canonical (e.g. "R1", "R2") with variable rep labels when applicable
+- Shape label shown in modal subtitle for context
+
+### Previous Results Entry & Compliance Grid (2026-02-17)
+- Compliance Grid (athletes × assignments matrix) — unchanged
+- DB columns: `result_time_seconds`, `result_distance_meters`, `result_split_seconds`, `result_stroke_rate`, `result_intervals` (jsonb)
+- RLS: 4 team-scoped policies on `daily_workout_assignments`
 
 ## Program Execution Next Step (Train Better)
 

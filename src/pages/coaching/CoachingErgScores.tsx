@@ -10,8 +10,9 @@ import {
   type CoachingAthlete,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { Plus, X, TrendingUp, TrendingDown, Minus, Loader2, Trash2 } from 'lucide-react';
+import { Plus, X, TrendingUp, TrendingDown, Minus, Loader2, Trash2, Download } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
+import { downloadCsv } from '../../utils/csvExport';
 
 export function CoachingErgScores() {
   const { userId, teamId, isLoadingTeam } = useCoachingContext();
@@ -123,6 +124,46 @@ export function CoachingErgScores() {
               <Plus className="w-5 h-5" />
               Record Score
             </button>
+            <button
+              onClick={() => {
+                const formatTime = (s: number) => {
+                  const mins = Math.floor(s / 60);
+                  const secs = s % 60;
+                  return `${mins}:${secs.toFixed(1).padStart(4, '0')}`;
+                };
+                downloadCsv(
+                  filteredScores.map((s) => ({
+                    date: s.date.slice(0, 10),
+                    athlete: getAthleteName(s.athlete_id),
+                    distance: s.distance,
+                    time: formatTime(s.time_seconds),
+                    split: s.split_500m ? formatTime(s.split_500m) : '',
+                    watts: s.watts ?? '',
+                    stroke_rate: s.stroke_rate ?? '',
+                    heart_rate: s.heart_rate ?? '',
+                    notes: s.notes ?? '',
+                  })),
+                  `erg-scores-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+                  [
+                    { key: 'date', label: 'Date' },
+                    { key: 'athlete', label: 'Athlete' },
+                    { key: 'distance', label: 'Distance (m)' },
+                    { key: 'time', label: 'Time' },
+                    { key: 'split', label: 'Split /500m' },
+                    { key: 'watts', label: 'Watts' },
+                    { key: 'stroke_rate', label: 'Stroke Rate' },
+                    { key: 'heart_rate', label: 'Heart Rate' },
+                    { key: 'notes', label: 'Notes' },
+                  ]
+                );
+              }}
+              disabled={filteredScores.length === 0}
+              className="flex items-center gap-2 px-4 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50"
+              title="Export scores to CSV"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
           </div>
         </div>
       </div>
@@ -145,7 +186,7 @@ export function CoachingErgScores() {
             <Plus className="w-8 h-8 text-indigo-400" />
           </div>
           <p className="text-neutral-400 mb-4">Add athletes first to record scores</p>
-          <a href="/coaching/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
+          <a href="/team-management/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
         </div>
       ) : Object.keys(scoresByDate).length === 0 ? (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl text-center py-16">
