@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { Login } from './pages/Login';
+import { AuthBootstrap } from './pages/AuthBootstrap';
 import { Callback } from './pages/Callback';
 import { Dashboard } from './pages/Dashboard';
 import { Sync } from './pages/Sync';
@@ -116,6 +117,7 @@ const AppContent: React.FC = () => {
             <BrowserRouter>
                 <Routes>
           <Route path="/login" element={<Login />} />
+                  <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/about" element={<About />} />
           <Route
