@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Users, Calendar, Loader2, Activity, ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Calendar, Loader2, Activity, ClipboardList, BarChart3, CheckCircle2, XCircle } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { RowingShellIcon } from '../../components/icons/RowingIcons';
 import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
@@ -9,23 +9,18 @@ import {
   getAssignmentCompletions,
   getAthletes,
   getTeamStats,
-  getTeamTrainingZoneDistribution,
-  getTeamErgComparison,
   type GroupAssignment,
   type AssignmentCompletion,
   type CoachingAthlete,
-  type ZoneDistribution,
-  type TeamErgComparison,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
-import { SquadPowerComparisonChart } from '../../components/coaching/SquadPowerComparisonChart';
 
 const sections = [
   { path: '/team-management/roster', label: 'Roster', icon: Users, description: 'Manage athletes' },
   { path: '/team-management/schedule', label: 'Schedule & Log', icon: Calendar, description: 'Calendar, sessions & notes' },
   { path: '/team-management/assignments', label: 'Assignments', icon: ClipboardList, description: 'Assign & track workouts' },
   { path: '/team-management/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
+  { path: '/team-management/analytics', label: 'Analytics', icon: BarChart3, description: 'Charts & performance data' },
   { path: '/team-management/live', label: 'Live Sessions', icon: Activity, description: 'Real-time monitoring' },
 ];
 
@@ -41,8 +36,6 @@ export const CoachDashboard: React.FC = () => {
     weeklyCompletionRate: number | null;
     sessionsThisWeek: number;
   } | null>(null);
-  const [zoneDistribution, setZoneDistribution] = useState<{ zones: ZoneDistribution[]; total: number } | null>(null);
-  const [ergComparison, setErgComparison] = useState<TeamErgComparison[]>([]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -54,15 +47,11 @@ export const CoachDashboard: React.FC = () => {
         getAssignmentCompletions(teamId, todayStr, athletes)
       ),
       getTeamStats(teamId),
-      getTeamTrainingZoneDistribution(teamId).catch(() => null),
-      getTeamErgComparison(teamId).catch(() => []),
     ])
-      .then(([asgn, comps, stats, zoneDist, ergComp]) => {
+      .then(([asgn, comps, stats]) => {
         setTodayAssignments(asgn);
         setCompletions(comps);
         setTeamStats(stats);
-        setZoneDistribution(zoneDist);
-        setErgComparison(ergComp);
       })
       .catch(() => { /* non-critical dashboard card */ })
       .finally(() => setTodayLoading(false));
@@ -198,30 +187,6 @@ export const CoachDashboard: React.FC = () => {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Team Analytics */}
-      {!todayLoading && (zoneDistribution?.total ?? 0) + ergComparison.length > 0 && (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Training Zone Distribution */}
-          {zoneDistribution && zoneDistribution.total > 0 && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-              <TrainingZoneDonut
-                zones={zoneDistribution.zones.flatMap(z =>
-                  Array.from({ length: z.count }, () => z.zone === 'Unset' ? null : z.zone)
-                )}
-              />
-            </div>
-          )}
-
-          {/* Squad Power Comparison */}
-          {ergComparison.length > 0 && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-              <h3 className="text-sm font-medium text-neutral-400 mb-3">Squad Power Comparison</h3>
-              <SquadPowerComparisonChart data={ergComparison} />
-            </div>
-          )}
         </div>
       )}
 

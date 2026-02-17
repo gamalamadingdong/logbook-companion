@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList } from 'lucide-react';
+import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3 } from 'lucide-react';
 import { RowingShellIcon } from '../icons/RowingIcons';
 
 const tabs = [
@@ -7,6 +7,7 @@ const tabs = [
   { path: '/team-management/schedule', label: 'Schedule', icon: Calendar },
   { path: '/team-management/assignments', label: 'Assignments', icon: ClipboardList },
   { path: '/team-management/boatings', label: 'Boatings', icon: RowingShellIcon },
+  { path: '/team-management/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/team-management/live', label: 'Live', icon: Activity },
   { path: '/team-management/settings', label: 'Settings', icon: Settings },
 ];

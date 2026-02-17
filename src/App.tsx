@@ -28,6 +28,7 @@ import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
 import { CoachingAssignments } from './pages/coaching/CoachingAssignments';
 import { TeamSetup } from './pages/coaching/TeamSetup';
+import { TeamAnalytics } from './pages/coaching/TeamAnalytics';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
 import { JoinTeam } from './pages/JoinTeam';
 import { MyTeamDashboard } from './pages/team/MyTeamDashboard';
@@ -88,10 +89,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading, isCoach } = useAuth();
+  const { user, loading, profileLoading, isCoach } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (loading || profileLoading) {
     return <AuthLoadingScreen />;
   }
 
@@ -247,6 +248,14 @@ const AppContent: React.FC = () => {
             element={
               <CoachRoute>
                 <CoachingBoatings />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/team-management/analytics"
+            element={
+              <CoachRoute>
+                <TeamAnalytics />
               </CoachRoute>
             }
           />

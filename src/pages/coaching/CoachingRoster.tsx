@@ -8,17 +8,13 @@ import {
   updateAthleteSquad,
   deleteAthlete,
   getAssignmentCompletions,
-  getTeamErgComparison,
   type CoachingAthlete,
   type AssignmentCompletion,
-  type TeamErgComparison,
 } from '../../services/coaching/coachingService';
-import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, BarChart3, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
 import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
-import { SquadPowerComparisonChart } from '../../components/coaching/SquadPowerComparisonChart';
-import { WattsPerKgChart } from '../../components/coaching/WattsPerKgChart';
 import { downloadCsv } from '../../utils/csvExport';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg } from '../../utils/unitConversion';
 import { format } from 'date-fns';
@@ -37,9 +33,6 @@ export function CoachingRoster() {
   const [completions, setCompletions] = useState<AssignmentCompletion[]>([]);
   const [hasAssignmentsToday, setHasAssignmentsToday] = useState(false);
   const [quickScoreAthlete, setQuickScoreAthlete] = useState<CoachingAthlete | null>(null);
-  const [ergComparison, setErgComparison] = useState<TeamErgComparison[]>([]);
-  const [showCharts, setShowCharts] = useState(false);
-  const [chartSquadFilter, setChartSquadFilter] = useState<string | 'all'>('all');
 
   // Inline editing: which cell is being edited?  { athleteId, field }
   const [editingCell, setEditingCell] = useState<{ athleteId: string; field: string } | null>(null);
@@ -61,13 +54,9 @@ export function CoachingRoster() {
 
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
-    Promise.all([
-      getAthletes(teamId),
-      getTeamErgComparison(teamId).catch(() => [] as TeamErgComparison[]),
-    ])
-      .then(async ([loadedAthletes, ergData]) => {
+    getAthletes(teamId)
+      .then(async (loadedAthletes) => {
         setAthletes(loadedAthletes);
-        setErgComparison(ergData);
         await refreshCompletions(loadedAthletes);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load athletes'))
@@ -295,19 +284,6 @@ export function CoachingRoster() {
               <Plus className="w-4 h-4" />
               Add Athlete
             </button>
-            {ergComparison.length > 0 && (
-              <button
-                onClick={() => setShowCharts(!showCharts)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  showCharts
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-500'
-                    : 'border border-neutral-700 text-neutral-300 hover:bg-neutral-800'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                Charts
-              </button>
-            )}
             <button
               onClick={() => {
                 downloadCsv(
@@ -361,53 +337,6 @@ export function CoachingRoster() {
           {error && <button onClick={() => { setError(null); refreshAthletes(); }} className="ml-3 underline hover:text-red-300">Retry</button>}
         </div>
       )}
-
-      {/* Charts Section */}
-      {showCharts && ergComparison.length > 0 && (() => {
-        const chartErgData = chartSquadFilter === 'all'
-          ? ergComparison
-          : ergComparison.filter(e => e.squad === chartSquadFilter);
-        const chartAthletes = chartSquadFilter === 'all'
-          ? athletes
-          : athletes.filter(a => a.squad === chartSquadFilter);
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Chart filter</span>
-              <select
-                value={chartSquadFilter}
-                onChange={e => setChartSquadFilter(e.target.value)}
-                className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                aria-label="Filter charts by squad"
-              >
-                <option value="all">All Squads</option>
-                {squads.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              {chartSquadFilter !== 'all' && (
-                <span className="text-xs text-neutral-500">
-                  {chartErgData.length} result{chartErgData.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            {chartErgData.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-                  <h3 className="text-sm font-medium text-neutral-400 mb-4">Squad Power Comparison</h3>
-                  <SquadPowerComparisonChart data={chartErgData} />
-                </div>
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-                  <h3 className="text-sm font-medium text-neutral-400 mb-4">Watts / kg Ratio</h3>
-                  <WattsPerKgChart ergData={chartErgData} athletes={chartAthletes} />
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-neutral-500">No erg data for this squad.</p>
-            )}
-          </div>
-        );
-      })()}
 
       {/* ── Inline-Editable Roster Table ──────────────────────────────────── */}
       {!isLoading && !error && filteredAthletes.length > 0 && (
