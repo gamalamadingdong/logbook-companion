@@ -134,7 +134,14 @@ export const Login: React.FC = () => {
                 returnTo: safeReturnTo,
                 hop: authHop,
             });
-            window.location.replace(safeReturnTo);
+
+            try {
+                const target = new URL(safeReturnTo);
+                target.searchParams.set('authState', 'signedIn');
+                window.location.replace(target.toString());
+            } catch {
+                window.location.replace(safeReturnTo);
+            }
             return null;
         }
 
