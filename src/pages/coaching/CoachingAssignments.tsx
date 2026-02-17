@@ -802,7 +802,8 @@ function ResultsEntryModal({
   onComplete: () => void;
 }) {
   // Classify the workout once
-  const shape: EntryShape = parseCanonicalForEntry(assignment.canonical_name);
+  const shapeSource = assignment.canonical_name ?? assignment.template_name ?? assignment.title;
+  const shape: EntryShape = parseCanonicalForEntry(shapeSource);
   const isInterval = shape.reps > 1;
 
   const [entries, setEntries] = useState<AthleteResultEntry[]>([]);
@@ -864,7 +865,7 @@ function ResultsEntryModal({
         setIsLoading(false);
       }
     })();
-  }, [groupAssignmentId, shape.reps, shape.type, shape.variableReps]);
+  }, [assignment.is_test_template, groupAssignmentId, shape.reps, shape.type, shape.variableReps]);
 
   const athleteMap = new Map(athletes.map((a) => [a.id, a]));
 

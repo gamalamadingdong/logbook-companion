@@ -61,8 +61,14 @@ export function parseCanonicalForEntry(canonical: string | null | undefined): En
     return { type: 'freeform', reps: 1, label: 'Workout' };
   }
 
-  const structure = parseRWN(canonical);
+  const normalized = normalizeNotation(canonical);
+
+  const structure = parseRWN(normalized);
   if (!structure) {
+    const ladder = parseSimpleVariableLadder(normalized);
+    if (ladder) {
+      return ladder;
+    }
     return { type: 'freeform', reps: 1, label: canonical };
   }
 
@@ -113,6 +119,10 @@ export function parseCanonicalForEntry(canonical: string | null | undefined): En
       // Extract work steps only (skip rest steps)
       const workSteps = structure.steps.filter((s) => s.type === 'work');
       if (workSteps.length === 0) {
+        const ladder = parseSimpleVariableLadder(normalized);
+        if (ladder) {
+          return ladder;
+        }
         return { type: 'freeform', reps: 1, label: canonical };
       }
 
@@ -135,7 +145,7 @@ export function parseCanonicalForEntry(canonical: string | null | undefined): En
         type: 'variable_interval',
         reps: variableReps.length,
         variableReps,
-        label: canonical,
+        label: normalized,
       };
     }
   }
@@ -148,6 +158,74 @@ function formatTimeLabel(seconds: number): string {
   const secs = seconds % 60;
   if (secs === 0) return `${mins}:00`;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function normalizeNotation(input: string): string {
+  return input
+    .replace(/[＋]/g, '+')
+    .replace(/[−–—]/g, '-')
+    .replace(/\s*\+\s*/g, ' + ')
+    .replace(/\s*\/\s*/g, '/');
+}
+
+function parseSimpleVariableLadder(canonical: string): EntryShape | null {
+  const parts = canonical
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const variableReps: VariableRep[] = [];
+
+  for (const part of parts) {
+    const slashIndex = part.indexOf('/');
+    if (slashIndex === -1) {
+      return null;
+    }
+
+    const workRaw = part.slice(0, slashIndex).trim();
+    if (!workRaw) {
+      return null;
+    }
+
+    if (/^\d+m$/i.test(workRaw)) {
+      const meters = parseInt(workRaw.replace(/m/i, ''), 10);
+      if (!Number.isFinite(meters) || meters <= 0) {
+        return null;
+      }
+      variableReps.push({
+        fixedType: 'distance',
+        fixedValue: meters,
+        label: `${meters}m`,
+      });
+      continue;
+    }
+
+    const timeSeconds = parseTimeInput(workRaw);
+    if (timeSeconds == null || timeSeconds <= 0) {
+      return null;
+    }
+
+    variableReps.push({
+      fixedType: 'time',
+      fixedValue: timeSeconds,
+      label: formatTimeLabel(Math.round(timeSeconds)),
+    });
+  }
+
+  if (variableReps.length === 0) {
+    return null;
+  }
+
+  return {
+    type: 'variable_interval',
+    reps: variableReps.length,
+    variableReps,
+    label: canonical,
+  };
 }
 
 /**
