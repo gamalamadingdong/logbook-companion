@@ -806,10 +806,14 @@ interface AthleteResultEntry {
   wasCompleted: boolean;
   /** The measured value — time for fixed_distance, distance for fixed_time */
   primary: string;
+  /** True when the whole single-piece workout was DNF */
+  primaryDnf: boolean;
   /** Stroke rate (spm) */
   spm: string;
   /** Per-rep measured values for interval workouts */
   reps: string[];
+  /** Per-rep DNF flags */
+  repDnf: boolean[];
   /** Per-rep spm for interval workouts */
   repSpm: string[];
   /** Mark this result as a test/baseline — auto-creates erg score */
@@ -832,7 +836,7 @@ export function ResultsEntryModal({
   userId: string;
   onClose: () => void;
   onComplete: () => void;
-}) {
+}): React.JSX.Element {
   // Classify the workout once (memoized to avoid unstable refs triggering reloads)
   const shape: EntryShape = useMemo(() => {
     const shapeSource = assignment.canonical_name;
@@ -889,13 +893,29 @@ export function ResultsEntryModal({
             repSpm.push(iv?.stroke_rate ? String(iv.stroke_rate) : '');
           }
 
+          // Restore per-rep DNF flags from existing interval data
+          const repDnf: boolean[] = Array.from({ length: shape.reps }, (_, i) =>
+            !!(existingIntervals[i]?.dnf)
+          );
+
+          // Detect whole-piece DNF: completed, no primary value, no split, no interval data
+          const primaryDnf =
+            r.completed &&
+            !primary &&
+            r.result_split_seconds == null &&
+            r.result_time_seconds == null &&
+            r.result_distance_meters == null &&
+            existingIntervals.length === 0;
+
           return {
             athlete_id: r.athlete_id,
             completed: r.completed,
             wasCompleted: r.completed,
             primary,
+            primaryDnf,
             spm: r.result_stroke_rate ? String(r.result_stroke_rate) : '',
             reps,
+            repDnf,
             repSpm,
             isTest: assignment.is_test_template ?? false,
           };
@@ -920,6 +940,24 @@ export function ResultsEntryModal({
   const athleteMap = new Map(athletes.map((a) => [a.id, a]));
 
   const updateEntry = (idx: number, field: keyof AthleteResultEntry, value: string | boolean) => {
+    // Typing "dnf" in the primary field toggles primaryDnf
+    if (field === 'primary' && typeof value === 'string' && value.trim().toLowerCase() === 'dnf') {
+      setEntries((prev) => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], primaryDnf: true, primary: '' };
+        return next;
+      });
+      return;
+    }
+    if (field === 'primary' && typeof value === 'string' && value.trim()) {
+      // Typing a real value clears primaryDnf
+      setEntries((prev) => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], [field]: value, primaryDnf: false };
+        return next;
+      });
+      return;
+    }
     setEntries((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: value };
@@ -928,11 +966,48 @@ export function ResultsEntryModal({
   };
 
   const updateRep = (entryIdx: number, repIdx: number, value: string) => {
+    // Typing "dnf" (case-insensitive) sets the DNF flag and clears the value
+    if (value.trim().toLowerCase() === 'dnf') {
+      setEntries((prev) => {
+        const next = [...prev];
+        const reps = [...next[entryIdx].reps];
+        const repDnf = [...next[entryIdx].repDnf];
+        reps[repIdx] = '';
+        repDnf[repIdx] = true;
+        next[entryIdx] = { ...next[entryIdx], reps, repDnf };
+        return next;
+      });
+      return;
+    }
     setEntries((prev) => {
       const next = [...prev];
       const reps = [...next[entryIdx].reps];
+      const repDnf = [...next[entryIdx].repDnf];
       reps[repIdx] = value;
-      next[entryIdx] = { ...next[entryIdx], reps };
+      // Typing a real value clears DNF for that rep
+      if (value.trim()) repDnf[repIdx] = false;
+      next[entryIdx] = { ...next[entryIdx], reps, repDnf };
+      return next;
+    });
+  };
+
+  const toggleRepDnf = (entryIdx: number, repIdx: number) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      const repDnf = [...next[entryIdx].repDnf];
+      const reps = [...next[entryIdx].reps];
+      repDnf[repIdx] = !repDnf[repIdx];
+      if (repDnf[repIdx]) reps[repIdx] = ''; // clear value when marking DNF
+      next[entryIdx] = { ...next[entryIdx], reps, repDnf };
+      return next;
+    });
+  };
+
+  const togglePrimaryDnf = (entryIdx: number) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      const dnf = !next[entryIdx].primaryDnf;
+      next[entryIdx] = { ...next[entryIdx], primaryDnf: dnf, primary: dnf ? '' : next[entryIdx].primary };
       return next;
     });
   };
@@ -1019,14 +1094,31 @@ export function ResultsEntryModal({
   const handleSave = async () => {
     const results = entries
       .filter((e) => {
-        if (e.wasCompleted && !e.primary && e.reps.every((r) => !r)) return false;
-        return true;
+        // Always save if they were previously completed
+        if (e.wasCompleted) return true;
+        // Save if marked complete (including DNF — they attempted)
+        if (e.completed) return true;
+        return false;
       })
       .map((e) => {
         let resultTime: number | null = null;
         let resultDist: number | null = null;
         let resultSplit: number | null = null;
         const resultSpm = e.spm ? parseInt(e.spm, 10) || null : null;
+
+        // Whole-piece DNF: save completed=true but all stats null
+        if (!isInterval && e.primaryDnf) {
+          return {
+            athlete_id: e.athlete_id,
+            completed: true,
+            result_time_seconds: null,
+            result_distance_meters: null,
+            result_split_seconds: null,
+            result_stroke_rate: null,
+            result_intervals: null,
+            _isTest: false,
+          };
+        }
 
         if (shape.type === 'fixed_distance') {
           resultTime = parseTimeInput(e.primary);
@@ -1038,13 +1130,17 @@ export function ResultsEntryModal({
           if (resultTime && resultDist) resultSplit = computeSplit(resultTime, resultDist);
         } else if (shape.type === 'freeform') {
           resultTime = parseTimeInput(e.primary);
-          // For freeform, distance would need a separate field — skip for now
         }
 
         // Build interval results
         let resultIntervals: IntervalResult[] | null = null;
         if (isInterval) {
           resultIntervals = e.reps.map((val, i) => {
+            // DNF rep: persist dnf flag, null stats
+            if (e.repDnf[i]) {
+              return { rep: i + 1, dnf: true, time_seconds: null, distance_meters: null, split_seconds: null, stroke_rate: null };
+            }
+
             let ivTime: number | null = null;
             let ivDist: number | null = null;
             let ivSplit: number | null = null;
@@ -1080,9 +1176,10 @@ export function ResultsEntryModal({
             };
           });
 
-          // Also compute totals from interval data
-          const totalTime = resultIntervals.reduce((sum, iv) => sum + (iv.time_seconds ?? 0), 0);
-          const totalDist = resultIntervals.reduce((sum, iv) => sum + (iv.distance_meters ?? 0), 0);
+          // Totals only from non-DNF reps
+          const completedReps = resultIntervals.filter((iv) => !iv.dnf);
+          const totalTime = completedReps.reduce((sum, iv) => sum + (iv.time_seconds ?? 0), 0);
+          const totalDist = completedReps.reduce((sum, iv) => sum + (iv.distance_meters ?? 0), 0);
           if (totalTime > 0) resultTime = totalTime;
           if (totalDist > 0) resultDist = totalDist;
           if (totalTime > 0 && totalDist > 0) resultSplit = computeSplit(totalTime, totalDist);
@@ -1289,13 +1386,35 @@ export function ResultsEntryModal({
                       {!isInterval && (
                         <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 pl-6 md:pl-0">
                           <div className="md:hidden text-[10px] text-neutral-500 uppercase w-10 shrink-0">{primaryLabel}</div>
-                          <input
-                            type="text"
-                            value={entry.primary}
-                            onChange={(e) => updateEntry(idx, 'primary', e.target.value)}
-                            placeholder={primaryPlaceholder}
-                            className="w-24 px-2 py-1.5 text-sm rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
-                          />
+                          {entry.primaryDnf ? (
+                            <button
+                              type="button"
+                              onClick={() => togglePrimaryDnf(idx)}
+                              className="w-24 px-2 py-1.5 text-xs font-bold rounded bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-red-900/60 transition-colors"
+                            >
+                              DNF
+                            </button>
+                          ) : (
+                            <input
+                              type="text"
+                              value={entry.primary}
+                              onChange={(e) => updateEntry(idx, 'primary', e.target.value)}
+                              placeholder={primaryPlaceholder}
+                              className="w-24 px-2 py-1.5 text-sm rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => togglePrimaryDnf(idx)}
+                            title={entry.primaryDnf ? 'Clear DNF' : 'Mark DNF'}
+                            className={`text-[10px] font-bold px-1.5 py-1 rounded border transition-colors ${
+                              entry.primaryDnf
+                                ? 'bg-red-900/20 border-red-700/40 text-red-500 hover:bg-neutral-800'
+                                : 'bg-neutral-800 border-neutral-700 text-neutral-600 hover:text-red-400 hover:border-red-700/40'
+                            }`}
+                          >
+                            DNF
+                          </button>
                           <div className="md:hidden text-[10px] text-neutral-500 uppercase w-8 shrink-0">SPM</div>
                           <input
                             type="text"
@@ -1304,9 +1423,11 @@ export function ResultsEntryModal({
                             placeholder="spm"
                             className="w-16 px-2 py-1.5 text-sm rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
                           />
-                          <span className="w-20 text-sm text-neutral-500 italic">
-                            {getOverallSplit(entry)}
-                          </span>
+                          {!entry.primaryDnf && (
+                            <span className="w-20 text-sm text-neutral-500 italic">
+                              {getOverallSplit(entry)}
+                            </span>
+                          )}
                         </div>
                       )}
 
@@ -1317,21 +1438,47 @@ export function ResultsEntryModal({
                             const repHeaderLabel = shape.type === 'variable_interval' && shape.variableReps
                               ? shape.variableReps[repIdx]?.label ?? `R${repIdx + 1}`
                               : `R${repIdx + 1}`;
+                            const isDnf = entry.repDnf[repIdx];
                             return (
                               <div key={repIdx} className="w-20">
                                 <div className="md:hidden text-[10px] text-neutral-500 uppercase mb-0.5">{repHeaderLabel}</div>
-                                <input
-                                  type="text"
-                                  value={repVal}
-                                  onChange={(e) => updateRep(idx, repIdx, e.target.value)}
-                                  placeholder={getRepInputPlaceholder(repIdx)}
-                                  className="w-full px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
-                                />
-                                {getRepSplit(entry, repIdx) && (
+                                {isDnf ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRepDnf(idx, repIdx)}
+                                    title="Clear DNF"
+                                    className="w-full px-1.5 py-1.5 text-[10px] font-bold rounded bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-neutral-800 transition-colors"
+                                  >
+                                    DNF
+                                  </button>
+                                ) : (
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      value={repVal}
+                                      onChange={(e) => updateRep(idx, repIdx, e.target.value)}
+                                      placeholder={getRepInputPlaceholder(repIdx)}
+                                      className="w-full px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                )}
+                                {!isDnf && getRepSplit(entry, repIdx) && (
                                   <div className="text-[10px] text-neutral-500 italic text-center mt-0.5">
                                     {getRepSplit(entry, repIdx)}
                                   </div>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRepDnf(idx, repIdx)}
+                                  title={isDnf ? 'Clear DNF' : 'Mark this rep DNF'}
+                                  className={`mt-0.5 w-full text-[9px] font-bold rounded transition-colors ${
+                                    isDnf
+                                      ? 'text-red-500/60 hover:text-neutral-500'
+                                      : 'text-neutral-700 hover:text-red-400'
+                                  }`}
+                                >
+                                  {isDnf ? '✕ clear' : 'DNF'}
+                                </button>
                               </div>
                             );
                           })}

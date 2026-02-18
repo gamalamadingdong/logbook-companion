@@ -17,7 +17,7 @@
  * (opens the existing ResultsEntryModal via query param).
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -83,6 +83,12 @@ interface EnrichedRow extends AssignmentResultRow {
   consistency_sigma: number | null;
   /** Rep splits in order, from result_intervals */
   rep_splits: (number | null)[];
+  /** True when athlete did not finish — sorts to the very bottom */
+  dnf: boolean;
+  /** True when athlete completed some reps but DNF'd others — sorts below finishers, above full DNF */
+  partialDnf: boolean;
+  /** True when athlete is marked complete but no performance data was entered */
+  completeNoData: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -156,6 +162,31 @@ function calcSigma(values: (number | null)[]): number | null {
 function enrichRows(rows: AssignmentResultRow[]): EnrichedRow[] {
   return rows.map((row) => {
     const avg_split_seconds = calcAvgSplit(row);
+
+    // Athlete is DNF if they are marked completed but every interval is DNF,
+    // or if they are completed with no split and no interval data at all.
+    const intervals = row.result_intervals ?? [];
+    const dnf =
+      row.completed &&
+      avg_split_seconds === null &&
+      (intervals.length === 0 ||
+        intervals.every((iv) => iv.dnf === true));
+
+    // Partial DNF: some reps completed, some DNF (has both split data and DNF reps)
+    const partialDnf =
+      !dnf &&
+      row.completed &&
+      intervals.length > 0 &&
+      intervals.some((iv) => iv.dnf === true) &&
+      intervals.some((iv) => iv.dnf !== true && iv.split_seconds != null);
+
+    // Completed but no data: marked complete, not DNF, not partial, but nothing recorded
+    const completeNoData =
+      !dnf &&
+      !partialDnf &&
+      row.completed &&
+      avg_split_seconds === null;
+
     const watts = avg_split_seconds ? Math.round(splitToWatts(avg_split_seconds)) : null;
     const wpkg =
       watts !== null && row.weight_kg && row.weight_kg > 0
@@ -163,7 +194,7 @@ function enrichRows(rows: AssignmentResultRow[]): EnrichedRow[] {
         : null;
     const rep_splits = calcRepSplits(row);
     const consistency_sigma = calcSigma(rep_splits);
-    return { ...row, avg_split_seconds, watts, wpkg, consistency_sigma, rep_splits };
+    return { ...row, avg_split_seconds, watts, wpkg, consistency_sigma, rep_splits, dnf, partialDnf, completeNoData };
   });
 }
 
@@ -452,7 +483,10 @@ function RepProgressionChart({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen]);
-  const withReps = rows.filter((r) => r.completed && r.rep_splits.length > 0);
+  const withReps = rows.filter((r) => r.completed && r.rep_splits.some((v) => v != null));
+  const finishers = withReps.filter((r) => !r.dnf && !r.partialDnf);
+  const partialRowers = withReps.filter((r) => r.partialDnf);
+  const dnfRowers = withReps.filter((r) => r.dnf);
   if (withReps.length === 0 || repLabels.length === 0) return null;
 
   // Build data: one point per rep, each athlete is a field
@@ -501,7 +535,7 @@ function RepProgressionChart({
         wrapperStyle={{ fontSize: height > 400 ? 13 : 11, color: '#9ca3af' }}
         formatter={(name: string) => name.split(' ')[0]}
       />
-      {withReps.map((row, i) => (
+      {finishers.map((row, i) => (
         <Line
           key={row.athlete_id}
           type="monotone"
@@ -510,6 +544,32 @@ function RepProgressionChart({
           strokeWidth={2}
           dot={{ r: 4, fill: LINE_COLORS[i % LINE_COLORS.length] }}
           activeDot={{ r: 6 }}
+          connectNulls
+        />
+      ))}
+      {partialRowers.map((row, i) => (
+        <Line
+          key={row.athlete_id}
+          type="monotone"
+          dataKey={row.athlete_name}
+          stroke={LINE_COLORS[i % LINE_COLORS.length]}
+          strokeWidth={1.5}
+          strokeDasharray="6 2"
+          dot={{ r: 3, fill: LINE_COLORS[i % LINE_COLORS.length] }}
+          activeDot={{ r: 5 }}
+          connectNulls
+        />
+      ))}
+      {dnfRowers.map((row) => (
+        <Line
+          key={row.athlete_id}
+          type="monotone"
+          dataKey={row.athlete_name}
+          stroke="#6b7280"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          dot={{ r: 3, fill: '#6b7280' }}
+          activeDot={{ r: 5 }}
           connectNulls
         />
       ))}
@@ -606,9 +666,13 @@ function RepHeatmap({
     return fmtSplit(split);
   }
 
-  const sorted = [...withReps].sort(
-    (a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999)
-  );
+  const sorted = [
+    ...withReps.filter((r) => !r.dnf && !r.partialDnf).sort((a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999)),
+    ...withReps.filter((r) => r.partialDnf).sort((a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999)),
+    ...withReps.filter((r) => r.dnf),
+  ];
+  const firstPartialIdx = sorted.findIndex((r) => r.partialDnf);
+  const firstDnfIdx = sorted.findIndex((r) => r.dnf);
 
   return (
     <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
@@ -635,27 +699,51 @@ function RepHeatmap({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => (
-              <tr key={row.athlete_id}>
-                <td className="sticky left-0 bg-neutral-900/80 px-3 py-1.5 text-neutral-200 whitespace-nowrap border-t border-neutral-800/30">
-                  {row.athlete_name}
-                </td>
-                {repLabels.map((_, repIdx) => {
-                  const split = row.rep_splits[repIdx] ?? null;
-                  const median = repMedians[repIdx];
-                  return (
+            {sorted.map((row, rowIdx) => (
+              <Fragment key={row.athlete_id}>
+                {rowIdx === firstPartialIdx && firstPartialIdx > 0 && (
+                  <tr>
                     <td
-                      key={repIdx}
-                      className={`px-2 py-1.5 text-center border-t border-neutral-800/30 font-mono ${cellColor(split, median)}`}
+                      colSpan={repLabels.length + 2}
+                      className="px-3 py-1 text-center text-[10px] font-semibold text-amber-400 uppercase tracking-widest bg-amber-900/10 border-t border-amber-900/40"
                     >
-                      {cellText(split)}
+                      Partial completion
                     </td>
-                  );
-                })}
-                <td className="px-2 py-1.5 text-center border-t border-neutral-800/30 text-neutral-400 font-mono">
-                  {row.consistency_sigma != null ? `±${fmtSplit(row.consistency_sigma)}` : '—'}
-                </td>
-              </tr>
+                  </tr>
+                )}
+                {rowIdx === firstDnfIdx && firstDnfIdx > 0 && (
+                  <tr>
+                    <td
+                      colSpan={repLabels.length + 2}
+                      className="px-3 py-1 text-center text-[10px] font-semibold text-red-400 uppercase tracking-widest bg-red-900/10 border-t border-red-900/40"
+                    >
+                      DNF
+                    </td>
+                  </tr>
+                )}
+                <tr className={row.dnf ? 'opacity-50' : row.partialDnf ? 'opacity-70' : ''}>
+                  <td className="sticky left-0 bg-neutral-900/80 px-3 py-1.5 whitespace-nowrap border-t border-neutral-800/30">
+                    <span className="text-neutral-200">{row.athlete_name}</span>
+                    {row.partialDnf && <span className="ml-1.5 text-[9px] font-bold text-amber-400 uppercase">Partial</span>}
+                    {row.dnf && <span className="ml-1.5 text-[9px] font-bold text-red-400 uppercase">DNF</span>}
+                  </td>
+                  {repLabels.map((_, repIdx) => {
+                    const split = row.rep_splits[repIdx] ?? null;
+                    const median = repMedians[repIdx];
+                    return (
+                      <td
+                        key={repIdx}
+                        className={`px-2 py-1.5 text-center border-t border-neutral-800/30 font-mono ${cellColor(split, median)}`}
+                      >
+                        {cellText(split)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-center border-t border-neutral-800/30 text-neutral-400 font-mono">
+                    {row.consistency_sigma != null ? `±${fmtSplit(row.consistency_sigma)}` : '—'}
+                  </td>
+                </tr>
+              </Fragment>
             ))}
             {/* Median row */}
             <tr className="bg-neutral-800/30">
@@ -733,6 +821,22 @@ function SummaryTable({
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
+      // DNF always sinks to the very bottom, regardless of sort direction
+      if (a.dnf && !b.dnf) return 1;
+      if (!a.dnf && b.dnf) return -1;
+
+      // Completed-no-data sinks below DNF only when not-started; sits above not-completed
+      if (a.completeNoData && !b.completeNoData && !b.dnf) return 1;
+      if (!a.completeNoData && b.completeNoData && !a.dnf) return -1;
+
+      // Partial DNF sinks below full finishers but above completed-no-data
+      if (a.partialDnf && !b.partialDnf && !b.completeNoData && !b.dnf) return 1;
+      if (!a.partialDnf && b.partialDnf && !a.completeNoData && !a.dnf) return -1;
+
+      // Not-completed (no data at all) sinks below everything
+      if (!a.completed && b.completed) return 1;
+      if (a.completed && !b.completed) return -1;
+
       let av: number | string | null = null;
       let bv: number | string | null = null;
       switch (sortField) {
@@ -753,11 +857,17 @@ function SummaryTable({
     });
   }, [rows, sortField, sortDir]);
 
-  // Assign rank by split (only among completed rows)
+  // Assign rank by split (only among full finishers — no partial DNF)
   const completedBySplit = [...sorted]
-    .filter((r) => r.completed && r.avg_split_seconds != null)
+    .filter((r) => r.completed && !r.dnf && !r.partialDnf && r.avg_split_seconds != null)
     .sort((a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999));
   const rankMap = new Map(completedBySplit.map((r, i) => [r.athlete_id, i + 1]));
+
+  // Track where each tier starts for divider rows
+  const firstPartialDnfIdx = sorted.findIndex((r) => r.partialDnf);
+  const firstCompleteNoDataIdx = sorted.findIndex((r) => r.completeNoData);
+  const firstFullDnfIdx = sorted.findIndex((r) => r.dnf);
+  const firstNotCompletedIdx = sorted.findIndex((r) => !r.completed);
 
   const hasWpkg = sorted.some((r) => r.wpkg != null);
 
@@ -797,15 +907,47 @@ function SummaryTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => {
+            {sorted.map((row, rowIdx) => {
               const rank = rankMap.get(row.athlete_id);
+              const showPartialDivider = rowIdx === firstPartialDnfIdx && firstPartialDnfIdx > 0;
+              const showCompleteNoDataDivider = rowIdx === firstCompleteNoDataIdx && firstCompleteNoDataIdx > 0;
+              const showDnfDivider = rowIdx === firstFullDnfIdx && firstFullDnfIdx > 0;
+              const showNotCompletedDivider = rowIdx === firstNotCompletedIdx && firstNotCompletedIdx > 0;
               return (
-                <tr
-                  key={row.athlete_id}
-                  className={`border-b border-neutral-800/30 hover:bg-neutral-700/20 transition-colors ${
-                    !row.completed ? 'opacity-50' : ''
-                  }`}
-                >
+                <Fragment key={row.athlete_id}>
+                  {showPartialDivider && (
+                    <tr>
+                      <td colSpan={99} className="px-3 py-1 text-[10px] font-semibold text-amber-400 uppercase tracking-widest bg-amber-900/10 border-t border-amber-900/40">
+                        Partial completion
+                      </td>
+                    </tr>
+                  )}
+                  {showCompleteNoDataDivider && (
+                    <tr>
+                      <td colSpan={99} className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest bg-neutral-700/20 border-t border-neutral-600/40">
+                        Completed — no data entered
+                      </td>
+                    </tr>
+                  )}
+                  {showDnfDivider && (
+                    <tr>
+                      <td colSpan={99} className="px-3 py-1 text-[10px] font-semibold text-red-400 uppercase tracking-widest bg-red-900/10 border-t border-red-900/40">
+                        DNF
+                      </td>
+                    </tr>
+                  )}
+                  {showNotCompletedDivider && (
+                    <tr>
+                      <td colSpan={99} className="px-3 py-1 text-[10px] font-semibold text-neutral-500 uppercase tracking-widest bg-neutral-800/30 border-t border-neutral-700/30">
+                        Not completed
+                      </td>
+                    </tr>
+                  )}
+                  <tr
+                    className={`border-b border-neutral-800/30 hover:bg-neutral-700/20 transition-colors ${
+                      row.dnf ? 'opacity-60' : row.partialDnf ? 'opacity-75' : row.completeNoData ? 'opacity-50' : !row.completed ? 'opacity-40' : ''
+                    }`}
+                  >
                   <td className="px-3 py-2 text-neutral-500 text-xs">
                     {rank ? (
                       <span
@@ -822,7 +964,13 @@ function SummaryTable({
                     {row.squad && <div className="text-[10px] text-neutral-500">{row.squad}</div>}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    {row.completed ? (
+                    {row.dnf ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/40 text-red-400 uppercase tracking-wider">DNF</span>
+                    ) : row.partialDnf ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-900/40 text-amber-400 uppercase tracking-wider">Partial</span>
+                    ) : row.completeNoData ? (
+                      <CheckCircle2 className="w-4 h-4 text-neutral-500 mx-auto" />
+                    ) : row.completed ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
                     ) : (
                       <XCircle className="w-4 h-4 text-neutral-600 mx-auto" />
@@ -839,7 +987,8 @@ function SummaryTable({
                       {row.consistency_sigma != null ? `±${fmtSplit(row.consistency_sigma)}` : '—'}
                     </td>
                   )}
-                </tr>
+                  </tr>
+                </Fragment>
               );
             })}
           </tbody>
@@ -932,7 +1081,9 @@ export function AssignmentResults() {
     return Array.from({ length: maxReps }, (_, i) => `Rep ${i + 1}`);
   }, [shape, isInterval, rows]);
 
-  const completedCount = rows.filter((r) => r.completed).length;
+  const finishedCount = rows.filter((r) => r.completed && !r.dnf).length;
+  const dnfCount = rows.filter((r) => r.dnf).length;
+  const completedCount = finishedCount + dnfCount; // attempted (finished + DNF)
   const totalCount = allRows.length;
   const filteredTotal = rows.length;
 
@@ -1002,19 +1153,32 @@ export function AssignmentResults() {
               {/* Completion badge */}
               <div className="flex items-center gap-3">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-neutral-100">{completedCount}</div>
-                  <div className="text-xs text-neutral-500">of {squadFilter === 'all' ? totalCount : filteredTotal} completed</div>
+                  <div className="text-3xl font-bold text-neutral-100">{finishedCount}</div>
+                  <div className="text-xs text-neutral-500">of {squadFilter === 'all' ? totalCount : filteredTotal} finished</div>
+                  {dnfCount > 0 && (
+                    <div className="text-[10px] font-semibold text-red-400 mt-0.5">{dnfCount} DNF</div>
+                  )}
                 </div>
                 <div className="w-16 h-16">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="#374151" strokeWidth="3" />
                     <circle
                       cx="18" cy="18" r="15.9" fill="none"
-                      stroke={completedCount === totalCount ? '#10b981' : '#6366f1'}
+                      stroke={finishedCount === totalCount ? '#10b981' : '#6366f1'}
                       strokeWidth="3"
-                      strokeDasharray={`${totalCount > 0 ? (completedCount / totalCount) * 100 : 0} 100`}
+                      strokeDasharray={`${totalCount > 0 ? (finishedCount / totalCount) * 100 : 0} 100`}
                       strokeLinecap="round"
                     />
+                    {dnfCount > 0 && (
+                      <circle
+                        cx="18" cy="18" r="15.9" fill="none"
+                        stroke="#ef4444"
+                        strokeWidth="3"
+                        strokeDasharray={`${totalCount > 0 ? (dnfCount / totalCount) * 100 : 0} 100`}
+                        strokeDashoffset={`${totalCount > 0 ? -(finishedCount / totalCount) * 100 : 0}`}
+                        strokeLinecap="round"
+                      />
+                    )}
                   </svg>
                 </div>
               </div>

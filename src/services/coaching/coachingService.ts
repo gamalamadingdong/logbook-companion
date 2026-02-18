@@ -1044,6 +1044,8 @@ export interface IntervalResult {
   distance_meters?: number | null;
   split_seconds?: number | null;
   stroke_rate?: number | null;
+  /** True when athlete did not finish (or skipped) this rep */
+  dnf?: boolean | null;
 }
 
 /** Per-athlete assignment row with completion status and results */
