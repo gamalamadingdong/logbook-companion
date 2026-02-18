@@ -27,6 +27,7 @@ import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
 import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
 import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
 import { CoachingAssignments } from './pages/coaching/CoachingAssignments';
+import { AssignmentResults } from './pages/coaching/AssignmentResults';
 import { TeamSetup } from './pages/coaching/TeamSetup';
 import { TeamAnalytics } from './pages/coaching/TeamAnalytics';
 import { CoachingSettings } from './pages/coaching/CoachingSettings';
@@ -240,6 +241,14 @@ const AppContent: React.FC = () => {
             element={
               <CoachRoute>
                 <CoachingAssignments />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/team-management/assignments/:assignmentId/results"
+            element={
+              <CoachRoute>
+                <AssignmentResults />
               </CoachRoute>
             }
           />

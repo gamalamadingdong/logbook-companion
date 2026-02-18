@@ -994,6 +994,72 @@ export interface AthleteAssignmentRow {
   result_intervals?: IntervalResult[] | null;
 }
 
+/** Enriched result row joining assignment data with athlete profile (name, squad, weight_kg) */
+export interface AssignmentResultRow {
+  id: string;
+  athlete_id: string;
+  athlete_name: string;
+  squad?: string | null;
+  weight_kg?: number | null;
+  completed: boolean;
+  completed_at?: string | null;
+  result_time_seconds?: number | null;
+  result_distance_meters?: number | null;
+  result_split_seconds?: number | null;
+  result_stroke_rate?: number | null;
+  result_intervals?: IntervalResult[] | null;
+}
+
+/**
+ * Fetch per-athlete results for a group assignment, enriched with athlete
+ * name / squad / weight_kg from the athletes + team_athletes tables.
+ */
+export async function getAssignmentResultsWithAthletes(
+  groupAssignmentId: string,
+  teamId: string
+): Promise<AssignmentResultRow[]> {
+  // 1. Fetch all assignment rows for this group
+  const { data: rows, error: rowErr } = await supabase
+    .from('daily_workout_assignments')
+    .select('id, athlete_id, completed, completed_at, result_time_seconds, result_distance_meters, result_split_seconds, result_stroke_rate, result_intervals')
+    .eq('group_assignment_id', groupAssignmentId);
+  if (rowErr) throw rowErr;
+
+  // 2. Fetch athletes for the team (includes squad + weight_kg)
+  const { data: athleteRows, error: athErr } = await supabase
+    .from('athletes')
+    .select('id, first_name, last_name, weight_kg, team_athletes!inner(team_id, squad)')
+    .eq('team_athletes.team_id', teamId);
+  if (athErr) throw athErr;
+
+  // Build lookup map
+  type AthleteInfo = { name: string; squad: string | null; weight_kg: number | null };
+  const athleteMap = new Map<string, AthleteInfo>();
+  for (const a of athleteRows ?? []) {
+    const ta = (a.team_athletes as unknown as Array<{ squad: string | null }>)[0];
+    const name = [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || 'Unknown';
+    athleteMap.set(a.id as string, { name, squad: ta?.squad ?? null, weight_kg: (a.weight_kg as number | null) ?? null });
+  }
+
+  return (rows ?? []).map((row) => {
+    const info = athleteMap.get(row.athlete_id as string);
+    return {
+      id: row.id as string,
+      athlete_id: row.athlete_id as string,
+      athlete_name: info?.name ?? 'Unknown',
+      squad: info?.squad ?? null,
+      weight_kg: info?.weight_kg ?? null,
+      completed: row.completed as boolean,
+      completed_at: row.completed_at as string | null,
+      result_time_seconds: row.result_time_seconds as number | null,
+      result_distance_meters: row.result_distance_meters as number | null,
+      result_split_seconds: row.result_split_seconds as number | null,
+      result_stroke_rate: row.result_stroke_rate as number | null,
+      result_intervals: row.result_intervals as IntervalResult[] | null,
+    };
+  });
+}
+
 /** Get per-athlete assignment rows for a group assignment (with results) */
 export async function getAthleteAssignmentRows(
   groupAssignmentId: string

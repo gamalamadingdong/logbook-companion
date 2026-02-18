@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import {
   getGroupAssignments,
@@ -247,7 +248,6 @@ export function CoachingAssignments() {
             assignments={assignments}
             athletes={athletes}
             cells={complianceCells}
-            onOpenResults={(id) => setBulkCompleteAssignmentId(id)}
           />
         ) : (
         <>
@@ -348,6 +348,13 @@ export function CoachingAssignments() {
                       <CheckSquare className="w-3.5 h-3.5" />
                       Enter Results
                     </button>
+                    <Link
+                      to={`/team-management/assignments/${a.id}/results`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors self-start"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      View Results
+                    </Link>
                   </div>
                   {a.instructions && (
                     <p className="text-sm text-neutral-400 pl-7">{a.instructions}</p>
@@ -436,6 +443,14 @@ function AssignmentCard({
         )}
       </div>
       <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+        <Link
+          to={`/team-management/assignments/${assignment.id}/results`}
+          className="p-0.5 text-neutral-600 hover:text-indigo-400 transition-colors"
+          aria-label="View results"
+          title="View results"
+        >
+          <BarChart3 className="w-3 h-3" />
+        </Link>
         <button
           onClick={onEdit}
           className="p-0.5 text-neutral-600 hover:text-indigo-400 transition-colors"
@@ -785,7 +800,7 @@ interface AthleteResultEntry {
   isTest: boolean;
 }
 
-function ResultsEntryModal({
+export function ResultsEntryModal({
   groupAssignmentId,
   assignment,
   athletes,
@@ -1379,12 +1394,10 @@ function ComplianceGrid({
   assignments,
   athletes,
   cells,
-  onOpenResults,
 }: {
   assignments: GroupAssignment[];
   athletes: CoachingAthlete[];
   cells: ComplianceCell[];
-  onOpenResults: (groupAssignmentId: string) => void;
 }) {
   // Build lookup: `${athlete_id}:${group_assignment_id}` → cell
   const cellMap = new Map<string, ComplianceCell>();
@@ -1433,16 +1446,16 @@ function ComplianceGrid({
                 key={a.id}
                 className="px-2 py-2 text-center border-b border-neutral-800 min-w-[80px]"
               >
-                <button
-                  onClick={() => onOpenResults(a.id)}
-                  className="text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors"
+                <Link
+                  to={`/team-management/assignments/${a.id}/results`}
+                  className="text-xs font-medium text-neutral-400 hover:text-indigo-400 transition-colors block"
                   title={`${a.title || a.template_name || 'Workout'} — ${format(parseISO(a.scheduled_date), 'EEE d')}`}
                 >
                   <div className="truncate max-w-[80px]">{a.title || a.template_name || '—'}</div>
                   <div className="text-[10px] text-neutral-600 font-normal">
                     {format(parseISO(a.scheduled_date), 'EEE d')}
                   </div>
-                </button>
+                </Link>
               </th>
             ))}
             <th className="px-3 py-2 text-center border-b border-neutral-800 text-xs font-medium text-neutral-500">
