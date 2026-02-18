@@ -476,10 +476,8 @@ export async function updateAthlete(
 }
 
 export async function deleteAthlete(id: string): Promise<void> {
-  // Cascade: delete notes and erg scores referencing this athlete
-  await supabase.from('coaching_athlete_notes').delete().eq('athlete_id', id);
-  await supabase.from('coaching_erg_scores').delete().eq('athlete_id', id);
-  // team_athletes cascade-deletes via FK
+  // All child rows (team_athletes, coaching_athlete_notes, coaching_erg_scores,
+  // daily_workout_assignments) are CASCADE DELETE at the DB level.
   throwOnError(
     await supabase.from('athletes').delete().eq('id', id)
   );

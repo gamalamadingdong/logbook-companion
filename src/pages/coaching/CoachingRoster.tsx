@@ -15,9 +15,11 @@ import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Do
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
 import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
+import { BulkRosterModal } from '../../components/coaching/BulkRosterModal';
 import { downloadCsv } from '../../utils/csvExport';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg } from '../../utils/unitConversion';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export function CoachingRoster() {
   const { userId, teamId, isLoadingTeam, teamError } = useCoachingContext();
@@ -27,6 +29,7 @@ export function CoachingRoster() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [deletingAthlete, setDeletingAthlete] = useState<CoachingAthlete | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
   const [showMissingOnly, setShowMissingOnly] = useState(false);
@@ -286,6 +289,14 @@ export function CoachingRoster() {
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Add Athlete</span>
               <span className="sm:hidden">Add</span>
+            </button>
+            <button
+              onClick={() => setShowBulkAdd(true)}
+              className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Bulk Add</span>
+              <span className="sm:hidden">Bulk</span>
             </button>
             <button
               onClick={() => {
@@ -755,6 +766,21 @@ export function CoachingRoster() {
           squads={squads}
           onSave={handleSave}
           onCancel={() => setIsAdding(false)}
+        />
+      )}
+
+      {/* Bulk Add Modal */}
+      {showBulkAdd && teamId && (
+        <BulkRosterModal
+          teamId={teamId}
+          userId={userId}
+          existingSquads={squads}
+          onClose={() => setShowBulkAdd(false)}
+          onSaved={async (count) => {
+            setShowBulkAdd(false);
+            await refreshAthletes();
+            toast.success(`Added ${count} athlete${count !== 1 ? 's' : ''}`);
+          }}
         />
       )}
 

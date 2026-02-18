@@ -29,6 +29,8 @@ import {
   ArrowUpDown,
   TrendingUp,
   BarChart3,
+  Maximize2,
+  X as XIcon,
 } from 'lucide-react';
 import {
   BarChart,
@@ -115,6 +117,19 @@ function fmtWpkg(w: number | null | undefined): string {
 function calcAvgSplit(row: AssignmentResultRow): number | null {
   // Prefer interval data if available
   if (row.result_intervals && row.result_intervals.length > 0) {
+    // Use distance-weighted average when distance is known (variable-length pieces like 1:00/3:00/7:00).
+    // A simple unweighted mean would over-weight short pieces vs long ones.
+    const repsWithBoth = row.result_intervals.filter(
+      (r): r is IntervalResult & { split_seconds: number; distance_meters: number } =>
+        typeof r.split_seconds === 'number' && typeof r.distance_meters === 'number' && r.distance_meters > 0
+    );
+    if (repsWithBoth.length > 0) {
+      const totalDist = repsWithBoth.reduce((s, r) => s + r.distance_meters, 0);
+      // weighted sum: split_seconds * distance gives "seconds per 500m equivalent" * distance
+      const weightedSum = repsWithBoth.reduce((s, r) => s + r.split_seconds * r.distance_meters, 0);
+      return weightedSum / totalDist;
+    }
+    // Fallback: no distance data — simple mean of rep splits
     const repSplits = row.result_intervals
       .filter((r): r is IntervalResult & { split_seconds: number } => typeof r.split_seconds === 'number')
       .map((r) => r.split_seconds);
@@ -429,6 +444,14 @@ function RepProgressionChart({
   rows: EnrichedRow[];
   repLabels: string[];
 }) {
+  const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
   const withReps = rows.filter((r) => r.completed && r.rep_splits.length > 0);
   if (withReps.length === 0 || repLabels.length === 0) return null;
 
@@ -442,57 +465,108 @@ function RepProgressionChart({
     return point;
   });
 
+  // Smart Y-axis: fit to actual data range + 8% padding
+  const allSplits = withReps.flatMap((r) => r.rep_splits.filter((v): v is number => v != null));
+  const minSplit = Math.min(...allSplits);
+  const maxSplit = Math.max(...allSplits);
+  const pad = (maxSplit - minSplit) * 0.08 || 5;
+  // Y is reversed (faster = higher on chart), so domain min=fast end, max=slow end
+  const yDomain: [number, number] = [Math.floor(minSplit - pad), Math.ceil(maxSplit + pad)];
+
+  const chartContent = (height: number) => (
+    <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+      <XAxis dataKey="rep" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+      <YAxis
+        reversed
+        domain={yDomain}
+        tick={{ fill: '#9ca3af', fontSize: 11 }}
+        tickFormatter={(v) => fmtSplit(v)}
+        width={52}
+        label={{
+          value: 'Split /500m',
+          angle: -90,
+          position: 'insideLeft',
+          fill: '#6b7280',
+          fontSize: 10,
+          dx: -4,
+        }}
+      />
+      <Tooltip
+        contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
+        formatter={(v: number | undefined, name: string | undefined) => [fmtSplit(v ?? 0), (name ?? '').split(' ')[0]]}
+        labelStyle={{ color: '#e5e7eb', fontWeight: 600 }}
+      />
+      <Legend
+        wrapperStyle={{ fontSize: height > 400 ? 13 : 11, color: '#9ca3af' }}
+        formatter={(name: string) => name.split(' ')[0]}
+      />
+      {withReps.map((row, i) => (
+        <Line
+          key={row.athlete_id}
+          type="monotone"
+          dataKey={row.athlete_name}
+          stroke={LINE_COLORS[i % LINE_COLORS.length]}
+          strokeWidth={2}
+          dot={{ r: 4, fill: LINE_COLORS[i % LINE_COLORS.length] }}
+          activeDot={{ r: 6 }}
+          connectNulls
+        />
+      ))}
+    </LineChart>
+  );
+
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
-        <TrendingUp className="w-4 h-4 text-cyan-400" />
-        Split per Rep — Individual Lines
-      </h3>
-      <p className="text-xs text-neutral-500">
-        Higher on chart = slower. Look for athletes who drift up (fall off) or spike down (go out too hard).
-      </p>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-          <XAxis dataKey="rep" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-          <YAxis
-            reversed
-            tick={{ fill: '#9ca3af', fontSize: 11 }}
-            tickFormatter={(v) => fmtSplit(v)}
-            width={52}
-            label={{
-              value: 'Split /500m',
-              angle: -90,
-              position: 'insideLeft',
-              fill: '#6b7280',
-              fontSize: 10,
-              dx: -4,
-            }}
-          />
-          <Tooltip
-            contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-            formatter={(v: number | undefined, name: string | undefined) => [fmtSplit(v ?? 0), (name ?? '').split(' ')[0]]}
-            labelStyle={{ color: '#e5e7eb', fontWeight: 600 }}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: 11, color: '#9ca3af' }}
-            formatter={(name: string) => name.split(' ')[0]}
-          />
-          {withReps.map((row, i) => (
-            <Line
-              key={row.athlete_id}
-              type="monotone"
-              dataKey={row.athlete_name}
-              stroke={LINE_COLORS[i % LINE_COLORS.length]}
-              strokeWidth={2}
-              dot={{ r: 4, fill: LINE_COLORS[i % LINE_COLORS.length] }}
-              activeDot={{ r: 6 }}
-              connectNulls
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <>
+      <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-cyan-400" />
+            Split per Rep — Individual Lines
+          </h3>
+          <button
+            onClick={() => setFullscreen(true)}
+            title="Fullscreen"
+            className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50 transition-colors"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-neutral-500">
+          Higher on chart = slower. Look for athletes who drift up (fall off) or spike down (go out too hard).
+        </p>
+        <ResponsiveContainer width="100%" height={280}>
+          {chartContent(280)}
+        </ResponsiveContainer>
+      </div>
+
+      {/* Fullscreen modal */}
+      {fullscreen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex flex-col p-4 sm:p-8">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h2 className="text-base font-semibold text-neutral-200 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+              Split per Rep — Individual Lines
+            </h2>
+            <button
+              onClick={() => setFullscreen(false)}
+              title="Close"
+              className="p-2 rounded-lg bg-neutral-800 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700 transition-colors"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 bg-neutral-900 rounded-xl p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartContent(600)}
+            </ResponsiveContainer>
+          </div>
+          <p className="text-xs text-neutral-600 mt-3 text-center flex-shrink-0">
+            Higher = slower · Press Esc or click ✕ to close
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
