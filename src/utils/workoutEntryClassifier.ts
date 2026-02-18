@@ -9,6 +9,7 @@
  * Used by the Results Entry modal to show only the relevant input fields.
  */
 
+import type { WorkoutStructure } from '../types/workoutStructure.types';
 import { parseRWN } from './rwnParser';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -49,6 +50,98 @@ export interface EntryShape {
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────
+
+export function parseWorkoutStructureForEntry(
+  workoutStructure: WorkoutStructure | null | undefined,
+  fallbackLabel?: string,
+): EntryShape | null {
+  if (!workoutStructure) {
+    return null;
+  }
+
+  switch (workoutStructure.type) {
+    case 'steady_state': {
+      if (workoutStructure.unit === 'meters') {
+        return {
+          type: 'fixed_distance',
+          fixedDistance: workoutStructure.value,
+          reps: 1,
+          label: `${workoutStructure.value}m`,
+        };
+      }
+      if (workoutStructure.unit === 'seconds') {
+        return {
+          type: 'fixed_time',
+          fixedTime: workoutStructure.value,
+          reps: 1,
+          label: formatTimeLabel(workoutStructure.value),
+        };
+      }
+      return {
+        type: 'freeform',
+        reps: 1,
+        label: fallbackLabel ?? 'Workout',
+      };
+    }
+
+    case 'interval': {
+      if (workoutStructure.work.type === 'distance') {
+        return {
+          type: 'distance_interval',
+          fixedDistance: workoutStructure.work.value,
+          reps: workoutStructure.repeats,
+          label: `${workoutStructure.repeats}×${workoutStructure.work.value}m`,
+        };
+      }
+      if (workoutStructure.work.type === 'time') {
+        return {
+          type: 'time_interval',
+          fixedTime: workoutStructure.work.value,
+          reps: workoutStructure.repeats,
+          label: `${workoutStructure.repeats}×${formatTimeLabel(workoutStructure.work.value)}`,
+        };
+      }
+      return {
+        type: 'freeform',
+        reps: workoutStructure.repeats,
+        label: fallbackLabel ?? 'Workout',
+      };
+    }
+
+    case 'variable': {
+      const workSteps = workoutStructure.steps.filter((step) => step.type === 'work');
+      if (workSteps.length === 0) {
+        return {
+          type: 'freeform',
+          reps: 1,
+          label: fallbackLabel ?? 'Workout',
+        };
+      }
+
+      const variableReps: VariableRep[] = workSteps.map((step) => {
+        if (step.duration_type === 'distance') {
+          return {
+            fixedType: 'distance',
+            fixedValue: step.value,
+            label: `${step.value}m`,
+          };
+        }
+        return {
+          fixedType: 'time',
+          fixedValue: step.value,
+          label: formatTimeLabel(step.value),
+        };
+      });
+
+      return {
+        type: 'variable_interval',
+        reps: variableReps.length,
+        variableReps,
+        label: fallbackLabel ?? 'Variable Interval',
+      };
+    }
+  }
+}
 
 /**
  * Parse a canonical name and return the entry shape for results capture.

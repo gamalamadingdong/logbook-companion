@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import {
   getGroupAssignments,
@@ -29,6 +29,7 @@ import {
 import { calculateWattsFromSplit } from '../../utils/paceCalculator';
 import { toast } from 'sonner';
 import {
+  parseWorkoutStructureForEntry,
   parseCanonicalForEntry,
   computeSplit,
   fmtTime,
@@ -801,9 +802,15 @@ function ResultsEntryModal({
   onClose: () => void;
   onComplete: () => void;
 }) {
-  // Classify the workout once
-  const shapeSource = assignment.canonical_name ?? assignment.template_name ?? assignment.title;
-  const shape: EntryShape = parseCanonicalForEntry(shapeSource);
+  // Classify the workout once (memoized to avoid unstable refs triggering reloads)
+  const shape: EntryShape = useMemo(() => {
+    const shapeSource = assignment.canonical_name;
+    const shapeLabelSource = assignment.canonical_name ?? assignment.template_name ?? assignment.title;
+    return (
+      parseWorkoutStructureForEntry(assignment.workout_structure, shapeLabelSource ?? undefined) ??
+      parseCanonicalForEntry(shapeSource)
+    );
+  }, [assignment.canonical_name, assignment.template_name, assignment.title, assignment.workout_structure]);
   const isInterval = shape.reps > 1;
 
   const [entries, setEntries] = useState<AthleteResultEntry[]>([]);
@@ -811,9 +818,13 @@ function ResultsEntryModal({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
+      setIsLoading(true);
       try {
         const rows = await getAthleteAssignmentRows(groupAssignmentId);
+        if (cancelled) return;
         const mapped: AthleteResultEntry[] = rows.map((r) => {
           const existingIntervals = (r.result_intervals ?? []) as IntervalResult[];
 
@@ -860,12 +871,20 @@ function ResultsEntryModal({
         });
         setEntries(mapped);
       } catch {
-        toast.error('Failed to load athlete assignments');
+        if (!cancelled) {
+          toast.error('Failed to load athlete assignments');
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     })();
-  }, [assignment.is_test_template, groupAssignmentId, shape.reps, shape.type, shape.variableReps]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignment.is_test_template, groupAssignmentId, shape]);
 
   const athleteMap = new Map(athletes.map((a) => [a.id, a]));
 
@@ -1110,12 +1129,24 @@ function ResultsEntryModal({
     'Time';
   const primaryPlaceholder =
     shape.type === 'fixed_time' ? 'meters' : 'm:ss.s';
-  const repLabel =
-    shape.type === 'distance_interval' ? 'Time' :
-    shape.type === 'time_interval' ? 'Dist' :
-    'Value';
-  const repPlaceholder =
-    shape.type === 'time_interval' ? 'm' : 'm:ss.s';
+  const getRepInputKind = (repIdx: number): 'time' | 'distance' => {
+    if (shape.type === 'distance_interval') return 'time';
+    if (shape.type === 'time_interval') return 'distance';
+    if (shape.type === 'variable_interval' && shape.variableReps) {
+      return shape.variableReps[repIdx]?.fixedType === 'time' ? 'distance' : 'time';
+    }
+    return 'time';
+  };
+
+  const getRepInputLabel = (repIdx: number): string => {
+    const kind = getRepInputKind(repIdx);
+    return kind === 'distance' ? 'Dist' : 'Time';
+  };
+
+  const getRepInputPlaceholder = (repIdx: number): string => {
+    const kind = getRepInputKind(repIdx);
+    return kind === 'distance' ? 'm' : 'm:ss.s';
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -1174,7 +1205,7 @@ function ResultsEntryModal({
                       return (
                         <div key={i} className="w-20 text-center">
                           <div>{repHeaderLabel}</div>
-                          <div className="text-[9px] text-neutral-600 normal-case">{repLabel}</div>
+                          <div className="text-[9px] text-neutral-600 normal-case">{getRepInputLabel(i)}</div>
                         </div>
                       );
                     })}
@@ -1262,7 +1293,7 @@ function ResultsEntryModal({
                                   type="text"
                                   value={repVal}
                                   onChange={(e) => updateRep(idx, repIdx, e.target.value)}
-                                  placeholder={repPlaceholder}
+                                  placeholder={getRepInputPlaceholder(repIdx)}
                                   className="w-full px-1.5 py-1.5 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
                                 />
                                 {getRepSplit(entry, repIdx) && (

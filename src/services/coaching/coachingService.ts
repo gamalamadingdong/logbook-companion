@@ -780,7 +780,7 @@ export async function getGroupAssignments(
     .select(`
       id, team_id, template_id, scheduled_date, title, instructions,
       created_by, created_at,
-      workout_templates!inner ( name, canonical_name, workout_type, training_zone, is_test )
+      workout_templates!inner ( name, canonical_name, workout_structure, workout_type, training_zone, is_test )
     `)
     .eq('team_id', teamId)
     .order('scheduled_date', { ascending: false });
@@ -805,6 +805,7 @@ export async function getGroupAssignments(
       created_at: row.created_at as string,
       template_name: (tmpl?.name as string) ?? undefined,
       canonical_name: (tmpl?.canonical_name as string | null) ?? null,
+      workout_structure: (tmpl?.workout_structure as GroupAssignment['workout_structure']) ?? null,
       workout_type: (tmpl?.workout_type as string) ?? undefined,
       training_zone: (tmpl?.training_zone as string | null) ?? null,
       is_test_template: (tmpl?.is_test as boolean) ?? false,

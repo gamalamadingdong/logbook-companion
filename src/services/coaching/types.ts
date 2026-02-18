@@ -128,6 +128,8 @@ export interface BoatPosition {
   athlete_id: string;
 }
 
+import type { WorkoutStructure } from '../../types/workoutStructure.types';
+
 // ─── Weekly Plans ───────────────────────────────────────────────────────────
 
 export interface CoachingWeeklyPlan {
@@ -169,6 +171,7 @@ export interface GroupAssignment {
   // Joined fields (from template)
   template_name?: string;
   canonical_name?: string | null;
+  workout_structure?: WorkoutStructure | null;
   workout_type?: string;
   training_zone?: string | null;
   /** Whether the workout template is flagged as a test/benchmark (from template is_test) */

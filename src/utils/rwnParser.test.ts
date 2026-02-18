@@ -534,3 +534,58 @@ describe('RWN Parser - Block Tag Notation', () => {
         });
     });
 });
+
+describe('RWN Parser - Variable List Notation', () => {
+    test('parses v-prefixed distance ladder as variable steps', () => {
+        const result = parseRWN('v500m/1000m/1500m');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('variable');
+
+        if (result?.type === 'variable') {
+            const workSteps = result.steps.filter(s => s.type === 'work');
+            expect(workSteps).toHaveLength(3);
+            expect(workSteps[0].duration_type).toBe('distance');
+            expect(workSteps[0].value).toBe(500);
+            expect(workSteps[1].value).toBe(1000);
+            expect(workSteps[2].value).toBe(1500);
+        }
+    });
+
+    test('parses slash distance list without v-prefix as variable', () => {
+        const result = parseRWN('500m/1000m/1500m');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('variable');
+    });
+
+    test('parses v-prefixed time ladder as variable steps', () => {
+        const result = parseRWN('v1:00/3:00/7:00');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('variable');
+
+        if (result?.type === 'variable') {
+            const workSteps = result.steps.filter(s => s.type === 'work');
+            expect(workSteps).toHaveLength(3);
+            expect(workSteps[0].duration_type).toBe('time');
+            expect(workSteps[0].value).toBe(60);
+            expect(workSteps[1].value).toBe(180);
+            expect(workSteps[2].value).toBe(420);
+        }
+    });
+
+    test('keeps work/rest interval shorthand parsing for two-part slash with rest token', () => {
+        const result = parseRWN('15:00/2:00r');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('interval');
+
+        if (result?.type === 'interval') {
+            expect(result.repeats).toBe(1);
+            expect(result.work.type).toBe('time');
+            expect(result.work.value).toBe(900);
+            expect(result.rest.value).toBe(120);
+        }
+    });
+});

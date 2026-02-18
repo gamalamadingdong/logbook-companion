@@ -4,6 +4,35 @@
 
 ---
 
+## Phase 17: Coaching Results Modal Ladder Recognition Fix (February 18, 2026)
+
+**Timeline**: February 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Fixed
+
+**Problem**: Team Management → Assignments `Enter Results` modal sometimes failed to recognize variable ladders (notably `1:00/5:00r + 3:00/5:00r + 7:00/5:00r`) and fell back to single-piece/freeform inputs.
+
+**Root Cause**: Entry shape classification relied on `canonical_name` text parsing. Some templates surfaced stylized/non-parseable canonical display text (for example `v1:00...7:00 Ladder`) even though `workout_structure` JSON was correct.
+
+### Changes Implemented
+
+- Added `parseWorkoutStructureForEntry()` in `src/utils/workoutEntryClassifier.ts`.
+- Updated `GroupAssignment` to include optional `workout_structure` in `src/services/coaching/types.ts`.
+- Updated `getGroupAssignments()` to select and map `workout_templates.workout_structure` in `src/services/coaching/coachingService.ts`.
+- Updated `ResultsEntryModal` in `src/pages/coaching/CoachingAssignments.tsx` to classify from `workout_structure` first, then fallback to `canonical_name` parsing only (friendly `template_name`/`title` are labels, not parse inputs).
+- Updated interval rep input semantics in `ResultsEntryModal` so timed work reps request **distance** input and distance work reps request **time** input (applies to fixed interval and variable ladder reps).
+- Fixed Enter Results input reset loop by memoizing computed workout shape and removing unstable array-reference effect dependency that caused repeated `getAthleteAssignmentRows()` fetches and state re-seeding.
+- Added regression test in `src/utils/workoutEntryClassifier.test.ts` using the exact variable ladder JSON shape (`60s`, `180s`, `420s` work with `300s` rests).
+
+### Verification
+
+- Ran focused suite: `npm run test:run -- src/utils/workoutEntryClassifier.test.ts`
+- Result: ✅ 4/4 tests passing.
+
+**Result**: Results modal now recognizes ladder workouts reliably from authoritative template structure, independent of canonical label formatting.
+
+
 ## Phase 16: OCR Asset Extraction + Integration Deep Dive (February 15, 2026)
 
 **Timeline**: February 15, 2026  

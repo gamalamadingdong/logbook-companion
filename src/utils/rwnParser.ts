@@ -245,6 +245,70 @@ function parseRest(str: string): number {
     return val !== null ? val : 0;
 }
 
+function isLikelyRestToken(str: string): boolean {
+    const clean = str.trim().toLowerCase();
+    if (!clean) return false;
+
+    // Undefined rest shorthand
+    if (clean === '...r' || clean === 'ur' || clean === 'u') return true;
+
+    // Numeric rest forms: 90, 90s, 90r, 1:30, 1:30r, 1:30s
+    if (/^\d+(?:\.\d+)?(?:s|r)?$/.test(clean)) return true;
+    if (/^\d+:\d+(?:\.\d+)?(?:s|r)?$/.test(clean)) return true;
+
+    return false;
+}
+
+function parseVariableList(text: string, modality?: WorkoutStructure['modality']): WorkoutStructure | null {
+    const prefixedMatch = text.match(/^v\s*(.+)$/i);
+    const body = prefixedMatch ? prefixedMatch[1].trim() : text.trim();
+
+    const rawParts = body.split('/').map(p => p.trim()).filter(Boolean);
+    if (rawParts.length < 2) return null;
+
+    const steps: WorkoutStep[] = [];
+
+    for (const token of rawParts) {
+        const comp = parseComponent(token);
+        if (comp) {
+            steps.push({
+                type: 'work',
+                modality,
+                duration_type: comp.type,
+                value: comp.value,
+                target_rate: comp.guidance?.target_rate,
+                target_rate_max: comp.guidance?.target_rate_max,
+                target_pace: comp.guidance?.target_pace,
+                target_pace_max: comp.guidance?.target_pace_max,
+                blockType: comp.blockType,
+                tags: comp.tags
+            });
+            continue;
+        }
+
+        // Allow explicit rest tokens in variable lists
+        if (isLikelyRestToken(token)) {
+            steps.push({
+                type: 'rest',
+                duration_type: 'time',
+                value: parseRest(token)
+            });
+            continue;
+        }
+
+        return null;
+    }
+
+    const workCount = steps.filter(s => s.type === 'work').length;
+    if (workCount === 0) return null;
+
+    return {
+        type: 'variable',
+        modality,
+        steps
+    };
+}
+
 // Helper: Split string by separator, respecting parenthesis grouping
 function splitRefined(text: string, separator: string): string[] {
     const parts: string[] = [];
@@ -509,6 +573,23 @@ export function parseRWN(input: string): WorkoutStructure | null {
 
             if (implicitStruct) return implicitStruct;
         }
+    }
+
+    // 0.7 Variable list notation support
+    // Examples:
+    // - v500m/1000m/1500m
+    // - 500m/1000m/1500m
+    // - v1:00/3:00/7:00
+    const slashParts = text.split('/').map(p => p.trim()).filter(Boolean);
+    const isVPrefixed = /^v\s*/i.test(text);
+    const isPotentialVariableList =
+        isVPrefixed ||
+        slashParts.length > 2 ||
+        (slashParts.length === 2 && !isLikelyRestToken(slashParts[1]));
+
+    if (!text.includes('(') && isPotentialVariableList) {
+        const variableListStruct = parseVariableList(text, modality);
+        if (variableListStruct) return variableListStruct;
     }
 
     // 1. Check for Intervals (contains 'x') - Standard "N x Work" or "N x Work/Rest"
