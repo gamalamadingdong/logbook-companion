@@ -908,6 +908,73 @@ export async function updateGroupAssignment(
   }
 }
 
+/**
+ * Get the current athlete IDs assigned to a group assignment.
+ */
+export async function getAssignmentAthleteIds(groupAssignmentId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('daily_workout_assignments')
+    .select('athlete_id')
+    .eq('group_assignment_id', groupAssignmentId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.athlete_id as string);
+}
+
+/**
+ * Sync a group assignment's athlete membership to exactly `newAthleteIds`.
+ * - Removes `daily_workout_assignments` rows for athletes no longer in the set
+ * - Inserts new rows for athletes not yet in the set
+ * Completed rows are left untouched (completion data is preserved).
+ */
+export async function syncAssignmentAthletes(
+  groupAssignmentId: string,
+  newAthleteIds: string[],
+  assignment: { team_id: string; template_id: string; scheduled_date: string; title?: string | null }
+): Promise<void> {
+  // Fetch currently assigned athlete IDs
+  const { data: existing, error: fetchErr } = await supabase
+    .from('daily_workout_assignments')
+    .select('id, athlete_id')
+    .eq('group_assignment_id', groupAssignmentId);
+
+  if (fetchErr) throw fetchErr;
+
+  const existingMap = new Map<string, string>((existing ?? []).map((r) => [r.athlete_id as string, r.id as string]));
+  const newSet = new Set(newAthleteIds);
+
+  // Remove athletes no longer in the set
+  const toRemove = [...existingMap.entries()]
+    .filter(([athleteId]) => !newSet.has(athleteId))
+    .map(([, rowId]) => rowId);
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from('daily_workout_assignments')
+      .delete()
+      .in('id', toRemove);
+    if (error) throw error;
+  }
+
+  // Insert rows for athletes not yet assigned
+  const toAdd = newAthleteIds.filter((id) => !existingMap.has(id));
+  if (toAdd.length > 0) {
+    const dateObj = new Date(assignment.scheduled_date + 'T00:00:00');
+    const rows = toAdd.map((athleteId) => ({
+      athlete_id: athleteId,
+      team_id: assignment.team_id,
+      original_template_id: assignment.template_id,
+      workout_date: assignment.scheduled_date,
+      day_of_week: dateObj.getDay(),
+      week_number: 0,
+      scheduled_workout: { template_id: assignment.template_id, title: assignment.title },
+      group_assignment_id: groupAssignmentId,
+      completed: false,
+    }));
+    const { error } = await supabase.from('daily_workout_assignments').insert(rows);
+    if (error) throw error;
+  }
+}
+
 /** Get completion status for assignments on a given date */
 export async function getAssignmentCompletions(
   teamId: string,

@@ -6,6 +6,8 @@ import {
   createGroupAssignment,
   deleteGroupAssignment,
   updateGroupAssignment,
+  syncAssignmentAthletes,
+  getAssignmentAthleteIds,
   getAthleteAssignmentRows,
   saveAssignmentResults,
   markAssignmentAsTest,
@@ -119,9 +121,21 @@ export function CoachingAssignments() {
     }
   };
 
-  const handleEdit = async (id: string, updates: { title?: string | null; instructions?: string | null; scheduled_date?: string }) => {
+  const handleEdit = async (
+    id: string,
+    updates: { title?: string | null; instructions?: string | null; scheduled_date?: string },
+    newAthleteIds?: string[]
+  ) => {
     try {
       await updateGroupAssignment(id, updates);
+      if (newAthleteIds !== undefined && editingAssignment) {
+        await syncAssignmentAthletes(id, newAthleteIds, {
+          team_id: editingAssignment.team_id,
+          template_id: editingAssignment.template_id,
+          scheduled_date: updates.scheduled_date ?? editingAssignment.scheduled_date,
+          title: updates.title ?? editingAssignment.title,
+        });
+      }
       toast.success('Assignment updated');
       setEditingAssignment(null);
       await loadData();
@@ -398,7 +412,9 @@ export function CoachingAssignments() {
         {editingAssignment && (
           <EditAssignmentModal
             assignment={editingAssignment}
-            onSave={(updates) => handleEdit(editingAssignment.id, updates)}
+            athletes={athletes}
+            squads={squads}
+            onSave={(updates, newAthleteIds) => handleEdit(editingAssignment.id, updates, newAthleteIds)}
             onClose={() => setEditingAssignment(null)}
           />
         )}
@@ -1544,27 +1560,84 @@ function ComplianceGrid({
 
 function EditAssignmentModal({
   assignment,
+  athletes,
+  squads,
   onSave,
   onClose,
 }: {
   assignment: GroupAssignment;
-  onSave: (updates: { title?: string | null; instructions?: string | null; scheduled_date?: string }) => Promise<void>;
+  athletes: CoachingAthlete[];
+  squads: string[];
+  onSave: (
+    updates: { title?: string | null; instructions?: string | null; scheduled_date?: string },
+    newAthleteIds: string[]
+  ) => Promise<void>;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(assignment.title ?? '');
   const [instructions, setInstructions] = useState(assignment.instructions ?? '');
   const [date, setDate] = useState(assignment.scheduled_date);
+  const [assignTo, setAssignTo] = useState<'all' | 'squad' | 'custom'>('all');
+  const [selectedSquad, setSelectedSquad] = useState('');
+  const [customIds, setCustomIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingCurrent, setIsLoadingCurrent] = useState(true);
+
+  // Load current assigned athlete IDs to pre-populate the selector
+  useEffect(() => {
+    getAssignmentAthleteIds(assignment.id).then((idList) => {
+        const ids = new Set<string>(idList);
+        // Detect which mode best matches current membership
+        const allIds = new Set(athletes.map((a) => a.id));
+        const isAll = ids.size === allIds.size && [...ids].every((id) => allIds.has(id));
+        if (isAll) {
+          setAssignTo('all');
+        } else {
+          // Check if it matches a squad exactly
+          const matchedSquad = squads.find((s) => {
+            const squadIds = athletes.filter((a) => a.squad === s).map((a) => a.id);
+            return squadIds.length === ids.size && squadIds.every((id) => ids.has(id));
+          });
+          if (matchedSquad) {
+            setAssignTo('squad');
+            setSelectedSquad(matchedSquad);
+          } else {
+            setAssignTo('custom');
+            setCustomIds(ids);
+          }
+        }
+        setIsLoadingCurrent(false);
+      });
+  }, [assignment.id, athletes, squads]);
+
+  // Derive target IDs from current selector state
+  const targetAthleteIds: string[] = (() => {
+    if (assignTo === 'all') return athletes.map((a) => a.id);
+    if (assignTo === 'squad') return athletes.filter((a) => a.squad === selectedSquad).map((a) => a.id);
+    return [...customIds];
+  })();
+
+  const toggleCustom = (id: string) => {
+    setCustomIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (targetAthleteIds.length === 0) {
+      toast.error('No athletes selected');
+      return;
+    }
     setIsSaving(true);
     try {
-      await onSave({
-        title: title || null,
-        instructions: instructions || null,
-        scheduled_date: date,
-      });
+      await onSave(
+        { title: title || null, instructions: instructions || null, scheduled_date: date },
+        targetAthleteIds
+      );
     } finally {
       setIsSaving(false);
     }
@@ -1572,7 +1645,7 @@ function EditAssignmentModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-md">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
           <h2 className="text-lg font-semibold text-neutral-100">Edit Assignment</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Close">
@@ -1605,6 +1678,91 @@ function EditAssignmentModal({
               className="w-full px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-200 focus:outline-none focus:border-indigo-500"
               required
             />
+          </div>
+
+          {/* Assigned Athletes */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Assigned To</label>
+            {isLoadingCurrent ? (
+              <div className="flex items-center gap-2 text-sm text-neutral-500 py-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading current members…
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-3 mb-2">
+                  <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="edit-assignTo"
+                      checked={assignTo === 'all'}
+                      onChange={() => setAssignTo('all')}
+                      className="accent-indigo-500"
+                    />
+                    All Athletes ({athletes.length})
+                  </label>
+                  {squads.length > 0 && (
+                    <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-assignTo"
+                        checked={assignTo === 'squad'}
+                        onChange={() => setAssignTo('squad')}
+                        className="accent-indigo-500"
+                      />
+                      Squad
+                    </label>
+                  )}
+                  <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="edit-assignTo"
+                      checked={assignTo === 'custom'}
+                      onChange={() => { setAssignTo('custom'); setCustomIds(new Set(athletes.map((a) => a.id))); }}
+                      className="accent-indigo-500"
+                    />
+                    Custom
+                  </label>
+                </div>
+
+                {assignTo === 'squad' && (
+                  <select
+                    value={selectedSquad}
+                    onChange={(e) => setSelectedSquad(e.target.value)}
+                    aria-label="Squad"
+                    className="w-full px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-200 focus:outline-none focus:border-indigo-500 mb-2"
+                  >
+                    <option value="">Select squad…</option>
+                    {squads.map((s) => (
+                      <option key={s} value={s}>
+                        {s} ({athletes.filter((a) => a.squad === s).length} athletes)
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {assignTo === 'custom' && (
+                  <div className="border border-neutral-700 rounded-lg divide-y divide-neutral-800 max-h-48 overflow-y-auto mb-2">
+                    {athletes.map((a) => (
+                      <label key={a.id} className="flex items-center gap-3 px-3 py-1.5 hover:bg-neutral-800/50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customIds.has(a.id)}
+                          onChange={() => toggleCustom(a.id)}
+                          className="accent-indigo-500"
+                        />
+                        <span className="text-sm text-neutral-200">{a.name}</span>
+                        {a.squad && <span className="ml-auto text-xs text-neutral-500">{a.squad}</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-neutral-500">
+                  {targetAthleteIds.length} athlete{targetAthleteIds.length !== 1 ? 's' : ''} will
+                  be assigned — athletes added or removed vs. the current list will be synced.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Title */}
@@ -1644,7 +1802,7 @@ function EditAssignmentModal({
             </button>
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || isLoadingCurrent}
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
