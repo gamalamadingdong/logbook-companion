@@ -31,13 +31,13 @@ const env = envContent.split('\n').reduce((acc, line) => {
 }, {} as Record<string, string>);
 
 const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey = env.VITE_SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
     console.error("Missing Supabase credentials in .env");
     console.error("URL:", supabaseUrl ? "✓" : "✗");
     console.error("Key:", supabaseKey ? "✓" : "✗");
-    console.error("\nNOTE: This script needs VITE_SUPABASE_SERVICE_ROLE_KEY to bypass RLS policies.");
+    console.error("\nNOTE: This script needs SUPABASE_SERVICE_ROLE_KEY to bypass RLS policies.");
     console.error("Add it to your .env file from your Supabase dashboard (Settings > API)");
     process.exit(1);
 }

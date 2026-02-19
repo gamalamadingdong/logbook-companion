@@ -247,6 +247,62 @@ export async function addTeamMemberByEmail(
   };
 }
 
+/** Send a team invite email via Supabase Edge Function (Resend-backed). */
+export async function sendTeamInviteEmail(params: {
+  teamId: string;
+  recipientEmail: string;
+  inviteCode: string;
+  teamName: string;
+}): Promise<{ id: string | null }> {
+  const inviteUrl = `${window.location.origin}/join?code=${encodeURIComponent(params.inviteCode)}`;
+
+  const { data, error } = await supabase.functions.invoke('send-team-invite', {
+    body: {
+      teamId: params.teamId,
+      recipientEmail: params.recipientEmail.trim().toLowerCase(),
+      teamName: params.teamName,
+      inviteCode: params.inviteCode,
+      inviteUrl,
+    },
+  });
+
+  if (error) {
+    const context = (error as { context?: Response }).context;
+
+    if (context) {
+      try {
+        const payload = (await context.json()) as {
+          error?: string;
+          providerStatus?: number;
+          providerBody?: string;
+        };
+
+        console.error('[send-team-invite] Function error payload:', payload);
+
+        const detail = payload.providerBody
+          ? ` ${payload.providerBody}`
+          : payload.providerStatus
+            ? ` (provider status ${payload.providerStatus})`
+            : '';
+
+        throw new Error((payload.error || error.message || 'Failed to send invite email.') + detail);
+      } catch {
+        throw new Error(error.message || 'Failed to send invite email.');
+      }
+    }
+
+    throw new Error(error.message || 'Failed to send invite email.');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return {
+    id: data?.id ?? null,
+  };
+}
+
 // ─── Join Team by Invite Code ───────────────────────────────────────────────
 
 /** Look up a team by its invite code */

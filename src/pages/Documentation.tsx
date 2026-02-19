@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Activity, Database, ArrowRight, Code } from 'lucide-react';
+import { Activity, Database, ArrowRight, Code, Users, ClipboardList, BarChart3, CalendarDays, Ship, UserPlus, Shield } from 'lucide-react';
 import { RWNPlayground } from '../components/RWNPlayground';
 
 export const Documentation: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const parseTab = (value: string | null): 'concepts' | 'rwn' | 'analytics' => {
-        if (value === 'concepts' || value === 'rwn' || value === 'analytics') return value;
+    const parseTab = (value: string | null): 'concepts' | 'rwn' | 'analytics' | 'coaching' => {
+        if (value === 'concepts' || value === 'rwn' || value === 'analytics' || value === 'coaching') return value;
         return 'concepts';
     };
 
@@ -16,7 +16,7 @@ export const Documentation: React.FC = () => {
         return 'spec';
     };
 
-    const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics'>(() => parseTab(searchParams.get('tab')));
+    const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics' | 'coaching'>(() => parseTab(searchParams.get('tab')));
     const [rwnSubTab, setRwnSubTab] = useState<'spec' | 'playground'>(() => parseRwnSubTab(searchParams.get('rwnSubTab')));
 
     useEffect(() => {
@@ -33,7 +33,7 @@ export const Documentation: React.FC = () => {
     }, [searchParams, activeTab, rwnSubTab]);
 
     const updateQuery = (
-        nextTab: 'concepts' | 'rwn' | 'analytics',
+        nextTab: 'concepts' | 'rwn' | 'analytics' | 'coaching',
         nextRwnSubTab?: 'spec' | 'playground'
     ) => {
         const nextParams = new URLSearchParams(searchParams);
@@ -48,7 +48,7 @@ export const Documentation: React.FC = () => {
         setSearchParams(nextParams, { replace: true });
     };
 
-    const handleActiveTabChange = (tab: 'concepts' | 'rwn' | 'analytics') => {
+    const handleActiveTabChange = (tab: 'concepts' | 'rwn' | 'analytics' | 'coaching') => {
         setActiveTab(tab);
         updateQuery(tab, tab === 'rwn' ? rwnSubTab : undefined);
     };
@@ -85,6 +85,15 @@ export const Documentation: React.FC = () => {
                             }`}
                     >
                         Analytics & Zones
+                    </button>
+                    <button
+                        onClick={() => handleActiveTabChange('coaching')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'coaching'
+                            ? 'bg-amber-900/30 text-amber-400 border border-amber-900/50'
+                            : 'text-neutral-400 hover:text-white'
+                            }`}
+                    >
+                        Coaching & Teams
                     </button>
                     <button
                         onClick={() => handleActiveTabChange('rwn')}
@@ -366,6 +375,353 @@ export const Documentation: React.FC = () => {
                                 </div>
                             </div>
                         </section>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'coaching' && (
+                <div className="space-y-8 anime-fade-in">
+                    {/* Overview */}
+                    <section className="text-center max-w-3xl mx-auto py-4">
+                        <h2 className="text-2xl font-bold text-white mb-4">Team Management & Coaching</h2>
+                        <p className="text-lg text-neutral-400 leading-relaxed">
+                            Logbook Companion includes a full coaching module for managing rosters, assigning workouts,
+                            tracking erg scores, planning sessions, and organizing boatings — all from a single dashboard.
+                        </p>
+                    </section>
+
+                    <div className="grid gap-8">
+                        {/* Getting Started */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-amber-500/10 rounded-xl shrink-0">
+                                    <UserPlus size={32} className="text-amber-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Getting Started</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Any user can create a team. The creator becomes the head coach with full administrative access.
+                                        </p>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Setup Flow</h4>
+                                        <ol className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                                                <span><strong>Create your team</strong> — Give it a name and optional description. An 8-character invite code is auto-generated.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                                                <span><strong>Build your roster</strong> — Add athletes individually or use the bulk spreadsheet import (supports Tab/Enter navigation, unit conversion for height and weight).</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                                                <span><strong>Invite your team</strong> — Share the invite code, copy a direct join link, or send email invitations. Athletes join as members by default.</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Roles & Permissions */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-violet-500/10 rounded-xl shrink-0">
+                                    <Shield size={32} className="text-violet-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Roles & Permissions</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Three roles provide appropriate access levels for coaches, coxswains, and athletes.
+                                        </p>
+                                    </div>
+                                    <div className="grid sm:grid-cols-3 gap-4">
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-amber-400 uppercase mb-2">Coach</div>
+                                            <p className="text-sm text-neutral-400">Full team management — roster, assignments, sessions, boatings, erg scores, settings, and member role management.</p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-blue-400 uppercase mb-2">Coxswain</div>
+                                            <p className="text-sm text-neutral-400">View all team data plus add and edit erg scores. Cannot modify roster or assignments.</p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-emerald-400 uppercase mb-2">Member</div>
+                                            <p className="text-sm text-neutral-400">View own erg scores and session notes. Self-service dashboard with team info and personal data.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Roster Management */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-blue-500/10 rounded-xl shrink-0">
+                                    <Users size={32} className="text-blue-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Roster Management</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Maintain your full team roster with detailed athlete profiles, squad organization, and inline editing.
+                                        </p>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Capabilities</h4>
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                <span><strong>Athlete profiles:</strong> Name, date of birth, grade, side (port/starboard/both/cox), experience level, height, weight, and notes.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                <span><strong>Squad organization:</strong> Assign athletes to squads (Novice, JV, Varsity, 1V, 2V, etc.) with autocomplete from existing squad names.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                <span><strong>Bulk import:</strong> Spreadsheet-style entry with Tab/Enter keyboard navigation and automatic unit conversion (ft/in → cm, lbs → kg).</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                <span><strong>CSV export:</strong> Download your roster with all athlete data for use in other tools.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                <span><strong>Inline editing:</strong> Click any cell in the roster table to edit directly — no modals required.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Workout Assignments */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-emerald-500/10 rounded-xl shrink-0">
+                                    <ClipboardList size={32} className="text-emerald-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Workout Assignments</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Assign workouts from your template library to athletes and squads, track completion, and enter results — all from a weekly calendar view.
+                                        </p>
+                                    </div>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Calendar View</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Week-at-a-glance showing assigned workouts as color-coded cards by training zone. Navigate between weeks with a single click.
+                                            </p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Compliance Matrix</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Athletes × assignments grid showing who completed what. Instantly see completion gaps across your roster.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Key Features</h4>
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                <span><strong>Recurring assignments:</strong> Schedule workouts daily, weekdays-only, or weekly with a repeat-until date.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                <span><strong>Smart results entry:</strong> Bulk entry modal that adapts to the workout type — distance intervals prompt for time, timed intervals prompt for distance, variable ladders show per-rep fields.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                <span><strong>Assignment analytics:</strong> Sortable results tables, bar charts, percentile dot plots, rep progression charts, and consistency (sigma) scores.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                <span><strong>Quick Score:</strong> Enter a result and mark complete directly from the roster page in a single step.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Erg Scores */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-rose-500/10 rounded-xl shrink-0">
+                                    <BarChart3 size={32} className="text-rose-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Erg Score Tracking</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Record and monitor erg test results across standard distances with automatic split and watts calculation, trend indicators, and CSV export.
+                                        </p>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                <span><strong>Standard distances:</strong> Filter by 500m, 1000m, 2000m, 5000m, or 6000m.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                <span><strong>Trend arrows:</strong> Visual indicators comparing each score to the athlete's previous result at the same distance.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                <span><strong>Athlete detail charts:</strong> Per-athlete erg score progression sparklines and personalized training zone calculations based on 2k baseline.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Schedule & Sessions */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-cyan-500/10 rounded-xl shrink-0">
+                                    <CalendarDays size={32} className="text-cyan-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Schedule & Sessions</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Plan your training week with session scheduling, per-athlete notes, and weekly focus planning.
+                                        </p>
+                                    </div>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Practice Types</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Water, Erg, Land, and Meeting — each with a distinct icon and color so your week is scannable at a glance.
+                                            </p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Athlete Notes</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Expand any session to add individual coaching notes per athlete. All notes appear on the athlete's detail page.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Weekly Focus Plans</h4>
+                                        <p className="text-sm text-neutral-400">
+                                            Set a weekly theme with focus points, notes, and a reflection section. The weekly focus is displayed as a banner on the schedule and a card on the dashboard.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Boatings */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-sky-500/10 rounded-xl shrink-0">
+                                    <Ship size={32} className="text-sky-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Boatings & Lineups</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Create and manage boat lineups with seat-by-seat assignment. Supports all standard boat classes.
+                                        </p>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                <span><strong>Boat classes:</strong> 8+, 4+, 4x, 2x, 1x, 2-, and 4- with correct seat counts and coxswain positions.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                <span><strong>Duplicate & copy:</strong> Duplicate a single lineup or copy all lineups from a previous day to quickly set up similar practices.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                <span><strong>Squad filtering:</strong> Filter displayed lineups by squad to focus on specific groups.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Team Analytics */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-fuchsia-500/10 rounded-xl shrink-0">
+                                    <BarChart3 size={32} className="text-fuchsia-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Team Analytics</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Visualize training load, squad power comparisons, and power-to-weight ratios at a glance.
+                                        </p>
+                                    </div>
+                                    <div className="grid sm:grid-cols-3 gap-4">
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-fuchsia-400 uppercase mb-2">Zone Distribution</div>
+                                            <p className="text-sm text-neutral-400">Donut chart showing proportion of assignments across UT2, UT1, AT, TR, and AN zones.</p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-fuchsia-400 uppercase mb-2">Squad Power</div>
+                                            <p className="text-sm text-neutral-400">Compare best erg scores between squads at each standard distance.</p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                            <div className="text-xs font-bold text-fuchsia-400 uppercase mb-2">Watts/kg</div>
+                                            <p className="text-sm text-neutral-400">Power-to-weight ratio chart across athletes for fair cross-weight comparisons.</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Dashboard Stats</h4>
+                                        <p className="text-sm text-neutral-400">
+                                            The coaching dashboard shows at-a-glance metrics: total athletes, squad count, sessions this week, and a color-coded weekly completion rate (green ≥80%, yellow ≥50%, red &lt;50%).
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Athlete Self-Service */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+                            <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="p-4 bg-teal-500/10 rounded-xl shrink-0">
+                                    <Activity size={32} className="text-teal-400" />
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Athlete Self-Service</h3>
+                                        <p className="text-neutral-400 leading-relaxed">
+                                            Athletes who join a team get their own dashboard to view team info, personal erg scores, and session notes — no coach credentials needed.
+                                        </p>
+                                    </div>
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-teal-500" />
+                                                <span><strong>My Team:</strong> View team name, your role, and team description.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-teal-500" />
+                                                <span><strong>My Erg Scores:</strong> Filterable view of your personal scores with trend indicators showing improvement over time.</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm text-neutral-400">
+                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-teal-500" />
+                                                <span><strong>Join & Leave:</strong> Join a team via invite code or direct link. Leave at any time — you can rejoin with the code.</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -12,6 +12,7 @@ import {
   Trash2,
   UserPlus,
   Link,
+  Mail,
 } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
@@ -23,6 +24,7 @@ import {
   updateTeamMemberRole,
   removeTeamMember,
   addTeamMemberByEmail,
+  sendTeamInviteEmail,
 } from '../../services/coaching/coachingService';
 import type { Team, TeamMemberWithProfile, TeamRole } from '../../services/coaching/types';
 
@@ -59,6 +61,9 @@ export function CoachingSettings() {
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const [addMemberSuccess, setAddMemberSuccess] = useState<string | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [sendInviteError, setSendInviteError] = useState<string | null>(null);
+  const [sendInviteSuccess, setSendInviteSuccess] = useState<string | null>(null);
 
   // Invite link copy
   const [linkCopied, setLinkCopied] = useState(false);
@@ -128,6 +133,8 @@ export function CoachingSettings() {
     setIsAddingMember(true);
     setAddMemberError(null);
     setAddMemberSuccess(null);
+    setSendInviteError(null);
+    setSendInviteSuccess(null);
     try {
       const newMember = await addTeamMemberByEmail(teamId, addEmail.trim(), addRole);
       setMembers((prev) => [...prev, newMember]);
@@ -139,6 +146,30 @@ export function CoachingSettings() {
       setAddMemberError(err instanceof Error ? err.message : 'Failed to add member');
     } finally {
       setIsAddingMember(false);
+    }
+  };
+
+  const handleSendInvite = async () => {
+    if (!teamId || !team?.invite_code || !team.name || !addEmail.trim()) return;
+
+    setIsSendingInvite(true);
+    setSendInviteError(null);
+    setSendInviteSuccess(null);
+    setAddMemberError(null);
+
+    try {
+      await sendTeamInviteEmail({
+        teamId,
+        recipientEmail: addEmail.trim(),
+        inviteCode: team.invite_code,
+        teamName: team.name,
+      });
+      setSendInviteSuccess(`Invite sent to ${addEmail.trim()}.`);
+      setTimeout(() => setSendInviteSuccess(null), 4000);
+    } catch (err) {
+      setSendInviteError(err instanceof Error ? err.message : 'Failed to send invite email');
+    } finally {
+      setIsSendingInvite(false);
     }
   };
 
@@ -293,7 +324,7 @@ export function CoachingSettings() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white">Add Member</h2>
           <p className="text-neutral-400 text-sm">
-            Add someone who already has a Logbook Companion account by their email address.
+            Add someone who already has an account, or send an invite email for self-join.
           </p>
           <div className="flex items-end gap-3 flex-wrap">
             <div className="flex-1 min-w-[200px]">
@@ -302,7 +333,11 @@ export function CoachingSettings() {
                 id="add-email"
                 type="email"
                 value={addEmail}
-                onChange={(e) => { setAddEmail(e.target.value); setAddMemberError(null); }}
+                onChange={(e) => {
+                  setAddEmail(e.target.value);
+                  setAddMemberError(null);
+                  setSendInviteError(null);
+                }}
                 placeholder="coach@example.com"
                 className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
               />
@@ -322,7 +357,7 @@ export function CoachingSettings() {
             </div>
             <button
               onClick={handleAddMember}
-              disabled={isAddingMember || !addEmail.trim()}
+              disabled={isAddingMember || isSendingInvite || !addEmail.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 h-[42px]"
             >
               {isAddingMember ? (
@@ -331,6 +366,18 @@ export function CoachingSettings() {
                 <UserPlus className="w-4 h-4" />
               )}
               Add
+            </button>
+            <button
+              onClick={handleSendInvite}
+              disabled={isAddingMember || isSendingInvite || !addEmail.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-lg hover:bg-neutral-700 transition-colors disabled:opacity-50 h-[42px]"
+            >
+              {isSendingInvite ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Mail className="w-4 h-4" />
+              )}
+              Email Invite
             </button>
           </div>
           {addMemberError && (
@@ -343,6 +390,18 @@ export function CoachingSettings() {
             <p className="text-green-400 text-sm flex items-center gap-2">
               <Check className="w-4 h-4 shrink-0" />
               {addMemberSuccess}
+            </p>
+          )}
+          {sendInviteError && (
+            <p className="text-red-400 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              {sendInviteError}
+            </p>
+          )}
+          {sendInviteSuccess && (
+            <p className="text-green-400 text-sm flex items-center gap-2">
+              <Check className="w-4 h-4 shrink-0" />
+              {sendInviteSuccess}
             </p>
           )}
         </div>

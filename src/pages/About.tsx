@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck, BookOpen } from 'lucide-react';
+import { ArrowLeft, Activity, Zap, SplitSquareHorizontal, Database, ShieldAlert, BarChart3, ShieldCheck, BookOpen, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 
@@ -62,6 +62,45 @@ export const About: React.FC = () => {
                         title="Head-to-Head Compare"
                         description="Overlay any two workouts to analyze pacing strategies stroke-by-stroke. Switch between Watts, Pace, Rate, and Heart Rate views."
                     />
+                </section>
+
+                {/* Team Management & Coaching */}
+                <section className="space-y-8">
+                    <div className="text-center max-w-3xl mx-auto space-y-4">
+                        <div className="inline-flex items-center justify-center p-3 bg-amber-500/10 rounded-2xl mb-4 border border-amber-500/20">
+                            <Users className="text-amber-500" size={32} />
+                        </div>
+                        <h2 className="text-3xl font-bold text-white">Team Management & Coaching</h2>
+                        <p className="text-neutral-400 text-lg">
+                            Built-in tools for coaches to manage rosters, assign workouts, track erg scores, plan sessions, and organize boatings — all from one dashboard.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl">
+                            <h3 className="text-lg font-bold text-white mb-2">Roster & Squads</h3>
+                            <p className="text-neutral-400 text-sm leading-relaxed">
+                                Build your full roster with detailed athlete profiles. Organize by squad, bulk import from a spreadsheet, and export to CSV.
+                            </p>
+                        </div>
+                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl">
+                            <h3 className="text-lg font-bold text-white mb-2">Assignments & Results</h3>
+                            <p className="text-neutral-400 text-sm leading-relaxed">
+                                Assign workouts from your template library, set recurring schedules, enter results in bulk, and view sortable analytics with charts.
+                            </p>
+                        </div>
+                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl">
+                            <h3 className="text-lg font-bold text-white mb-2">Boatings & Lineups</h3>
+                            <p className="text-neutral-400 text-sm leading-relaxed">
+                                Create seat-by-seat lineups for all standard boat classes (8+, 4+, 4x, 2x, 1x). Duplicate and copy lineups between days.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="text-center">
+                        <Link to="/docs?tab=coaching" className="inline-flex items-center gap-2 px-6 py-3 bg-neutral-900 text-amber-400 font-medium rounded-full border border-neutral-800 hover:bg-neutral-800 transition-colors">
+                            <BookOpen size={16} />
+                            Read the Coaching Docs
+                        </Link>
+                    </div>
                 </section>
 
                 {/* Screenshots / Visuals Showcase */}
@@ -218,9 +257,9 @@ export const About: React.FC = () => {
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <h3 className="text-white font-medium">No Coaching Plans</h3>
+                            <h3 className="text-white font-medium">Not a Training Prescription Service</h3>
                             <p className="text-sm leading-relaxed">
-                                We provide the data to help you make decisions, but we don't prescribe workouts or training plans.
+                                While we provide team management and workout assignment tools for coaches, we don't prescribe training plans or make coaching decisions for you.
                             </p>
                         </div>
                     </div>
