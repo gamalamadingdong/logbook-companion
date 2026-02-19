@@ -205,11 +205,16 @@ function parseComponent(str: string): ParsedComponent | null {
     }
 
     // Parse Modality/Unit
-    // Distance: 2000m
-    if (/^\d+m$/i.test(coreText)) {
+    // Distance: 2000m, 5k, 5km
+    if (/^\d+(m|k|km)$/i.test(coreText)) {
+        let value = parseInt(coreText.replace(/(m|k|km)/i, ''));
+        const unit = coreText.match(/(m|k|km)$/i)?.[1].toLowerCase();
+        if (unit === 'k' || unit === 'km') {
+            value *= 1000;
+        }
         return {
             type: 'distance',
-            value: parseInt(coreText.replace(/m/i, '')),
+            value,
             guidance,
             blockType,
             tags
