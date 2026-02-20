@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Users, Calendar, Loader2, Activity, ClipboardList, BarChart3, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Calendar, Loader2, Activity, ClipboardList, BarChart3, CheckCircle2, XCircle, Settings, Plus } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { RowingShellIcon } from '../../components/icons/RowingIcons';
 import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
@@ -22,10 +22,11 @@ const sections = [
   { path: '/team-management/boatings', label: 'Boatings', icon: RowingShellIcon, description: 'Lineups' },
   { path: '/team-management/analytics', label: 'Analytics', icon: BarChart3, description: 'Charts & performance data' },
   { path: '/team-management/live', label: 'Live Sessions', icon: Activity, description: 'Real-time monitoring' },
+  { path: '/team-management/settings', label: 'Settings', icon: Settings, description: 'Team settings & members' },
 ];
 
 export const CoachDashboard: React.FC = () => {
-  const { hasTeam, isLoadingTeam, teamId, userId } = useCoachingContext();
+  const { hasTeam, isLoadingTeam, teamId, userId, teamName, teams, switchTeam } = useCoachingContext();
 
   const [todayAssignments, setTodayAssignments] = useState<GroupAssignment[]>([]);
   const [completions, setCompletions] = useState<AssignmentCompletion[]>([]);
@@ -73,8 +74,35 @@ export const CoachDashboard: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Team Management</h1>
-        <p className="text-neutral-400 mt-1">Manage your team, schedule, and lineups.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-white">{teamName || 'Team Management'}</h1>
+            <p className="text-neutral-400 mt-1">Manage your team, schedule, and lineups.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {teams.length > 1 && (
+              <select
+                value={teamId}
+                onChange={(e) => switchTeam(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm font-medium text-white cursor-pointer hover:border-neutral-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                aria-label="Switch team"
+              >
+                {teams.map((t) => (
+                  <option key={t.team_id} value={t.team_id}>
+                    {t.team_name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Link
+              to="/team-management/setup"
+              className="flex items-center gap-1.5 px-3 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New Team</span>
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* Section Navigation */}

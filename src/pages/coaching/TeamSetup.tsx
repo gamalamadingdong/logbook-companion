@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Loader2, AlertTriangle } from 'lucide-react';
+import { Users, Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { createTeam } from '../../services/coaching/coachingService';
 
 export function TeamSetup() {
-  const { userId, refreshTeam } = useCoachingContext();
+  const { userId, refreshTeam, hasTeam } = useCoachingContext();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -37,14 +37,28 @@ export function TeamSetup() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">
       <div className="w-full max-w-md">
+        {/* Back link when user already has a team */}
+        {hasTeam && (
+          <button
+            onClick={() => navigate('/team-management')}
+            className="flex items-center gap-1.5 text-sm text-neutral-400 hover:text-white transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Team Management
+          </button>
+        )}
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
             <Users className="w-8 h-8 text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Create Your Team</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">
+            {hasTeam ? 'Create Another Team' : 'Create Your Team'}
+          </h1>
           <p className="text-neutral-400">
-            Set up your team to start managing athletes, schedules, and erg scores.
+            {hasTeam
+              ? 'Add a new team to manage separately.'
+              : 'Set up your team to start managing athletes, schedules, and erg scores.'}
           </p>
         </div>
 

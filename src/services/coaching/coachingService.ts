@@ -9,6 +9,7 @@ import type {
   TeamMember,
   TeamMemberWithProfile,
   TeamRole,
+  UserTeamInfo,
   CoachingSession,
   CoachingAthleteNote,
   CoachingErgScore,
@@ -30,6 +31,7 @@ export type {
   TeamMember,
   TeamMemberWithProfile,
   TeamRole,
+  UserTeamInfo,
   CoachingSession,
   CoachingAthleteNote,
   CoachingErgScore,
@@ -70,6 +72,22 @@ export async function getTeamForUser(userId: string): Promise<string | null> {
 
   if (error || !data) return null;
   return data.team_id;
+}
+
+/** Get ALL teams a user belongs to (with team name + role) */
+export async function getTeamsForUser(userId: string): Promise<UserTeamInfo[]> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('team_id, role, teams(name)')
+    .eq('user_id', userId)
+    .order('joined_at');
+
+  if (error || !data) return [];
+  return (data as unknown as { team_id: string; role: string; teams: { name: string } }[]).map((row) => ({
+    team_id: row.team_id,
+    team_name: row.teams?.name ?? 'Unnamed Team',
+    role: row.role as TeamRole,
+  }));
 }
 
 // ─── Team CRUD ──────────────────────────────────────────────────────────────

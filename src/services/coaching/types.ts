@@ -17,6 +17,13 @@ export interface Team {
 
 export type TeamRole = 'coach' | 'coxswain' | 'member';
 
+/** Lightweight team summary returned by getTeamsForUser */
+export interface UserTeamInfo {
+  team_id: string;
+  team_name: string;
+  role: TeamRole;
+}
+
 export interface TeamMember {
   id: string;
   team_id: string;
