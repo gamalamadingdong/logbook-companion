@@ -632,6 +632,8 @@ function RepProgressionChart({
 
 // ─── Chart: Rep Heatmap ───────────────────────────────────────────────────────
 
+type HeatmapSortCol = 'name' | 'avg' | 'sigma' | number; // number = rep index
+
 function RepHeatmap({
   rows,
   repLabels,
@@ -639,6 +641,26 @@ function RepHeatmap({
   rows: EnrichedRow[];
   repLabels: string[];
 }) {
+  const [sortCol, setSortCol] = useState<HeatmapSortCol>('avg');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const toggleSort = (col: HeatmapSortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      // For splits/sigma, ascending = fastest first. For name, ascending = A-Z.
+      setSortDir(col === 'name' ? 'asc' : 'asc');
+    }
+  };
+
+  const heatmapSortIcon = (col: HeatmapSortCol) => {
+    if (sortCol !== col) return <ArrowUpDown className="w-3 h-3 inline-block ml-0.5 text-neutral-600" />;
+    return sortDir === 'asc'
+      ? <span className="inline-block ml-0.5 text-indigo-400 text-[10px]">▲</span>
+      : <span className="inline-block ml-0.5 text-indigo-400 text-[10px]">▼</span>;
+  };
+
   const withReps = rows.filter((r) => r.completed && r.rep_splits.some((v) => v != null));
   if (withReps.length === 0 || repLabels.length === 0) return null;
 
@@ -666,10 +688,32 @@ function RepHeatmap({
     return fmtSplit(split);
   }
 
+  // Sort helper — extracts the numeric value to sort by for a given row
+  const sortValue = (row: EnrichedRow): number | string | null => {
+    if (sortCol === 'name') return row.athlete_name;
+    if (sortCol === 'avg') return row.avg_split_seconds ?? null;
+    if (sortCol === 'sigma') return row.consistency_sigma ?? null;
+    // sortCol is a rep index
+    return row.rep_splits[sortCol] ?? null;
+  };
+
+  const compareFn = (a: EnrichedRow, b: EnrichedRow): number => {
+    const va = sortValue(a);
+    const vb = sortValue(b);
+    // Nulls always sort last regardless of direction
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const cmp = typeof va === 'string' && typeof vb === 'string'
+      ? va.localeCompare(vb)
+      : (va as number) - (vb as number);
+    return sortDir === 'asc' ? cmp : -cmp;
+  };
+
   const sorted = [
-    ...withReps.filter((r) => !r.dnf && !r.partialDnf).sort((a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999)),
-    ...withReps.filter((r) => r.partialDnf).sort((a, b) => (a.avg_split_seconds ?? 999) - (b.avg_split_seconds ?? 999)),
-    ...withReps.filter((r) => r.dnf),
+    ...withReps.filter((r) => !r.dnf && !r.partialDnf).sort(compareFn),
+    ...withReps.filter((r) => r.partialDnf).sort(compareFn),
+    ...withReps.filter((r) => r.dnf).sort(compareFn),
   ];
   const firstPartialIdx = sorted.findIndex((r) => r.partialDnf);
   const firstDnfIdx = sorted.findIndex((r) => r.dnf);
@@ -687,15 +731,27 @@ function RepHeatmap({
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 bg-neutral-900/80 text-left px-3 py-2 text-neutral-500 font-medium">
-                Athlete
+              <th
+                className="sticky left-0 bg-neutral-900/80 text-left px-3 py-2 text-neutral-500 font-medium cursor-pointer hover:text-neutral-200 transition-colors select-none"
+                onClick={() => toggleSort('name')}
+              >
+                Athlete {heatmapSortIcon('name')}
               </th>
               {repLabels.map((label, i) => (
-                <th key={i} className="px-2 py-2 text-center text-neutral-400 font-medium min-w-[64px]">
-                  {label}
+                <th
+                  key={i}
+                  className="px-2 py-2 text-center text-neutral-400 font-medium min-w-[64px] cursor-pointer hover:text-neutral-200 transition-colors select-none"
+                  onClick={() => toggleSort(i)}
+                >
+                  {label} {heatmapSortIcon(i)}
                 </th>
               ))}
-              <th className="px-2 py-2 text-center text-neutral-400 font-medium">σ</th>
+              <th
+                className="px-2 py-2 text-center text-neutral-400 font-medium cursor-pointer hover:text-neutral-200 transition-colors select-none"
+                onClick={() => toggleSort('sigma')}
+              >
+                σ {heatmapSortIcon('sigma')}
+              </th>
             </tr>
           </thead>
           <tbody>
