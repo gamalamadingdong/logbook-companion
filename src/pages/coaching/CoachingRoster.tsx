@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import {
@@ -11,7 +11,7 @@ import {
   type CoachingAthlete,
   type AssignmentCompletion,
 } from '../../services/coaching/coachingService';
-import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
 import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
@@ -20,6 +20,18 @@ import { downloadCsv } from '../../utils/csvExport';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg } from '../../utils/unitConversion';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+
+const experienceLevelOrder: Record<string, number> = { beginner: 0, intermediate: 1, experienced: 2, advanced: 3 };
+
+/** Extract a numeric grade for sorting: "8th" → 8, "10th" → 10, "12" → 12.
+ *  Non-numeric grades (masters, alumni, etc.) sort after all numeric grades. */
+function gradeRank(grade: string | undefined | null): number {
+  if (!grade) return 9999;
+  const num = parseInt(grade, 10);
+  if (!isNaN(num)) return num;
+  // Non-numeric grades — alphabetical tiebreak via large offset + charCode
+  return 1000 + grade.toLowerCase().charCodeAt(0);
+}
 
 export function CoachingRoster() {
   const { userId, teamId, isLoadingTeam, teamError } = useCoachingContext();
@@ -42,6 +54,10 @@ export function CoachingRoster() {
   const [editValue, setEditValue] = useState('');
   const [editValue2, setEditValue2] = useState(''); // for ft/in (second field)
   const editRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
+
+  // Column sorting
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const refreshCompletions = useCallback(async (loadedAthletes: CoachingAthlete[]) => {
     if (!teamId) return;
@@ -215,6 +231,45 @@ export function CoachingRoster() {
     filteredAthletes = filteredAthletes.filter((a) => missingAthleteIds.has(a.id));
   }
 
+  // ── Column sorting ──────────────────────────────────────────────────────
+
+  const sortedAthletes = useMemo(() => {
+    if (!sortColumn) return filteredAthletes;
+    return [...filteredAthletes].sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'first_name': cmp = a.first_name.localeCompare(b.first_name); break;
+        case 'last_name': cmp = a.last_name.localeCompare(b.last_name); break;
+        case 'squad': cmp = (a.squad ?? '').localeCompare(b.squad ?? ''); break;
+        case 'grade': cmp = gradeRank(a.grade) - gradeRank(b.grade); break;
+        case 'side': cmp = (a.side ?? '').localeCompare(b.side ?? ''); break;
+        case 'experience_level':
+          cmp = (experienceLevelOrder[a.experience_level ?? ''] ?? -1) - (experienceLevelOrder[b.experience_level ?? ''] ?? -1);
+          break;
+        case 'height': cmp = (a.height_cm ?? 0) - (b.height_cm ?? 0); break;
+        case 'weight': cmp = (a.weight_kg ?? 0) - (b.weight_kg ?? 0); break;
+        default: return 0;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredAthletes, sortColumn, sortDirection]);
+
+  const toggleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const renderSortIcon = (column: string) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-3 h-3 text-neutral-600 ml-1 inline" />;
+    return sortDirection === 'asc'
+      ? <ChevronUp className="w-3 h-3 text-indigo-400 ml-1 inline" />
+      : <ChevronDown className="w-3 h-3 text-indigo-400 ml-1 inline" />;
+  };
+
 // Helper: is a given cell currently being edited?
   const isEditing = (athleteId: string, field: string) =>
     editingCell?.athleteId === athleteId && editingCell?.field === field;
@@ -357,12 +412,13 @@ export function CoachingRoster() {
         <>
         {/* ── Mobile Card Layout (< md) ─────────────────────────────── */}
         <div className="md:hidden space-y-3">
-          {filteredAthletes.map((athlete) => (
+          {sortedAthletes.map((athlete, index) => (
             <div key={athlete.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
               {/* Name row + actions */}
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-neutral-500 font-mono text-xs min-w-[1.5rem]">{index + 1}.</span>
                     <span
                       className="text-white font-semibold text-base cursor-pointer"
                       onClick={() => startEditing(athlete.id, 'first_name')}
@@ -555,21 +611,24 @@ export function CoachingRoster() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-neutral-800 bg-neutral-900/80">
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">First</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Last</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Squad</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Grade</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Side</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Experience</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Height</th>
-                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Weight</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider w-10">#</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('first_name')}>First {renderSortIcon('first_name')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('last_name')}>Last {renderSortIcon('last_name')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('squad')}>Squad {renderSortIcon('squad')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('grade')}>Grade {renderSortIcon('grade')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('side')}>Side {renderSortIcon('side')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('experience_level')}>Experience {renderSortIcon('experience_level')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('height')}>Height {renderSortIcon('height')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('weight')}>Weight {renderSortIcon('weight')}</th>
                   {hasAssignmentsToday && <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Today</th>}
                   <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider w-20"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800/60">
-                {filteredAthletes.map((athlete) => (
+                {sortedAthletes.map((athlete, index) => (
                   <tr key={athlete.id} className="hover:bg-neutral-800/30 transition-colors group">
+                    {/* Row number */}
+                    <td className={`${cellBase} text-neutral-500 font-mono text-xs`}>{index + 1}</td>
                     {/* First Name */}
                     <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'first_name')}>
                       {isEditing(athlete.id, 'first_name') ? (
