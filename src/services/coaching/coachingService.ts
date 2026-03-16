@@ -140,6 +140,15 @@ function orgRoleToTeamRole(role: OrgRole): TeamRole {
   }
 }
 
+async function ensureTeamMemberAthleteLink(teamId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('ensure_team_member_athlete_link', {
+    p_team_id: teamId,
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
+}
+
 function resolveOrgName(
   value: { name: string } | { name: string }[] | null | undefined
 ): string | null {
@@ -691,6 +700,18 @@ export async function addTeamMemberByEmail(
       .single()
   ) as TeamMember;
 
+  if (role === 'member') {
+    try {
+      await ensureTeamMemberAthleteLink(teamId, profile.user_id);
+    } catch (error) {
+      await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', membership.id);
+      throw error;
+    }
+  }
+
   return {
     ...membership,
     display_name: profile.display_name ?? email,
@@ -804,6 +825,18 @@ export async function joinTeamByInviteCode(
       .select()
       .single()
   ) as TeamMember;
+
+  if (role === 'member') {
+    try {
+      await ensureTeamMemberAthleteLink(team.id, userId);
+    } catch (error) {
+      await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', membership.id);
+      throw error;
+    }
+  }
 
   return { team, membership };
 }
@@ -2835,7 +2868,7 @@ export interface SeasonLeaderboardEntry {
   latest_distance: number | null;
   /** Most recent assignment: watts per pound */
   latest_wplb: number | null;
-  /** Rolling-window Titan Index (average of last N per-workout titan indexes). Higher is better. */
+  /** Titan Index averaged across the currently selected assignment set. Higher is better. */
   titan_index: number | null;
   /** Per-assignment raw scores for client-side re-ranking when filters change */
   score_history: { assignmentId: string; date: string; label: string; split: number; time: number | null; distance: number | null; wplb: number | null; titan_index: number | null; is_test: boolean }[];
@@ -2848,9 +2881,8 @@ export interface SeasonLeaderboardEntry {
  */
 export async function getSeasonMeasuredLeaderboard(
   teamId: string,
-  opts?: { from?: string; to?: string; limit?: number; orgId?: string; titanWindowSize?: number; titanTestOnly?: boolean }
+  opts?: { from?: string; to?: string; limit?: number; orgId?: string; titanTestOnly?: boolean }
 ): Promise<SeasonLeaderboardEntry[]> {
-  const titanWindow = opts?.titanWindowSize ?? 5;
   const titanTestOnly = opts?.titanTestOnly ?? false;
   const assignments = await getGroupAssignments(teamId, { from: opts?.from, to: opts?.to, orgId: opts?.orgId });
   if (assignments.length === 0) return [];
@@ -2978,10 +3010,8 @@ export async function getSeasonMeasuredLeaderboard(
       ? (avgRaw + avgWplb) / 2
       : avgRaw ?? avgWplb ?? null;
     const composite = compositeRaw != null ? Math.round(compositeRaw) : null;
-    // Rolling Titan Index: average of last N per-workout titan scores
-    const recentTitans = ranks.titanIndexes.slice(0, titanWindow);
-    const titanIndex = recentTitans.length > 0
-      ? Math.round((recentTitans.reduce((s, v) => s + v, 0) / recentTitans.length) * 10) / 10
+    const titanIndex = ranks.titanIndexes.length > 0
+      ? Math.round((ranks.titanIndexes.reduce((s, v) => s + v, 0) / ranks.titanIndexes.length) * 10) / 10
       : null;
     return {
       athlete_id: athleteId,
@@ -3025,7 +3055,7 @@ export async function getSeasonMeasuredLeaderboard(
  * This recalculates avg_raw_rank, avg_wplb_rank, composite_rank, and rank_history
  * relative to only the athletes in the provided array.
  */
-export function rerankLeaderboard(entries: SeasonLeaderboardEntry[], titanWindow = 5): SeasonLeaderboardEntry[] {
+export function rerankLeaderboard(entries: SeasonLeaderboardEntry[]): SeasonLeaderboardEntry[] {
   if (entries.length === 0) return [];
 
   // Collect all unique assignment IDs from score_history
@@ -3083,13 +3113,9 @@ export function rerankLeaderboard(entries: SeasonLeaderboardEntry[], titanWindow
     const composite = compositeRaw != null ? Math.round(compositeRaw) : null;
     const sortedTrend = [...ranks.rankByDate].sort((a, b) => a.date.localeCompare(b.date));
     const trend = sortedTrend.length >= 2 ? sortedTrend[sortedTrend.length - 1].rank - sortedTrend[0].rank : null;
-    // Recompute rolling titan_index from the filtered subset's titan values
-    const recentTitans = [...ranks.titanScores]
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, titanWindow)
-      .map((score) => score.value);
-    const titanIndex = recentTitans.length > 0
-      ? Math.round((recentTitans.reduce((s, v) => s + v, 0) / recentTitans.length) * 10) / 10
+    const visibleTitans = ranks.titanScores.map((score) => score.value);
+    const titanIndex = visibleTitans.length > 0
+      ? Math.round((visibleTitans.reduce((s, v) => s + v, 0) / visibleTitans.length) * 10) / 10
       : null;
     return {
       ...e,

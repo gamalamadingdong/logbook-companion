@@ -68,6 +68,10 @@ function roleBadge(role: TeamRole) {
   }
 }
 
+function athleteEditorLabel(athleteName: string, fieldLabel: string): string {
+  return `${fieldLabel} for ${athleteName}`;
+}
+
 /* ── Org Card ─────────────────────────────────────────────── */
 
 interface OrgCardProps {
@@ -894,6 +898,8 @@ export const CoachDashboard: React.FC = () => {
                   type="text"
                   value={orgRosterSearch}
                   onChange={(e) => setOrgRosterSearch(e.target.value)}
+                  aria-label="Search roster"
+                  title="Search roster"
                   placeholder="Search by name, squad, team, or side…"
                   className="w-full pl-9 pr-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-indigo-500"
                 />
@@ -949,6 +955,8 @@ export const CoachDashboard: React.FC = () => {
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onBlur={() => commitEditingCell()}
                                   onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                  aria-label={athleteEditorLabel(a.name, 'First name')}
+                                  title={athleteEditorLabel(a.name, 'First name')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 />
                               ) : (a.first_name || '—')}
@@ -961,6 +969,8 @@ export const CoachDashboard: React.FC = () => {
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onBlur={() => commitEditingCell()}
                                   onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                  aria-label={athleteEditorLabel(a.name, 'Last name')}
+                                  title={athleteEditorLabel(a.name, 'Last name')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 />
                               ) : (a.last_name || '—')}
@@ -973,6 +983,8 @@ export const CoachDashboard: React.FC = () => {
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onBlur={() => commitEditingCell()}
                                   onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                  aria-label={athleteEditorLabel(a.name, 'Squad')}
+                                  title={athleteEditorLabel(a.name, 'Squad')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 />
                               ) : a.squad ? (
@@ -987,6 +999,8 @@ export const CoachDashboard: React.FC = () => {
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onBlur={() => commitEditingCell()}
                                   onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                  aria-label={athleteEditorLabel(a.name, 'Grade')}
+                                  title={athleteEditorLabel(a.name, 'Grade')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 />
                               ) : (a.grade || '—')}
@@ -998,6 +1012,8 @@ export const CoachDashboard: React.FC = () => {
                                   value={editValue}
                                   onChange={(e) => { setEditValue(e.target.value); commitEditingCell(e.target.value); }}
                                   onBlur={() => commitEditingCell()}
+                                  aria-label={athleteEditorLabel(a.name, 'Side')}
+                                  title={athleteEditorLabel(a.name, 'Side')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 >
                                   <option value="">—</option>
@@ -1015,6 +1031,8 @@ export const CoachDashboard: React.FC = () => {
                                   value={editValue}
                                   onChange={(e) => { setEditValue(e.target.value); commitEditingCell(e.target.value); }}
                                   onBlur={() => commitEditingCell()}
+                                  aria-label={athleteEditorLabel(a.name, 'Experience level')}
+                                  title={athleteEditorLabel(a.name, 'Experience level')}
                                   className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 >
                                   <option value="">—</option>
@@ -1064,6 +1082,8 @@ export const CoachDashboard: React.FC = () => {
                                       value={editValue}
                                       onChange={(e) => setEditValue(e.target.value)}
                                       onBlur={() => commitEditingCell()}
+                                      aria-label={athleteEditorLabel(a.name, 'Height feet')}
+                                      title={athleteEditorLabel(a.name, 'Height feet')}
                                       className="w-12 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                     />
                                     <span className="text-neutral-500">ft</span>
@@ -1074,6 +1094,8 @@ export const CoachDashboard: React.FC = () => {
                                       value={editValue2}
                                       onChange={(e) => setEditValue2(e.target.value)}
                                       onBlur={() => commitEditingCell()}
+                                      aria-label={athleteEditorLabel(a.name, 'Height inches')}
+                                      title={athleteEditorLabel(a.name, 'Height inches')}
                                       className="w-12 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                     />
                                     <span className="text-neutral-500">in</span>
@@ -1087,6 +1109,8 @@ export const CoachDashboard: React.FC = () => {
                                     onChange={(e) => setEditValue(e.target.value)}
                                     onBlur={() => commitEditingCell()}
                                     onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                    aria-label={athleteEditorLabel(a.name, 'Height in centimeters')}
+                                    title={athleteEditorLabel(a.name, 'Height in centimeters')}
                                     className="w-20 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                   />
                                 )
@@ -1104,6 +1128,8 @@ export const CoachDashboard: React.FC = () => {
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onBlur={() => commitEditingCell()}
                                   onKeyDown={(e) => { if (e.key === 'Enter') void commitEditingCell(); if (e.key === 'Escape') setEditingCell(null); }}
+                                  aria-label={athleteEditorLabel(a.name, isImperial ? 'Weight in pounds' : 'Weight in kilograms')}
+                                  title={athleteEditorLabel(a.name, isImperial ? 'Weight in pounds' : 'Weight in kilograms')}
                                   className="w-20 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm text-white"
                                 />
                               ) : (

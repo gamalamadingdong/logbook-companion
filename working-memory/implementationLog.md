@@ -4,6 +4,139 @@
 
 ---
 
+## Phase 44: Speed Index Terminology Rename (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - renamed the visible leaderboard metric from `Titan Index` to `Speed Index`
+  - updated summary-card helper copy, the leaderboard column header, and the athlete expansion card label
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - renamed the coaching-settings explanation and recompute action to `Speed Index`
+
+- `docs/demo-team-management-seed.md`
+  - updated the runbook wording so the seeded demo data refers to `Speed Index` values
+
+- `readyall/src/app/docs/page.tsx`
+  - updated the Team Management docs card to point at `Speed Index`
+
+- `readyall/src/app/docs/speed-index/page.tsx`
+  - new public docs page for the renamed metric
+
+- `readyall/src/app/docs/titan-index/page.tsx`
+  - converted the legacy route into a redirect to preserve old links without keeping the old branded page live
+
+### Why This Approach Won
+
+- the user asked for a visible product/docs terminology change, not a risky schema rename
+- keeping internal `titan_*` identifiers intact avoids unnecessary migrations, Supabase type churn, and downstream breakage
+- adding a redirect preserves any existing shared docs links while moving public-facing navigation onto the new label
+
+### Validation
+
+- pending current pass command validation after edits:
+  - `get_errors`
+  - `npm run build` in `LogbookCompanion`
+  - `npm run build` in `readyall`
+
+### Outcome
+
+The app and public docs now present the leaderboard metric as `Speed Index` while the implementation stays low-risk under the hood.
+
+---
+
+## Phase 43: Demo Team-Management Seed Path (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `scripts/seed_demo_team_management.mjs`
+  - adds a repeatable service-role seed path for a demo coaching environment
+  - creates a demo organization with five teams mirroring the current program structure:
+    - Varsity
+    - Junior Varsity
+    - Upper Novice
+    - Novice
+    - Freshmen
+  - seeds a believable roster, org-wide assignments, completed assignment results, Titan values, erg scores, sessions, athlete notes, coach-note feed entries, and boatings
+  - reuses existing workout template names already present in the target database instead of inventing fake workout structures
+  - cleans up the prior seeded demo org before recreating it, making the script rerunnable for a demo project
+
+- `package.json`
+  - added `npm run seed:demo:team-management`
+
+- `docs/demo-team-management-seed.md`
+  - documents required env vars, assumptions, usage, and the remaining prerequisite that the demo coach auth user already exist
+
+### Why This Approach Won
+
+- the existing guest/demo fixture path only covers the athlete-facing analytics/dashboard experience, not coach-gated team-management routes
+- seeding the real coaching tables keeps the demo experience aligned with production UI behavior and avoids creating a second fake coaching data layer in the frontend
+- keeping the seed as a script rather than a migration makes it safe to target a separate demo project without polluting the main live environment
+
+### Validation
+
+- live schema inspection via MCP ✅
+- `node --check scripts/seed_demo_team_management.mjs` ✅
+- `get_errors` on the new script and package manifest ✅
+
+### Outcome
+
+The repo now has a concrete, repeatable path for populating a demo Supabase project with realistic team-management data so the demo site can show roster, dashboard, assignments, analytics, notes, and boatings as a coach would actually see them.
+
+---
+
+## Phase 42: Invite Flow Athlete Auto-Link + Coach Request Hardening (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `db/migrations/20260316090000_secure_team_join_and_coach_request_review.sql`
+  - added `ensure_team_member_athlete_link(team_id, user_id)` as a SECURITY DEFINER RPC that:
+    - verifies the caller is either the joining user or staff who can manage team members
+    - reuses an existing `athletes.user_id` row when one already exists
+    - creates a fallback athlete row from `user_profiles` when none exists
+    - ensures the `team_athletes` link exists for the target team
+  - tightened coaching-request visibility from any coach/coxswain to org `owner/admin`
+  - tightened `approve_coaching_request()` to the same org leadership boundary
+
+- `src/services/coaching/coachingService.ts`
+  - added a small service wrapper for the new athlete-link RPC
+  - updated `joinTeamByInviteCode()` to call the RPC after membership creation and roll back the membership if linking fails
+  - updated `addTeamMemberByEmail()` to do the same for coach-added members
+
+- `src/components/coaching/PendingCoachingRequests.tsx`
+  - now checks `organization_members` for `owner/admin` before loading or rendering the review queue
+  - keeps the UI aligned with the DB policy/RPC boundary instead of showing a queue the caller cannot legally act on
+
+### Why This Approach Won
+
+- self-joiners were already allowed to create `team_members`, but RLS correctly blocked them from writing `team_athletes`
+- moving only the athlete-link step behind a narrow SECURITY DEFINER RPC fixed the onboarding hole without widening general table policies
+- review authority now follows the existing org role model instead of a looser “any coach can approve coaches” rule
+
+### Validation
+
+- `get_errors` on touched files ✅
+- live Supabase migration applied + verified via MCP ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ⚠️ unchanged pre-existing repo debt remains outside this change set
+
+### Outcome
+
+Athletes who join a team through the main onboarding paths now become real coaching-athlete records instead of stopping at membership, and coach-request review is limited to org leadership rather than any existing coach.
+
+---
+
 ## Phase 40: Team Analytics UX Refresh + Rowing Zone Alignment (March 15, 2026)
 
 **Timeline**: March 15, 2026  
@@ -65,6 +198,45 @@
 ### Outcome
 
 Team Analytics now reads more like a coaching dashboard and less like a raw spreadsheet, while athlete training zones are better aligned with common rowing practice and no longer imply that anaerobic work should sit below 2k pace.
+
+---
+
+## Phase 41: Analytics Time-Range Filters + Contrast Fixes (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - replaced the misleading top-strip status pills with a real time-range control.
+  - added presets for:
+    - last week
+    - last 4 weeks (default)
+    - current season
+    - all time
+  - defined the analytics season on an August-to-August school-year cadence, using August 1 as the season start.
+  - updated the summary cards and leaderboard helper copy so Titan reads as an average across the selected time window rather than a last-N-workouts calculation.
+  - improved chip and segmented-control contrast for light mode while preserving dark-mode readability.
+
+- `src/services/coaching/coachingService.ts`
+  - updated `getSeasonMeasuredLeaderboard()` so Titan is averaged across the visible assignment set returned by the selected date range.
+  - updated `rerankLeaderboard()` to do the same for filtered/test-only client-side reranking.
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - removed the stale Titan “window size” configuration UI.
+  - replaced it with explanatory copy that points coaches to the page-level time filters in Team Analytics.
+
+### Outcome
+
+The analytics page now has real time filters instead of status pills that only looked interactive, and the Titan calculation matches the selected date range rather than a hidden workout-count window.
+
+### Validation
+
+- pending current pass command validation after edits:
+  - `npm run build`
+  - `npm run test:run`
+  - `npm run lint`
 
 ---
 

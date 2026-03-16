@@ -1,25 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine,
-} from 'recharts';
 import type { TeamErgComparison, CoachingAthlete } from '../../services/coaching/coachingService';
 import { formatSplit } from '../../utils/paceCalculator';
 
 interface Props {
   data: TeamErgComparison[];
   athletes: CoachingAthlete[];
-}
-
-const ATHLETE_COLORS = [
-  '#8b5cf6', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b',
-  '#ef4444', '#ec4899', '#f97316', '#14b8a6', '#a855f7',
-  '#6366f1', '#0ea5e9', '#22c55e', '#eab308', '#f43f5e',
-];
-
-function getAthleteColor(index: number): string {
-  return ATHLETE_COLORS[index % ATHLETE_COLORS.length];
 }
 
 function formatTimeFull(seconds: number): string {
@@ -41,8 +27,6 @@ interface ChartRow {
   bestWatts: number;
   weightKg: number | null;
   wattsPerLb: number | null;
-  value: number;
-  colorIndex: number;
   [key: string]: unknown;
 }
 
@@ -86,11 +70,6 @@ export function ErgComparisonChart({ data, athletes }: Props) {
 
       if (yMetric === 'wlb' && wlb == null) continue;
 
-      let value: number;
-      if (yMetric === 'watts') value = Math.round(d.bestWatts);
-      else if (yMetric === 'split') value = d.bestSplit;
-      else value = wlb!;
-
       rows.push({
         athleteId: d.athleteId,
         name: d.athleteName,
@@ -102,19 +81,38 @@ export function ErgComparisonChart({ data, athletes }: Props) {
         bestWatts: d.bestWatts,
         weightKg,
         wattsPerLb: wlb,
-        value,
-        colorIndex: 0,
       });
     }
 
     if (yMetric === 'split') {
-      rows.sort((a, b) => a.value - b.value);
+      rows.sort((a, b) => a.bestSplit - b.bestSplit);
     } else {
-      rows.sort((a, b) => b.value - a.value);
+      rows.sort((a, b) => {
+        if (yMetric === 'watts') return b.bestWatts - a.bestWatts;
+        return (b.wattsPerLb ?? -Infinity) - (a.wattsPerLb ?? -Infinity);
+      });
     }
 
-    return rows.map((d, i) => ({ ...d, colorIndex: i }));
+    return rows;
   }, [data, athleteMap, activeLabel, yMetric]);
+
+  const workoutSummary = useMemo(() => {
+    if (chartData.length === 0) return null;
+
+    const fastest = [...chartData].sort((a, b) => a.bestSplit - b.bestSplit)[0] ?? null;
+    const strongest = [...chartData].sort((a, b) => b.bestWatts - a.bestWatts)[0] ?? null;
+    const mostEfficient = [...chartData]
+      .filter((row) => row.wattsPerLb != null)
+      .sort((a, b) => (b.wattsPerLb ?? -Infinity) - (a.wattsPerLb ?? -Infinity))[0] ?? null;
+
+    return {
+      distance: chartData[0]?.distance ?? null,
+      athletes: chartData.length,
+      fastest,
+      strongest,
+      mostEfficient,
+    };
+  }, [chartData]);
 
   const avgWlb = yMetric === 'wlb' && chartData.length > 0
     ? Math.round(chartData.reduce((sum, d) => sum + (d.wattsPerLb ?? 0), 0) / chartData.length * 100) / 100
@@ -151,7 +149,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Metric toggle */}
+          {/* Sort toggle */}
           <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-0.5">
             <button
               onClick={() => setYMetric('watts')}
@@ -159,7 +157,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
                 yMetric === 'watts' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
               }`}
             >
-              Watts
+              Sort: Watts
             </button>
             <button
               onClick={() => setYMetric('split')}
@@ -167,7 +165,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
                 yMetric === 'split' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
               }`}
             >
-              Split
+              Sort: Split
             </button>
             {hasAnyWeight && (
               <button
@@ -176,7 +174,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
                   yMetric === 'wlb' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
                 }`}
               >
-                Efficiency
+                Sort: Efficiency
               </button>
             )}
           </div>
@@ -196,75 +194,67 @@ export function ErgComparisonChart({ data, athletes }: Props) {
             : 'No scores for this workout.'}
         </p>
       ) : (
-        <div role="img" aria-label="Erg comparison chart">
-          <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 36 + 40)}>
-            <BarChart
-              data={chartData}
-              layout="vertical"
-              margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
-              <XAxis
-                type="number"
-                tickFormatter={(v: number) =>
-                  yMetric === 'watts' ? `${v}W`
-                    : yMetric === 'split' ? formatSplit(v)
-                    : `${v} W/lb`
-                }
-                stroke="#666"
-                tick={{ fontSize: 11 }}
-                reversed={yMetric === 'split'}
-                domain={yMetric === 'wlb' ? [0, 'auto'] : undefined}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={80}
-                stroke="#666"
-                tick={{ fontSize: 11 }}
-              />
-              {yMetric === 'wlb' && avgWlb > 0 && (
-                <ReferenceLine
-                  x={avgWlb}
-                  stroke="#6b7280"
-                  strokeDasharray="3 3"
-                  label={{ value: 'Avg', position: 'top', fill: '#6b7280', fontSize: 10 }}
-                />
-              )}
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0].payload as ChartRow;
-                  return (
-                    <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 shadow-xl text-xs">
-                      <p className="text-white font-semibold">{d.name}</p>
-                      {d.team_name && <p className="text-indigo-400 text-[10px]">{d.team_name}</p>}
-                      {d.squad && <p className="text-neutral-500">{d.squad}</p>}
-                      <div className="mt-1.5 space-y-0.5 text-neutral-300">
-                        <div>Distance: {d.distance}m</div>
-                        <div>Time: {formatTimeFull(d.bestTime)}</div>
-                        <div>Split: {formatSplit(d.bestSplit)}/500m</div>
-                        <div>Watts: {Math.round(d.bestWatts)}W</div>
-                        {d.wattsPerLb != null && (
-                          <div>W/lb: <span className="font-mono font-semibold text-indigo-400">{d.wattsPerLb}</span></div>
-                        )}
-                        {d.weightKg != null && <div>Weight: {Math.round(d.weightKg * 2.20462)} lbs</div>}
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell
-                    key={entry.athleteId}
-                    fill={getAthleteColor(i)}
-                    fillOpacity={0.8}
-                  />
+        <div className="space-y-4">
+          {workoutSummary && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Workout</div>
+                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.distance}m test set</div>
+                <div className="mt-1 text-[11px] text-neutral-500">{workoutSummary.athletes} scored athletes</div>
+              </div>
+              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Fastest Split</div>
+                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.fastest?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.fastest ? `${formatSplit(workoutSummary.fastest.bestSplit)}/500m` : '—'}</div>
+              </div>
+              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Highest Watts</div>
+                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.strongest?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.strongest ? `${Math.round(workoutSummary.strongest.bestWatts)}W` : '—'}</div>
+              </div>
+              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Best Efficiency</div>
+                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.mostEfficient?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.mostEfficient?.wattsPerLb != null ? `${workoutSummary.mostEfficient.wattsPerLb.toFixed(2)} W/lb` : '—'}</div>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-neutral-800">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-700 bg-neutral-800/95 text-xs font-semibold text-neutral-200">
+                  <th className="text-left py-3 px-3 w-12">#</th>
+                  <th className="text-left py-3 px-3 min-w-[180px]">Athlete</th>
+                  <th className="text-left py-3 px-3 min-w-[96px]">Squad</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'split' ? 'text-white' : ''}`}>Split</th>
+                  <th className="text-right py-3 px-3 whitespace-nowrap">Time</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'watts' ? 'text-white' : ''}`}>Watts</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'wlb' ? 'text-white' : ''}`}>W/lb</th>
+                </tr>
+              </thead>
+              <tbody>
+                {chartData.map((row, index) => (
+                  <tr key={row.athleteId} className="border-b border-neutral-800/60 text-neutral-300 hover:bg-neutral-800/20">
+                    <td className="py-3 px-3 align-top">
+                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 px-2 text-xs font-semibold text-white">
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 align-top">
+                      <div className="font-medium text-white">{row.name}</div>
+                      {row.team_name && <div className="mt-1 text-[11px] text-neutral-500">{row.team_name}</div>}
+                    </td>
+                    <td className="py-3 px-3 align-top text-neutral-400">{row.squad ?? '—'}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-200">{formatSplit(row.bestSplit)}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{formatTimeFull(row.bestTime)}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{Math.round(row.bestWatts)}W</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{row.wattsPerLb != null ? row.wattsPerLb.toFixed(2) : '—'}</td>
+                  </tr>
                 ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

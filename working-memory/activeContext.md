@@ -1,6 +1,85 @@
 # Active Context
 
-> Last updated: March 15, 2026
+> Last updated: March 16, 2026
+
+## Session Summary (2026-03-16) — Speed Index terminology rename
+
+### Completed This Session
+- [x] **User-facing Titan terminology renamed to Speed Index**
+  - updated coaching analytics copy in `TeamAnalytics` and `CoachingSettings`
+  - updated the demo team-management seed runbook wording
+  - added a new ReadyAll docs route at `/docs/speed-index` and repointed the docs index to it
+  - converted the legacy `/docs/titan-index` page into a redirect so existing links still resolve cleanly
+- [x] **Leaderboard readability pass on Team Analytics**
+  - increased header-row contrast so sortable leaderboard labels remain readable in light mode
+  - removed `Avg Split` and `Best Split` from the leaderboard table to reduce noise
+  - kept `Latest Split` as the single split signal because it adds the most coaching value for current-form reads inside the selected time window
+  - stacked the analytics charts below the table as full-width sections instead of a two-column layout
+- [x] **Erg comparison view shifted from chart to workout table**
+  - replaced the horizontal bar chart with a sortable workout summary table so coaches can scan the whole workout without leaving the page
+  - kept the workout dropdown and `View Results` deep link
+  - added compact summary cards for fastest split, highest watts, and best efficiency on the selected workout
+
+### Validation
+- pending current pass validation: `get_errors`
+- pending current pass validation: `npm run build` in `LogbookCompanion`
+- pending current pass validation: `npm run build` in `readyall`
+
+### Remaining
+- [ ] Decide whether internal `titan_*` schema and code identifiers should stay as-is long term or get a separate migration/rename pass later
+
+## Session Summary (2026-03-16) — Demo team-management seed path
+
+### Completed This Session
+- [x] **Demo coaching seed strategy established**
+  - confirmed the existing `src/data/demoData.ts` path only covers athlete/dashboard demo mode, not coaching/team-management routes
+  - confirmed coaching pages are live-data and coach-gated, so demo team-management needs a seeded Supabase dataset rather than more frontend fixtures
+- [x] **Repeatable demo seed script added**
+  - added `scripts/seed_demo_team_management.mjs`
+  - script creates a demo org, five teams, seeded coach memberships, mock athletes, org-wide assignments, assignment results, erg scores, sessions, session notes, coach-note feed entries, and boatings
+  - seed reuses existing workout template names already present in the target DB (`2k Test`, `6x1000m`, `2x2000m`, `4x4:00@26/5:00r`, `Ladder Fitness Test`)
+  - seed computes Titan values so leaderboard and dashboard views populate meaningfully
+- [x] **Runbook and entry point added**
+  - added npm command `seed:demo:team-management`
+  - documented usage and prerequisites in `docs/demo-team-management-seed.md`
+
+### Validation
+- live schema inspection via MCP ✅
+- `node --check scripts/seed_demo_team_management.mjs` ✅
+- `get_errors` on new script and `package.json` ✅
+- seed script follow-up fix: `user_profiles.skill_level` updated from invalid `advanced` to valid `competitive` after live constraint failure ✅
+
+### Remaining
+- [ ] Create or choose the auth user that will act as the demo coach in the target demo Supabase project
+- [ ] Run the seed against the demo project with `DEMO_COACH_USER_ID`
+- [ ] Manual walkthrough of dashboard, roster, analytics, notes, and boatings under the demo coach login
+
+## Session Summary (2026-03-16) — Coach request hardening + athlete auto-link
+
+### Completed This Session
+- [x] **Invite/join flow now auto-links athletes**
+  - added live Supabase RPC `ensure_team_member_athlete_link(team_id, user_id)` as a SECURITY DEFINER bridge for the athlete-link step that RLS blocks for self-joiners
+  - `joinTeamByInviteCode()` now creates membership, calls the RPC, and rolls back the membership if athlete linking fails
+  - `addTeamMemberByEmail()` now does the same for invited members added by coaches
+- [x] **Coach request review narrowed to org leadership**
+  - replaced broad coach/coxswain review access with org `owner/admin` review access in both the live policy and `approve_coaching_request()` RPC
+  - `PendingCoachingRequests` now hides itself unless the current user has an `organization_members` role of `owner` or `admin`
+- [x] **Audit findings closed**
+  - athlete self-service data still resolves through `athletes.user_id`, but the main team onboarding paths now ensure that link exists
+  - request review remains SECURITY DEFINER-backed, now with a smaller reviewer set aligned to org leadership
+
+### Validation
+- `get_errors` on touched files ✅
+- live Supabase migration applied via MCP ✅
+- live RPC/policy verification via MCP ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ⚠️ still failing on pre-existing unrelated files (`src/App.tsx`, `src/api/*`, older analytics components)
+
+### Remaining
+- [ ] Manual happy-path check of self-join and coach add-by-email against live data
+- [ ] Decide whether standalone non-org teams should ever regain a coaching-request review path
+- [ ] Decide whether to add a merge/claim flow for pre-existing manual athlete rows with `user_id = null` so account-linked joins can reconcile to older roster entries instead of creating a second athlete row
 
 ## Session Summary (2026-03-15) — Titan bias propagation fix
 
@@ -38,6 +117,13 @@
     - AN `100–115%`
   - updated athlete-facing copy to explain that the ranges are intentionally broad and should be read with RPE and HR, not as exact single-target prescriptions
   - moved AN to start at current 2k pace and above, which better matches common rowing usage for sprint / anaerobic work
+- [x] **Analytics time-range filters + contrast cleanup**
+  - replaced the misleading Titan window / status pills on `TeamAnalytics` with real time-range controls: last week, last 4 weeks, season, all time
+  - default analytics range is now last 4 weeks
+  - season range is defined academically from August 1 through the current date
+  - Titan is now averaged across the selected time range instead of the last N workouts
+  - cleaned up light-mode and dark-mode contrast for informational chips and segmented controls
+  - removed outdated Titan window configuration copy from `CoachingSettings`
 
 ### Validation
 - `get_errors` on `TeamAnalytics.tsx` and `CoachingSettings.tsx` ✅
@@ -47,11 +133,13 @@
 - `get_errors` on `TeamAnalytics.tsx`, `CoachingSettings.tsx`, `coachingService.ts` after Titan simplification ✅
 - `npm run build` after Titan simplification ✅
 - pending current pass validation: `get_errors`, `npm run lint`, `npm run build`, `npm run test:run`
+- pending current pass validation: `get_errors`, `npm run build`, `npm run test:run`, `npm run lint` (expected unrelated repo debt)
 
 ### Remaining
 - [ ] Manual UX verification of coach-note feed in team and org-wide coaching flows
 - [ ] Manual review of Team Analytics summary-card usefulness with live roster data
 - [ ] Manual sanity check on athlete training-zone ranges against a few known 2k baselines in UI
+- [ ] Manual review of last-week / 4-week / season / all-time analytics ranges with live assignment data
 
 ## Session Summary (2026-03-13) — Race finish chart + coach nav UX
 

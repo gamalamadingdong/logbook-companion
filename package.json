@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "seed:demo:team-management": "node scripts/seed_demo_team_management.mjs",
     "test": "vitest",
     "test:run": "vitest run"
   },

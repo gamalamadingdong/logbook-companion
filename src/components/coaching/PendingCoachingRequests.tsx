@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Shield, CheckCircle, XCircle, Loader2, Clock, RefreshCw } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase';
 
 interface CoachingRequest {
@@ -12,13 +13,43 @@ interface CoachingRequest {
 }
 
 export function PendingCoachingRequests() {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<CoachingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [canReview, setCanReview] = useState(false);
 
   const fetchRequests = useCallback(async () => {
+    if (!user?.id) {
+      setCanReview(false);
+      setLoading(false);
+      return;
+    }
+
+    const { data: reviewerMembership, error: reviewerError } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('user_id', user.id)
+      .in('role', ['owner', 'admin'])
+      .limit(1)
+      .maybeSingle();
+
+    if (reviewerError) {
+      setError('Failed to load requests.');
+      setCanReview(false);
+      setLoading(false);
+      return;
+    }
+
+    if (!reviewerMembership) {
+      setCanReview(false);
+      setLoading(false);
+      return;
+    }
+
+    setCanReview(true);
     setError(null);
     const query = supabase
       .from('coaching_access_requests')
@@ -34,9 +65,9 @@ export function PendingCoachingRequests() {
       setRequests(data || []);
     }
     setLoading(false);
-  }, [showAll]);
+  }, [showAll, user?.id]);
 
-  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+  useEffect(() => { void fetchRequests(); }, [fetchRequests]);
 
   const handleAction = async (requestId: string, newStatus: 'approved' | 'rejected') => {
     setActing(requestId);
@@ -54,6 +85,10 @@ export function PendingCoachingRequests() {
     }
     setActing(null);
   };
+
+  if (!loading && !canReview) {
+    return null;
+  }
 
   if (loading) {
     return (

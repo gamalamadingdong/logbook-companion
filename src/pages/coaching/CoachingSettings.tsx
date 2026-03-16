@@ -91,9 +91,6 @@ export function CoachingSettings() {
   const navigate = useNavigate();
 
   const [team, setTeam] = useState<Team | null>(null);
-  const [titanWindowSize, setTitanWindowSize] = useState<number>(5);
-  const [isSavingTitan, setIsSavingTitan] = useState(false);
-  const [titanSaveSuccess, setTitanSaveSuccess] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
   const [members, setMembers] = useState<TeamMemberWithProfile[]>([]);
@@ -154,7 +151,6 @@ export function CoachingSettings() {
     Promise.all([getTeam(teamId), getTeamMembers(teamId), userId ? getOrganizationsForUser(userId) : Promise.resolve([])])
       .then(([t, m, userOrgs]) => {
         setTeam(t);
-        setTitanWindowSize(t?.titan_window_size ?? 5);
         setMembers(m);
         setEditName(t?.name ?? '');
         setEditDescription(t?.description ?? '');
@@ -863,28 +859,16 @@ export function CoachingSettings() {
 
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Titan Index Window</label>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Leaderboard Time Range</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Number of recent scored workouts used to compute the rolling Titan Index on the season leaderboard.
+              Team Analytics now filters Speed Index and ranking summaries by time range on the page itself. The default view is the last 4 weeks, with presets for last week, current season, and all time.
             </p>
-            <div className="flex items-center gap-3 flex-wrap">
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={titanWindowSize}
-                onChange={(e) => setTitanWindowSize(Math.max(1, Math.min(50, parseInt(e.target.value) || 5)))}
-                aria-label="Titan Index window size"
-                className="w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-              />
-              <span className="text-sm text-neutral-500">workouts</span>
-            </div>
           </div>
 
           <div className="border-t border-neutral-800 pt-3">
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Titan Formula</label>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Speed Index Formula</label>
             <p className="text-xs text-neutral-500 mb-3">
-              Titan Index uses a fixed 70/30 blend of speed and W/lb. This keeps the model simple and intentionally rewards raw speed more heavily than efficiency.
+              Speed Index uses a fixed 70/30 blend of speed and W/lb. This keeps the model simple and intentionally rewards raw speed more heavily than efficiency.
             </p>
             <div className="rounded-xl border border-neutral-800 bg-neutral-800/40 p-4 space-y-2 text-sm">
               <div className="flex items-center justify-between">
@@ -898,41 +882,11 @@ export function CoachingSettings() {
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={async () => {
-                  if (!teamId) return;
-                  setIsSavingTitan(true);
-                  try {
-                    const updated = await updateTeam(teamId, {
-                      titan_window_size: titanWindowSize,
-                    });
-                    setTeam(updated);
-                    setTitanWindowSize(updated.titan_window_size ?? titanWindowSize);
-                    setTitanSaveSuccess(true);
-                    setTimeout(() => setTitanSaveSuccess(false), 2000);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Failed to save');
-                  } finally {
-                    setIsSavingTitan(false);
-                  }
-                }}
-                disabled={isSavingTitan || titanWindowSize === (team?.titan_window_size ?? 5)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isSavingTitan ? <Loader2 className="w-4 h-4 animate-spin" /> : titanSaveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {titanSaveSuccess ? 'Saved' : 'Save Titan Settings'}
-              </button>
-              <span className="text-xs text-neutral-500">This saves the rolling leaderboard window. Use the recompute action below if you want to rerun historical Titan scores manually.</span>
-            </div>
-          </div>
-
           {/* Backfill existing data */}
           <div className="border-t border-neutral-800 pt-3">
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Recompute Titan Index</label>
+            <label className="block text-sm font-medium text-neutral-300 mb-1">Recompute Speed Index</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Recalculate Titan Index for historical workouts using the fixed Titan formula. This is safe to run multiple times.
+              Recalculate Speed Index for historical workouts using the fixed 70/30 formula. This is safe to run multiple times.
             </p>
             <div className="flex items-center gap-3">
               <button
