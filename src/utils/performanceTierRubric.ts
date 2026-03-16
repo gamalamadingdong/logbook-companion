@@ -117,7 +117,16 @@ function nextTierCutoffSeconds(tier: BenchmarkTier, rubric: SquadThresholds): nu
   if (tier === 'developmental') return rubric.competitorAbove;
   if (tier === 'competitor') return rubric.challengerAbove;
   if (tier === 'challenger') return rubric.championAbove;
-  if (tier === 'champion') return rubric.championAbove;
+  // champion and nationals have no next tier cutoff
+  return null;
+}
+
+function tierEntryThresholdSeconds(tier: BenchmarkTier, rubric: SquadThresholds): number | null {
+  if (tier === 'developmental') return null; // no upper bound — anything slower than developmentalAbove
+  if (tier === 'competitor') return rubric.developmentalAbove;
+  if (tier === 'challenger') return rubric.competitorAbove;
+  if (tier === 'champion') return rubric.challengerAbove;
+  if (tier === 'nationals') return rubric.championAbove;
   return null;
 }
 
@@ -156,6 +165,52 @@ export function parseErgTimeInput(value: string): number | null {
   const secs = Number(parts[1]);
   if (!Number.isInteger(mins) || !Number.isInteger(secs) || mins < 0 || secs < 0 || secs > 59) return null;
   return mins * 60 + secs;
+}
+
+export interface TierProgress {
+  tier: BenchmarkTier;
+  tierLabel: string;
+  best2kSeconds: number;
+  /** Seconds the athlete needs to drop to reach the next tier cutoff. null if already at top tier. */
+  secondsToNextTier: number | null;
+  /** Name of the next tier. null if already at top. */
+  nextTierLabel: string | null;
+  /** Seconds cleared past the entry threshold of the current tier. null for developmental (no upper bound). */
+  secondsClearedInTier: number | null;
+}
+
+export function getTierProgress(
+  squad: string | null | undefined,
+  best2kSeconds: number | null | undefined,
+  rubricConfig?: PerformanceTierRubricConfig | null
+): TierProgress | null {
+  if (best2kSeconds == null || best2kSeconds <= 0) return null;
+  const squadKey = normalizeSquad(squad);
+  if (!squadKey) return null;
+  const tier = deriveBenchmarkTier(squad, best2kSeconds, rubricConfig);
+  if (!tier) return null;
+  const rubric = getSquadRubric(squadKey, rubricConfig);
+
+  const nextCutoff = nextTierCutoffSeconds(tier, rubric);
+  const entryThreshold = tierEntryThresholdSeconds(tier, rubric);
+
+  const NEXT_TIER: Record<BenchmarkTier, BenchmarkTier | null> = {
+    developmental: 'competitor',
+    competitor: 'challenger',
+    challenger: 'champion',
+    champion: 'nationals',
+    nationals: null,
+  };
+  const nextTier = NEXT_TIER[tier];
+
+  return {
+    tier,
+    tierLabel: TIER_LABELS[tier],
+    best2kSeconds,
+    secondsToNextTier: nextCutoff != null ? Math.round(best2kSeconds - nextCutoff) : null,
+    nextTierLabel: nextTier ? TIER_LABELS[nextTier] : null,
+    secondsClearedInTier: entryThreshold != null ? Math.round(entryThreshold - best2kSeconds) : null,
+  };
 }
 
 export type ErgScoreLike = { athlete_id: string; distance: number; time_seconds: number };

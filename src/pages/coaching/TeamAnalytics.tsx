@@ -73,8 +73,10 @@ export function TeamAnalytics() {
   const [titanTestOnly, setTitanTestOnly] = useState(false);
   const [timeRangePreset, setTimeRangePreset] = useState<AnalyticsRangePreset>('4w');
   const [analyticsTab, setAnalyticsTab] = useState<'leaderboard' | 'erg-comparison'>('leaderboard');
+  const [qualifyEnabled, setQualifyEnabled] = useState(true);
   const [referenceDate] = useState(() => new Date());
   const LB_PAGE_SIZE = 20;
+  const QUALIFY_MIN_PCT = 0.5; // 50% of total workouts required to qualify
 
   const isOrg = !!orgId;
   // The effective team ID for single-team queries (2k benchmarks)
@@ -270,9 +272,21 @@ export function TeamAnalytics() {
     return rerankLeaderboard(withTests);
   }, [filteredLeaderboard, titanTestOnly]);
 
+  // Minimum-workout qualification: require >= 50% of available assignments
+  const totalAssignments = useMemo(() => {
+    if (leaderboardWithTitan.length === 0) return 0;
+    return Math.max(...leaderboardWithTitan.map((e) => e.assignment_count));
+  }, [leaderboardWithTitan]);
+  const qualifyMinCount = Math.ceil(totalAssignments * QUALIFY_MIN_PCT);
+  const qualifiedLeaderboard = useMemo(() => {
+    if (!qualifyEnabled || titanTestOnly || totalAssignments < 2) return leaderboardWithTitan;
+    return leaderboardWithTitan.filter((e) => e.assignment_count >= qualifyMinCount);
+  }, [leaderboardWithTitan, qualifyEnabled, titanTestOnly, totalAssignments, qualifyMinCount]);
+  const disqualifiedCount = leaderboardWithTitan.length - qualifiedLeaderboard.length;
+
   // Sorted leaderboard (from filtered data with Speed Index)
   const sortedLeaderboard = useMemo(() => {
-    const sorted = [...leaderboardWithTitan].sort((a, b) => {
+    const sorted = [...qualifiedLeaderboard].sort((a, b) => {
       if (lbSortField === 'titan_index') {
         // Higher is better, default descending
         const av = a.titan_index ?? -Infinity;
@@ -295,13 +309,13 @@ export function TeamAnalytics() {
       return lbSortAsc ? av - bv : bv - av;
     });
     return sorted;
-  }, [leaderboardWithTitan, lbSortField, lbSortAsc]);
+  }, [qualifiedLeaderboard, lbSortField, lbSortAsc]);
 
   const lbTotalPages = Math.max(1, Math.ceil(sortedLeaderboard.length / LB_PAGE_SIZE));
   const pagedLeaderboard = sortedLeaderboard.slice(lbPage * LB_PAGE_SIZE, (lbPage + 1) * LB_PAGE_SIZE);
 
   // Reset page when data or sort changes
-  useEffect(() => { setLbPage(0); }, [lbSortField, lbSortAsc, leaderboardWithTitan]);
+  useEffect(() => { setLbPage(0); }, [lbSortField, lbSortAsc, qualifiedLeaderboard]);
 
   const toggleLbSort = (field: typeof lbSortField) => {
     if (lbSortField === field) {
@@ -460,6 +474,19 @@ export function TeamAnalytics() {
                   </select>
                 )}
 
+                {/* Minimum workout qualification toggle */}
+                {!titanTestOnly && totalAssignments >= 2 && (
+                  <label className="flex items-center gap-1.5 text-[11px] text-neutral-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={qualifyEnabled}
+                      onChange={(e) => setQualifyEnabled(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-800 text-indigo-500 focus:ring-indigo-500"
+                    />
+                    Min {qualifyMinCount}/{totalAssignments} workouts
+                  </label>
+                )}
+
                 {/* Context pills */}
                 <div className="flex flex-wrap items-center gap-2 text-[11px] ml-auto">
                   <span className={INFO_PILL_CLASS}>
@@ -535,7 +562,7 @@ export function TeamAnalytics() {
                     : INACTIVE_SEGMENT_CLASS
                 }`}
               >
-                Erg Comparison
+                Individual Workout Detail
               </button>
             )}
           </div>
@@ -546,7 +573,7 @@ export function TeamAnalytics() {
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
-                <h3 className="text-sm font-medium text-neutral-400">Season Leaderboard</h3>
+                <h3 className="text-sm font-medium text-neutral-400">Leaderboard</h3>
                 <p className="mt-1 text-xs text-neutral-500">
                   Lead with Speed Index, then read recent split, efficiency, and workload together before making coaching decisions.
                 </p>
@@ -584,11 +611,11 @@ export function TeamAnalytics() {
             </div>
             <details className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700/40 dark:bg-neutral-800/50">
               <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 select-none">
-                {titanTestOnly ? 'Erg test lens' : 'Season lens'} — how Speed Index works
+                {titanTestOnly ? 'Erg test lens' : 'Consistency lens'} — how Speed Index works
               </summary>
               <div className="px-4 pb-3">
                 <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
-                  <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Season lens'}</span>
+                  <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Consistency lens'}</span>
                   {titanTestOnly
                     ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
                     : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
@@ -598,6 +625,11 @@ export function TeamAnalytics() {
                 </p>
               </div>
             </details>
+            {disqualifiedCount > 0 && (
+              <p className="mb-3 text-[11px] text-neutral-500 dark:text-neutral-500">
+                {disqualifiedCount} athlete{disqualifiedCount !== 1 ? 's' : ''} below the {qualifyMinCount}-workout minimum ({Math.round(QUALIFY_MIN_PCT * 100)}% of {totalAssignments}) — not shown.
+              </p>
+            )}
             <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <table className="w-full text-sm">
                 <thead>

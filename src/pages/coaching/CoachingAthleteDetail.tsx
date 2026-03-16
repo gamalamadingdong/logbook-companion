@@ -35,6 +35,14 @@ import { ErgScoreProgressionChart } from '../../components/coaching/ErgScoreProg
 import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
 import { AthleteTrainingZones } from '../../components/coaching/AthleteTrainingZones';
 import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
+import {
+  getTierProgress,
+  benchmarkTierBadgeClass,
+  formatErgTime,
+  buildBest2kByAthlete,
+  type PerformanceTierRubricConfig,
+} from '../../utils/performanceTierRubric';
+import { getOrganizationsForUser } from '../../services/coaching/coachingService';
 
 export function CoachingAthleteDetail() {
   const { athleteId } = useParams<{ athleteId: string }>();
@@ -54,8 +62,20 @@ export function CoachingAthleteDetail() {
   const [newCoachNote, setNewCoachNote] = useState('');
   const [newCoachNoteVisible, setNewCoachNoteVisible] = useState(false);
   const [isSavingCoachNote, setIsSavingCoachNote] = useState(false);
+  const [orgRubric, setOrgRubric] = useState<PerformanceTierRubricConfig | null>(null);
   const units = useMeasurementUnits();
   const athleteTeamId = athlete?.team_id ?? teamId;
+
+  // Load org rubric for tier progress
+  useEffect(() => {
+    if (!userId || !orgId) { setOrgRubric(null); return; }
+    getOrganizationsForUser(userId)
+      .then((orgs) => {
+        const org = orgs.find((o) => o.id === orgId);
+        setOrgRubric(org?.performance_tier_rubric ?? null);
+      })
+      .catch(() => setOrgRubric(null));
+  }, [userId, orgId]);
 
   useEffect(() => {
     if (!athleteId || isLoadingTeam || (!teamId && !orgId)) return;
@@ -238,6 +258,31 @@ export function CoachingAthleteDetail() {
                     )}
                   </div>
                 )}
+                {/* Tier Progress */}
+                {(() => {
+                  const best2kMap = buildBest2kByAthlete(ergScores.map((s) => ({ athlete_id: athleteId!, distance: s.distance, time_seconds: s.time_seconds })));
+                  const best2k = best2kMap[athleteId!] ?? null;
+                  const progress = getTierProgress(athlete.squad, best2k, orgRubric);
+                  if (!progress) return null;
+                  return (
+                    <div className="mt-3 flex items-center gap-2 text-sm">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${benchmarkTierBadgeClass(progress.tier)}`}>
+                        {progress.tierLabel}
+                      </span>
+                      <span className="text-neutral-500">Best 2k: {formatErgTime(progress.best2kSeconds)}</span>
+                      {progress.secondsToNextTier != null && progress.nextTierLabel && (
+                        <span className="text-neutral-400">
+                          &middot; {progress.secondsToNextTier}s from {progress.nextTierLabel}
+                        </span>
+                      )}
+                      {progress.secondsToNextTier == null && (
+                        <span className="text-emerald-400">
+                          &middot; Top tier{progress.secondsClearedInTier != null ? ` (${progress.secondsClearedInTier}s clear)` : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="flex gap-2">
