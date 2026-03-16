@@ -868,25 +868,19 @@ export function CoachingSettings() {
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Speed Index Formula</label>
             <p className="text-xs text-neutral-500 mb-3">
-              Speed Index uses a fixed 70/30 blend of speed and W/lb. This keeps the model simple and intentionally rewards raw speed more heavily than efficiency.
+              Speed Index exists because raw speed and W/lb both represent something real. Raw speed still has to anchor the decision, while efficiency matters because it can make up for some lack of absolute power, but not infinitely. The score keeps both in view so a coach can recognize when efficiency meaningfully changes how a raw speed ranking should be read.
             </p>
-            <div className="rounded-xl border border-neutral-800 bg-neutral-800/40 p-4 space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-white font-medium">Speed</span>
-                <span className="text-neutral-300">70%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-white font-medium">W/lb</span>
-                <span className="text-neutral-300">30%</span>
-              </div>
-            </div>
+            <p className="text-xs text-neutral-500 mb-3">
+              The normalization step matters because split and W/lb are different kinds of numbers. Using a z-score puts both signals into the same relative language for that workout: how far above or below the group average an athlete performed. Once both are on the same scale, blending them into one readable index is defensible instead of arbitrary.
+            </p>
+
           </div>
 
           {/* Backfill existing data */}
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Recompute Speed Index</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Recalculate Speed Index for historical workouts using the fixed 70/30 formula. This is safe to run multiple times.
+              Recalculate Speed Index for historical workouts using the same standardized speed-plus-efficiency formula. This is safe to run multiple times.
             </p>
             <div className="flex items-center gap-3">
               <button

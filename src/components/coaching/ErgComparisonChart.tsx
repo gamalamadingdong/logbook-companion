@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import type { TeamErgComparison, CoachingAthlete } from '../../services/coaching/coachingService';
+import type { TeamErgComparison } from '../../services/coaching/coachingService';
 import { formatSplit } from '../../utils/paceCalculator';
 
 interface Props {
   data: TeamErgComparison[];
-  athletes: CoachingAthlete[];
+  showResultsLink?: boolean;
 }
 
 function formatTimeFull(seconds: number): string {
@@ -30,7 +30,7 @@ interface ChartRow {
   [key: string]: unknown;
 }
 
-export function ErgComparisonChart({ data, athletes }: Props) {
+export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
   const [yMetric, setYMetric] = useState<YMetric>('watts');
 
   // Unique assignment labels, ordered by most recent date first
@@ -54,8 +54,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
     return data.find((d) => d.assignmentLabel === activeLabel)?.assignmentId;
   }, [data, activeLabel]);
 
-  const athleteMap = useMemo(() => new Map(athletes.map(a => [a.id, a])), [athletes]);
-  const hasAnyWeight = athletes.some(a => a.weight_kg && a.weight_kg > 0);
+  const hasAnyWeight = data.some((entry) => entry.weightKg != null && entry.weightKg > 0);
 
   const chartData = useMemo((): ChartRow[] => {
     if (!activeLabel) return [];
@@ -63,8 +62,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
     const rows: ChartRow[] = [];
     for (const d of data) {
       if (d.assignmentLabel !== activeLabel) continue;
-      const athlete = athleteMap.get(d.athleteId);
-      const weightKg = athlete?.weight_kg && athlete.weight_kg > 0 ? athlete.weight_kg : null;
+      const weightKg = d.weightKg && d.weightKg > 0 ? d.weightKg : null;
       const weightLb = weightKg ? weightKg * 2.20462 : null;
       const wlb = weightLb ? Math.round((d.bestWatts / weightLb) * 100) / 100 : null;
 
@@ -94,7 +92,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
     }
 
     return rows;
-  }, [data, athleteMap, activeLabel, yMetric]);
+  }, [data, activeLabel, yMetric]);
 
   const workoutSummary = useMemo(() => {
     if (chartData.length === 0) return null;
@@ -138,7 +136,7 @@ export function ErgComparisonChart({ data, athletes }: Props) {
               <option key={label} value={label}>{label}</option>
             ))}
           </select>
-          {activeAssignmentId && (
+          {showResultsLink && activeAssignmentId && (
             <Link
               to={`/team-management/assignments/${activeAssignmentId}/results`}
               className="text-indigo-400 hover:text-indigo-300 text-xs font-medium whitespace-nowrap transition-colors"

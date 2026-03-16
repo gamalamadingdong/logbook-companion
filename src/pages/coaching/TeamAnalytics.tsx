@@ -27,58 +27,12 @@ import { RankOverTimeChart } from '../../components/coaching/RankOverTimeChart';
 import { buildBest2kByAthlete, deriveBenchmarkTier, TIER_SORT_ORDER, type PerformanceTierRubricConfig } from '../../utils/performanceTierRubric';
 import { getOrganizationsForUser } from '../../services/coaching/coachingService';
 import { formatSplit } from '../../utils/paceCalculator';
-
-type AnalyticsRangePreset = '1w' | '4w' | 'season' | 'all';
-
-function formatDateForQuery(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getAcademicSeasonStart(referenceDate: Date): Date {
-  const year = referenceDate.getMonth() >= 7 ? referenceDate.getFullYear() : referenceDate.getFullYear() - 1;
-  return new Date(year, 7, 1);
-}
-
-function getRangeForPreset(preset: AnalyticsRangePreset, referenceDate: Date): { from?: string; to?: string; label: string } {
-  const today = formatDateForQuery(referenceDate);
-
-  switch (preset) {
-    case '1w':
-      return {
-        from: formatDateForQuery(addDays(referenceDate, -7)),
-        to: today,
-        label: 'Last week',
-      };
-    case '4w':
-      return {
-        from: formatDateForQuery(addDays(referenceDate, -28)),
-        to: today,
-        label: 'Last 4 weeks',
-      };
-    case 'season':
-      return {
-        from: formatDateForQuery(getAcademicSeasonStart(referenceDate)),
-        to: today,
-        label: 'Current season',
-      };
-    case 'all':
-    default:
-      return { label: 'All time' };
-  }
-}
-
-const RANGE_PRESET_OPTIONS: Array<{ value: AnalyticsRangePreset; label: string }> = [
-  { value: '1w', label: 'Last Week' },
-  { value: '4w', label: 'Last 4 Weeks' },
-  { value: 'season', label: 'Season' },
-  { value: 'all', label: 'All Time' },
-];
+import {
+  type AnalyticsRangePreset,
+  RANGE_PRESET_OPTIONS,
+  formatAnalyticsRank,
+  getRangeForPreset,
+} from '../../services/coaching/analyticsView';
 
 const INFO_PILL_CLASS = 'rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-neutral-950/80 dark:text-neutral-300 dark:shadow-none';
 const SEGMENT_WRAP_CLASS = 'flex items-center gap-1.5 shrink-0 rounded-lg border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700/60 dark:bg-neutral-900/70';
@@ -89,11 +43,9 @@ export function TeamAnalytics() {
 
   type LeaderboardSortField =
     | 'titan_index'
-    | 'composite_rank'
     | 'avg_raw_rank'
     | 'avg_wplb_rank'
     | 'latest_split_seconds'
-    | 'avg_wplb'
     | 'assignment_count';
 
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
@@ -114,7 +66,7 @@ export function TeamAnalytics() {
   const [titanTestOnly, setTitanTestOnly] = useState(false);
   const [timeRangePreset, setTimeRangePreset] = useState<AnalyticsRangePreset>('4w');
   const [referenceDate] = useState(() => new Date());
-  const LB_PAGE_SIZE = 16;
+  const LB_PAGE_SIZE = 20;
 
   const isOrg = !!orgId;
   // The effective team ID for single-team queries (2k benchmarks)
@@ -131,7 +83,7 @@ export function TeamAnalytics() {
           getTeamsForOrg(orgId),
           getOrgAthletesWithTeam(orgId),
           getOrgErgComparison(orgId).catch(() => [] as TeamErgComparison[]),
-          getOrgTrainingZoneDistribution(orgId).catch(() => null),
+          getOrgTrainingZoneDistribution(orgId, { from: selectedRange.from, to: selectedRange.to }).catch(() => null),
           getSeasonMeasuredLeaderboard(teamId, { orgId, from: selectedRange.from, to: selectedRange.to }).catch(() => [] as SeasonLeaderboardEntry[]),
         ]);
         setAthletes(loadedAthletes.filter((a) => a.side !== 'coxswain'));
@@ -143,7 +95,7 @@ export function TeamAnalytics() {
         const [loadedAthletes, ergData, zoneDist, leaderboard] = await Promise.all([
           getAthletes(teamId),
           getTeamErgComparison(teamId).catch(() => [] as TeamErgComparison[]),
-          getTeamTrainingZoneDistribution(teamId).catch(() => null),
+          getTeamTrainingZoneDistribution(teamId, { from: selectedRange.from, to: selectedRange.to }).catch(() => null),
           getSeasonMeasuredLeaderboard(teamId, { from: selectedRange.from, to: selectedRange.to }).catch(() => [] as SeasonLeaderboardEntry[]),
         ]);
         setAthletes(loadedAthletes.filter((a) => a.side !== 'coxswain'));
@@ -241,7 +193,13 @@ export function TeamAnalytics() {
   }, [activeTiers, tierFilter]);
 
   const filteredErgData = useMemo(() => {
-    let data = squadFilter === 'all' ? teamFilteredErgData : teamFilteredErgData.filter((e) => e.squad === squadFilter);
+    let data = teamFilteredErgData;
+    const from = selectedRange.from;
+    const to = selectedRange.to;
+    if (from) data = data.filter((entry) => entry.date >= from);
+    if (to) data = data.filter((entry) => entry.date <= to);
+    if (titanTestOnly) data = data.filter((entry) => entry.is_test);
+    if (squadFilter !== 'all') data = data.filter((entry) => entry.squad === squadFilter);
     if (tierFilter !== 'all') {
       const athleteIdsInTier = new Set(
         teamFilteredAthletes.filter((a) => effectiveTierByAthlete[a.id] === tierFilter).map((a) => a.id)
@@ -249,7 +207,7 @@ export function TeamAnalytics() {
       data = data.filter((e) => athleteIdsInTier.has(e.athleteId));
     }
     return data;
-  }, [teamFilteredErgData, squadFilter, tierFilter, teamFilteredAthletes, effectiveTierByAthlete]);
+  }, [teamFilteredErgData, selectedRange.from, selectedRange.to, titanTestOnly, squadFilter, tierFilter, teamFilteredAthletes, effectiveTierByAthlete]);
 
   const filteredAthletes = useMemo(() => {
     let result = squadFilter === 'all' ? teamFilteredAthletes : teamFilteredAthletes.filter((a) => a.squad === squadFilter);
@@ -305,17 +263,12 @@ export function TeamAnalytics() {
         const bv = b.latest_split_seconds ?? Number.POSITIVE_INFINITY;
         return lbSortAsc ? av - bv : bv - av;
       }
-      if (lbSortField === 'avg_wplb') {
-        const av = a.avg_wplb ?? -Infinity;
-        const bv = b.avg_wplb ?? -Infinity;
-        return lbSortAsc ? av - bv : bv - av;
-      }
       if (lbSortField === 'assignment_count') {
         const av = a.assignment_count;
         const bv = b.assignment_count;
         return lbSortAsc ? av - bv : bv - av;
       }
-      // composite_rank, avg_raw_rank, avg_wplb_rank — lower is better
+      // avg_raw_rank, avg_wplb_rank — lower is better, including decimal averages
       const av = a[lbSortField] ?? Number.POSITIVE_INFINITY;
       const bv = b[lbSortField] ?? Number.POSITIVE_INFINITY;
       return lbSortAsc ? av - bv : bv - av;
@@ -327,16 +280,16 @@ export function TeamAnalytics() {
   const pagedLeaderboard = sortedLeaderboard.slice(lbPage * LB_PAGE_SIZE, (lbPage + 1) * LB_PAGE_SIZE);
 
   // Reset page when data or sort changes
-  useEffect(() => { setLbPage(0); }, [lbSortField, lbSortAsc, filteredLeaderboard]);
+  useEffect(() => { setLbPage(0); }, [lbSortField, lbSortAsc, leaderboardWithTitan]);
 
   const toggleLbSort = (field: typeof lbSortField) => {
     if (lbSortField === field) {
       setLbSortAsc((prev) => !prev);
     } else {
       setLbSortField(field);
-      // Speed Index: higher is better → default descending. Others: lower is better → ascending.
-      // Higher is better for Titan, avg_wplb, and workout count. Lower is better for ranks and splits.
-      setLbSortAsc(!(field === 'titan_index' || field === 'avg_wplb' || field === 'assignment_count'));
+      // Speed Index and workout count: higher is better → default descending.
+      // Power rank, efficiency rank, and split: lower is better → default ascending.
+      setLbSortAsc(!(field === 'titan_index' || field === 'assignment_count'));
     }
   };
 
@@ -347,7 +300,7 @@ export function TeamAnalytics() {
       : <ChevronDown className="w-3 h-3 inline ml-1 text-indigo-400" />;
   };
 
-  const hasZoneData= zoneDistribution && zoneDistribution.total > 0;
+  const hasZoneData= !titanTestOnly && zoneDistribution && zoneDistribution.total > 0;
   const hasErgData = filteredErgData.length > 0;
   const hasLeaderboardData = sortedLeaderboard.length > 0;
   const hasAnyData = hasZoneData || hasErgData || hasLeaderboardData;
@@ -444,8 +397,7 @@ export function TeamAnalytics() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Squad filter */}
+{/*           <div className="flex items-center gap-4 flex-wrap">
             {squads.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Squad</span>
@@ -462,7 +414,6 @@ export function TeamAnalytics() {
                 </select>
               </div>
             )}
-            {/* Tier filter */}
             {activeTiers.length > 1 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Tier</span>
@@ -479,7 +430,7 @@ export function TeamAnalytics() {
                 </select>
               </div>
             )}
-          </div>
+          </div> */}
         </div>
 
         {/* Loading */}
@@ -625,8 +576,12 @@ export function TeamAnalytics() {
                       filterTier: tierFilter !== 'all' ? tierFilter : null,
                       filterTeamId: filterTeamId ?? null,
                     });
-                    const url = buildTeamLeaderboardShareUrl(token);
-                    await navigator.clipboard.writeText(url);
+                    const url = new URL(buildTeamLeaderboardShareUrl(token));
+                    url.searchParams.set('range', timeRangePreset);
+                    if (titanTestOnly) {
+                      url.searchParams.set('tests', '1');
+                    }
+                    await navigator.clipboard.writeText(url.toString());
                     setShareStatus('copied');
                     setTimeout(() => setShareStatus('idle'), 2500);
                   } catch {
@@ -640,16 +595,16 @@ export function TeamAnalytics() {
                 {shareStatus === 'copied' ? 'Link copied!' : shareStatus === 'loading' ? 'Creating…' : 'Share'}
               </button>
             </div>
-            <div className="bg-neutral-800/50 border border-neutral-700/40 rounded-lg px-4 py-4 mb-4 space-y-3">
+            <div className="mb-4 space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-4 dark:border-neutral-700/40 dark:bg-neutral-800/50">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <p className="text-sm text-neutral-200 leading-relaxed">
+                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
                     <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Season lens'}</span>
                     {titanTestOnly
                       ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
                       : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
                   </p>
-                  <p className="text-[11px] text-neutral-500 mt-2">
+                  <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
                     Speed Index is a fixed 70/30 blend of speed and W/lb, averaged across the selected time range. Higher is better. Expand any athlete to inspect recent scored work, or open <a href="/team-management/assignments" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Team Workouts</a> for assignment-level ranking detail.
                   </p>
                 </div>
@@ -674,11 +629,16 @@ export function TeamAnalytics() {
                     <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('titan_index')}>
                       Speed Index<LbSortIcon field="titan_index" />
                     </th>
-                    <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('latest_split_seconds')}>
-                      Latest Split<LbSortIcon field="latest_split_seconds" />
+                    <th className="text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_raw_rank')}>
+                      <div>Power Rank<LbSortIcon field="avg_raw_rank" /></div>
+                      <div className="mt-0.5 text-[10px] font-medium normal-case text-neutral-500 dark:text-neutral-400">Lower is better</div>
                     </th>
-                    <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('avg_wplb')}>
-                      Avg W/lb<LbSortIcon field="avg_wplb" />
+                    <th className="text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_wplb_rank')}>
+                      <div>Efficiency Rank<LbSortIcon field="avg_wplb_rank" /></div>
+                      <div className="mt-0.5 text-[10px] font-medium normal-case text-neutral-500 dark:text-neutral-400">Lower is better</div>
+                    </th>
+                    <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('latest_split_seconds')}>
+                      Last Workout Split <LbSortIcon field="latest_split_seconds" />
                     </th>
                     <th className="text-center py-3 px-3 cursor-pointer select-none w-24 whitespace-nowrap" onClick={() => toggleLbSort('assignment_count')}>
                       <span title="Workouts"># Workouts</span>
@@ -690,12 +650,14 @@ export function TeamAnalytics() {
                   {pagedLeaderboard.map((row, idx) => {
                     const isExpanded = expandedAthleteId === row.athlete_id;
                     const recentHistory = row.score_history.slice(0, 5); // already newest-first from service
+                    const latestWorkout = row.score_history[0] ?? null;
                     const globalRank = lbPage * LB_PAGE_SIZE + idx + 1;
+                    const isBreakpointRow = idx > 0 && idx % 8 === 0;
                     return (
                       <Fragment key={row.athlete_id}>
-                        <tr className={`border-b border-neutral-800/50 transition-colors ${isExpanded ? 'bg-neutral-800/30' : 'hover:bg-neutral-800/20'}`}>
-                          <td className="py-3 pr-2 pl-3 text-neutral-500 align-top">
-                            <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${globalRank <= 3 ? 'bg-neutral-800 text-white border border-neutral-700' : 'text-neutral-500'}`}>
+                        <tr className={`border-b border-neutral-200 transition-colors dark:border-neutral-800/50 ${isBreakpointRow ? 'border-t-2 border-t-neutral-300 dark:border-t-neutral-700/80' : ''} ${isExpanded ? 'bg-neutral-100 dark:bg-neutral-800/30' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/20'}`}>
+                          <td className="py-3 pr-2 pl-3 align-top text-neutral-500 dark:text-neutral-500">
+                            <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${globalRank <= 3 ? 'border border-neutral-300 bg-neutral-200 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white' : 'text-neutral-500 dark:text-neutral-500'}`}>
                               {globalRank}
                             </span>
                           </td>
@@ -706,56 +668,63 @@ export function TeamAnalytics() {
                               className="flex w-full items-start gap-2 text-left"
                               aria-label={`${isExpanded ? 'Hide' : 'Show'} recent workouts for ${row.athlete_name}`}
                             >
-                              <ChevronRight className={`mt-0.5 w-3.5 h-3.5 shrink-0 text-neutral-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <ChevronRight className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform dark:text-neutral-600 ${isExpanded ? 'rotate-90' : ''}`} />
                               <div className="min-w-0">
-                                <div className="text-white font-medium">{row.athlete_name}</div>
-                                <div className="text-[11px] text-neutral-500">
+                                <div className="font-medium text-neutral-950 dark:text-white">{row.athlete_name}</div>
+                                <div className="text-[11px] text-neutral-500 dark:text-neutral-500">
                                   {[row.squad, row.performance_tier].filter(Boolean).join(' · ') || 'No squad or tier'}
                                 </div>
-                                <div className="mt-1 text-[11px] text-neutral-500">{isExpanded ? 'Hide recent scored work' : 'View recent scored work and rank breakdown'}</div>
+                                <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">{isExpanded ? 'Hide recent scored work' : 'View recent scored work and rank breakdown'}</div>
                               </div>
                             </button>
                           </td>
                           <td className="py-3 px-2 text-center align-top">
-                            <div className="font-mono text-white font-semibold">{row.titan_index != null ? row.titan_index.toFixed(1) : '—'}</div>
-                            <div className="mt-1 text-[11px] text-neutral-500">#{row.composite_rank ?? '—'} composite rank</div>
+                            <div className="font-mono font-semibold text-neutral-950 dark:text-white">{row.titan_index != null ? row.titan_index.toFixed(1) : '—'}</div>
+                            <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">#{formatAnalyticsRank(row.composite_rank)} composite rank</div>
                           </td>
-                          <td className="py-3 px-2 text-center font-mono text-neutral-300 align-top">{row.latest_split_seconds != null ? formatSplit(row.latest_split_seconds) : '—'}</td>
                           <td className="py-3 px-2 text-center align-top">
-                            <div className="font-mono text-neutral-300">{row.avg_wplb != null ? row.avg_wplb.toFixed(2) : '—'}</div>
-                            <div className="mt-1 text-[11px] text-neutral-500">#{row.avg_wplb_rank ?? '—'} efficiency rank</div>
+                            <div className="font-mono text-neutral-700 dark:text-neutral-300">#{formatAnalyticsRank(row.avg_raw_rank)}</div>
+                          </td>
+                          <td className="py-3 px-2 text-center align-top">
+                            <div className="font-mono text-neutral-700 dark:text-neutral-300">#{formatAnalyticsRank(row.avg_wplb_rank)}</div>
+                          </td>
+                          <td className="py-3 px-2 text-center align-top">
+                            <div className="font-mono text-neutral-700 dark:text-neutral-300">{row.latest_split_seconds != null ? formatSplit(row.latest_split_seconds) : '—'}</div>
+                            <div className="mx-auto mt-1 max-w-[180px] truncate text-[11px] text-neutral-500 dark:text-neutral-500" title={latestWorkout?.label ?? 'No recent workout'}>
+                              {latestWorkout?.label ?? 'No recent workout'}
+                            </div>
                           </td>
                           <td className="py-3 px-3 text-center align-top">
-                            <div className="font-mono text-neutral-200">{row.assignment_count}</div>
-                            <div className="mt-1 text-[11px] text-neutral-500">scored</div>
+                            <div className="font-mono text-neutral-800 dark:text-neutral-200">{row.assignment_count}</div>
+                            <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">scored</div>
                           </td>
                         </tr>
                         {isExpanded && recentHistory.length > 0 && (
-                          <tr className="bg-neutral-800/20">
-                            <td colSpan={6} className="px-4 py-4">
+                          <tr className="bg-neutral-50 dark:bg-neutral-800/20">
+                            <td colSpan={7} className="px-4 py-4">
                               <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
-                                <div className="rounded-lg border border-neutral-700/50 bg-neutral-900/60 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Composite rank</div>
-                                  <div className="mt-1 text-lg font-semibold text-white">#{row.composite_rank ?? '—'}</div>
+                                <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Composite rank</div>
+                                  <div className="mt-1 text-lg font-semibold text-neutral-950 dark:text-white">#{formatAnalyticsRank(row.composite_rank)}</div>
                                 </div>
-                                <div className="rounded-lg border border-neutral-700/50 bg-neutral-900/60 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Speed rank</div>
-                                  <div className="mt-1 text-lg font-semibold text-white">#{row.avg_raw_rank ?? '—'}</div>
+                                <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Power rank</div>
+                                  <div className="mt-1 text-lg font-semibold text-neutral-950 dark:text-white">#{formatAnalyticsRank(row.avg_raw_rank)}</div>
                                 </div>
-                                <div className="rounded-lg border border-neutral-700/50 bg-neutral-900/60 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Efficiency rank</div>
-                                  <div className="mt-1 text-lg font-semibold text-white">#{row.avg_wplb_rank ?? '—'}</div>
+                                <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Efficiency rank</div>
+                                  <div className="mt-1 text-lg font-semibold text-neutral-950 dark:text-white">#{formatAnalyticsRank(row.avg_wplb_rank)}</div>
                                 </div>
-                                <div className="rounded-lg border border-neutral-700/50 bg-neutral-900/60 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Speed Index basis</div>
-                                  <div className="mt-1 text-sm font-medium text-white">{selectedRange.label}</div>
-                                  <div className="mt-1 text-[11px] text-neutral-500">70% speed · 30% W/lb</div>
+                                <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Speed Index basis</div>
+                                  <div className="mt-1 text-sm font-medium text-neutral-950 dark:text-white">{selectedRange.label}</div>
+                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">70% speed · 30% W/lb</div>
                                 </div>
                               </div>
-                              <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1.5 font-semibold">Recent scored workouts (newest first)</div>
+                              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>
                               <table className="w-full text-xs">
                                 <thead>
-                                  <tr className="text-neutral-600">
+                                  <tr className="text-neutral-600 dark:text-neutral-600">
                                     <th className="text-left py-1 pr-2">Workout</th>
                                     <th className="text-left py-1 px-2">Date</th>
                                     <th className="text-right py-1 px-2">Split</th>
@@ -765,7 +734,7 @@ export function TeamAnalytics() {
                                 </thead>
                                 <tbody>
                                   {recentHistory.map((h) => (
-                                    <tr key={h.assignmentId} className="text-neutral-400 border-t border-neutral-800/30">
+                                    <tr key={h.assignmentId} className="border-t border-neutral-200 text-neutral-600 dark:border-neutral-800/30 dark:text-neutral-400">
                                       <td className="py-1 pr-2">
                                         <a
                                           href={`/team-management/assignments/${h.assignmentId}/results`}
@@ -775,7 +744,7 @@ export function TeamAnalytics() {
                                           {h.label}
                                         </a>
                                       </td>
-                                      <td className="py-1 px-2 text-neutral-500">{new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                                      <td className="py-1 px-2 text-neutral-500 dark:text-neutral-500">{new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
                                       <td className="py-1 px-2 text-right font-mono">{formatSplit(h.split)}</td>
                                       <td className="py-1 px-2 text-right font-mono">{h.time != null ? formatLeaderboardTime(h.time) : '—'}</td>
                                       <td className="py-1 pl-2 text-right font-mono">{h.wplb != null ? h.wplb.toFixed(2) : '—'}</td>
@@ -787,8 +756,8 @@ export function TeamAnalytics() {
                           </tr>
                         )}
                         {isExpanded && recentHistory.length === 0 && (
-                          <tr className="bg-neutral-800/20">
-                            <td colSpan={6} className="px-4 py-3 text-xs text-neutral-500 italic">No workout history available</td>
+                          <tr className="bg-neutral-50 dark:bg-neutral-800/20">
+                            <td colSpan={7} className="px-4 py-3 text-xs italic text-neutral-500 dark:text-neutral-500">No workout history available</td>
                           </tr>
                         )}
                       </Fragment>
@@ -798,18 +767,18 @@ export function TeamAnalytics() {
               </table>
               {/* Pagination */}
               {lbTotalPages > 1 && (
-                <div className="flex items-center justify-between mt-3 text-xs text-neutral-500">
+                <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500">
                   <span>Page {lbPage + 1} of {lbTotalPages} ({sortedLeaderboard.length} athletes)</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setLbPage((p) => Math.max(0, p - 1))}
                       disabled={lbPage === 0}
-                      className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="rounded border border-neutral-300 bg-white px-2 py-1 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                     >Prev</button>
                     <button
                       onClick={() => setLbPage((p) => Math.min(lbTotalPages - 1, p + 1))}
                       disabled={lbPage >= lbTotalPages - 1}
-                      className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="rounded border border-neutral-300 bg-white px-2 py-1 text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                     >Next</button>
                   </div>
                 </div>
@@ -823,13 +792,13 @@ export function TeamAnalytics() {
           <div className="space-y-6">
             {/* Rank Over Time Chart */}
             {hasLeaderboardData && (
-              <RankOverTimeChart leaderboard={filteredLeaderboard} />
+              <RankOverTimeChart leaderboard={leaderboardWithTitan} />
             )}
             {/* Erg Comparison Chart */}
             {hasErgData && (
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
                 <h3 className="text-sm font-medium text-neutral-400 mb-4">Erg Comparison</h3>
-                <ErgComparisonChart data={filteredErgData} athletes={filteredAthletes} />
+                <ErgComparisonChart data={filteredErgData} />
               </div>
             )}
 

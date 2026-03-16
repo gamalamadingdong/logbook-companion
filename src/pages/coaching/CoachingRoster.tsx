@@ -68,6 +68,7 @@ export function CoachingRoster() {
   const [editValue, setEditValue] = useState('');
   const [editValue2, setEditValue2] = useState(''); // for ft/in (second field)
   const editRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
   // Column sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -404,13 +405,24 @@ export function CoachingRoster() {
       : <ChevronDown className="w-3 h-3 text-indigo-400 ml-1 inline" />;
   };
 
+  const openAthleteDetail = useCallback((athleteId: string) => {
+    navigate(`/team-management/roster/${athleteId}`);
+  }, [navigate]);
+
+  const handleEditableCellClick = useCallback((athleteId: string, field: string) => {
+    if (!editMode) return;
+    startEditing(athleteId, field);
+  }, [editMode, startEditing]);
+
 // Helper: is a given cell currently being edited?
   const isEditing = (athleteId: string, field: string) =>
     editingCell?.athleteId === athleteId && editingCell?.field === field;
 
   // Shared cell CSS
   const cellBase = 'px-3 py-2.5 text-sm whitespace-nowrap';
-  const editableCellClass = `${cellBase} cursor-pointer hover:bg-neutral-800/60 transition-colors`;
+  const editableCellClass = editMode
+    ? `${cellBase} cursor-pointer hover:bg-neutral-800/60 transition-colors`
+    : cellBase;
   const inputClass = 'w-full bg-neutral-800 border border-indigo-500 rounded px-2 py-1 text-white text-sm outline-none focus:ring-1 focus:ring-indigo-400';
   const selectClass = `${inputClass} appearance-none`;
 
@@ -440,11 +452,31 @@ export function CoachingRoster() {
               {filteredAthletes.length}{selectedSquad !== 'all' ? ` in ${selectedSquad}` : ''}{selectedTier !== 'all' ? ` · ${selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)} tier` : ''} athlete{filteredAthletes.length !== 1 ? 's' : ''}{selectedSquad !== 'all' || selectedTier !== 'all' ? ` (${athletes.length} total)` : ''}
               {isOrgWide && <span className="text-neutral-600"> · All Teams</span>}
               {!isOrgWide && filterTeamName && <span className="text-neutral-600"> · {filterTeamName}</span>}
-              <span className="text-neutral-600 ml-2 hidden sm:inline">· Click any cell to edit</span>
-              <span className="text-neutral-600 ml-2 sm:hidden">· Tap to edit</span>
+              <span className="text-neutral-600 ml-2 hidden sm:inline">
+                · {editMode ? 'Edit mode is on. Click fields to edit.' : 'Click an athlete name to open their detail page.'}
+              </span>
+              <span className="text-neutral-600 ml-2 sm:hidden">
+                · {editMode ? 'Edit mode on' : 'Tap a name for detail'}
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                if (editMode) {
+                  setEditingCell(null);
+                }
+                setEditMode((current) => !current);
+              }}
+              className={`px-2 sm:px-3 py-2 rounded-lg text-sm transition-colors ${
+                editMode
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                  : 'border border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+              }`}
+            >
+              {editMode ? 'Editing On' : 'Edit Mode'}
+            </button>
             {squads.length > 0 && (
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-neutral-500 hidden sm:block" />
@@ -629,8 +661,8 @@ export function CoachingRoster() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-neutral-500 font-mono text-xs min-w-[1.5rem]">{index + 1}.</span>
                     <span
-                      className="text-white font-semibold text-base cursor-pointer"
-                      onClick={() => startEditing(athlete.id, 'first_name')}
+                      className={`text-white font-semibold text-base ${editMode ? 'cursor-pointer' : 'cursor-pointer hover:text-indigo-300 transition-colors'}`}
+                      onClick={() => editMode ? startEditing(athlete.id, 'first_name') : openAthleteDetail(athlete.id)}
                     >
                       {isEditing(athlete.id, 'first_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
@@ -638,8 +670,8 @@ export function CoachingRoster() {
                       ) : athlete.first_name}
                     </span>
                     <span
-                      className="text-white font-semibold text-base cursor-pointer"
-                      onClick={() => startEditing(athlete.id, 'last_name')}
+                      className={`text-white font-semibold text-base ${editMode ? 'cursor-pointer' : 'cursor-pointer hover:text-indigo-300 transition-colors'}`}
+                      onClick={() => editMode ? startEditing(athlete.id, 'last_name') : openAthleteDetail(athlete.id)}
                     >
                       {isEditing(athlete.id, 'last_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
@@ -648,7 +680,7 @@ export function CoachingRoster() {
                     </span>
                   </div>
                   {/* Squad badge */}
-                  <div className="mt-1" onClick={() => startEditing(athlete.id, 'squad')}>
+                  <div className={`mt-1 ${editMode ? 'cursor-pointer' : ''}`} onClick={() => handleEditableCellClick(athlete.id, 'squad')}>
                     {isEditing(athlete.id, 'squad') ? (
                       <>
                         <input ref={r => { editRef.current = r; }} type="text" list={`sq-m-${athlete.id}`} value={editValue}
@@ -729,7 +761,7 @@ export function CoachingRoster() {
               {/* Editable fields grid */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                 {/* Grade */}
-                <div className="cursor-pointer" onClick={() => startEditing(athlete.id, 'grade')}>
+                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'grade')}>
                   <span className="text-neutral-500 text-xs">Grade</span>
                   <div>
                     {isEditing(athlete.id, 'grade') ? (
@@ -742,7 +774,7 @@ export function CoachingRoster() {
                 </div>
 
                 {/* Side */}
-                <div className="cursor-pointer" onClick={() => startEditing(athlete.id, 'side')}>
+                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'side')}>
                   <span className="text-neutral-500 text-xs">Side</span>
                   <div>
                     {isEditing(athlete.id, 'side') ? (
@@ -760,7 +792,7 @@ export function CoachingRoster() {
                 </div>
 
                 {/* Experience */}
-                <div className="cursor-pointer" onClick={() => startEditing(athlete.id, 'experience_level')}>
+                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'experience_level')}>
                   <span className="text-neutral-500 text-xs">Experience</span>
                   <div>
                     {isEditing(athlete.id, 'experience_level') ? (
@@ -814,7 +846,7 @@ export function CoachingRoster() {
                 </div>
 
                 {/* Height */}
-                <div className="cursor-pointer" onClick={() => startEditing(athlete.id, 'height')}>
+                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'height')}>
                   <span className="text-neutral-500 text-xs">Height</span>
                   <div>
                     {isEditing(athlete.id, 'height') ? isImperial ? (
@@ -851,7 +883,7 @@ export function CoachingRoster() {
                 </div>
 
                 {/* Weight */}
-                <div className="cursor-pointer" onClick={() => startEditing(athlete.id, 'weight')}>
+                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'weight')}>
                   <span className="text-neutral-500 text-xs">Weight</span>
                   <div>
                     {isEditing(athlete.id, 'weight') ? (
@@ -902,22 +934,22 @@ export function CoachingRoster() {
                     {/* Row number */}
                     <td className={`${cellBase} text-neutral-500 font-mono text-xs`}>{index + 1}</td>
                     {/* First Name */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'first_name')}>
+                    <td className={editableCellClass} onClick={() => editMode ? startEditing(athlete.id, 'first_name') : openAthleteDetail(athlete.id)}>
                       {isEditing(athlete.id, 'first_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
                           onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${inputClass} w-24`} title="First name" />
                       ) : (
-                        <span className="text-white font-medium">{athlete.first_name}</span>
+                        <span className={`text-white font-medium ${editMode ? '' : 'hover:text-indigo-300 transition-colors'}`}>{athlete.first_name}</span>
                       )}
                     </td>
 
                     {/* Last Name */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'last_name')}>
+                    <td className={editableCellClass} onClick={() => editMode ? startEditing(athlete.id, 'last_name') : openAthleteDetail(athlete.id)}>
                       {isEditing(athlete.id, 'last_name') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
                           onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${inputClass} w-24`} title="Last name" />
                       ) : (
-                        <span className="text-white font-medium">{athlete.last_name}</span>
+                        <span className={`text-white font-medium ${editMode ? '' : 'hover:text-indigo-300 transition-colors'}`}>{athlete.last_name}</span>
                       )}
                     </td>
 
@@ -929,7 +961,7 @@ export function CoachingRoster() {
                     )}
 
                     {/* Squad */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'squad')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'squad')}>
                       {isEditing(athlete.id, 'squad') ? (
                         <>
                           <input ref={r => { editRef.current = r; }} type="text" list={`sq-${athlete.id}`} value={editValue}
@@ -947,7 +979,7 @@ export function CoachingRoster() {
                     </td>
 
                     {/* Grade */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'grade')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'grade')}>
                       {isEditing(athlete.id, 'grade') ? (
                         <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
                           onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${inputClass} w-16`} title="Grade" />
@@ -957,7 +989,7 @@ export function CoachingRoster() {
                     </td>
 
                     {/* Side */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'side')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'side')}>
                       {isEditing(athlete.id, 'side') ? (
                         <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
                           onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-28`} title="Side">
@@ -972,7 +1004,7 @@ export function CoachingRoster() {
                     </td>
 
                     {/* Experience Level */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'experience_level')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'experience_level')}>
                       {isEditing(athlete.id, 'experience_level') ? (
                         <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
                           onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-32`} title="Experience level">
@@ -1020,7 +1052,7 @@ export function CoachingRoster() {
                     </td>
 
                     {/* Height (ft/in) */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'height')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'height')}>
                       {isEditing(athlete.id, 'height') ? isImperial ? (
                         <div className="flex items-center gap-1"
                           onClick={e => e.stopPropagation()}
@@ -1055,7 +1087,7 @@ export function CoachingRoster() {
                     </td>
 
                     {/* Weight (lbs) */}
-                    <td className={editableCellClass} onClick={() => startEditing(athlete.id, 'weight')}>
+                    <td className={editableCellClass} onClick={() => handleEditableCellClick(athlete.id, 'weight')}>
                       {isEditing(athlete.id, 'weight') ? (
                         <div className="flex items-center gap-1">
                           <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}

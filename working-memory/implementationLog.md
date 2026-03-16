@@ -4,6 +4,58 @@
 
 ---
 
+## Phase 45: Leaderboard Parity + Light-Mode Contrast (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/services/coaching/analyticsView.ts`
+  - added shared analytics helpers for time-range presets, decimal rank formatting, and public-share leaderboard/chart reconstruction from shared assignment payloads
+  - moved the public leaderboard off its stale standalone ranking math so it now follows the same derived model as Team Analytics
+
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - aligned the charts with the selected leaderboard lens by filtering erg comparison data to the active time range and tests-only mode
+  - updated share-link creation to preserve the active analytics lens with query params
+  - changed leaderboard pagination to 20 rows and added a visual separator after every 8 visible athletes
+  - fixed light-mode contrast for the leaderboard helper card, row states, expanded detail cards, recent-work table, and pagination buttons
+
+- `src/pages/PublicTeamLeaderboardShare.tsx`
+  - rebuilt the share page to mirror the internal leaderboard structure, copy, filters, rank display, expansion cards, pagination, and charts
+  - added light-mode summary cards, filter chips, helper copy panels, row states, and expansion surfaces so the page remains readable on white/light backgrounds
+
+- `src/components/coaching/ErgComparisonChart.tsx`
+  - removed the dependency on a separate athlete list for weight lookups so the chart can be reused by both internal and public analytics views
+  - added an option to suppress the internal-only results deep link on public share pages
+
+- `src/services/coaching/coachingService.ts`
+  - extended erg-comparison rows with weight/test metadata so chart behavior can stay aligned with leaderboard filters
+
+### Why This Approach Won
+
+- the public share page had already drifted from the internal analytics surface because it reimplemented ranking and filtering separately
+- moving the shared view logic into a small analytics helper keeps parity maintainable without coupling the public page to internal page state
+- handling light-mode contrast in the same pass avoided preserving a split experience where parity existed functionally but not visually
+
+### Validation
+
+- `get_errors` on:
+  - `src/pages/coaching/TeamAnalytics.tsx`
+  - `src/pages/PublicTeamLeaderboardShare.tsx`
+  - `src/components/coaching/ErgComparisonChart.tsx`
+  - `src/services/coaching/analyticsView.ts`
+  - `src/services/coaching/coachingService.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ⚠️ unchanged pre-existing repo debt remains in unrelated files (`src/App.tsx`, `src/api/*`, older analytics components)
+
+### Outcome
+
+Internal and public leaderboard views now stay aligned on filters, charts, ranking behavior, pagination, and scanability, with light-mode contrast brought up to the same readable standard as the main leaderboard.
+
+---
+
 ## Phase 44: Speed Index Terminology Rename (March 16, 2026)
 
 **Timeline**: March 16, 2026  

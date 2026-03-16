@@ -40,6 +40,7 @@ import {
   FileDown,
   Upload,
   Flag,
+  Info,
 } from 'lucide-react';
 import {
   BarChart,
@@ -1277,20 +1278,47 @@ function SortTh({
   field,
   sortField,
   onSort,
+  helpText,
 }: {
   label: string;
   field: SortField;
   sortField: SortField;
   onSort: (f: SortField) => void;
+  helpText?: string;
 }) {
   return (
     <th
       className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-right cursor-pointer hover:text-neutral-200 transition-colors whitespace-nowrap"
       onClick={() => onSort(field)}
     >
-      {label}
+      <span className="inline-flex items-center justify-end gap-1">
+        <span>{label}</span>
+        {helpText ? <MetricHelp label={label} description={helpText} /> : null}
+      </span>
       <SortIcon field={field} sortField={sortField} />
     </th>
+  );
+}
+
+function MetricHelp({ label, description }: { label: string; description: string }) {
+  return (
+    <span className="relative inline-flex items-center group">
+      <button
+        type="button"
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex items-center justify-center rounded-full text-neutral-500 hover:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        aria-label={`${label}: ${description}`}
+        title={`${label}: ${description}`}
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-[11px] normal-case leading-relaxed text-neutral-300 shadow-xl group-hover:block group-focus-within:block"
+      >
+        {description}
+      </span>
+    </span>
   );
 }
 
@@ -1343,7 +1371,7 @@ function SummaryTable({
     });
   }, [rows, searchTerm, statusFilter]);
 
-  // Titan Index: Z-score composite of speed (split) + efficiency (W/lb), 0-100 scale
+  // Speed Index: Z-score composite of speed (split) + efficiency (W/lb), 0-100 scale
   const titanMap = useMemo(() => {
     const map = new Map<string, number>();
     const eligible = filteredRows.filter(
@@ -1504,14 +1532,14 @@ function SummaryTable({
               <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-center">Status</th>
               <SortTh label="Split /500m" field="split" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Watts" field="watts" sortField={sortField} onSort={toggleSort} />
-              {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} />}
+              {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} helpText="Power-to-weight shows how much power an athlete produces relative to body weight. It is useful context, but Speed Index still anchors ranking to actual boat-moving speed." />}
               <SortTh label="Distance" field="distance" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Time" field="time" sortField={sortField} onSort={toggleSort} />
               <SortTh label="SR" field="stroke_rate" sortField={sortField} onSort={toggleSort} />
-              {hasTitan && <SortTh label="Titan Index" field="titan" sortField={sortField} onSort={toggleSort} />}
+              {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized split and W/lb into a 0 to 100 score. Split stays the primary signal, while efficiency rewards athletes who create more speed for their size." />}
               {isInterval && <SortTh label={bestRepLabel} field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <SortTh label="Best Split" field="best" sortField={sortField} onSort={toggleSort} />}
-              {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} />}
+              {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} helpText="Efficiency is the best completed rep expressed as W/lb. It rewards athletes who generate more power per pound, but it is meant to complement split rather than replace it." />}
               {isInterval && <SortTh label="Worst" field="worst" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-right">Spread</th>}
             </tr>

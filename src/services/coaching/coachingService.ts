@@ -2876,7 +2876,7 @@ export interface SeasonLeaderboardEntry {
 
 /**
  * Season-to-date leaderboard from ALL completed assignments with scores.
- * Lower average rank is better (1 = best). Ranks are integers.
+ * Lower average rank is better (1 = best). Average ranks may include decimals.
  * Pass `orgId` to include org-level assignments (team_id = null, org_id set).
  */
 export async function getSeasonMeasuredLeaderboard(
@@ -2996,8 +2996,8 @@ export async function getSeasonMeasuredLeaderboard(
     const athlete = athleteMap.get(athleteId);
     const sortedTrend = [...ranks.rawByDate].sort((a, b) => a.date.localeCompare(b.date));
     const trend = sortedTrend.length >= 2 ? sortedTrend[sortedTrend.length - 1].rank - sortedTrend[0].rank : null;
-    const avgRaw = ranks.raw.length > 0 ? Math.round(ranks.raw.reduce((sum, v) => sum + v, 0) / ranks.raw.length) : null;
-    const avgWplb = ranks.wplb.length > 0 ? Math.round(ranks.wplb.reduce((sum, v) => sum + v, 0) / ranks.wplb.length) : null;
+    const avgRaw = ranks.raw.length > 0 ? ranks.raw.reduce((sum, v) => sum + v, 0) / ranks.raw.length : null;
+    const avgWplb = ranks.wplb.length > 0 ? ranks.wplb.reduce((sum, v) => sum + v, 0) / ranks.wplb.length : null;
     const avgSplit = ranks.splits.length > 0 ? ranks.splits.reduce((sum, v) => sum + v, 0) / ranks.splits.length : null;
     const avgWplbValue = ranks.wplbValues.length > 0 ? ranks.wplbValues.reduce((sum, v) => sum + v, 0) / ranks.wplbValues.length : null;
     const avgTime = ranks.times.length > 0 ? ranks.times.reduce((sum, v) => sum + v, 0) / ranks.times.length : null;
@@ -3009,7 +3009,7 @@ export async function getSeasonMeasuredLeaderboard(
     const compositeRaw = avgRaw != null && avgWplb != null
       ? (avgRaw + avgWplb) / 2
       : avgRaw ?? avgWplb ?? null;
-    const composite = compositeRaw != null ? Math.round(compositeRaw) : null;
+    const composite = compositeRaw;
     const titanIndex = ranks.titanIndexes.length > 0
       ? Math.round((ranks.titanIndexes.reduce((s, v) => s + v, 0) / ranks.titanIndexes.length) * 10) / 10
       : null;
@@ -3107,10 +3107,10 @@ export function rerankLeaderboard(entries: SeasonLeaderboardEntry[]): SeasonLead
   // Build re-ranked entries
   return entries.map((e) => {
     const ranks = perAthlete.get(e.athlete_id)!;
-    const avgRaw = ranks.rawRanks.length > 0 ? Math.round(ranks.rawRanks.reduce((s, v) => s + v, 0) / ranks.rawRanks.length) : null;
-    const avgWplb = ranks.wplbRanks.length > 0 ? Math.round(ranks.wplbRanks.reduce((s, v) => s + v, 0) / ranks.wplbRanks.length) : null;
+    const avgRaw = ranks.rawRanks.length > 0 ? ranks.rawRanks.reduce((s, v) => s + v, 0) / ranks.rawRanks.length : null;
+    const avgWplb = ranks.wplbRanks.length > 0 ? ranks.wplbRanks.reduce((s, v) => s + v, 0) / ranks.wplbRanks.length : null;
     const compositeRaw = avgRaw != null && avgWplb != null ? (avgRaw + avgWplb) / 2 : avgRaw ?? avgWplb ?? null;
-    const composite = compositeRaw != null ? Math.round(compositeRaw) : null;
+    const composite = compositeRaw;
     const sortedTrend = [...ranks.rankByDate].sort((a, b) => a.date.localeCompare(b.date));
     const trend = sortedTrend.length >= 2 ? sortedTrend[sortedTrend.length - 1].rank - sortedTrend[0].rank : null;
     const visibleTitans = ranks.titanScores.map((score) => score.value);
@@ -3184,6 +3184,8 @@ export interface TeamErgComparison {
   bestSplit: number;
   bestWatts: number;
   date: string;
+  weightKg?: number | null;
+  is_test?: boolean;
   /** Grouping label for the chart selector, e.g. "2k Test · Mar 10" or "2000m" */
   assignmentLabel: string;
   /** group_assignment_id for linking to results page */
@@ -3203,7 +3205,7 @@ interface AssignmentRow {
   result_split_seconds: number | null;
   workout_date: string;
   group_assignment_id: string | null;
-  group_assignments: { title: string | null; scheduled_date: string; workout_templates: { name: string } | null } | null;
+  group_assignments: { title: string | null; scheduled_date: string; workout_templates: { name: string; is_test: boolean | null } | null } | null;
 }
 
 /** Get erg comparison data per assignment/workout for the chart.
@@ -3223,7 +3225,7 @@ export async function getTeamErgComparison(teamId: string): Promise<TeamErgCompa
   if (athleteIds.length > 0) {
     const { data, error } = await supabase
       .from('daily_workout_assignments')
-      .select('athlete_id, result_time_seconds, result_distance_meters, result_split_seconds, workout_date, group_assignment_id, group_assignments(title, scheduled_date, workout_templates(name))')
+      .select('athlete_id, result_time_seconds, result_distance_meters, result_split_seconds, workout_date, group_assignment_id, group_assignments(title, scheduled_date, workout_templates(name, is_test))')
       .in('athlete_id', athleteIds)
       .eq('completed', true)
       .not('result_time_seconds', 'is', null)
@@ -3281,6 +3283,8 @@ export async function getTeamErgComparison(teamId: string): Promise<TeamErgCompa
         bestSplit: splitSec,
         bestWatts: watts,
         date: r.workout_date,
+        weightKg: athlete.weight_kg ?? null,
+        is_test: r.group_assignments?.workout_templates?.is_test ?? false,
         assignmentLabel: label,
         assignmentId: realAssignmentId,
       });
@@ -3319,6 +3323,8 @@ export async function getTeamErgComparison(teamId: string): Promise<TeamErgCompa
         bestSplit: splitSec,
         bestWatts: watts,
         date: s.date,
+        weightKg: athlete.weight_kg ?? null,
+        is_test: false,
         assignmentLabel: label,
       });
     }

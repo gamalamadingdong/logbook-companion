@@ -32,7 +32,6 @@ import type { CoachingBoating, CoachingSession, UserTeamInfo, TeamRole } from '.
 import { format } from 'date-fns';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg } from '../../utils/unitConversion';
 import { benchmarkCriteriaIndicator, benchmarkTierBadgeClass, benchmarkTierLabel, buildBest2kByAthlete, deriveBenchmarkTier, formatErgTime, type PerformanceTierRubricConfig } from '../../utils/performanceTierRubric';
-import { formatSplit } from '../../utils/paceCalculator';
 import { useMeasurementUnits } from '../../hooks/useMeasurementUnits';
 import { toast } from 'sonner';
 
@@ -752,40 +751,31 @@ export const CoachDashboard: React.FC = () => {
 
           <div className="mb-6 bg-neutral-900 border border-neutral-800 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-neutral-300">Season Measured Leaderboard</h3>
-                <Link to="/team-management/analytics" className="text-xs text-indigo-400 hover:text-indigo-300">Analytics →</Link>
+                <div>
+                  <h3 className="text-sm font-semibold text-neutral-300">Season Leaderboard</h3>
+                  <p className="mt-1 text-[11px] text-neutral-500">Lead with Speed Index here, then open Analytics for rank breakdown and recent workout context.</p>
+                </div>
+                <Link to="/team-management/analytics" className="text-xs text-indigo-400 hover:text-indigo-300">Open Analytics →</Link>
               </div>
               {seasonLeaderboard.length > 0 ? (
               <div className="space-y-2">
                 {seasonLeaderboard.map((row, idx) => {
-                  const speedDisplay = row.latest_time_seconds != null && row.latest_distance != null
-                    ? formatLbTime(row.latest_time_seconds)
-                    : row.latest_split_seconds != null
-                      ? formatSplit(row.latest_split_seconds)
-                      : null;
                   return (
-                    <div key={row.athlete_id} className="flex items-center justify-between text-sm gap-3">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-neutral-500 mr-2">{idx + 1}.</span>
-                        <span className="text-neutral-100">{row.athlete_name}</span>
-                        {(row.squad || row.performance_tier) && (
-                          <span className="text-[11px] text-neutral-500 ml-2">
-                            {[row.squad, row.performance_tier].filter(Boolean).join(' · ')}
-                          </span>
-                        )}
+                    <div key={row.athlete_id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 bg-neutral-950/40 px-3 py-2.5">
+                      <div className="min-w-0 flex items-center gap-3">
+                        <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${idx < 3 ? 'bg-neutral-800 text-white border border-neutral-700' : 'bg-neutral-900 text-neutral-300 border border-neutral-800'}`}>
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-neutral-100 truncate">{row.athlete_name}</div>
+                          <div className="mt-0.5 text-[11px] text-neutral-500 truncate">
+                            {[row.squad, row.performance_tier].filter(Boolean).join(' · ') || 'No squad or tier'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 text-xs font-mono shrink-0">
-                        <span className="text-white font-semibold">{row.composite_rank ?? '—'}</span>
-                        <span className="text-neutral-400 whitespace-nowrap">
-                          {speedDisplay != null ? (
-                            <>{speedDisplay} <span className="text-neutral-600">({row.avg_raw_rank})</span></>
-                          ) : '—'}
-                        </span>
-                        <span className="text-neutral-400 whitespace-nowrap">
-                          {row.latest_wplb != null ? (
-                            <>{row.latest_wplb.toFixed(2)} <span className="text-neutral-600">({row.avg_wplb_rank})</span></>
-                          ) : '—'}
-                        </span>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">Speed Index</div>
+                        <div className="mt-0.5 font-mono text-sm font-semibold text-white">{row.titan_index != null ? row.titan_index.toFixed(1) : '—'}</div>
                       </div>
                     </div>
                   );
@@ -1184,8 +1174,3 @@ export const CoachDashboard: React.FC = () => {
   );
 };
 
-function formatLbTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs < 10 ? '0' : ''}${secs.toFixed(1)}`;
-}
