@@ -189,6 +189,7 @@ export function CoachingBoatings() {
             <button
               onClick={() => setIsAdding(true)}
               disabled={athletes.length === 0}
+              title={athletes.length === 0 ? 'Add athletes to the roster first' : 'Create a new boat lineup'}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />

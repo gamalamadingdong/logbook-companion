@@ -129,7 +129,7 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
           <select
             value={activeLabel ?? ''}
             onChange={(e) => setSelectedLabel(e.target.value)}
-            className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none max-w-[220px] truncate"
+            className="px-3 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none max-w-[220px] truncate dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
             aria-label="Select workout"
           >
             {assignmentLabels.map(label => (
@@ -139,7 +139,7 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
           {showResultsLink && activeAssignmentId && (
             <Link
               to={`/team-management/assignments/${activeAssignmentId}/results`}
-              className="text-indigo-400 hover:text-indigo-300 text-xs font-medium whitespace-nowrap transition-colors"
+              className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs font-medium whitespace-nowrap transition-colors"
             >
               View Results →
             </Link>
@@ -148,11 +148,13 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
 
         <div className="flex items-center gap-3">
           {/* Sort toggle */}
-          <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-0.5">
+          <div className="flex gap-1 bg-neutral-100 rounded-lg p-0.5 dark:bg-neutral-800/50">
             <button
               onClick={() => setYMetric('watts')}
               className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                yMetric === 'watts' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
+                yMetric === 'watts'
+                  ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                  : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
               }`}
             >
               Sort: Watts
@@ -160,7 +162,9 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
             <button
               onClick={() => setYMetric('split')}
               className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                yMetric === 'split' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
+                yMetric === 'split'
+                  ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                  : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
               }`}
             >
               Sort: Split
@@ -169,7 +173,9 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
               <button
                 onClick={() => setYMetric('wlb')}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                  yMetric === 'wlb' ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'
+                  yMetric === 'wlb'
+                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
                 }`}
               >
                 Sort: Efficiency
@@ -178,7 +184,7 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
           </div>
           {yMetric === 'wlb' && avgWlb > 0 && (
             <span className="text-xs text-neutral-500">
-              Avg: <span className="text-neutral-300 font-mono">{avgWlb} W/lb</span>
+              Avg: <span className="text-neutral-700 dark:text-neutral-300 font-mono">{avgWlb} W/lb</span>
             </span>
           )}
         </div>
@@ -195,59 +201,59 @@ export function ErgComparisonChart({ data, showResultsLink = true }: Props) {
         <div className="space-y-4">
           {workoutSummary && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+              <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:shadow-none">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Workout</div>
-                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.distance}m test set</div>
+                <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{workoutSummary.distance}m test set</div>
                 <div className="mt-1 text-[11px] text-neutral-500">{workoutSummary.athletes} scored athletes</div>
               </div>
-              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+              <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:shadow-none">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Fastest Split</div>
-                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.fastest?.name ?? '—'}</div>
-                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.fastest ? `${formatSplit(workoutSummary.fastest.bestSplit)}/500m` : '—'}</div>
+                <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{workoutSummary.fastest?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-600 dark:text-neutral-300">{workoutSummary.fastest ? `${formatSplit(workoutSummary.fastest.bestSplit)}/500m` : '—'}</div>
               </div>
-              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+              <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:shadow-none">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Highest Watts</div>
-                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.strongest?.name ?? '—'}</div>
-                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.strongest ? `${Math.round(workoutSummary.strongest.bestWatts)}W` : '—'}</div>
+                <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{workoutSummary.strongest?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-600 dark:text-neutral-300">{workoutSummary.strongest ? `${Math.round(workoutSummary.strongest.bestWatts)}W` : '—'}</div>
               </div>
-              <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+              <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:shadow-none">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Best Efficiency</div>
-                <div className="mt-1 text-sm font-semibold text-white">{workoutSummary.mostEfficient?.name ?? '—'}</div>
-                <div className="mt-1 text-[11px] font-mono text-neutral-300">{workoutSummary.mostEfficient?.wattsPerLb != null ? `${workoutSummary.mostEfficient.wattsPerLb.toFixed(2)} W/lb` : '—'}</div>
+                <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{workoutSummary.mostEfficient?.name ?? '—'}</div>
+                <div className="mt-1 text-[11px] font-mono text-neutral-600 dark:text-neutral-300">{workoutSummary.mostEfficient?.wattsPerLb != null ? `${workoutSummary.mostEfficient.wattsPerLb.toFixed(2)} W/lb` : '—'}</div>
               </div>
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-800">
+          <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-700 bg-neutral-800/95 text-xs font-semibold text-neutral-200">
+                <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/95 dark:text-neutral-200">
                   <th className="text-left py-3 px-3 w-12">#</th>
                   <th className="text-left py-3 px-3 min-w-[180px]">Athlete</th>
                   <th className="text-left py-3 px-3 min-w-[96px]">Squad</th>
-                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'split' ? 'text-white' : ''}`}>Split</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'split' ? 'text-neutral-900 dark:text-white' : ''}`}>Split</th>
                   <th className="text-right py-3 px-3 whitespace-nowrap">Time</th>
-                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'watts' ? 'text-white' : ''}`}>Watts</th>
-                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'wlb' ? 'text-white' : ''}`}>W/lb</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'watts' ? 'text-neutral-900 dark:text-white' : ''}`}>Watts</th>
+                  <th className={`text-right py-3 px-3 whitespace-nowrap ${yMetric === 'wlb' ? 'text-neutral-900 dark:text-white' : ''}`}>W/lb</th>
                 </tr>
               </thead>
               <tbody>
                 {chartData.map((row, index) => (
-                  <tr key={row.athleteId} className="border-b border-neutral-800/60 text-neutral-300 hover:bg-neutral-800/20">
+                  <tr key={row.athleteId} className="border-b border-neutral-100 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800/20">
                     <td className="py-3 px-3 align-top">
-                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 px-2 text-xs font-semibold text-white">
+                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-neutral-300 bg-neutral-100 px-2 text-xs font-semibold text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                         {index + 1}
                       </span>
                     </td>
                     <td className="py-3 px-3 align-top">
-                      <div className="font-medium text-white">{row.name}</div>
+                      <div className="font-medium text-neutral-900 dark:text-white">{row.name}</div>
                       {row.team_name && <div className="mt-1 text-[11px] text-neutral-500">{row.team_name}</div>}
                     </td>
-                    <td className="py-3 px-3 align-top text-neutral-400">{row.squad ?? '—'}</td>
-                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-200">{formatSplit(row.bestSplit)}</td>
-                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{formatTimeFull(row.bestTime)}</td>
-                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{Math.round(row.bestWatts)}W</td>
-                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-300">{row.wattsPerLb != null ? row.wattsPerLb.toFixed(2) : '—'}</td>
+                    <td className="py-3 px-3 align-top text-neutral-500 dark:text-neutral-400">{row.squad ?? '—'}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-700 dark:text-neutral-200">{formatSplit(row.bestSplit)}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-600 dark:text-neutral-300">{formatTimeFull(row.bestTime)}</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-600 dark:text-neutral-300">{Math.round(row.bestWatts)}W</td>
+                    <td className="py-3 px-3 align-top text-right font-mono text-neutral-600 dark:text-neutral-300">{row.wattsPerLb != null ? row.wattsPerLb.toFixed(2) : '—'}</td>
                   </tr>
                 ))}
               </tbody>

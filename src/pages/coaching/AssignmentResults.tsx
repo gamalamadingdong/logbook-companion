@@ -1536,7 +1536,7 @@ function SummaryTable({
               <SortTh label="Distance" field="distance" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Time" field="time" sortField={sortField} onSort={toggleSort} />
               <SortTh label="SR" field="stroke_rate" sortField={sortField} onSort={toggleSort} />
-              {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized split and W/lb into a 0 to 100 score. Split stays the primary signal, while efficiency rewards athletes who create more speed for their size." />}
+              {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized split and W/lb into a 0 to 100 score with equal weighting. That keeps speed and efficiency on the same standardized scale without adding extra explicit bias toward either input." />}
               {isInterval && <SortTh label={bestRepLabel} field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <SortTh label="Best Split" field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} helpText="Efficiency is the best completed rep expressed as W/lb. It rewards athletes who generate more power per pound, but it is meant to complement split rather than replace it." />}

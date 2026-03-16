@@ -4,7 +4,11 @@ import type {
   TeamErgComparison,
   TeamLeaderboardShareData,
 } from './coachingService';
-import { rerankLeaderboard } from './coachingService';
+import {
+  rerankLeaderboard,
+  TITAN_EFFICIENCY_WEIGHT,
+  TITAN_POWER_WEIGHT,
+} from './coachingService';
 
 export type AnalyticsRangePreset = '1w' | '4w' | 'season' | 'all';
 
@@ -102,7 +106,9 @@ function computeAssignmentTitanIndexes(
 
   const rawScores = eligible.map((row) => ({
     athleteId: row.athleteId,
-    value: (-(row.split - splitMean) / splitStd) * 0.7 + (((row.wplb! - wplbMean) / wplbStd) * 0.3),
+    value:
+      (-(row.split - splitMean) / splitStd) * TITAN_POWER_WEIGHT +
+      (((row.wplb! - wplbMean) / wplbStd) * TITAN_EFFICIENCY_WEIGHT),
   }));
 
   const minValue = Math.min(...rawScores.map((row) => row.value));

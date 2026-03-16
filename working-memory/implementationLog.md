@@ -4,6 +4,57 @@
 
 ---
 
+## Phase 46: Speed Index Equal-Weight Recalibration (March 16, 2026)
+
+**Timeline**: March 16, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/services/coaching/coachingService.ts`
+  - changed the canonical stored workout Speed Index formula from a 70/30 split to a 50/50 split between normalized split and normalized W/lb
+  - exported the weighting constants so other reconstruction paths can reuse the same definition instead of drifting
+
+- `src/services/coaching/analyticsView.ts`
+  - removed the duplicated hard-coded 70/30 math from the public/share reconstruction path and sourced the shared constants from coachingService
+
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - updated leaderboard helper copy and athlete expansion cards so the UI now explains the equal-weight model correctly
+
+- `src/pages/PublicTeamLeaderboardShare.tsx`
+  - updated the public share page copy to match the internal leaderboard surface and the canonical equal-weight model
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - rewrote the formula explanation to reflect the product rationale for equal weighting after z-score normalization
+  - kept the historical recompute action aligned with the new equal-weight formula
+
+- `src/pages/coaching/AssignmentResults.tsx`
+  - updated inline metric help so assignment-level explanations no longer describe a speed-biased blend
+
+- `readyall/src/app/docs/speed-index/page.tsx`
+  - updated the public Speed Index docs to reflect equal z-score blending and removed the old “speed remains the anchor” / 70-30 framing
+
+### Why This Approach Won
+
+- the user’s objection was at the model level, not just at the copy level: `W/lb` already carries speed-derived information because watts comes from split
+- leaving a fixed extra speed weight on top of that effectively double-counted speed more than intended
+- exporting the weights from the canonical scorer removes a fresh source of future public/internal drift
+
+### Validation
+
+- pending current pass command validation after edits:
+  - `get_errors`
+  - `npm run build` in `LogbookCompanion`
+  - `npm run test:run` in `LogbookCompanion`
+  - forced historical recompute of stored Speed Index values
+  - `npm run build` in `readyall`
+
+### Outcome
+
+Speed Index now uses an equal-weight z-score blend consistently across stored assignment scores, internal analytics, public shares, coaching copy, and public docs.
+
+---
+
 ## Phase 45: Leaderboard Parity + Light-Mode Contrast (March 16, 2026)
 
 **Timeline**: March 16, 2026  

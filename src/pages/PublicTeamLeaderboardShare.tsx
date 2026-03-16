@@ -170,7 +170,6 @@ export function PublicTeamLeaderboardShare() {
   const hasErgData = ergComparison.length > 0;
   const heading = payload ? [payload.orgName, payload.teamName].filter(Boolean).join(' · ') : 'Season Leaderboard';
   const currentScopeLabel = payload?.filterTeamId ? 'Selected team' : payload?.orgName ? 'Organization' : 'Current team';
-  const currentModeLabel = testsOnly ? 'Tests only' : 'All workouts';
 
   useEffect(() => {
     setLbPage(0);
@@ -216,70 +215,64 @@ export function PublicTeamLeaderboardShare() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200">
       <div className="max-w-[1400px] mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-medium mb-1">
-              <Trophy className="w-4 h-4" /> Season Leaderboard
-            </div>
-            <h1 className="text-2xl font-bold text-white">{heading}</h1>
-            <p className="text-sm text-neutral-400 mt-1">Shared coaching analytics view</p>
+        <div>
+          <div className="flex items-center gap-2 text-indigo-400 text-xs font-medium mb-1">
+            <Trophy className="w-4 h-4" /> Season Leaderboard
           </div>
-
-          {teamOptions.length > 1 && (
-            <select
-              value={teamFilter}
-              onChange={(e) => setTeamFilter(e.target.value)}
-              aria-label="Filter leaderboard by team"
-              className="px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              <option value="all">All Teams</option>
-              {teamOptions.map(([teamId, teamName]) => (
-                <option key={teamId} value={teamId}>{teamName}</option>
-              ))}
-            </select>
-          )}
+          <h1 className="text-2xl font-bold text-white">{heading}</h1>
+          <p className="text-sm text-neutral-400 mt-1">Shared coaching analytics view</p>
         </div>
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className={INFO_PILL_CLASS}>{selectedRange.label}</span>
-              <span className={INFO_PILL_CLASS}>{currentScopeLabel}</span>
-              <span className={INFO_PILL_CLASS}>{currentModeLabel}</span>
-              <span className={INFO_PILL_CLASS}>Squad: {payload.filterSquad ?? 'All'}</span>
-              <span className={INFO_PILL_CLASS}>Tier: {payload.filterTier ?? 'All'}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Time range */}
+            <div className={SEGMENT_WRAP_CLASS}>
+              {RANGE_PRESET_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTimeRangePreset(option.value)}
+                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${timeRangePreset === option.value ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className={SEGMENT_WRAP_CLASS}>
-                {RANGE_PRESET_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setTimeRangePreset(option.value)}
-                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${timeRangePreset === option.value ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+            {/* Workout mode */}
+            <div className={SEGMENT_WRAP_CLASS}>
+              <button
+                type="button"
+                onClick={() => setTestsOnly(false)}
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${!testsOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
+              >All Workouts</button>
+              <button
+                type="button"
+                onClick={() => setTestsOnly(true)}
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${testsOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
+              >Tests Only</button>
+            </div>
 
-              <div className={SEGMENT_WRAP_CLASS}>
-                <button
-                  type="button"
-                  onClick={() => setTestsOnly(false)}
-                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${!testsOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
-                >
-                  All Workouts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTestsOnly(true)}
-                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${testsOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
-                >
-                  Tests Only
-                </button>
-              </div>
+            {/* Team filter (org shares only) */}
+            {teamOptions.length > 1 && (
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                aria-label="Filter leaderboard by team"
+                className="px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-[11px] font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              >
+                <option value="all">All Teams</option>
+                {teamOptions.map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Context pills */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] ml-auto">
+              <span className={INFO_PILL_CLASS}>{currentScopeLabel}</span>
+              {payload.filterSquad && <span className={INFO_PILL_CLASS}>Squad: {payload.filterSquad}</span>}
+              {payload.filterTier && <span className={INFO_PILL_CLASS}>Tier: {payload.filterTier}</span>}
             </div>
           </div>
         </div>
@@ -326,21 +319,22 @@ export function PublicTeamLeaderboardShare() {
 
         {hasLeaderboardData && (
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-            <div className="mb-4 space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-4 dark:border-neutral-700/40 dark:bg-neutral-800/50">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
-                    <span className="font-semibold">{testsOnly ? 'Erg test lens' : 'Season lens'}</span>
-                    {testsOnly
-                      ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
-                      : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
-                  </p>
-                  <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
-                    Speed Index is a fixed 70/30 blend of speed and W/lb, averaged across the selected time range. Higher is better.
-                  </p>
-                </div>
+            <details className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700/40 dark:bg-neutral-800/50">
+              <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 select-none">
+                {testsOnly ? 'Erg test lens' : 'Season lens'} — how Speed Index works
+              </summary>
+              <div className="px-4 pb-3">
+                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
+                  <span className="font-semibold">{testsOnly ? 'Erg test lens' : 'Season lens'}</span>
+                  {testsOnly
+                    ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
+                    : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
+                </p>
+                <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
+                  Speed Index is an equal 50/50 blend of normalized speed and W/lb, averaged across the selected time range. Higher is better.
+                </p>
               </div>
-            </div>
+            </details>
 
             <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <table className="w-full text-sm">
@@ -378,7 +372,14 @@ export function PublicTeamLeaderboardShare() {
 
                     return (
                       <Fragment key={row.athlete_id}>
-                        <tr className={`border-b border-neutral-200 transition-colors dark:border-neutral-800/50 ${isBreakpointRow ? 'border-t-2 border-t-neutral-300 dark:border-t-neutral-700/80' : ''} ${isExpanded ? 'bg-neutral-100 dark:bg-neutral-800/30' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/20'}`}>
+                        {isBreakpointRow && (
+                          <tr aria-hidden="true">
+                            <td colSpan={7} className="px-3 py-2">
+                              <div className="h-2 rounded-full border border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none" />
+                            </td>
+                          </tr>
+                        )}
+                        <tr className={`border-b border-neutral-200 transition-colors dark:border-neutral-800/50 ${isExpanded ? 'bg-neutral-100 dark:bg-neutral-800/30' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/20'}`}>
                           <td className="py-3 pr-2 pl-3 align-top text-neutral-500 dark:text-neutral-500">
                             <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${globalRank <= 3 ? 'border border-neutral-300 bg-neutral-200 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white' : 'text-neutral-500 dark:text-neutral-500'}`}>
                               {globalRank}
@@ -441,7 +442,7 @@ export function PublicTeamLeaderboardShare() {
                                 <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Speed Index basis</div>
                                   <div className="mt-1 text-sm font-medium text-neutral-950 dark:text-white">{selectedRange.label}</div>
-                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">70% speed · 30% W/lb</div>
+                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% W/lb</div>
                                 </div>
                               </div>
                               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>

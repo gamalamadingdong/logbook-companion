@@ -868,7 +868,7 @@ export function CoachingSettings() {
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Speed Index Formula</label>
             <p className="text-xs text-neutral-500 mb-3">
-              Speed Index exists because raw speed and W/lb both represent something real. Raw speed still has to anchor the decision, while efficiency matters because it can make up for some lack of absolute power, but not infinitely. The score keeps both in view so a coach can recognize when efficiency meaningfully changes how a raw speed ranking should be read.
+              Speed Index exists because raw speed and W/lb both represent something real, but watts already sits downstream of split. The index now treats the two standardized signals as a 50/50 blend so efficiency stays visible without adding a second explicit speed bias on top of the physics already embedded in the power calculation.
             </p>
             <p className="text-xs text-neutral-500 mb-3">
               The normalization step matters because split and W/lb are different kinds of numbers. Using a z-score puts both signals into the same relative language for that workout: how far above or below the group average an athlete performed. Once both are on the same scale, blending them into one readable index is defensible instead of arbitrary.
@@ -880,7 +880,7 @@ export function CoachingSettings() {
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Recompute Speed Index</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Recalculate Speed Index for historical workouts using the same standardized speed-plus-efficiency formula. This is safe to run multiple times.
+              Recalculate Speed Index for historical workouts using the same equal-weight standardized speed-plus-efficiency formula. This is safe to run multiple times.
             </p>
             <div className="flex items-center gap-3">
               <button

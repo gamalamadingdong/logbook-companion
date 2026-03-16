@@ -61,6 +61,8 @@ export function CoachingSchedule() {
   const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
   const [notesVersion, setNotesVersion] = useState(0);
 
+  const [adjacentHasData, setAdjacentHasData] = useState<{ prev: boolean; next: boolean }>({ prev: false, next: false });
+
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -85,6 +87,36 @@ export function CoachingSchedule() {
       .then(([s, a, ga]) => { setSessions(s); setAthletes(a); setAssignments(ga); })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sessions'))
       .finally(() => setIsLoading(false));
+
+    // Lightweight lookahead for adjacent period indicators (non-blocking)
+    const checkAdjacent = async () => {
+      try {
+        let prevStart: string, prevEnd: string, nextStart: string, nextEnd: string;
+        if (viewMode === 'week') {
+          const pw = subWeeks(currentWeek, 1);
+          prevStart = format(startOfWeek(pw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+          prevEnd = format(endOfWeek(pw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+          const nw = addWeeks(currentWeek, 1);
+          nextStart = format(startOfWeek(nw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+          nextEnd = format(endOfWeek(nw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        } else {
+          const pm = subMonths(currentMonth, 1);
+          prevStart = format(startOfMonth(pm), 'yyyy-MM-dd');
+          prevEnd = format(endOfMonth(pm), 'yyyy-MM-dd');
+          const nm = addMonths(currentMonth, 1);
+          nextStart = format(startOfMonth(nm), 'yyyy-MM-dd');
+          nextEnd = format(endOfMonth(nm), 'yyyy-MM-dd');
+        }
+        const [prevSessions, nextSessions] = await Promise.all([
+          getSessionsByDateRange(effectiveTeamId, prevStart, prevEnd),
+          getSessionsByDateRange(effectiveTeamId, nextStart, nextEnd),
+        ]);
+        setAdjacentHasData({ prev: prevSessions.length > 0, next: nextSessions.length > 0 });
+      } catch {
+        // Non-critical — keep previous indicator state
+      }
+    };
+    checkAdjacent();
   }, [teamId, effectiveTeamId, isLoadingTeam, viewMode, currentWeek, currentMonth]);
 
   const refreshSessions = async () => {
@@ -221,8 +253,9 @@ export function CoachingSchedule() {
                 if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
                 else setCurrentMonth(subMonths(currentMonth, 1));
               }}
-                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'} title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
+                className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'} title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
                 <ChevronLeft className="w-5 h-5 text-neutral-400" />
+                {adjacentHasData.prev && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
               </button>
               <span className="text-sm sm:text-lg font-semibold text-center flex-1 sm:flex-initial sm:min-w-[200px] px-2 sm:px-4 py-2 bg-neutral-800 rounded-lg text-white truncate">
                 {viewMode === 'week'
@@ -235,8 +268,9 @@ export function CoachingSchedule() {
                 if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
                 else setCurrentMonth(addMonths(currentMonth, 1));
               }}
-                className="p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Next week' : 'Next month'} title={viewMode === 'week' ? 'Next week' : 'Next month'}>
+                className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Next week' : 'Next month'} title={viewMode === 'week' ? 'Next week' : 'Next month'}>
                 <ChevronRight className="w-5 h-5 text-neutral-400" />
+                {adjacentHasData.next && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
               </button>
               <button type="button" onClick={() => {
                 setIsLoading(true);

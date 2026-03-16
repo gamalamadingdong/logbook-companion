@@ -2,70 +2,23 @@
 
 > Last updated: March 16, 2026
 
-## Session Summary (2026-03-16) — Speed Index terminology rename
+## Session Summary (2026-03-16) — Coaching UX restructuring & compliance scoping
 
 ### Completed This Session
-- [x] **User-facing Titan terminology renamed to Speed Index**
-  - updated coaching analytics copy in `TeamAnalytics` and `CoachingSettings`
-  - updated the demo team-management seed runbook wording
-  - added a new ReadyAll docs route at `/docs/speed-index` and repointed the docs index to it
-  - converted the legacy `/docs/titan-index` page into a redirect so existing links still resolve cleanly
-- [x] **Leaderboard readability pass on Team Analytics**
-  - increased header-row contrast so sortable leaderboard labels remain readable in light mode
-  - removed `Avg Split` and `Best Split` from the leaderboard table to reduce noise
-  - kept `Latest Split` as the single split signal because it adds the most coaching value for current-form reads inside the selected time window
-  - stacked the analytics charts below the table as full-width sections instead of a two-column layout
-- [x] **Erg comparison view shifted from chart to workout table**
-  - replaced the horizontal bar chart with a sortable workout summary table so coaches can scan the whole workout without leaving the page
-  - kept the workout dropdown and `View Results` deep link
-  - added compact summary cards for fastest split, highest watts, and best efficiency on the selected workout
-- [x] **Speed Index rationale expanded in settings and docs**
-  - added plain-language explanation that speed remains the anchor signal while efficiency can compensate only to a point
-  - added clearer explanation for why z-score normalization is used before blending split and W/lb
-  - aligned the public Speed Index docs with the current leaderboard surface and terminology
-- [x] **Roster navigation and results metric help pass**
-  - added an explicit roster edit-mode toggle so inline editing is opt-in instead of always-on
-  - roster athlete names now open the athlete detail page when edit mode is off on both desktop and mobile
-  - added inline help affordances on assignment results for `Speed Index`, `Efficiency`, and `W/kg · W/lb`
-  - removed the remaining user-facing `Titan Index` label from assignment results while keeping internal identifiers stable
-- [x] **Team Analytics leaderboard columns reshaped for coaching context**
-  - reordered the leaderboard to `Athlete | Speed Index | Power Rank | Efficiency Rank | Last Workout Split | # Workouts`
-  - latest split now shows the most recent workout name underneath so coaches can interpret the split in context
-  - power rank and efficiency rank now render directly as sortable columns using decimal-safe numeric comparisons and display formatting
-- [x] **Leaderboard rank precision restored for close athletes**
-  - removed service-layer rounding of average power rank, efficiency rank, and composite rank so near-ties now stay distinguishable
-  - retained decimal-aware sorting on the Team Analytics leaderboard so values like `2.4` and `2.5` sort correctly
-  - aligned the expanded athlete card label from `Speed rank` to `Power rank` to match the leaderboard column naming
-- [x] **Rank guidance moved to leaderboard headers**
-  - removed repeated `Lower is better` helper text from every leaderboard row
-  - added the rank-direction cue once in the `Power Rank` and `Efficiency Rank` headers instead
-- [x] **Coach dashboard leaderboard card cleaned up**
-  - replaced the noisy inline raw-number row layout on `CoachDashboard` with compact athlete cards
-  - dashboard leaderboard now shows Speed Index, power rank, efficiency rank, latest scored workout context, and workout count without exposing confusing parenthetical raw values
-  - aligned the quick-view dashboard card more closely with the simplified Team Analytics leaderboard presentation
-- [x] **Public leaderboard parity + shared analytics lens completed**
-  - added shared analytics helpers so the public share page now mirrors Team Analytics time-range presets, tests-only mode, leaderboard ordering, decimal rank formatting, and chart lens behavior
-  - share links now preserve the active analytics lens via query params so copied public links open in the same range/tests state as the internal view
-  - both leaderboard tables now paginate at 20 rows and add a visual separator every 8 visible athletes for easier scanning
-- [x] **Light-mode leaderboard contrast fixed across both surfaces**
-  - updated helper cards, expanded-row panels, recent-work tables, pagination controls, and row hover/expanded states so the white/light surfaces stay readable
-  - aligned the public share page summary cards and filter chips with the internal leaderboard's light/dark contrast treatment
+- [x] **TeamAnalytics filter bar consolidation** — moved all filters (duration, workout type, squad, tier) onto one row; removed redundant info pills
+- [x] **TeamAnalytics dead code cleanup** — removed TrendBadge, currentModeLabel; simplified header; moved Training Zone Donut to charts section; collapsed leaderboard explanation to `<details>`
+- [x] **PublicTeamLeaderboardShare parity** — matched filter bar, explanation collapse, and unused var removal to private page
+- [x] **Disabled button tooltips** on CoachingErgScores, CoachingBoatings, CoachingAssignments
+- [x] **Schedule/Assignments week nav indicators** — adjacent-period dot indicators on CoachingSchedule + CoachingAssignments
+- [x] **CoachingAssignments restructured** — week nav moved under calendar tab only; compliance tab given independent time range selector (Last Week / 4 Weeks / Season / All Time)
+- [x] **Compliance tab scope alignment fixed**
+  - compliance now uses `visibleComplianceAssignments` (filtered by `filterTeamId`) instead of raw `complianceAssignments`
+  - compliance athletes use org-wide athletes (`ergOrgAthletes`) when org coach has no team filter, otherwise team athletes
+  - mutation handlers (`handleCreate`, `handleEdit`, `handleDelete`) now refresh compliance data when on compliance tab
 
 ### Validation
-- `get_errors` on `src/pages/coaching/CoachingRoster.tsx` and `src/pages/coaching/AssignmentResults.tsx` ✅
-- `npm run build` in `LogbookCompanion` ✅
-- `npm run build` in `readyall` ✅
-- `get_errors` on `src/pages/coaching/TeamAnalytics.tsx` ✅
-- `npm run build` in `LogbookCompanion` after leaderboard reshuffle ✅
-- `get_errors` on `src/services/coaching/coachingService.ts` and `src/pages/coaching/TeamAnalytics.tsx` after rank precision change ✅
-- `npm run build` in `LogbookCompanion` after rank precision change ✅
-- `get_errors` on `src/pages/coaching/TeamAnalytics.tsx` after rank-header cleanup ✅
-- `get_errors` on `src/pages/coaching/CoachDashboard.tsx` after leaderboard card cleanup ✅
-- `npm run build` in `LogbookCompanion` after dashboard leaderboard cleanup ✅
-- `get_errors` on `src/pages/coaching/TeamAnalytics.tsx` and `src/pages/PublicTeamLeaderboardShare.tsx` after leaderboard parity/light-mode pass ✅
-- `npm run test:run` after leaderboard parity pass ✅
-- `npm run build` in `LogbookCompanion` after leaderboard parity/light-mode pass ✅
-- `npm run lint` ⚠️ unchanged pre-existing repo debt remains in `src/App.tsx`, `src/api/*`, and older analytics components outside this change set
+- `tsc --noEmit` after compliance scope fix ✅
+- All changes compile cleanly
 
 ### Remaining
 - [ ] Decide whether internal `titan_*` schema and code identifiers should stay as-is long term or get a separate migration/rename pass later
@@ -142,7 +95,7 @@
   - athlete detail squad updates now also use the athlete's actual team scope in org-wide mode
 - [x] **Titan model simplified**
   - removed the coach-facing Titan power-bias slider from `CoachingSettings`
-  - Titan now uses a fixed 70/30 speed-to-W/lb blend instead of per-team slider weighting
+  - Titan weighting was simplified from the old per-team slider to a fixed formula, and has since been recalibrated again to the current equal-weight 50/50 z-score blend
   - fixed the rolling Titan window bug so the leaderboard uses the most recent workouts, not the oldest loaded ones
   - filtered/test-only leaderboard reranking now respects the configured Titan window instead of a hard-coded 5-workout average
 - [x] **Team Analytics UX pass**

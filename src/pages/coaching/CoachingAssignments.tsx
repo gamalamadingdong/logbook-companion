@@ -27,7 +27,7 @@ import {
 import { fetchTemplates } from '../../services/templateService';
 import type { WorkoutTemplateListItem } from '../../types/workoutStructure.types';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
-import { format, addDays, startOfWeek, endOfWeek, isToday, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, addDays, addWeeks, subWeeks, startOfWeek, endOfWeek, isToday, eachDayOfInterval, parseISO } from 'date-fns';
 import {
   Plus, Trash2, Loader2, ChevronLeft, ChevronRight,
   Calendar, Search, CheckSquare, X, Edit2, Repeat,
@@ -46,6 +46,12 @@ import {
   type EntryShape,
 } from '../../utils/workoutEntryClassifier';
 import { kgToLbs, lbsToKg } from '../../utils/unitConversion';
+import {
+  type AnalyticsRangePreset,
+  RANGE_PRESET_OPTIONS,
+  getRangeForPreset,
+} from '../../services/coaching/analyticsView';
+import { ComplianceTrendChart } from '../../components/coaching/ComplianceTrendChart';
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
@@ -68,11 +74,16 @@ export function CoachingAssignments() {
   const [bulkCompleteAssignmentId, setBulkCompleteAssignmentId] = useState<string | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<GroupAssignment | null>(null);
   const [viewMode, setViewMode] = useState<'calendar' | 'compliance' | 'list'>('list');
-  const [complianceCells, setComplianceCells] = useState<ComplianceCell[]>([]);
   const [allAssignments, setAllAssignments] = useState<GroupAssignment[]>([]);
   const [allComplianceCells, setAllComplianceCells] = useState<ComplianceCell[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
+  const [adjacentWeekHasData, setAdjacentWeekHasData] = useState<{ prev: boolean; next: boolean }>({ prev: false, next: false });
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [complianceRangePreset, setComplianceRangePreset] = useState<AnalyticsRangePreset>('4w');
+  const [complianceAssignments, setComplianceAssignments] = useState<GroupAssignment[]>([]);
+  const [complianceCellsForRange, setComplianceCellsForRange] = useState<ComplianceCell[]>([]);
+  const [isLoadingCompliance, setIsLoadingCompliance] = useState(false);
+  const [complianceReferenceDate] = useState(() => new Date());
 
   // Computed dates
   const today = new Date();
@@ -80,24 +91,23 @@ export function CoachingAssignments() {
   const weekStart = startOfWeek(refDate, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(refDate, { weekStartsOn: 1 });
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const complianceRange = useMemo(() => getRangeForPreset(complianceRangePreset, complianceReferenceDate), [complianceRangePreset, complianceReferenceDate]);
 
   const loadData = useCallback(async () => {
     if (!effectiveTeamId) return;
     try {
       const fromStr = format(weekStart, 'yyyy-MM-dd');
       const toStr = format(weekEnd, 'yyyy-MM-dd');
-      const [asgn, ath, sq, tmpl, compliance] = await Promise.all([
+      const [asgn, ath, sq, tmpl] = await Promise.all([
         getGroupAssignments(effectiveTeamId, { from: fromStr, to: toStr, orgId: orgId ?? undefined }),
         getAthletes(effectiveTeamId),
         getTeamSquads(effectiveTeamId),
         fetchTemplates({ sortBy: 'popular' }),
-        getComplianceData(effectiveTeamId, fromStr, toStr, orgId ?? undefined),
       ]);
       setAssignments(asgn);
       setAthletes(ath);
       setSquads(sq);
       setTemplates(tmpl);
-      setComplianceCells(compliance);
 
       // Fetch org-wide athletes when in an org (for org assignments)
       if (orgId) {
@@ -118,6 +128,23 @@ export function CoachingAssignments() {
       loadData();
     }
   }, [isLoadingTeam, effectiveTeamId, loadData]);
+
+  // Lightweight lookahead for adjacent week indicators (non-blocking)
+  useEffect(() => {
+    if (!effectiveTeamId || isLoadingTeam) return;
+    const prevWeek = subWeeks(weekStart, 1);
+    const nextWeek = addWeeks(weekStart, 1);
+    const prevFrom = format(prevWeek, 'yyyy-MM-dd');
+    const prevTo = format(endOfWeek(prevWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const nextFrom = format(nextWeek, 'yyyy-MM-dd');
+    const nextTo = format(endOfWeek(nextWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    Promise.all([
+      getGroupAssignments(effectiveTeamId, { from: prevFrom, to: prevTo, orgId: orgId ?? undefined }),
+      getGroupAssignments(effectiveTeamId, { from: nextFrom, to: nextTo, orgId: orgId ?? undefined }),
+    ])
+      .then(([prev, next]) => setAdjacentWeekHasData({ prev: prev.length > 0, next: next.length > 0 }))
+      .catch(() => { /* non-critical */ });
+  }, [effectiveTeamId, isLoadingTeam, orgId, weekStart.toISOString()]);
 
   // Load ALL assignments for list view (no date filter)
   const loadAllAssignments = useCallback(async () => {
@@ -144,12 +171,39 @@ export function CoachingAssignments() {
     }
   }, [viewMode, allAssignments.length, isLoadingList, loadAllAssignments]);
 
+  // Fetch compliance data for the selected range
+  const loadComplianceData = useCallback(async () => {
+    if (!effectiveTeamId) return;
+    setIsLoadingCompliance(true);
+    try {
+      const fromStr = complianceRange.from ?? '2000-01-01';
+      const toStr = complianceRange.to ?? '2099-12-31';
+      const [asgn, cells] = await Promise.all([
+        getGroupAssignments(effectiveTeamId, { from: fromStr, to: toStr, orgId: orgId ?? undefined }),
+        getComplianceData(effectiveTeamId, fromStr, toStr, orgId ?? undefined),
+      ]);
+      setComplianceAssignments(asgn);
+      setComplianceCellsForRange(cells);
+    } catch {
+      // Fall back to empty
+    } finally {
+      setIsLoadingCompliance(false);
+    }
+  }, [effectiveTeamId, orgId, complianceRange.from, complianceRange.to]);
+
+  useEffect(() => {
+    if (viewMode === 'compliance' && effectiveTeamId && !isLoadingTeam) {
+      loadComplianceData();
+    }
+  }, [viewMode, effectiveTeamId, isLoadingTeam, loadComplianceData]);
+
   const handleCreate = async (input: GroupAssignmentInput, athleteIds: string[]) => {
     try {
       await createGroupAssignment(input, athleteIds);
       toast.success('Workout assigned');
       setShowCreateForm(false);
       await loadData();
+      if (viewMode === 'compliance') await loadComplianceData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create assignment');
     }
@@ -159,6 +213,7 @@ export function CoachingAssignments() {
     try {
       await deleteGroupAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
+      setComplianceAssignments((prev) => prev.filter((a) => a.id !== id));
       toast.success('Assignment removed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete');
@@ -184,6 +239,7 @@ export function CoachingAssignments() {
       toast.success('Assignment updated');
       setEditingAssignment(null);
       await loadData();
+      if (viewMode === 'compliance') await loadComplianceData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
     }
@@ -193,10 +249,17 @@ export function CoachingAssignments() {
   const ergAthletes = useMemo(() => athletes.filter((a) => a.side !== 'coxswain'), [athletes]);
   const ergOrgAthletes = useMemo(() => orgAthletes.filter((a) => a.side !== 'coxswain'), [orgAthletes]);
 
-  // Filter assignments by team filter
+  // Filter assignments by team filter (shared logic for calendar + compliance)
   const visibleAssignments = filterTeamId
     ? assignments.filter((a) => a.team_id === filterTeamId || a.org_id)
     : assignments;
+
+  const visibleComplianceAssignments = filterTeamId
+    ? complianceAssignments.filter((a) => a.team_id === filterTeamId || a.org_id)
+    : complianceAssignments;
+
+  // For org coaches viewing all teams, use org-wide athletes; otherwise team athletes
+  const complianceAthletes = orgId && !filterTeamId ? ergOrgAthletes : ergAthletes;
 
   // Group assignments by date
   const assignmentsByDate = new Map<string, GroupAssignment[]>();
@@ -237,8 +300,8 @@ export function CoachingAssignments() {
     <>
       <CoachingNav />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
-        {/* ── Header Row: Title + Week Nav + View Toggle + Action ── */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        {/* ── Header Row: Title + View Toggle + Action ── */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Left: Title + scope indicator */}
           <div className="shrink-0">
             <h1 className="text-xl sm:text-2xl font-bold text-neutral-100">
@@ -251,36 +314,8 @@ export function CoachingAssignments() {
             </p>
           </div>
 
-          {/* Center: Week Navigator */}
-          <div className="flex items-center gap-2 sm:gap-3 justify-center order-3 lg:order-none">
-            <button
-              onClick={() => setWeekOffset((w) => w - 1)}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
-              aria-label="Previous week"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setWeekOffset(0)}
-              className={`text-sm font-medium transition-colors px-2 py-1 rounded-md ${
-                weekOffset === 0
-                  ? 'text-neutral-300'
-                  : 'text-indigo-400 hover:text-indigo-300 hover:bg-indigo-900/20'
-              }`}
-            >
-              {format(weekStart, 'MMM d')} – {format(weekEnd, 'MMM d, yyyy')}
-            </button>
-            <button
-              onClick={() => setWeekOffset((w) => w + 1)}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
-              aria-label="Next week"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
           {/* Right: View Toggle + Create */}
-          <div className="flex items-center gap-2 justify-between lg:justify-end order-2 lg:order-none">
+          <div className="flex items-center gap-2 justify-between sm:justify-end">
             <div className="flex gap-0.5 bg-neutral-800/50 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('calendar')}
@@ -328,11 +363,50 @@ export function CoachingAssignments() {
         </div>
 
         {viewMode === 'compliance' ? (
-          <ComplianceGrid
-            assignments={assignments}
-            athletes={ergAthletes}
-            cells={complianceCells}
-          />
+          <>
+            {/* Compliance range selector */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5 shrink-0 rounded-lg border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700/60 dark:bg-neutral-900/70">
+                {RANGE_PRESET_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setComplianceRangePreset(option.value)}
+                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                      complianceRangePreset === option.value
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-transparent text-neutral-600 hover:bg-white hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[11px] text-neutral-500">{complianceRange.label}</span>
+            </div>
+            {isLoadingCompliance ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {visibleComplianceAssignments.length > 0 && (
+                  <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
+                    <ComplianceTrendChart
+                      assignments={visibleComplianceAssignments}
+                      cells={complianceCellsForRange}
+                      athleteCount={complianceAthletes.length}
+                    />
+                  </div>
+                )}
+                <ComplianceGrid
+                  assignments={visibleComplianceAssignments}
+                  athletes={complianceAthletes}
+                  cells={complianceCellsForRange}
+                />
+              </>
+            )}
+          </>
         ) : viewMode === 'list' ? (
           <AssignmentListView
             assignments={allAssignments}
@@ -346,6 +420,36 @@ export function CoachingAssignments() {
           />
         ) : (
         <>
+        {/* ── Calendar: Week Navigator ── */}
+        <div className="flex items-center gap-2 sm:gap-3 justify-center">
+          <button
+            onClick={() => setWeekOffset((w) => w - 1)}
+            className="relative p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            {adjacentWeekHasData.prev && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+          </button>
+          <button
+            onClick={() => setWeekOffset(0)}
+            className={`text-sm font-medium transition-colors px-2 py-1 rounded-md ${
+              weekOffset === 0
+                ? 'text-neutral-300'
+                : 'text-indigo-400 hover:text-indigo-300 hover:bg-indigo-900/20'
+            }`}
+          >
+            {format(weekStart, 'MMM d')} – {format(weekEnd, 'MMM d, yyyy')}
+          </button>
+          <button
+            onClick={() => setWeekOffset((w) => w + 1)}
+            className="relative p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors"
+            aria-label="Next week"
+          >
+            <ChevronRight className="w-5 h-5" />
+            {adjacentWeekHasData.next && <span className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+          </button>
+        </div>
+
         {/* ── Date Strip ── */}
         <div className="flex gap-1 sm:gap-1.5">
           {weekDates.map((date) => {
@@ -954,6 +1058,7 @@ function CreateAssignmentForm({
               <button
                 type="submit"
                 disabled={isSaving || !templateId}
+                title={!templateId ? 'Select a workout template first' : undefined}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2047,7 +2152,7 @@ function ComplianceGrid({
   if (sortedAssignments.length === 0) {
     return (
       <div className="text-center py-8 text-neutral-500 text-sm">
-        No workouts this week.
+        No workouts in this range.
       </div>
     );
   }

@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "recompute:speed-index": "node scripts/recompute_speed_index.mjs",
     "seed:demo:team-management": "node scripts/seed_demo_team_management.mjs",
     "test": "vitest",
     "test:run": "vitest run"

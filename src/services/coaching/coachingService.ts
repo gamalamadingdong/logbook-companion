@@ -2834,8 +2834,8 @@ function wattsFromSplit(splitSeconds: number): number {
   return 2.8 / Math.pow(splitSeconds / 500, 3);
 }
 
-const TITAN_POWER_WEIGHT = 0.7;
-const TITAN_EFFICIENCY_WEIGHT = 0.3;
+export const TITAN_POWER_WEIGHT = 0.5;
+export const TITAN_EFFICIENCY_WEIGHT = 0.5;
 
 export interface SeasonLeaderboardEntry {
   athlete_id: string;

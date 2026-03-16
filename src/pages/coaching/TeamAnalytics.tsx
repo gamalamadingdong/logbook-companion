@@ -13,10 +13,14 @@ import {
   getSeasonMeasuredLeaderboard,
   rerankLeaderboard,
   getErgScores,
+  getGroupAssignments,
+  getComplianceData,
   type CoachingAthlete,
   type TeamErgComparison,
   type ZoneDistribution,
   type SeasonLeaderboardEntry,
+  type GroupAssignment,
+  type ComplianceCell,
   createTeamLeaderboardShare,
   buildTeamLeaderboardShareUrl,
 } from '../../services/coaching/coachingService';
@@ -24,6 +28,7 @@ import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { ErgComparisonChart } from '../../components/coaching/ErgComparisonChart';
 import { TrainingZoneDonut } from '../../components/coaching/TrainingZoneDonut';
 import { RankOverTimeChart } from '../../components/coaching/RankOverTimeChart';
+import { ComplianceTrendChart } from '../../components/coaching/ComplianceTrendChart';
 import { buildBest2kByAthlete, deriveBenchmarkTier, TIER_SORT_ORDER, type PerformanceTierRubricConfig } from '../../utils/performanceTierRubric';
 import { getOrganizationsForUser } from '../../services/coaching/coachingService';
 import { formatSplit } from '../../utils/paceCalculator';
@@ -52,6 +57,8 @@ export function TeamAnalytics() {
   const [ergComparison, setErgComparison] = useState<TeamErgComparison[]>([]);
   const [zoneDistribution, setZoneDistribution] = useState<{ zones: ZoneDistribution[]; total: number } | null>(null);
   const [seasonLeaderboard, setSeasonLeaderboard] = useState<SeasonLeaderboardEntry[]>([]);
+  const [complianceAssignments, setComplianceAssignments] = useState<GroupAssignment[]>([]);
+  const [complianceCells, setComplianceCells] = useState<ComplianceCell[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [squadFilter, setSquadFilter] = useState<string | 'all'>('all');
@@ -65,6 +72,7 @@ export function TeamAnalytics() {
   const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [titanTestOnly, setTitanTestOnly] = useState(false);
   const [timeRangePreset, setTimeRangePreset] = useState<AnalyticsRangePreset>('4w');
+  const [analyticsTab, setAnalyticsTab] = useState<'leaderboard' | 'erg-comparison'>('leaderboard');
   const [referenceDate] = useState(() => new Date());
   const LB_PAGE_SIZE = 20;
 
@@ -79,29 +87,37 @@ export function TeamAnalytics() {
     try {
       if (isOrg && orgId) {
         // Always fetch org-wide data; client-filter by filterTeamId
-        const [, loadedAthletes, ergData, zoneDist, leaderboard] = await Promise.all([
+        const [, loadedAthletes, ergData, zoneDist, leaderboard, cAssign, cCells] = await Promise.all([
           getTeamsForOrg(orgId),
           getOrgAthletesWithTeam(orgId),
           getOrgErgComparison(orgId).catch(() => [] as TeamErgComparison[]),
           getOrgTrainingZoneDistribution(orgId, { from: selectedRange.from, to: selectedRange.to }).catch(() => null),
           getSeasonMeasuredLeaderboard(teamId, { orgId, from: selectedRange.from, to: selectedRange.to }).catch(() => [] as SeasonLeaderboardEntry[]),
+          getGroupAssignments(teamId, { from: selectedRange.from, to: selectedRange.to, orgId }).catch(() => [] as GroupAssignment[]),
+          getComplianceData(teamId, selectedRange.from ?? '2000-01-01', selectedRange.to ?? '2099-12-31', orgId).catch(() => [] as ComplianceCell[]),
         ]);
         setAthletes(loadedAthletes.filter((a) => a.side !== 'coxswain'));
         setErgComparison(ergData);
         setZoneDistribution(zoneDist);
         setSeasonLeaderboard(leaderboard);
+        setComplianceAssignments(cAssign);
+        setComplianceCells(cCells);
       } else {
         // Non-org: single team only
-        const [loadedAthletes, ergData, zoneDist, leaderboard] = await Promise.all([
+        const [loadedAthletes, ergData, zoneDist, leaderboard, cAssign, cCells] = await Promise.all([
           getAthletes(teamId),
           getTeamErgComparison(teamId).catch(() => [] as TeamErgComparison[]),
           getTeamTrainingZoneDistribution(teamId, { from: selectedRange.from, to: selectedRange.to }).catch(() => null),
           getSeasonMeasuredLeaderboard(teamId, { from: selectedRange.from, to: selectedRange.to }).catch(() => [] as SeasonLeaderboardEntry[]),
+          getGroupAssignments(teamId, { from: selectedRange.from, to: selectedRange.to }).catch(() => [] as GroupAssignment[]),
+          getComplianceData(teamId, selectedRange.from ?? '2000-01-01', selectedRange.to ?? '2099-12-31').catch(() => [] as ComplianceCell[]),
         ]);
         setAthletes(loadedAthletes.filter((a) => a.side !== 'coxswain'));
         setErgComparison(ergData);
         setZoneDistribution(zoneDist);
         setSeasonLeaderboard(leaderboard);
+        setComplianceAssignments(cAssign);
+        setComplianceCells(cCells);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics');
@@ -151,6 +167,11 @@ export function TeamAnalytics() {
     if (!filterTeamId) return seasonLeaderboard;
     return seasonLeaderboard.filter((e) => e.team_id === filterTeamId);
   }, [seasonLeaderboard, filterTeamId]);
+
+  const filteredComplianceAssignments = useMemo(() => {
+    if (!filterTeamId) return complianceAssignments;
+    return complianceAssignments.filter((a) => a.team_id === filterTeamId || a.org_id);
+  }, [complianceAssignments, filterTeamId]);
 
   // Squads available within the current team filter
   const squads = useMemo(
@@ -300,13 +321,15 @@ export function TeamAnalytics() {
       : <ChevronDown className="w-3 h-3 inline ml-1 text-indigo-400" />;
   };
 
-  const hasZoneData= !titanTestOnly && zoneDistribution && zoneDistribution.total > 0;
+  const hasZoneData = zoneDistribution && zoneDistribution.total > 0;
+  const showZoneChart = hasZoneData && !titanTestOnly;
   const hasErgData = filteredErgData.length > 0;
   const hasLeaderboardData = sortedLeaderboard.length > 0;
-  const hasAnyData = hasZoneData || hasErgData || hasLeaderboardData;
+  const hasComplianceData = filteredComplianceAssignments.length > 0;
+  const hasAnyData = hasZoneData || hasErgData || hasLeaderboardData || hasComplianceData;
+  const hasChartData = showZoneChart || hasErgData || hasLeaderboardData || hasComplianceData;
   const leaderboardLeader = sortedLeaderboard[0] ?? null;
   const currentScopeLabel = filterTeamId ? 'Selected team' : isOrg ? 'Organization' : 'Current team';
-  const currentModeLabel = titanTestOnly ? 'Tests only' : 'All workouts';
 
   const leaderboardSummary = useMemo(() => {
     const titanValues = sortedLeaderboard
@@ -335,102 +358,18 @@ export function TeamAnalytics() {
     };
   }, [sortedLeaderboard]);
 
-/*   // Trend arrow with popover showing per-assignment rank history
-  const TrendBadge = ({ value, history }: { value: number | null; history: { date: string; rank: number; totalAthletes: number }[] }) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLSpanElement>(null);
 
-    // Close on outside click
-    useEffect(() => {
-      if (!open) return;
-      const handler = (e: MouseEvent) => {
-        if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-      };
-      document.addEventListener('mousedown', handler);
-      return () => document.removeEventListener('mousedown', handler);
-    }, [open]);
-
-    const arrow = (() => {
-      if (value == null) return <Minus className="w-3.5 h-3.5 text-neutral-500 inline" />;
-      if (value === 0) return <Minus className="w-3.5 h-3.5 text-neutral-500 inline" />;
-      if (value < 0) return <ArrowUp className="w-3.5 h-3.5 text-emerald-400 inline" />;
-      return <ArrowDown className="w-3.5 h-3.5 text-amber-400 inline" />;
-    })();
-
-    const fmtDate = (d: string) => {
-      const dt = new Date(d + 'T00:00:00');
-      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
-
-    return (
-      <span ref={ref} className="relative inline-flex items-center cursor-pointer" onClick={() => history.length > 0 && setOpen(!open)}>
-        {arrow}
-        {open && history.length > 0 && (
-          <div className="absolute right-0 bottom-full mb-1 z-50 bg-neutral-900 border border-neutral-700 rounded-lg p-3 shadow-xl text-xs whitespace-nowrap min-w-[140px]">
-            <p className="text-neutral-400 font-medium mb-1.5">Rank History</p>
-            <div className="space-y-1">
-              {history.map((h, i) => (
-                <div key={i} className="flex justify-between gap-4">
-                  <span className="text-neutral-500">{fmtDate(h.date)}</span>
-                  <span className="text-white font-mono">{h.rank}<span className="text-neutral-600">/{h.totalAthletes}</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </span>
-    );
-  };
- */
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
       <CoachingNav />
       <div className="px-4 sm:px-6 py-6 max-w-[1400px] mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-3">
-              <BarChart3 className="w-7 h-7 text-indigo-400" />
-              {isOrg ? 'Organization Analytics' : 'Team Analytics'}
-            </h1>
-            <p className="text-neutral-400 mt-1">Performance data and training insights</p>
-          </div>
-
-          {/* Filters */}
-{/*           <div className="flex items-center gap-4 flex-wrap">
-            {squads.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Squad</span>
-                <select
-                  value={squadFilter}
-                  onChange={(e) => setSquadFilter(e.target.value)}
-                  className="px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                  aria-label="Filter by squad"
-                >
-                  <option value="all">All Squads</option>
-                  {squads.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {activeTiers.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Tier</span>
-                <select
-                  value={tierFilter}
-                  onChange={(e) => setTierFilter(e.target.value)}
-                  className="px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                  aria-label="Filter by performance tier"
-                >
-                  <option value="all">All Tiers</option>
-                  {activeTiers.map((t) => (
-                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div> */}
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <BarChart3 className="w-7 h-7 text-indigo-400" />
+            {isOrg ? 'Organization Analytics' : 'Team Analytics'}
+          </h1>
+          <p className="text-neutral-400 mt-1">Performance data and training insights</p>
         </div>
 
         {/* Loading */}
@@ -464,25 +403,8 @@ export function TeamAnalytics() {
         {!isLoading && !error && hasAnyData && (
           <div className="space-y-3">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                  <span className={INFO_PILL_CLASS}>
-                    {selectedRange.label}
-                  </span>
-                  <span className={INFO_PILL_CLASS}>
-                    {currentScopeLabel}
-                  </span>
-                  <span className={INFO_PILL_CLASS}>
-                    {currentModeLabel}
-                  </span>
-                  <span className={INFO_PILL_CLASS}>
-                    Squad: {squadFilter === 'all' ? 'All' : squadFilter}
-                  </span>
-                  <span className={INFO_PILL_CLASS}>
-                    Tier: {tierFilter === 'all' ? 'All' : tierFilter}
-                  </span>
-                </div>
-
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Time range */}
                 <div className={SEGMENT_WRAP_CLASS}>
                   {RANGE_PRESET_OPTIONS.map((option) => (
                     <button
@@ -494,6 +416,55 @@ export function TeamAnalytics() {
                       {option.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Workout mode */}
+                <div className={SEGMENT_WRAP_CLASS}>
+                  <button
+                    onClick={() => setTitanTestOnly(false)}
+                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${!titanTestOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
+                  >All Workouts</button>
+                  <button
+                    onClick={() => setTitanTestOnly(true)}
+                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${titanTestOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
+                  >Tests Only</button>
+                </div>
+
+                {/* Squad filter */}
+                {squads.length > 0 && (
+                  <select
+                    value={squadFilter}
+                    onChange={(e) => setSquadFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-[11px] font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    aria-label="Filter by squad"
+                  >
+                    <option value="all">All Squads</option>
+                    {squads.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Tier filter */}
+                {activeTiers.length > 1 && (
+                  <select
+                    value={tierFilter}
+                    onChange={(e) => setTierFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-[11px] font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    aria-label="Filter by performance tier"
+                  >
+                    <option value="all">All Tiers</option>
+                    {activeTiers.map((t) => (
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Context pills */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px] ml-auto">
+                  <span className={INFO_PILL_CLASS}>
+                    {currentScopeLabel}
+                  </span>
                 </div>
               </div>
             </div>
@@ -542,20 +513,36 @@ export function TeamAnalytics() {
           </div>
         )}
 
-        {/* Training Zone Distribution */}
-        {!isLoading && hasZoneData && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg">
-            <h3 className="text-sm font-medium text-neutral-400 mb-4">Training Zone Distribution</h3>
-            <TrainingZoneDonut
-              zones={zoneDistribution!.zones.flatMap(z =>
-                Array.from({ length: z.count }, () => z.zone === 'Unset' ? null : z.zone)
-              )}
-            />
+        {/* Tab switcher */}
+        {!isLoading && (hasLeaderboardData || hasErgData) && (
+          <div className="flex items-center gap-1 rounded-lg border border-neutral-300 bg-neutral-100 p-1 w-fit dark:border-neutral-700/60 dark:bg-neutral-900/70">
+            <button
+              onClick={() => setAnalyticsTab('leaderboard')}
+              className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                analyticsTab === 'leaderboard'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : INACTIVE_SEGMENT_CLASS
+              }`}
+            >
+              Leaderboard
+            </button>
+            {hasErgData && (
+              <button
+                onClick={() => setAnalyticsTab('erg-comparison')}
+                className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                  analyticsTab === 'erg-comparison'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : INACTIVE_SEGMENT_CLASS
+                }`}
+              >
+                Erg Comparison
+              </button>
+            )}
           </div>
         )}
 
         {/* Leaderboard — full width */}
-        {!isLoading && hasLeaderboardData && (
+        {!isLoading && hasLeaderboardData && analyticsTab === 'leaderboard' && (
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
@@ -595,31 +582,22 @@ export function TeamAnalytics() {
                 {shareStatus === 'copied' ? 'Link copied!' : shareStatus === 'loading' ? 'Creating…' : 'Share'}
               </button>
             </div>
-            <div className="mb-4 space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-4 dark:border-neutral-700/40 dark:bg-neutral-800/50">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
-                    <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Season lens'}</span>
-                    {titanTestOnly
-                      ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
-                      : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
-                  </p>
-                  <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
-                    Speed Index is a fixed 70/30 blend of speed and W/lb, averaged across the selected time range. Higher is better. Expand any athlete to inspect recent scored work, or open <a href="/team-management/assignments" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Team Workouts</a> for assignment-level ranking detail.
-                  </p>
-                </div>
-                <div className={SEGMENT_WRAP_CLASS}>
-                  <button
-                    onClick={() => setTitanTestOnly(false)}
-                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${!titanTestOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
-                  >All Workouts</button>
-                  <button
-                    onClick={() => setTitanTestOnly(true)}
-                    className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${titanTestOnly ? 'bg-indigo-600 text-white shadow-sm' : INACTIVE_SEGMENT_CLASS}`}
-                  >Tests Only</button>
-                </div>
+            <details className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700/40 dark:bg-neutral-800/50">
+              <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 select-none">
+                {titanTestOnly ? 'Erg test lens' : 'Season lens'} — how Speed Index works
+              </summary>
+              <div className="px-4 pb-3">
+                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
+                  <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Season lens'}</span>
+                  {titanTestOnly
+                    ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
+                    : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
+                </p>
+                <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
+                  Speed Index is a blend of normalized speed (Watts) and efficiency (Watts/lb), averaged across the selected time range. Higher is better. Expand any athlete to inspect recent scored work, or open <a href="/team-management/assignments" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Team Workouts</a> for assignment-level ranking detail.
+                </p>
               </div>
-            </div>
+            </details>
             <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <table className="w-full text-sm">
                 <thead>
@@ -655,7 +633,14 @@ export function TeamAnalytics() {
                     const isBreakpointRow = idx > 0 && idx % 8 === 0;
                     return (
                       <Fragment key={row.athlete_id}>
-                        <tr className={`border-b border-neutral-200 transition-colors dark:border-neutral-800/50 ${isBreakpointRow ? 'border-t-2 border-t-neutral-300 dark:border-t-neutral-700/80' : ''} ${isExpanded ? 'bg-neutral-100 dark:bg-neutral-800/30' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/20'}`}>
+                        {isBreakpointRow && (
+                          <tr aria-hidden="true">
+                            <td colSpan={7} className="px-3 py-2">
+                              <div className="h-2 rounded-full border border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none" />
+                            </td>
+                          </tr>
+                        )}
+                        <tr className={`border-b border-neutral-200 transition-colors dark:border-neutral-800/50 ${isExpanded ? 'bg-neutral-100 dark:bg-neutral-800/30' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/20'}`}>
                           <td className="py-3 pr-2 pl-3 align-top text-neutral-500 dark:text-neutral-500">
                             <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${globalRank <= 3 ? 'border border-neutral-300 bg-neutral-200 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white' : 'text-neutral-500 dark:text-neutral-500'}`}>
                               {globalRank}
@@ -718,7 +703,7 @@ export function TeamAnalytics() {
                                 <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Speed Index basis</div>
                                   <div className="mt-1 text-sm font-medium text-neutral-950 dark:text-white">{selectedRange.label}</div>
-                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">70% speed · 30% W/lb</div>
+                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% W/lb</div>
                                 </div>
                               </div>
                               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>
@@ -787,22 +772,42 @@ export function TeamAnalytics() {
           </div>
         )}
 
-        {/* Charts row */}
-        {!isLoading && (hasErgData || hasLeaderboardData) && (
+        {/* Erg Comparison — tab content */}
+        {!isLoading && hasErgData && analyticsTab === 'erg-comparison' && (
+          <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
+            <ErgComparisonChart data={filteredErgData} />
+          </div>
+        )}
+
+        {/* Charts */}
+        {!isLoading && hasChartData && (
           <div className="space-y-6">
+            {/* Workout Compliance Trend */}
+            {filteredComplianceAssignments.length > 0 && (
+              <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
+                <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-4">Workout Compliance</h3>
+                <ComplianceTrendChart
+                  assignments={filteredComplianceAssignments}
+                  cells={complianceCells}
+                  athleteCount={teamFilteredAthletes.length}
+                />
+              </div>
+            )}
+            {/* Training Zone Distribution */}
+            {showZoneChart && (
+              <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none max-w-lg">
+                <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-4">Training Zone Distribution</h3>
+                <TrainingZoneDonut
+                  zones={zoneDistribution!.zones.flatMap(z =>
+                    Array.from({ length: z.count }, () => z.zone === 'Unset' ? null : z.zone)
+                  )}
+                />
+              </div>
+            )}
             {/* Rank Over Time Chart */}
             {hasLeaderboardData && (
               <RankOverTimeChart leaderboard={leaderboardWithTitan} />
             )}
-            {/* Erg Comparison Chart */}
-            {hasErgData && (
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-                <h3 className="text-sm font-medium text-neutral-400 mb-4">Erg Comparison</h3>
-                <ErgComparisonChart data={filteredErgData} />
-              </div>
-            )}
-
-
           </div>
         )}
 
