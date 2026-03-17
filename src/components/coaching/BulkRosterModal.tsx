@@ -236,15 +236,15 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl w-full max-w-5xl mt-8 mb-8">
+      <div className="bg-surface-card border border-border rounded-2xl shadow-2xl w-full max-w-5xl mt-8 mb-8">
 
         {/* ── Mobile guard ── */}
         <div className="md:hidden px-6 py-10 text-center">
-          <h2 className="text-lg font-semibold text-neutral-100 mb-2">Bulk Add Athletes</h2>
-          <p className="text-sm text-neutral-400 mb-4">
+          <h2 className="text-lg font-semibold text-content-primary mb-2">Bulk Add Athletes</h2>
+          <p className="text-sm text-content-muted mb-4">
             The bulk editor uses a spreadsheet layout that works best on a larger screen.
           </p>
-          <button onClick={onClose} className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-700 transition-colors">
+          <button onClick={onClose} className="px-4 py-2 bg-surface-secondary border border-border text-content-secondary rounded-lg hover:bg-surface-well transition-colors">
             Close
           </button>
         </div>
@@ -253,14 +253,14 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         <div className="hidden md:block">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-100">Bulk Add Athletes</h2>
-            <p className="text-sm text-neutral-400 mt-0.5">
+            <h2 className="text-lg font-semibold text-content-primary">Bulk Add Athletes</h2>
+            <p className="text-sm text-content-muted mt-0.5">
               Tab between cells · Enter moves down · rows with no first name are skipped
             </p>
           </div>
-          <button onClick={onClose} title="Close" aria-label="Close" className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors">
+          <button onClick={onClose} title="Close" aria-label="Close" className="p-1.5 rounded-lg hover:bg-surface-secondary text-content-muted hover:text-content-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -292,12 +292,12 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         <div className="overflow-x-auto px-4 pt-4">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="border-b border-neutral-700/60">
-                <th className="w-8 pb-2 text-neutral-600 font-normal text-xs text-center">#</th>
+              <tr className="border-b border-border/60">
+                <th className="w-8 pb-2 text-content-faint font-normal text-xs text-center">#</th>
                 {COLS.map((col) => (
                   <th
                     key={col.key}
-                    className={`${col.width} pb-2 px-1 text-left text-xs font-medium text-neutral-400 uppercase tracking-wide`}
+                    className={`${col.width} pb-2 px-1 text-left text-xs font-medium text-content-muted uppercase tracking-wide`}
                   >
                     {col.label}
                   </th>
@@ -311,12 +311,12 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                 return (
                   <tr
                     key={rowIdx}
-                    className={`border-b border-neutral-800/40 transition-colors ${
-                      filled ? 'bg-indigo-950/10' : ''
+                    className={`border-b border-border/40 transition-colors ${
+                      filled ? 'bg-accent-coaching/5' : ''
                     }`}
                   >
                     {/* Row number */}
-                    <td className="py-1 text-center text-xs text-neutral-600 select-none">
+                    <td className="py-1 text-center text-xs text-content-faint select-none">
                       {rowIdx + 1}
                     </td>
 
@@ -332,7 +332,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                             }}                            title={col.label}                            value={row[col.key]}
                             onChange={(e) => updateCell(rowIdx, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                            className="w-full bg-neutral-800/60 border border-neutral-700/40 rounded-md px-2 py-1 text-neutral-200 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors"
+                            className="w-full bg-surface-secondary/60 border border-border/40 rounded-md px-2 py-1 text-content-primary text-xs focus:outline-none focus:border-accent-coaching focus:ring-1 focus:ring-accent-coaching/40 transition-colors"
                           >
                             {col.options!.map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
@@ -351,7 +351,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                             placeholder={col.placeholder}
                             onChange={(e) => updateCell(rowIdx, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                            className="w-full bg-neutral-800/60 border border-neutral-700/40 rounded-md px-2 py-1 text-neutral-200 text-xs placeholder-neutral-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors"
+                            className="w-full bg-surface-secondary/60 border border-border/40 rounded-md px-2 py-1 text-content-primary text-xs placeholder-content-faint focus:outline-none focus:border-accent-coaching focus:ring-1 focus:ring-accent-coaching/40 transition-colors"
                           />
                         ) : col.key === 'squad' ? (
                           <input
@@ -366,7 +366,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                             placeholder={col.placeholder}
                             onChange={(e) => updateCell(rowIdx, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                            className="w-full bg-neutral-800/60 border border-neutral-700/40 rounded-md px-2 py-1 text-neutral-200 text-xs placeholder-neutral-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors"
+                            className="w-full bg-surface-secondary/60 border border-border/40 rounded-md px-2 py-1 text-content-primary text-xs placeholder-content-faint focus:outline-none focus:border-accent-coaching focus:ring-1 focus:ring-accent-coaching/40 transition-colors"
                           />
                         ) : (
                           <input
@@ -385,7 +385,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                             placeholder={col.placeholder}
                             onChange={(e) => updateCell(rowIdx, col.key, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                            className="w-full bg-neutral-800/60 border border-neutral-700/40 rounded-md px-2 py-1 text-neutral-200 text-xs placeholder-neutral-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors"
+                            className="w-full bg-surface-secondary/60 border border-border/40 rounded-md px-2 py-1 text-content-primary text-xs placeholder-content-faint focus:outline-none focus:border-accent-coaching focus:ring-1 focus:ring-accent-coaching/40 transition-colors"
                           />
                         )}
                       </td>
@@ -397,7 +397,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
                         onClick={() => removeRow(rowIdx)}
                         tabIndex={-1}
                         title="Remove row"
-                        className="p-1 rounded text-neutral-700 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                        className="p-1 rounded text-content-faint hover:text-red-400 hover:bg-red-900/20 transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -413,14 +413,14 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         <div className="px-6 pt-3 pb-2 flex items-center gap-3">
           <button
             onClick={() => addRows(5)}
-            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-indigo-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-content-muted hover:text-accent-coaching transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add 5 rows
           </button>
           <button
             onClick={() => addRows(10)}
-            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-indigo-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-content-muted hover:text-accent-coaching transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add 10 rows
@@ -441,8 +441,8 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         )}
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-800">
-          <span className="text-sm text-neutral-500">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+          <span className="text-sm text-content-faint">
             {filledCount > 0
               ? `${filledCount} athlete${filledCount !== 1 ? 's' : ''} ready to save`
               : 'Fill in at least a first name to save'}
@@ -451,14 +451,14 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
             <button
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 text-sm rounded-lg bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-lg bg-surface-secondary text-content-secondary hover:bg-surface-well transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || filledCount === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-accent-coaching text-white hover:bg-accent-coaching-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSaving ? 'Saving…' : `Save ${filledCount > 0 ? filledCount : ''} athlete${filledCount !== 1 ? 's' : ''}`}

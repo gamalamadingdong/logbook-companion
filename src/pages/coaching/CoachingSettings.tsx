@@ -41,6 +41,7 @@ import {
   backfillTitanIndexes,
 } from '../../services/coaching/coachingService';
 import type { Team, TeamMemberWithProfile, TeamRole, Organization } from '../../services/coaching/types';
+import { BulkCoachInviteModal } from '../../components/coaching/BulkCoachInviteModal';
 
 type RubricFormState = Record<SquadKey, {
   developmentalAbove: string;
@@ -125,6 +126,7 @@ export function CoachingSettings() {
 
   // Delete team
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkInvite, setShowBulkInvite] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [dataCounts, setDataCounts] = useState<{ athletes: number; sessions: number; assignments: number; boatings: number; ergScores: number } | null>(null);
@@ -777,6 +779,13 @@ export function CoachingSettings() {
                 ({members.length})
               </span>
             </h2>
+            <button
+              onClick={() => setShowBulkInvite(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-400 border border-indigo-500/30 rounded-lg hover:bg-indigo-500/10 transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Invite Coaches
+            </button>
           </div>
 
           {members.length === 0 ? (
@@ -1066,6 +1075,19 @@ export function CoachingSettings() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Coach Invite Modal */}
+      {showBulkInvite && team && (
+        <BulkCoachInviteModal
+          teamId={teamId}
+          teamName={team.name}
+          orgId={team?.org_id ?? null}
+          onClose={() => setShowBulkInvite(false)}
+          onInvited={() => {
+            getTeamMembers(teamId).then(setMembers).catch(() => {});
+          }}
+        />
       )}
     </>
   );

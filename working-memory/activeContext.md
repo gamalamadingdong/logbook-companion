@@ -2,9 +2,32 @@
 
 > Last updated: March 17, 2026
 
-## Session Summary (2026-03-17) — Boatings UX Overhaul + Mobile Responsiveness
+## Session Summary (2026-03-17) — Bulk Coach Invite Flow
 
 ### Completed This Session (Latest)
+
+#### Bulk Coach Invite System
+- [x] **Edge Function** — `supabase/functions/invite-coaches/index.ts`: Accepts `{ teamId, emails[], role, orgId? }`. For each email: calls `auth.admin.inviteUserByEmail()` (creates account + sends magic link), creates `user_profiles` row, inserts `team_members` with coach/coxswain role, optionally adds to org. Returns per-email results.
+- [x] **Service function** — `inviteCoaches()` in `coachingService.ts`: Typed wrapper calling the edge function.
+- [x] **BulkCoachInviteModal** — `src/components/coaching/BulkCoachInviteModal.tsx`: Paste emails (comma/newline/semicolon separated), live validation preview, role selector (coach/coxswain), sends invites, shows per-email results (✅ invited, ⚠️ already existed, ❌ error).
+- [x] **CoachingSettings wired** — "Invite Coaches" button in Team Members section opens the modal. Refreshes member list on close.
+- [x] **ResetPassword page updated** — `src/pages/ResetPassword.tsx`: Detects new users (invite flow) vs password reset. Shows "Set Your Password" title + welcome message for invited users. Waits for Supabase auth session from magic link URL hash before showing form. Loading spinner while verifying link.
+- [ ] **Supabase email template** — Manual step: customize invite email template in Supabase Dashboard > Auth > Email Templates > "Invite user" to mention ReadyAll.
+- [ ] **Deploy edge function** — `supabase functions deploy invite-coaches` (requires CLI)
+
+### Validation
+- `npm run build` ✅ (clean)
+- `npm run test:run` ✅ (225/225 pass)
+
+### Key Architecture Notes
+- **`inviteUserByEmail`** is a Supabase admin API requiring the service role key — hence the edge function pattern (same as existing `send-team-invite`).
+- **Flow**: Coach enters emails in modal → edge function creates accounts + sends Supabase invite emails → invited user clicks magic link → lands on `/reset-password` → sets password → redirected to dashboard as authenticated coach.
+- **Existing users** are handled gracefully: if email already has an account, they're just added to the team directly (no invite email needed).
+- **Organization membership**: If the team belongs to an org, invited coaches are also added as org members.
+
+## Session Summary (2026-03-17) — Boatings UX Overhaul + Mobile Responsiveness
+
+### Completed This Session
 
 #### Boatings Org-Wide Fix
 - [x] `CoachingBoatings` always org-wide — ignores `filterTeamId` entirely

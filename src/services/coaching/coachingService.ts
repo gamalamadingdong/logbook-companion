@@ -779,6 +779,56 @@ export async function sendTeamInviteEmail(params: {
   };
 }
 
+// ─── Bulk Coach Invite ──────────────────────────────────────────────────────
+
+export interface InviteCoachResult {
+  email: string;
+  status: 'created' | 'added' | 'error';
+  message?: string;
+}
+
+export interface InviteCoachesResponse {
+  ok: boolean;
+  summary: { created: number; added: number; errors: number; total: number };
+  results: InviteCoachResult[];
+}
+
+/** Bulk-invite coaches via the invite-coaches edge function */
+export async function inviteCoaches(params: {
+  teamId: string;
+  emails: string[];
+  role: 'coach' | 'coxswain';
+  orgId?: string;
+}): Promise<InviteCoachesResponse> {
+  const { data, error } = await supabase.functions.invoke('invite-coaches', {
+    body: {
+      teamId: params.teamId,
+      emails: params.emails,
+      role: params.role,
+      orgId: params.orgId || undefined,
+    },
+  });
+
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const payload = (await context.json()) as { error?: string };
+        throw new Error(payload.error || error.message || 'Failed to invite coaches.');
+      } catch {
+        throw new Error(error.message || 'Failed to invite coaches.');
+      }
+    }
+    throw new Error(error.message || 'Failed to invite coaches.');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data as InviteCoachesResponse;
+}
+
 // ─── Join Team by Invite Code ───────────────────────────────────────────────
 
 /** Look up a team by its invite code */
