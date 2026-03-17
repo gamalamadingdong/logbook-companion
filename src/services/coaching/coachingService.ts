@@ -1582,13 +1582,25 @@ export async function updateErgScore(
 // ─── Boatings (team-scoped) ─────────────────────────────────────────────────
 
 export async function getBoatings(teamId: string): Promise<CoachingBoating[]> {
-  return throwOnError(
-    await supabase
-      .from('coaching_boatings')
-      .select('*')
-      .eq('team_id', teamId)
-      .order('date', { ascending: false })
-  );
+  // Try ordering by sort_order (column may not exist yet before migration)
+  const result = await supabase
+    .from('coaching_boatings')
+    .select('*')
+    .eq('team_id', teamId)
+    .order('sort_order', { ascending: true })
+    .order('date', { ascending: false });
+
+  if (result.error) {
+    // Fallback: sort_order column doesn't exist yet
+    return throwOnError(
+      await supabase
+        .from('coaching_boatings')
+        .select('*')
+        .eq('team_id', teamId)
+        .order('date', { ascending: false })
+    );
+  }
+  return result.data as CoachingBoating[];
 }
 
 export async function getOrgBoatings(orgId: string): Promise<CoachingBoating[]> {
@@ -1599,8 +1611,8 @@ export async function getOrgBoatings(orgId: string): Promise<CoachingBoating[]> 
     teams.map((team) => getBoatings(team.id))
   );
 
-  // Merge and sort by date descending
-  return perTeam.flat().sort((a, b) => b.date.localeCompare(a.date));
+  // Merge and sort by sort_order ascending, then date descending
+  return perTeam.flat().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.date.localeCompare(a.date));
 }
 
 export async function createBoating(
@@ -1645,6 +1657,18 @@ export async function setBoatingActive(id: string, isActive: boolean): Promise<C
       .eq('id', id)
       .select()
       .single()
+  );
+}
+
+export async function updateBoatingSortOrders(orders: { id: string; sort_order: number }[]): Promise<void> {
+  // Batch update sort_order for multiple boatings
+  await Promise.all(
+    orders.map(({ id, sort_order }) =>
+      supabase
+        .from('coaching_boatings')
+        .update({ sort_order, updated_at: new Date().toISOString() })
+        .eq('id', id)
+    )
   );
 }
 

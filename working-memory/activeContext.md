@@ -2,31 +2,73 @@
 
 > Last updated: March 17, 2026
 
-## Session Summary (2026-03-17) — Schedule Events + Roster Notes
+## Session Summary (2026-03-17) — Boatings UX Overhaul + Mobile Responsiveness
 
 ### Completed This Session (Latest)
 
-#### Schedule Events (Phase 1) — DONE
-- [x] **Migration** — `db/migrations/20260317_schedule_events_and_boating_link.sql`
-  - `coaching_schedule_events` table: org-wide, date/end_date, event_type CHECK, team_ids UUID[], RLS
-  - `coaching_boatings.session_id` FK added (Phase 2 prep)
-- [x] **Types** — `CoachingScheduleEvent`, `ScheduleEventType` in `types.ts`; `session_id?` on `CoachingBoating`
-- [x] **Service CRUD** — `getScheduleEvents`, `createScheduleEvent`, `updateScheduleEvent`, `deleteScheduleEvent`, `getBoatingsForSession` in `coachingService.ts`
-- [x] **EventForm modal** — title, event_type picker (regatta/scrimmage/head_race/team_event/off_day), date/end_date, location, team multi-select chips, notes
-- [x] **Schedule UI integration** — Event banners on day blocks (week view), event indicators on calendar cells (month view), "+" button now offers Session or Event via AddMenu dropdown
-- [x] **EventBanner component** — color-coded by event type, shows location + teams + date range, edit/delete actions
+#### Boatings Org-Wide Fix
+- [x] `CoachingBoatings` always org-wide — ignores `filterTeamId` entirely
+- [x] New `getOrgBoatings(orgId)` service function
+- [x] Roster panel ("Boathouse") has its own team filter dropdown + unboated-only toggle
 
-#### Roster Notes Drawer — DONE (earlier in session)
-- [x] AthleteNotesDrawer component with subtle superscript note counts
-- [x] Note count service functions (team + org-wide, bug-fixed org query)
-- [x] Roster integration (desktop table + mobile cards)
+#### Active Lineup Model
+- [x] **Migration** — `db/migrations/20260317_boating_is_active.sql`: `is_active BOOLEAN DEFAULT true` + partial index
+- [x] **Type/Service** — `is_active` on `CoachingBoating`, `setBoatingActive()` function
+- [x] **UI** — Current lineups at top, archived in collapsible history; archive/reactivate; `BoatingCard` component
 
-### Remaining (Phase 2 — Session ↔ Boating Link)
-- [ ] **boating-session-ui** — Show linked lineups nested in SessionCard (DB prep already done)
+#### Persistent Sort Order
+- [x] **Migration** — `db/migrations/20260317_boating_sort_order.sql`: `sort_order INTEGER DEFAULT 0` + backfill
+- [x] **Service** — `updateBoatingSortOrders()` batch persist, `getBoatings` orders by `sort_order ASC, date DESC` with fallback
+- [x] **UI** — ↑/↓ reorder buttons on each boat card, optimistic local swap + async persist
+
+#### Compact Seat Strip + DnD
+- [x] Default view: compact horizontal seat strip with athlete initials (Cox → 8 → 7 → ... → 1)
+- [x] Click "Details" to expand full seat view with draggable athletes
+- [x] Seat labels: just "Cox" and numbers (no "Stroke"/"Bow")
+- [x] `DraggableAthleteCard` with `useDraggable` (not useSortable — avoids collision pollution)
+- [x] `DraggableSeatedAthlete` with `seated-` ID prefix
+- [x] `DroppableSeatRow` + `CompactSeatBadge` as drop targets
+- [x] Custom `CollisionDetection`: `rectIntersection` for roster-panel, `closestCorners` for seats
+- [x] `DragOverlay` with athlete card preview
+- [x] Cross-boat removal on drop to roster panel; mobile dropdown fallback preserved
+
+#### Condensed Boat Card Headers
+- [x] Smaller badges, removed "X seats · since date" subtitle
+- [x] Shrunk action icons (edit, copy, archive, delete) to 3.5px
+
+#### Mobile Responsiveness (7 pages)
+- [x] **CoachingRoster** — Mobile card view with expand/collapse, side badges; `w-14` inputs
+- [x] **BulkRosterModal** — Mobile guard ("use desktop" message)
+- [x] **CoachingAssignments** — `overflow-x-auto`, bumped text sizes
+- [x] **TeamAnalytics** — Hidden secondary columns on mobile, overflow wrapper
+- [x] **CoachDashboard** — `overflow-x-auto` on inline edit table
+- [x] **AthleteEditorModal** — `grid-cols-1 sm:grid-cols-2`
+- [x] **CoachingBoatings** — Mobile modal height constraints
+
+#### Team Filter Context Audit
+- [x] Verified: CoachDashboard, CoachingRoster, CoachingAssignments, TeamAnalytics all still respond to `filterTeamId`
+- [x] CoachingBoatings is the only page ignoring `filterTeamId` (intentional)
+- [x] MyTeamDashboard doesn't use coaching context at all (uses `useAuth()`)
+- [x] Team selector in CoachingNav is NOT orphaned — works as expected
+
+### Migrations Applied to Supabase
+- `is_active BOOLEAN DEFAULT true` on coaching_boatings ✅
+- `sort_order INTEGER DEFAULT 0` on coaching_boatings (backfilled) ✅
+- Partial index on (team_id) WHERE is_active = true ✅
 
 ### Validation
 - `npm run build` ✅ (clean)
 - `npm run test:run` ✅ (225/225 pass)
+
+### Remaining / Future
+- [ ] **B5 Cross-boat drag** — Drag between expanded boats (stretch goal)
+- [ ] **boating-session-ui** — Show linked lineups nested in SessionCard (DB prep done)
+
+### Key Architecture Notes
+- **CoachingBoatings** (~1356 lines) is the central file for all boatings work
+- **Two-level team context**: `teamId` (auth anchor, always set) vs `filterTeamId` (visual filter, null = "All Teams")
+- **DnD collision**: Custom detection needed because `useSortable` registers items as BOTH draggable AND droppable, polluting collision detection. Solution: use `useDraggable` only for roster cards.
+- **sort_order fallback**: `getBoatings` tries `sort_order ASC, date DESC` first, catches 400 from PostgREST if column missing, retries with date-only
 
 ## Session Summary (2026-03-16) — Coaching UX restructuring & compliance scoping
 

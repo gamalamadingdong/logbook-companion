@@ -4,6 +4,65 @@
 
 ---
 
+## Phase 47: Boatings UX Overhaul — DnD, Compact View, Org-Wide, Persistent Sort (March 17, 2026)
+
+**Timeline**: March 17, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+**Org-Wide Boatings**
+- `CoachingBoatings` now always fetches org-wide data (ignores `filterTeamId` from CoachingNav)
+- Roster panel ("Boathouse") has its own independent team filter + unboated-only toggle
+- Other 4 coaching pages (Dashboard, Roster, Assignments, Analytics) still respond to the team filter
+
+**Active Lineup Model**
+- Migration: `is_active BOOLEAN DEFAULT true` on `coaching_boatings` with partial index
+- Service: `setBoatingActive()` for archive/reactivate
+- UI: Active lineups at top, archived in collapsible history section
+
+**Persistent Sort Order**
+- Migration: `sort_order INTEGER DEFAULT 0` on `coaching_boatings` (backfilled from existing order)
+- ↑/↓ reorder buttons with optimistic local swap + async batch persist via `updateBoatingSortOrders`
+- `getBoatings` orders by `sort_order ASC, date DESC` with fallback if column doesn't exist
+
+**Compact Seat Strip (Default View)**
+- Default: horizontal strip with athlete initials (Cox → 8 → 7 → ... → 1)
+- "Details" click expands to full seat view with draggable athletes
+- Seat labels: just "Cox" and numbers (removed "Stroke"/"Bow")
+- Condensed card headers: smaller badges, removed subtitle, shrunk action icons
+
+**Drag-and-Drop**
+- `DndContext` with custom `CollisionDetection` (rectIntersection for roster, closestCorners for seats)
+- `DraggableAthleteCard` using `useDraggable` (NOT `useSortable` — key lesson)
+- `DraggableSeatedAthlete` with `seated-` ID prefix to avoid collision with roster draggables
+- `DroppableSeatRow` + `CompactSeatBadge` as drop targets
+- Drag to roster panel = unseat athlete
+- `DragOverlay` with athlete card preview
+
+**Mobile Responsiveness (7 pages)**
+- CoachingRoster, BulkRosterModal, CoachingAssignments, TeamAnalytics, CoachDashboard, AthleteEditorModal, CoachingBoatings
+
+### Key Lessons
+
+1. **`useSortable` vs `useDraggable`**: `useSortable` registers items as BOTH draggable AND droppable, which pollutes collision detection when you have separate droppable seat targets. Use `useDraggable` for roster cards.
+
+2. **Custom collision detection**: When mixing a large droppable zone (roster panel) with small droppable zones (seat badges), you need a custom function that prioritizes the large zone via `rectIntersection` first, then falls back to `closestCorners` for precision seat matching.
+
+3. **Vite HMR cache**: When file is valid but Vite serves stale module (export error), clear `node_modules/.vite` and hard refresh.
+
+4. **PostgREST column ordering**: Ordering by a column that doesn't exist returns 400. Added try/catch fallback in `getBoatings`.
+
+### Files Modified
+- `src/pages/coaching/CoachingBoatings.tsx` (~1356 lines — major refactor)
+- `src/services/coaching/coachingService.ts` (added org-wide + sort + active functions)
+- `src/services/coaching/types.ts` (added `is_active`, `sort_order`)
+- `db/migrations/20260317_boating_is_active.sql` (new)
+- `db/migrations/20260317_boating_sort_order.sql` (new)
+- 6 mobile-fixed pages (CoachingRoster, BulkRosterModal, CoachingAssignments, TeamAnalytics, CoachDashboard, AthleteEditorModal)
+
+---
+
 ## Phase 46: Speed Index Equal-Weight Recalibration (March 16, 2026)
 
 **Timeline**: March 16, 2026  

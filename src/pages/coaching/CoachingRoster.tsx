@@ -73,6 +73,16 @@ export function CoachingRoster() {
   const editRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
   const [editMode, setEditMode] = useState(false);
 
+  // Mobile card expand/collapse
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const toggleCardExpand = useCallback((athleteId: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(athleteId)) next.delete(athleteId); else next.add(athleteId);
+      return next;
+    });
+  }, []);
+
   // Column sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -459,6 +469,21 @@ export function CoachingRoster() {
     return map[level ?? ''] ?? 'bg-neutral-800 text-neutral-500';
   };
 
+  // Side abbreviation for mobile badges
+  const sideAbbrev = (side?: string | null): string => {
+    const map: Record<string, string> = { port: 'P', starboard: 'S', both: 'B', coxswain: 'Cox' };
+    return map[side ?? ''] ?? '';
+  };
+  const sideBadgeClass = (side?: string | null): string => {
+    const map: Record<string, string> = {
+      port: 'bg-red-900/30 text-red-400',
+      starboard: 'bg-emerald-900/30 text-emerald-400',
+      both: 'bg-neutral-800 text-neutral-400',
+      coxswain: 'bg-amber-900/30 text-amber-400',
+    };
+    return map[side ?? ''] ?? 'bg-neutral-800 text-neutral-500';
+  };
+
   return (
     <>
     <CoachingNav />
@@ -675,7 +700,10 @@ export function CoachingRoster() {
         <>
         {/* ── Mobile Card Layout (< md) ─────────────────────────────── */}
         <div className="md:hidden space-y-3">
-          {sortedAthletes.map((athlete, index) => (
+          {sortedAthletes.map((athlete, index) => {
+            const isExpanded = expandedCards.has(athlete.id);
+            const noteCount = noteCountsByAthlete[athlete.id] ?? 0;
+            return (
             <div key={athlete.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
               {/* Name row + actions */}
               <div className="flex items-start justify-between">
@@ -701,40 +729,107 @@ export function CoachingRoster() {
                       ) : athlete.last_name}
                     </span>
                   </div>
-                  {/* Squad badge */}
-                  <div className={`mt-1 ${editMode ? 'cursor-pointer' : ''}`} onClick={() => handleEditableCellClick(athlete.id, 'squad')}>
-                    {isEditing(athlete.id, 'squad') ? (
-                      <>
-                        <input ref={r => { editRef.current = r; }} type="text" list={`sq-m-${athlete.id}`} value={editValue}
-                          onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
-                          className={`${inputClass} w-28`} title="Squad" />
-                        <datalist id={`sq-m-${athlete.id}`}>
-                          {squads.map(s => <option key={s} value={s} />)}
-                        </datalist>
-                      </>
-                    ) : athlete.squad ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-900/30 text-cyan-400 cursor-pointer">{athlete.squad}</span>
-                    ) : (
-                      <span className="text-neutral-600 text-xs cursor-pointer">No squad – tap to set</span>
+                  {/* Badges row: side, squad, tier */}
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                    {/* Side badge (abbreviated) */}
+                    {athlete.side ? (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sideBadgeClass(athlete.side)} ${editMode ? 'cursor-pointer' : ''}`}
+                        onClick={() => handleEditableCellClick(athlete.id, 'side')}>
+                        {isEditing(athlete.id, 'side') ? (
+                          <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
+                            onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-24 text-xs`} title="Side">
+                            <option value="port">Port</option>
+                            <option value="starboard">Starboard</option>
+                            <option value="coxswain">Coxswain</option>
+                            <option value="both">Both</option>
+                          </select>
+                        ) : sideAbbrev(athlete.side)}
+                      </span>
+                    ) : editMode ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs text-neutral-600 bg-neutral-800 cursor-pointer"
+                        onClick={() => handleEditableCellClick(athlete.id, 'side')}>
+                        {isEditing(athlete.id, 'side') ? (
+                          <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
+                            onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-24 text-xs`} title="Side">
+                            <option value="port">Port</option>
+                            <option value="starboard">Starboard</option>
+                            <option value="coxswain">Coxswain</option>
+                            <option value="both">Both</option>
+                          </select>
+                        ) : 'Side'}
+                      </span>
+                    ) : null}
+                    {/* Squad badge */}
+                    <span className={`${editMode ? 'cursor-pointer' : ''}`} onClick={() => handleEditableCellClick(athlete.id, 'squad')}>
+                      {isEditing(athlete.id, 'squad') ? (
+                        <>
+                          <input ref={r => { editRef.current = r; }} type="text" list={`sq-m-${athlete.id}`} value={editValue}
+                            onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-28`} title="Squad" />
+                          <datalist id={`sq-m-${athlete.id}`}>
+                            {squads.map(s => <option key={s} value={s} />)}
+                          </datalist>
+                        </>
+                      ) : athlete.squad ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-900/30 text-cyan-400">{athlete.squad}</span>
+                      ) : editMode ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs text-neutral-600 bg-neutral-800">Squad</span>
+                      ) : null}
+                    </span>
+                    {/* Performance tier badge */}
+                    {(() => {
+                      const best2k = best2kByAthlete[athlete.id] ?? null;
+                      const benchmarkTier = deriveBenchmarkTier(athlete.squad ?? null, best2k, orgRubric);
+                      if (benchmarkTier) {
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${benchmarkTierBadgeClass(benchmarkTier)}`}>
+                            {benchmarkTierLabel(benchmarkTier)}
+                          </span>
+                        );
+                      }
+                      if (athlete.performance_tier) {
+                        return (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-900/30 text-indigo-300">
+                            {athlete.performance_tier.charAt(0).toUpperCase() + athlete.performance_tier.slice(1)}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {/* Experience badge */}
+                    {athlete.experience_level && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${expBadge(athlete.experience_level)} ${editMode ? 'cursor-pointer' : ''}`}
+                        onClick={() => handleEditableCellClick(athlete.id, 'experience_level')}>
+                        {isEditing(athlete.id, 'experience_level') ? (
+                          <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
+                            onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-28 text-xs`} title="Experience level">
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="experienced">Experienced</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+                        ) : (
+                          athlete.experience_level.charAt(0).toUpperCase() + athlete.experience_level.slice(1)
+                        )}
+                      </span>
                     )}
                   </div>
                 </div>
                 {/* Always-visible actions on mobile */}
                 <div className="flex items-center gap-1 ml-2">
                   {(() => {
-                    const count = noteCountsByAthlete[athlete.id] ?? 0;
-                    const hasNotes = count > 0;
+                    const hasNotes = noteCount > 0;
                     return (
                       <button
                         onClick={() => setNotesDrawerAthlete(athlete)}
                         className="inline-flex items-center gap-0.5 p-2 rounded-lg hover:bg-neutral-700 transition-colors"
-                        aria-label={hasNotes ? `${count} notes` : 'Add note'}
-                        title={hasNotes ? `${count} note${count !== 1 ? 's' : ''}` : 'Add note'}
+                        aria-label={hasNotes ? `${noteCount} notes` : 'Add note'}
+                        title={hasNotes ? `${noteCount} note${noteCount !== 1 ? 's' : ''}` : 'Add note'}
                       >
                         <MessageSquare className={`w-4 h-4 ${hasNotes ? 'text-indigo-400' : 'text-neutral-400'}`} />
                         {hasNotes && (
                           <span className="text-[10px] font-medium text-indigo-400 leading-none -mt-2">
-                            {count}
+                            {noteCount}
                           </span>
                         )}
                       </button>
@@ -799,151 +894,138 @@ export function CoachingRoster() {
                 </div>
               )}
 
-              {/* Editable fields grid */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                {/* Grade */}
-                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'grade')}>
-                  <span className="text-neutral-500 text-xs">Grade</span>
-                  <div>
-                    {isEditing(athlete.id, 'grade') ? (
-                      <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
-                        onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${inputClass} w-full`} title="Grade" />
-                    ) : (
-                      <span className="text-neutral-300">{athlete.grade || <span className="text-neutral-600">—</span>}</span>
-                    )}
-                  </div>
-                </div>
+              {/* Expand/collapse toggle */}
+              <button
+                type="button"
+                onClick={() => toggleCardExpand(athlete.id)}
+                className="flex items-center gap-1.5 w-full py-1.5 text-xs text-neutral-500 hover:text-neutral-300 transition-colors min-h-[44px]"
+              >
+                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {isExpanded ? 'Less' : 'More'}
+                {!isExpanded && (noteCount > 0 || athlete.height_cm || athlete.weight_kg || athlete.grade) && (
+                  <span className="text-neutral-600 ml-1">
+                    ({[
+                      athlete.grade && `Gr ${athlete.grade}`,
+                      athlete.height_cm && (isImperial ? cmToFtIn(athlete.height_cm).display : `${athlete.height_cm}cm`),
+                      athlete.weight_kg && (isImperial ? `${kgToLbs(athlete.weight_kg)}lbs` : `${athlete.weight_kg}kg`),
+                      noteCount > 0 && `${noteCount} note${noteCount !== 1 ? 's' : ''}`,
+                    ].filter(Boolean).join(', ')})
+                  </span>
+                )}
+              </button>
 
-                {/* Side */}
-                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'side')}>
-                  <span className="text-neutral-500 text-xs">Side</span>
-                  <div>
-                    {isEditing(athlete.id, 'side') ? (
-                      <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
-                        onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-full`} title="Side">
-                        <option value="port">Port</option>
-                        <option value="starboard">Starboard</option>
-                        <option value="coxswain">Coxswain</option>
-                        <option value="both">Both</option>
-                      </select>
-                    ) : (
-                      <span className="text-neutral-300 capitalize">{athlete.side || '—'}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Experience */}
-                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'experience_level')}>
-                  <span className="text-neutral-500 text-xs">Experience</span>
-                  <div>
-                    {isEditing(athlete.id, 'experience_level') ? (
-                      <select ref={r => { editRef.current = r; }} value={editValue} onChange={e => { setEditValue(e.target.value); commitEdit(e.target.value); }}
-                        onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${selectClass} w-full`} title="Experience level">
-                        <option value="beginner">Beginner</option>
-                        <option value="intermediate">Intermediate</option>
-                        <option value="experienced">Experienced</option>
-                        <option value="advanced">Advanced</option>
-                      </select>
-                    ) : athlete.experience_level ? (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${expBadge(athlete.experience_level)}`}>
-                        {athlete.experience_level.charAt(0).toUpperCase() + athlete.experience_level.slice(1)}
-                      </span>
-                    ) : (
-                      <span className="text-neutral-600">—</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Performance Tier */}
-                <div>
-                  <span className="text-neutral-500 text-xs">Performance Tier</span>
-                  <div>
-                    <div className="space-y-1">
-                      {(() => {
-                        const best2k = best2kByAthlete[athlete.id] ?? null;
-                        const benchmarkTier = deriveBenchmarkTier(athlete.squad ?? null, best2k, orgRubric);
-                        const criteria = benchmarkCriteriaIndicator(athlete.squad ?? null, best2k, 0.02, orgRubric);
-                        if (!benchmarkTier && !athlete.performance_tier && best2k == null) return <span className="text-neutral-600">—</span>;
-                        return (
-                          <>
-                            {benchmarkTier ? (
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${benchmarkTierBadgeClass(benchmarkTier)}`}>
-                                {benchmarkTierLabel(benchmarkTier)}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-900/30 text-indigo-300">
-                                {athlete.performance_tier
-                                  ? `${athlete.performance_tier.charAt(0).toUpperCase()}${athlete.performance_tier.slice(1)}`
-                                  : 'Needs squad mapping'}
-                              </span>
-                            )}
-                            {best2k != null && <div className="text-[10px] text-neutral-500">Best 2k: {formatErgTime(best2k)}</div>}
-                            {criteria && <div className={`text-[10px] ${criteria.className}`}>{criteria.text}</div>}
-                          </>
-                        );
-                      })()}
+              {/* Expandable detail fields */}
+              {isExpanded && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t border-neutral-800 pt-3">
+                  {/* Grade */}
+                  <div className={editMode ? 'cursor-pointer min-h-[44px]' : 'min-h-[44px]'} onClick={() => handleEditableCellClick(athlete.id, 'grade')}>
+                    <span className="text-neutral-500 text-xs">Grade</span>
+                    <div>
+                      {isEditing(athlete.id, 'grade') ? (
+                        <input ref={r => { editRef.current = r; }} type="text" value={editValue} onChange={e => setEditValue(e.target.value)}
+                          onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown} className={`${inputClass} w-full`} title="Grade" />
+                      ) : (
+                        <span className="text-neutral-300">{athlete.grade || <span className="text-neutral-600">—</span>}</span>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Height */}
-                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'height')}>
-                  <span className="text-neutral-500 text-xs">Height</span>
-                  <div>
-                    {isEditing(athlete.id, 'height') ? isImperial ? (
-                      <div className="flex items-center gap-1"
-                        onClick={e => e.stopPropagation()}
-                        onBlur={e => {
-                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                            commitEdit();
-                          }
-                        }}
+                  {/* Notes count */}
+                  <div className="min-h-[44px]">
+                    <span className="text-neutral-500 text-xs">Notes</span>
+                    <div>
+                      <button
+                        onClick={() => setNotesDrawerAthlete(athlete)}
+                        className="inline-flex items-center gap-1 text-sm hover:text-indigo-300 transition-colors min-h-[28px]"
                       >
-                        <input ref={r => { editRef.current = r; }} type="number" min={0} max={8} value={editValue}
-                          onChange={e => setEditValue(e.target.value)} onKeyDown={handleCellKeyDown}
-                          className={`${inputClass} w-10`} placeholder="ft" title="Height feet" />
-                        <span className="text-neutral-500">'</span>
-                        <input type="number" min={0} max={11} value={editValue2}
-                          onChange={e => setEditValue2(e.target.value)} onKeyDown={handleCellKeyDown}
-                          className={`${inputClass} w-10`} placeholder="in" title="Height inches" />
-                        <span className="text-neutral-500">"</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}
-                          onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
-                          className={`${inputClass} w-16`} placeholder="cm" title="Height in centimeters" />
-                        <span className="text-neutral-500 text-xs">cm</span>
-                      </div>
-                    ) : athlete.height_cm ? (
-                      <span className="text-neutral-300">{isImperial ? cmToFtIn(athlete.height_cm).display : `${athlete.height_cm} cm`}</span>
-                    ) : (
-                      <span className="text-neutral-600">—</span>
-                    )}
+                        <MessageSquare className={`w-3.5 h-3.5 ${noteCount > 0 ? 'text-indigo-400' : 'text-neutral-600'}`} />
+                        <span className={noteCount > 0 ? 'text-indigo-400' : 'text-neutral-600'}>
+                          {noteCount > 0 ? `${noteCount} note${noteCount !== 1 ? 's' : ''}` : 'None'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Weight */}
-                <div className={editMode ? 'cursor-pointer' : ''} onClick={() => handleEditableCellClick(athlete.id, 'weight')}>
-                  <span className="text-neutral-500 text-xs">Weight</span>
-                  <div>
-                    {isEditing(athlete.id, 'weight') ? (
-                      <div className="flex items-center gap-1">
-                        <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}
-                          onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
-                          className={`${inputClass} w-16`} title={isImperial ? 'Weight in lbs' : 'Weight in kg'} />
-                        <span className="text-neutral-500 text-xs">{isImperial ? 'lbs' : 'kg'}</span>
-                      </div>
-                    ) : athlete.weight_kg ? (
-                      <span className="text-neutral-300">{isImperial ? `${kgToLbs(athlete.weight_kg)} lbs` : `${athlete.weight_kg} kg`}</span>
-                    ) : (
-                      <span className="text-neutral-600">—</span>
-                    )}
+                  {/* Height */}
+                  <div className={editMode ? 'cursor-pointer min-h-[44px]' : 'min-h-[44px]'} onClick={() => handleEditableCellClick(athlete.id, 'height')}>
+                    <span className="text-neutral-500 text-xs">Height</span>
+                    <div>
+                      {isEditing(athlete.id, 'height') ? isImperial ? (
+                        <div className="flex items-center gap-1"
+                          onClick={e => e.stopPropagation()}
+                          onBlur={e => {
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                              commitEdit();
+                            }
+                          }}
+                        >
+                          <input ref={r => { editRef.current = r; }} type="number" min={0} max={8} value={editValue}
+                            onChange={e => setEditValue(e.target.value)} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-14`} placeholder="ft" title="Height feet" />
+                          <span className="text-neutral-500">'</span>
+                          <input type="number" min={0} max={11} value={editValue2}
+                            onChange={e => setEditValue2(e.target.value)} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-14`} placeholder="in" title="Height inches" />
+                          <span className="text-neutral-500">"</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}
+                            onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-16`} placeholder="cm" title="Height in centimeters" />
+                          <span className="text-neutral-500 text-xs">cm</span>
+                        </div>
+                      ) : athlete.height_cm ? (
+                        <span className="text-neutral-300">{isImperial ? cmToFtIn(athlete.height_cm).display : `${athlete.height_cm} cm`}</span>
+                      ) : (
+                        <span className="text-neutral-600">—</span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Weight */}
+                  <div className={editMode ? 'cursor-pointer min-h-[44px]' : 'min-h-[44px]'} onClick={() => handleEditableCellClick(athlete.id, 'weight')}>
+                    <span className="text-neutral-500 text-xs">Weight</span>
+                    <div>
+                      {isEditing(athlete.id, 'weight') ? (
+                        <div className="flex items-center gap-1">
+                          <input ref={r => { editRef.current = r; }} type="number" min={0} value={editValue}
+                            onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit()} onKeyDown={handleCellKeyDown}
+                            className={`${inputClass} w-16`} title={isImperial ? 'Weight in lbs' : 'Weight in kg'} />
+                          <span className="text-neutral-500 text-xs">{isImperial ? 'lbs' : 'kg'}</span>
+                        </div>
+                      ) : athlete.weight_kg ? (
+                        <span className="text-neutral-300">{isImperial ? `${kgToLbs(athlete.weight_kg)} lbs` : `${athlete.weight_kg} kg`}</span>
+                      ) : (
+                        <span className="text-neutral-600">—</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Performance tier detail (2k time + criteria) in expanded view */}
+                  {(() => {
+                    const best2k = best2kByAthlete[athlete.id] ?? null;
+                    const benchmarkTier = deriveBenchmarkTier(athlete.squad ?? null, best2k, orgRubric);
+                    const criteria = benchmarkCriteriaIndicator(athlete.squad ?? null, best2k, 0.02, orgRubric);
+                    if (best2k == null && !criteria) return null;
+                    return (
+                      <div className="col-span-2">
+                        <span className="text-neutral-500 text-xs">Performance Detail</span>
+                        <div className="space-y-0.5">
+                          {best2k != null && <div className="text-xs text-neutral-400">Best 2k: {formatErgTime(best2k)}</div>}
+                          {criteria && <div className={`text-xs ${criteria.className}`}>{criteria.text}</div>}
+                          {!benchmarkTier && athlete.performance_tier == null && best2k != null && (
+                            <div className="text-xs text-neutral-600">Needs squad mapping for tier</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── Desktop Table (>= md) ─────────────────────────────────── */}
@@ -1107,11 +1189,11 @@ export function CoachingRoster() {
                         >
                           <input ref={r => { editRef.current = r; }} type="number" min={0} max={8} value={editValue}
                             onChange={e => setEditValue(e.target.value)} onKeyDown={handleCellKeyDown}
-                            className={`${inputClass} w-10`} placeholder="ft" title="Height feet" />
+                            className={`${inputClass} w-14`} placeholder="ft" title="Height feet" />
                           <span className="text-neutral-500">'</span>
                           <input type="number" min={0} max={11} value={editValue2}
                             onChange={e => setEditValue2(e.target.value)} onKeyDown={handleCellKeyDown}
-                            className={`${inputClass} w-10`} placeholder="in" title="Height inches" />
+                            className={`${inputClass} w-14`} placeholder="in" title="Height inches" />
                           <span className="text-neutral-500">"</span>
                         </div>
                       ) : (

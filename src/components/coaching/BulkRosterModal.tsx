@@ -238,6 +238,20 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl w-full max-w-5xl mt-8 mb-8">
 
+        {/* ── Mobile guard ── */}
+        <div className="md:hidden px-6 py-10 text-center">
+          <h2 className="text-lg font-semibold text-neutral-100 mb-2">Bulk Add Athletes</h2>
+          <p className="text-sm text-neutral-400 mb-4">
+            The bulk editor uses a spreadsheet layout that works best on a larger screen.
+          </p>
+          <button onClick={onClose} className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-700 transition-colors">
+            Close
+          </button>
+        </div>
+
+        {/* ── Desktop content ── */}
+        <div className="hidden md:block">
+
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
           <div>
@@ -452,6 +466,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
           </div>
         </div>
 
+        </div>{/* end hidden md:block */}
       </div>
     </div>
   );

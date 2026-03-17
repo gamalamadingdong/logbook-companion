@@ -920,6 +920,7 @@ export const CoachDashboard: React.FC = () => {
                         </span>
                       </div>
                     )}
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-neutral-500 uppercase tracking-wider bg-neutral-900/50">
                         <tr>
@@ -1130,6 +1131,7 @@ export const CoachDashboard: React.FC = () => {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 ))}
               </div>

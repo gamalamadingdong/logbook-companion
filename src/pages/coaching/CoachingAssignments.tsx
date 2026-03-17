@@ -471,7 +471,7 @@ export function CoachingAssignments() {
                       : 'border-neutral-800 bg-neutral-900/40 hover:bg-neutral-800/60 hover:border-neutral-700'
                 }`}
               >
-                <span className={`text-[10px] sm:text-xs font-medium uppercase tracking-wide ${
+                <span className={`text-[11px] sm:text-xs font-medium uppercase tracking-wide ${
                   isSelected ? 'text-indigo-400' : 'text-neutral-500'
                 }`}>
                   {format(date, 'EEE')}
@@ -633,13 +633,13 @@ function AssignmentDetailCard({
               {assignment.title || assignment.template_name || 'Workout'}
             </span>
             {assignment.org_id && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40 font-medium" title="Org-wide assignment">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40 font-medium" title="Org-wide assignment">
                 ORG
               </span>
             )}
             {assignment.training_zone && (
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-md border font-medium ${
+                className={`text-[11px] px-1.5 py-0.5 rounded-md border font-medium ${
                   zoneBg[assignment.training_zone] ?? 'bg-neutral-800 text-neutral-400 border-neutral-700'
                 }`}
               >
@@ -647,7 +647,7 @@ function AssignmentDetailCard({
               </span>
             )}
             {assignment.is_test_template && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-900/30 text-indigo-400 border border-indigo-800/40 font-medium" title="Test / baseline piece">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-indigo-900/30 text-indigo-400 border border-indigo-800/40 font-medium" title="Test / baseline piece">
                 TEST
               </span>
             )}
@@ -1706,7 +1706,7 @@ export function ResultsEntryModal({
                       return (
                         <div key={i} className="w-20 text-center">
                           <div>{repHeaderLabel}</div>
-                          <div className="text-[9px] text-neutral-600 normal-case">{getRepInputLabel(i)}</div>
+                          <div className="text-[11px] text-neutral-600 normal-case">{getRepInputLabel(i)}</div>
                         </div>
                       );
                     })}
@@ -1745,7 +1745,7 @@ export function ResultsEntryModal({
                           className="w-full text-left px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                         >
                           <span className="truncate">{a.name}</span>
-                          {a.squad && <span className="text-[10px] text-neutral-500 ml-auto shrink-0">{a.squad}</span>}
+                          {a.squad && <span className="text-[11px] text-neutral-500 ml-auto shrink-0">{a.squad}</span>}
                         </button>
                       ))}
                     </div>
@@ -1777,13 +1777,13 @@ export function ResultsEntryModal({
                           {athlete?.name ?? 'Unknown'}
                         </span>
                         {athlete?.squad && (
-                          <span className="ml-2 md:ml-0 md:block text-[10px] text-neutral-500">{athlete.squad}</span>
+                          <span className="ml-2 md:ml-0 md:block text-[11px] text-neutral-500">{athlete.squad}</span>
                         )}
                       </div>
 
                       {/* Weight */}
                       <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 pl-6 md:pl-0">
-                        <div className="md:hidden text-[10px] text-neutral-500 uppercase w-10 shrink-0">Wt {isImperial ? 'lbs' : 'kg'}</div>
+                        <div className="md:hidden text-[11px] text-neutral-500 uppercase w-10 shrink-0">Wt {isImperial ? 'lbs' : 'kg'}</div>
                         <input
                           type="number"
                           min="0"
@@ -1798,7 +1798,7 @@ export function ResultsEntryModal({
                       {/* Single-piece entry */}
                       {!isInterval && (
                         <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 pl-6 md:pl-0">
-                          <div className="md:hidden text-[10px] text-neutral-500 uppercase w-10 shrink-0">{primaryLabel}</div>
+                          <div className="md:hidden text-[11px] text-neutral-500 uppercase w-10 shrink-0">{primaryLabel}</div>
                           {entry.primaryDnf ? (
                             <button
                               type="button"
@@ -1820,7 +1820,7 @@ export function ResultsEntryModal({
                             type="button"
                             onClick={() => togglePrimaryDnf(idx)}
                             title={entry.primaryDnf ? 'Clear DNF' : 'Mark DNF'}
-                            className={`text-[10px] font-bold px-1.5 py-1 rounded border transition-colors ${
+                            className={`text-[11px] font-bold px-1.5 py-1 rounded border transition-colors ${
                               entry.primaryDnf
                                 ? 'bg-red-900/20 border-red-700/40 text-red-500 hover:bg-neutral-800'
                                 : 'bg-neutral-800 border-neutral-700 text-neutral-600 hover:text-red-400 hover:border-red-700/40'
@@ -1828,7 +1828,7 @@ export function ResultsEntryModal({
                           >
                             DNF
                           </button>
-                          <div className="md:hidden text-[10px] text-neutral-500 uppercase w-8 shrink-0">SPM</div>
+                          <div className="md:hidden text-[11px] text-neutral-500 uppercase w-8 shrink-0">SPM</div>
                           <input
                             type="text"
                             value={entry.spm}
@@ -1854,13 +1854,13 @@ export function ResultsEntryModal({
                             const isDnf = entry.repDnf[repIdx];
                             return (
                               <div key={repIdx} className="w-20">
-                                <div className="md:hidden text-[10px] text-neutral-500 uppercase mb-0.5">{repHeaderLabel}</div>
+                                <div className="md:hidden text-[11px] text-neutral-500 uppercase mb-0.5">{repHeaderLabel}</div>
                                 {isDnf ? (
                                   <button
                                     type="button"
                                     onClick={() => toggleRepDnf(idx, repIdx)}
                                     title="Clear DNF"
-                                    className="w-full px-1.5 py-1.5 text-[10px] font-bold rounded bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-neutral-800 transition-colors"
+                                    className="w-full px-1.5 py-1.5 text-[11px] font-bold rounded bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-neutral-800 transition-colors"
                                   >
                                     DNF
                                   </button>
@@ -1876,7 +1876,7 @@ export function ResultsEntryModal({
                                   </div>
                                 )}
                                 {!isDnf && getRepSplit(entry, repIdx) && (
-                                  <div className="text-[10px] text-neutral-500 italic text-center mt-0.5">
+                                  <div className="text-[11px] text-neutral-500 italic text-center mt-0.5">
                                     {getRepSplit(entry, repIdx)}
                                   </div>
                                 )}
@@ -1884,7 +1884,7 @@ export function ResultsEntryModal({
                                   type="button"
                                   onClick={() => toggleRepDnf(idx, repIdx)}
                                   title={isDnf ? 'Clear DNF' : 'Mark this rep DNF'}
-                                  className={`mt-0.5 w-full text-[9px] font-bold rounded transition-colors ${
+                                  className={`mt-0.5 w-full text-[11px] font-bold rounded transition-colors ${
                                     isDnf
                                       ? 'text-red-500/60 hover:text-neutral-500'
                                       : 'text-neutral-700 hover:text-red-400'
@@ -1896,7 +1896,7 @@ export function ResultsEntryModal({
                             );
                           })}
                           <div>
-                            <div className="md:hidden text-[10px] text-neutral-500 uppercase mb-0.5">SPM</div>
+                            <div className="md:hidden text-[11px] text-neutral-500 uppercase mb-0.5">SPM</div>
                             <input
                               type="text"
                               value={entry.spm}
@@ -2039,7 +2039,7 @@ function AssignmentListView({
   }
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-neutral-500 border-b border-neutral-800 bg-neutral-900/50">
@@ -2063,10 +2063,10 @@ function AssignmentListView({
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium">{displayName}</span>
                     {a.is_test_template && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded bg-indigo-500/20 text-indigo-400">Test</span>
+                      <span className="px-1.5 py-0.5 text-[11px] font-semibold uppercase rounded bg-indigo-500/20 text-indigo-400">Test</span>
                     )}
                     {a.training_zone && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded bg-neutral-700 text-neutral-400">{a.training_zone}</span>
+                      <span className="px-1.5 py-0.5 text-[11px] font-semibold uppercase rounded bg-neutral-700 text-neutral-400">{a.training_zone}</span>
                     )}
                   </div>
                   {a.canonical_name && (
@@ -2090,7 +2090,7 @@ function AssignmentListView({
                 </td>
                 <td className="py-3 px-3">
                   {isOrg ? (
-                    <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded bg-purple-500/20 text-purple-400">All Teams</span>
+                    <span className="px-1.5 py-0.5 text-[11px] font-semibold uppercase rounded bg-purple-500/20 text-purple-400">All Teams</span>
                   ) : (
                     <span className="text-neutral-400 text-xs">{teamName || 'Team'}</span>
                   )}
@@ -2176,7 +2176,7 @@ function ComplianceGrid({
                   title={`${a.title || a.template_name || 'Workout'} — ${format(parseISO(a.scheduled_date), 'EEE d')}`}
                 >
                   <div className="truncate max-w-[80px]">{a.title || a.template_name || '—'}</div>
-                  <div className="text-[10px] text-neutral-600 font-normal">
+                  <div className="text-[11px] text-neutral-600 font-normal">
                     {format(parseISO(a.scheduled_date), 'EEE d')}
                   </div>
                 </Link>
@@ -2195,7 +2195,7 @@ function ComplianceGrid({
                 <tr>
                   <td
                     colSpan={sortedAssignments.length + 2}
-                    className="px-3 py-1.5 text-[10px] font-semibold text-neutral-500 uppercase bg-neutral-800/30 border-b border-neutral-800/50"
+                    className="px-3 py-1.5 text-[11px] font-semibold text-neutral-500 uppercase bg-neutral-800/30 border-b border-neutral-800/50"
                   >
                     {squadName}
                   </td>
@@ -2225,7 +2225,7 @@ function ComplianceGrid({
                             <div className="flex flex-col items-center">
                               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                               {cell.result_split_seconds && (
-                                <span className="text-[10px] text-emerald-400/70 mt-0.5">
+                                <span className="text-[11px] text-emerald-400/70 mt-0.5">
                                   {fmtTime(cell.result_split_seconds)}
                                 </span>
                               )}

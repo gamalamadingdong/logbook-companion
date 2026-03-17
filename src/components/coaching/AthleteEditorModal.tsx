@@ -86,7 +86,7 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="ae-first-name" className="block text-sm font-medium text-neutral-300 mb-1">First Name *</label>
               <input id="ae-first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required
@@ -100,7 +100,7 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
           </div>
 
           {/* Grade + Side */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="ae-grade" className="block text-sm font-medium text-neutral-300 mb-1">Grade</label>
               <input id="ae-grade" type="text" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="8"

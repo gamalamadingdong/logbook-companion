@@ -635,22 +635,22 @@ export function TeamAnalytics() {
                 <thead>
                   <tr className="border-b border-neutral-200 bg-neutral-100 text-xs font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/95 dark:text-neutral-200">
                     <th className="text-left py-3 pr-2 pl-3 w-12">#</th>
-                    <th className="text-left py-3 pr-2 min-w-[220px]">Athlete</th>
+                    <th className="text-left py-3 pr-2 min-w-[140px] md:min-w-[220px]">Athlete</th>
                     <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('titan_index')}>
                       Speed Index<LbSortIcon field="titan_index" />
                     </th>
-                    <th className="text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_raw_rank')}>
+                    <th className="hidden md:table-cell text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_raw_rank')}>
                       <div>Power Rank<LbSortIcon field="avg_raw_rank" /></div>
                       <div className="mt-0.5 text-[10px] font-medium normal-case text-neutral-500 dark:text-neutral-400">Lower is better</div>
                     </th>
-                    <th className="text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_wplb_rank')}>
+                    <th className="hidden md:table-cell text-center py-3 px-2 cursor-pointer select-none" onClick={() => toggleLbSort('avg_wplb_rank')}>
                       <div>Efficiency Rank<LbSortIcon field="avg_wplb_rank" /></div>
                       <div className="mt-0.5 text-[10px] font-medium normal-case text-neutral-500 dark:text-neutral-400">Lower is better</div>
                     </th>
                     <th className="text-center py-3 px-2 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleLbSort('latest_split_seconds')}>
                       Last Workout Split <LbSortIcon field="latest_split_seconds" />
                     </th>
-                    <th className="text-center py-3 px-3 cursor-pointer select-none w-24 whitespace-nowrap" onClick={() => toggleLbSort('assignment_count')}>
+                    <th className="hidden md:table-cell text-center py-3 px-3 cursor-pointer select-none w-24 whitespace-nowrap" onClick={() => toggleLbSort('assignment_count')}>
                       <span title="Workouts"># Workouts</span>
                       <LbSortIcon field="assignment_count" />
                     </th>
@@ -699,10 +699,10 @@ export function TeamAnalytics() {
                             <div className="font-mono font-semibold text-neutral-950 dark:text-white">{row.titan_index != null ? row.titan_index.toFixed(1) : '—'}</div>
                             <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">#{formatAnalyticsRank(row.composite_rank)} composite rank</div>
                           </td>
-                          <td className="py-3 px-2 text-center align-top">
+                          <td className="hidden md:table-cell py-3 px-2 text-center align-top">
                             <div className="font-mono text-neutral-700 dark:text-neutral-300">#{formatAnalyticsRank(row.avg_raw_rank)}</div>
                           </td>
-                          <td className="py-3 px-2 text-center align-top">
+                          <td className="hidden md:table-cell py-3 px-2 text-center align-top">
                             <div className="font-mono text-neutral-700 dark:text-neutral-300">#{formatAnalyticsRank(row.avg_wplb_rank)}</div>
                           </td>
                           <td className="py-3 px-2 text-center align-top">
@@ -711,7 +711,7 @@ export function TeamAnalytics() {
                               {latestWorkout?.label ?? 'No recent workout'}
                             </div>
                           </td>
-                          <td className="py-3 px-3 text-center align-top">
+                          <td className="hidden md:table-cell py-3 px-3 text-center align-top">
                             <div className="font-mono text-neutral-800 dark:text-neutral-200">{row.assignment_count}</div>
                             <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">scored</div>
                           </td>
@@ -739,6 +739,7 @@ export function TeamAnalytics() {
                                 </div>
                               </div>
                               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>
+                              <div className="overflow-x-auto">
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="text-neutral-600 dark:text-neutral-600">
@@ -769,6 +770,7 @@ export function TeamAnalytics() {
                                   ))}
                                 </tbody>
                               </table>
+                              </div>
                             </td>
                           </tr>
                         )}
