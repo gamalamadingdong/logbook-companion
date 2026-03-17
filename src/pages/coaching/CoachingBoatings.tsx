@@ -1,25 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getBoatings,
+  getOrgBoatings,
   getAthletes,
+  getOrgAthletesWithTeam,
   createBoating,
   updateBoating,
   deleteBoating,
   duplicateBoating,
+  setBoatingActive,
   type CoachingBoating,
   type CoachingAthlete,
   type BoatPosition,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, CopyPlus, ArrowRightLeft, Ship } from 'lucide-react';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, Ship, Archive, RotateCcw, History } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
 
 export function CoachingBoatings() {
-  const { userId, teamId, isLoadingTeam, filterTeamId } = useCoachingContext();
+  const { userId, teamId, isLoadingTeam, filterTeamId, orgId } = useCoachingContext();
+  const isOrgWide = filterTeamId === null && !!orgId;
   const effectiveTeamId = filterTeamId ?? teamId;
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
   const [boatings, setBoatings] = useState<CoachingBoating[]>([]);
@@ -29,22 +33,39 @@ export function CoachingBoatings() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<string | 'all'>('all');
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
-    if (!effectiveTeamId || isLoadingTeam) return;
-    Promise.all([getAthletes(effectiveTeamId), getBoatings(effectiveTeamId)])
+    if (isLoadingTeam) return;
+    if (!isOrgWide && !effectiveTeamId) return;
+
+    const fetchAthletes = isOrgWide && orgId
+      ? () => getOrgAthletesWithTeam(orgId)
+      : () => getAthletes(effectiveTeamId);
+    const fetchBoatings = isOrgWide && orgId
+      ? () => getOrgBoatings(orgId)
+      : () => getBoatings(effectiveTeamId);
+
+    Promise.all([fetchAthletes(), fetchBoatings()])
       .then(([a, b]) => {
         setAthletes(a);
         setBoatings(b);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
-  }, [effectiveTeamId, isLoadingTeam]);
+  }, [effectiveTeamId, isLoadingTeam, isOrgWide, orgId]);
 
   const refreshData = async () => {
-    if (!effectiveTeamId) return;
+    if (!isOrgWide && !effectiveTeamId) return;
     try {
-      const [a, b] = await Promise.all([getAthletes(effectiveTeamId), getBoatings(effectiveTeamId)]);
+      const fetchAthletes = isOrgWide && orgId
+        ? () => getOrgAthletesWithTeam(orgId)
+        : () => getAthletes(effectiveTeamId);
+      const fetchBoatings = isOrgWide && orgId
+        ? () => getOrgBoatings(orgId)
+        : () => getBoatings(effectiveTeamId);
+
+      const [a, b] = await Promise.all([fetchAthletes(), fetchBoatings()]);
       setAthletes(a);
       setBoatings(b);
     } catch (err) {
@@ -53,9 +74,10 @@ export function CoachingBoatings() {
   };
 
   const handleSave = async (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => {
-    if (!effectiveTeamId) return;
+    const writeTeamId = effectiveTeamId || teamId;
+    if (!writeTeamId) return;
     try {
-      await createBoating(effectiveTeamId, userId, data);
+      await createBoating(writeTeamId, userId, data);
       setIsAdding(false);
       await refreshData();
     } catch (err) {
@@ -84,31 +106,13 @@ export function CoachingBoatings() {
   };
 
   const handleDuplicate = async (boating: CoachingBoating) => {
-    if (!effectiveTeamId) return;
+    const writeTeamId = effectiveTeamId || teamId;
+    if (!writeTeamId) return;
     try {
-      await duplicateBoating(effectiveTeamId, userId, boating);
+      await duplicateBoating(writeTeamId, userId, boating);
       await refreshData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to duplicate boating');
-    }
-  };
-
-  /** Copy all lineups from the most recent previous day that had lineups */
-  const handleCopyPreviousDay = async () => {
-    if (!effectiveTeamId) return;
-    try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      // Find the most recent day before today that has boatings
-      const pastDates = Object.keys(boatingsByDate).filter((d) => d < today).sort().reverse();
-      if (pastDates.length === 0) return;
-      const sourceDate = pastDates[0];
-      const sourceBoatings = boatingsByDate[sourceDate];
-      for (const b of sourceBoatings) {
-        await duplicateBoating(effectiveTeamId, userId, b);
-      }
-      await refreshData();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to copy lineups');
     }
   };
 
@@ -128,6 +132,19 @@ export function CoachingBoatings() {
     }
   };
 
+  const handleToggleActive = async (boatingId: string, isActive: boolean) => {
+    // Optimistic update
+    setBoatings((prev) =>
+      prev.map((b) => (b.id === boatingId ? { ...b, is_active: isActive } : b))
+    );
+    try {
+      await setBoatingActive(boatingId, isActive);
+    } catch {
+      await refreshData();
+      toast.error(`Failed to ${isActive ? 'reactivate' : 'archive'} lineup`);
+    }
+  };
+
   const getAthleteName = (athleteId: string) =>
     athletes.find((a) => a.id === athleteId)?.name ?? '';
 
@@ -135,17 +152,17 @@ export function CoachingBoatings() {
   const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
   const formAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
 
-  // Group by date
-  const boatingsByDate = boatings.reduce((acc, boating) => {
+  // Split active vs archived
+  const activeBoatings = useMemo(() => boatings.filter((b) => b.is_active !== false), [boatings]);
+  const archivedBoatings = useMemo(() => boatings.filter((b) => b.is_active === false), [boatings]);
+
+  // Group archived by date for history view
+  const archivedByDate = useMemo(() => archivedBoatings.reduce((acc, boating) => {
     const dateKey = boating.date.slice(0, 10);
     if (!acc[dateKey]) acc[dateKey] = [];
     acc[dateKey].push(boating);
     return acc;
-  }, {} as Record<string, CoachingBoating[]>);
-
-  // Check if there are previous-day lineups to copy
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const hasPreviousDay = Object.keys(boatingsByDate).some((d) => d < today);
+  }, {} as Record<string, CoachingBoating[]>), [archivedBoatings]);
 
   return (
     <>
@@ -156,7 +173,10 @@ export function CoachingBoatings() {
           <div>
             <h1 className="text-2xl font-bold text-white">Boatings</h1>
             <p className="text-neutral-400 mt-1">
-              {boatings.length} lineup{boatings.length !== 1 ? 's' : ''} saved
+              {activeBoatings.length} current lineup{activeBoatings.length !== 1 ? 's' : ''}
+              {archivedBoatings.length > 0 && (
+                <span className="text-neutral-600"> · {archivedBoatings.length} archived</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -175,16 +195,6 @@ export function CoachingBoatings() {
                   ))}
                 </select>
               </div>
-            )}
-            {hasPreviousDay && (
-              <button
-                onClick={handleCopyPreviousDay}
-                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-700 transition-colors"
-                title="Copy all lineups from the most recent previous day"
-              >
-                <CopyPlus className="w-5 h-5" />
-                Copy Prev Day
-              </button>
             )}
             <button
               onClick={() => setIsAdding(true)}
@@ -214,13 +224,13 @@ export function CoachingBoatings() {
       ) : athletes.length === 0 ? (
         <EmptyState
           icon={<Ship className="w-8 h-8" />}
-          title="No lineups yet"
-          description="Create your first boat lineup."
+          title="No athletes on roster"
+          description="Add athletes to the roster before creating lineups."
           action={
             <a href="/team-management/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
           }
         />
-      ) : Object.keys(boatingsByDate).length === 0 ? (
+      ) : activeBoatings.length === 0 && archivedBoatings.length === 0 ? (
         <EmptyState
           icon={<Ship className="w-8 h-8" />}
           title="No lineups yet"
@@ -234,95 +244,88 @@ export function CoachingBoatings() {
         />
       ) : (
         <div className="space-y-6">
-          {Object.entries(boatingsByDate).map(([dateKey, dayBoatings]) => (
-            <div key={dateKey}>
-              <h3 className="font-semibold text-neutral-500 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                {format(parseLocalDate(dateKey), 'EEEE, MMMM d, yyyy')}
-              </h3>
-              <div className="space-y-3">
-                {dayBoatings.map((boating) => (
-                  <div key={boating.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-                    <div
-                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-neutral-800/50 transition-colors"
-                      onClick={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                          <span className="text-white font-bold text-sm">{boating.boat_type}</span>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-white">{boating.boat_name}</p>
-                          <p className="text-sm text-neutral-500">
-                            {boating.positions.length} seat{boating.positions.length !== 1 ? 's' : ''} filled
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingBoating(boating); }}
-                          className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
-                          title="Edit lineup"
-                        >
-                          <Edit2 className="w-4 h-4 text-neutral-500" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(boating.id); }}
-                          className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
-                          title="Delete lineup"
-                        >
-                          <Trash2 className="w-4 h-4 text-neutral-500" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDuplicate(boating); }}
-                          className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
-                          title="Duplicate for today"
-                        >
-                          <Copy className="w-4 h-4 text-neutral-500" />
-                        </button>
-                        {expandedBoating === boating.id ? (
-                          <ChevronUp className="w-5 h-5 text-indigo-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-neutral-500" />
-                        )}
+          {/* ── Current Lineups ── */}
+          {activeBoatings.length > 0 ? (
+            <div className="space-y-3">
+              {activeBoatings.map((boating) => (
+                <BoatingCard
+                  key={boating.id}
+                  boating={boating}
+                  athletes={athletes}
+                  allBoatings={activeBoatings}
+                  expanded={expandedBoating === boating.id}
+                  onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
+                  onEdit={() => setEditingBoating(boating)}
+                  onDelete={() => handleDelete(boating.id)}
+                  onDuplicate={() => handleDuplicate(boating)}
+                  onArchive={() => handleToggleActive(boating.id, false)}
+                  onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                  getAthleteName={getAthleteName}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-neutral-500 text-sm">
+              No current lineups. Create a new one or reactivate from history.
+            </div>
+          )}
+
+          {/* ── History ── */}
+          {archivedBoatings.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-300 transition-colors mb-3"
+              >
+                <History className="w-4 h-4" />
+                Past Lineups ({archivedBoatings.length})
+                {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {showHistory && (
+                <div className="space-y-4">
+                  {Object.entries(archivedByDate)
+                    .sort(([a], [b]) => b.localeCompare(a))
+                    .map(([dateKey, dayBoatings]) => (
+                    <div key={dateKey}>
+                      <h3 className="font-semibold text-neutral-600 mb-2 flex items-center gap-2 text-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                        {format(parseLocalDate(dateKey), 'EEEE, MMMM d, yyyy')}
+                      </h3>
+                      <div className="space-y-2">
+                        {dayBoatings.map((boating) => (
+                          <BoatingCard
+                            key={boating.id}
+                            boating={boating}
+                            athletes={athletes}
+                            allBoatings={boatings}
+                            expanded={expandedBoating === boating.id}
+                            onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
+                            onEdit={() => setEditingBoating(boating)}
+                            onDelete={() => handleDelete(boating.id)}
+                            onReactivate={() => handleToggleActive(boating.id, true)}
+                            onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                            getAthleteName={getAthleteName}
+                            archived
+                          />
+                        ))}
                       </div>
                     </div>
-
-                    {expandedBoating === boating.id && (
-                      <div className="border-t border-neutral-800 p-4 bg-neutral-800/30">
-                        <BoatDiagram
-                          boatType={boating.boat_type}
-                          positions={boating.positions}
-                          getAthleteName={getAthleteName}
-                          athletes={athletes}
-                          boatingId={boating.id}
-                          onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
-                          allBoatings={boatings}
-                          currentBoatingDate={boating.date}
-                        />
-                        {boating.notes && (
-                          <p className="mt-4 text-sm text-neutral-400 bg-neutral-800 p-3 rounded-xl">
-                            {boating.notes}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+          )}
         </div>
       )}
 
       {isAdding && (
-        <BoatingForm athletes={formAthletes} allBoatings={boatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
+        <BoatingForm athletes={formAthletes} allBoatings={activeBoatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
       )}
 
       {editingBoating && (
         <BoatingForm
           athletes={formAthletes}
-          allBoatings={boatings}
+          allBoatings={activeBoatings}
           boating={editingBoating}
           onSave={handleEdit}
           onCancel={() => setEditingBoating(null)}
@@ -330,6 +333,129 @@ export function CoachingBoatings() {
       )}
     </div>
     </>
+  );
+}
+
+/* ─── Boating Card ─────────────────────────────────────────────────────────── */
+
+function BoatingCard({
+  boating,
+  athletes,
+  allBoatings,
+  expanded,
+  onToggleExpand,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  onArchive,
+  onReactivate,
+  onPositionsChange,
+  getAthleteName,
+  archived,
+}: {
+  boating: CoachingBoating;
+  athletes: CoachingAthlete[];
+  allBoatings: CoachingBoating[];
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDuplicate?: () => void;
+  onArchive?: () => void;
+  onReactivate?: () => void;
+  onPositionsChange: (positions: BoatPosition[]) => void;
+  getAthleteName: (id: string) => string;
+  archived?: boolean;
+}) {
+  return (
+    <div className={`bg-neutral-900 border rounded-xl overflow-hidden ${archived ? 'border-neutral-800/60 opacity-75' : 'border-neutral-800'}`}>
+      <div
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-neutral-800/50 transition-colors"
+        onClick={onToggleExpand}
+      >
+        <div className="flex items-center gap-4">
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-md ${archived ? 'bg-neutral-700' : 'bg-indigo-600'}`}>
+            <span className="text-white font-bold text-sm">{boating.boat_type}</span>
+          </div>
+          <div>
+            <p className="font-semibold text-white">{boating.boat_name}</p>
+            <p className="text-sm text-neutral-500">
+              {boating.positions.length} seat{boating.positions.length !== 1 ? 's' : ''}
+              <span className="mx-1.5">·</span>
+              since {format(parseLocalDate(boating.date.slice(0, 10)), 'MMM d, yyyy')}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
+            title="Edit lineup"
+          >
+            <Edit2 className="w-4 h-4 text-neutral-500" />
+          </button>
+          {!archived && onDuplicate && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
+              title="Duplicate lineup"
+            >
+              <Copy className="w-4 h-4 text-neutral-500" />
+            </button>
+          )}
+          {!archived && onArchive && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onArchive(); }}
+              className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
+              title="Archive lineup"
+            >
+              <Archive className="w-4 h-4 text-neutral-500" />
+            </button>
+          )}
+          {archived && onReactivate && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReactivate(); }}
+              className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
+              title="Reactivate lineup"
+            >
+              <RotateCcw className="w-4 h-4 text-neutral-500" />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
+            title="Delete lineup"
+          >
+            <Trash2 className="w-4 h-4 text-neutral-500" />
+          </button>
+          {expanded ? (
+            <ChevronUp className="w-5 h-5 text-indigo-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-neutral-500" />
+          )}
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-neutral-800 p-4 bg-neutral-800/30">
+          <BoatDiagram
+            boatType={boating.boat_type}
+            positions={boating.positions}
+            getAthleteName={getAthleteName}
+            athletes={athletes}
+            boatingId={boating.id}
+            onPositionsChange={archived ? undefined : onPositionsChange}
+            allBoatings={allBoatings}
+            currentBoatingDate={boating.date}
+          />
+          {boating.notes && (
+            <p className="mt-4 text-sm text-neutral-400 bg-neutral-800 p-3 rounded-xl">
+              {boating.notes}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -669,7 +795,7 @@ function BoatingForm({
               </select>
             </div>
             <div>
-              <label htmlFor="boating-date" className="block text-sm font-medium text-neutral-300 mb-2">Date</label>
+              <label htmlFor="boating-date" className="block text-sm font-medium text-neutral-300 mb-2">Effective Date</label>
               <input id="boating-date" type="date" value={date} onChange={(e) => setDate(e.target.value)}
                 className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
             </div>

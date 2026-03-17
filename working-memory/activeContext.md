@@ -1,6 +1,32 @@
 # Active Context
 
-> Last updated: March 16, 2026
+> Last updated: March 17, 2026
+
+## Session Summary (2026-03-17) — Schedule Events + Roster Notes
+
+### Completed This Session (Latest)
+
+#### Schedule Events (Phase 1) — DONE
+- [x] **Migration** — `db/migrations/20260317_schedule_events_and_boating_link.sql`
+  - `coaching_schedule_events` table: org-wide, date/end_date, event_type CHECK, team_ids UUID[], RLS
+  - `coaching_boatings.session_id` FK added (Phase 2 prep)
+- [x] **Types** — `CoachingScheduleEvent`, `ScheduleEventType` in `types.ts`; `session_id?` on `CoachingBoating`
+- [x] **Service CRUD** — `getScheduleEvents`, `createScheduleEvent`, `updateScheduleEvent`, `deleteScheduleEvent`, `getBoatingsForSession` in `coachingService.ts`
+- [x] **EventForm modal** — title, event_type picker (regatta/scrimmage/head_race/team_event/off_day), date/end_date, location, team multi-select chips, notes
+- [x] **Schedule UI integration** — Event banners on day blocks (week view), event indicators on calendar cells (month view), "+" button now offers Session or Event via AddMenu dropdown
+- [x] **EventBanner component** — color-coded by event type, shows location + teams + date range, edit/delete actions
+
+#### Roster Notes Drawer — DONE (earlier in session)
+- [x] AthleteNotesDrawer component with subtle superscript note counts
+- [x] Note count service functions (team + org-wide, bug-fixed org query)
+- [x] Roster integration (desktop table + mobile cards)
+
+### Remaining (Phase 2 — Session ↔ Boating Link)
+- [ ] **boating-session-ui** — Show linked lineups nested in SessionCard (DB prep already done)
+
+### Validation
+- `npm run build` ✅ (clean)
+- `npm run test:run` ✅ (225/225 pass)
 
 ## Session Summary (2026-03-16) — Coaching UX restructuring & compliance scoping
 

@@ -35,7 +35,7 @@ export function CoachingErgScores() {
   const ergAthletes = useMemo(() => athletes.filter((a) => a.side !== 'coxswain'), [athletes]);
 
   useEffect(() => {
-    if (!teamId || isLoadingTeam) return;
+    if (!effectiveTeamId || isLoadingTeam) return;
 
     const fetchData = async () => {
       if (isOrgWide && orgId) {
@@ -60,7 +60,7 @@ export function CoachingErgScores() {
   }, [teamId, effectiveTeamId, isLoadingTeam, isOrgWide, orgId]);
 
   const refreshData = async () => {
-    if (!teamId) return;
+    if (!effectiveTeamId) return;
     try {
       if (isOrgWide && orgId) {
         const [orgAthletes, orgTeams] = await Promise.all([

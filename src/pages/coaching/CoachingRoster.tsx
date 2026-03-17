@@ -13,15 +13,18 @@ import {
   getErgScores,
   getOrganizationsForUser,
   getOrgAthletesWithTeam,
+  getCoachNoteCountsByTeam,
+  getCoachNoteCountsByOrg,
   type CoachingAthlete,
   type AssignmentCompletion,
 } from '../../services/coaching/coachingService';
-import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown, ArrowRightLeft, Users, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown, ArrowRightLeft, Users, FileSpreadsheet, FileText, MessageSquare } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
 import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
 import { BulkRosterModal } from '../../components/coaching/BulkRosterModal';
+import { AthleteNotesDrawer } from '../../components/coaching/AthleteNotesDrawer';
 import { downloadCsv } from '../../utils/csvExport';
 import { exportToPdf, exportToExcel } from '../../utils/exportUtils';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg } from '../../utils/unitConversion';
@@ -77,6 +80,10 @@ export function CoachingRoster() {
   // Team transfer
   const [transferringAthlete, setTransferringAthlete] = useState<CoachingAthlete | null>(null);
 
+  // Notes drawer
+  const [notesDrawerAthlete, setNotesDrawerAthlete] = useState<CoachingAthlete | null>(null);
+  const [noteCountsByAthlete, setNoteCountsByAthlete] = useState<Record<string, number>>({});
+
   // Sibling teams in the same org (for transfers)
   const currentTeamInfo = teams.find((t) => t.team_id === teamId);
   const siblingTeams = currentTeamInfo?.org_id
@@ -112,6 +119,19 @@ export function CoachingRoster() {
     }
   }, [effectiveTeamId, orgId]);
 
+  const refreshNoteCounts = useCallback(async () => {
+    try {
+      const counts = isOrgWide && orgId
+        ? await getCoachNoteCountsByOrg(orgId)
+        : effectiveTeamId
+          ? await getCoachNoteCountsByTeam(effectiveTeamId)
+          : {};
+      setNoteCountsByAthlete(counts);
+    } catch {
+      // non-critical
+    }
+  }, [isOrgWide, orgId, effectiveTeamId]);
+
   useEffect(() => {
     if (!userId || !orgId) return;
     getOrganizationsForUser(userId)
@@ -135,11 +155,12 @@ export function CoachingRoster() {
         await Promise.all([
           refreshCompletions(loadedAthletes),
           refresh2kBenchmarks(),
+          refreshNoteCounts(),
         ]);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load athletes'))
       .finally(() => setIsLoading(false));
-  }, [teamId, effectiveTeamId, isLoadingTeam, isOrgWide, orgId, refreshCompletions, refresh2kBenchmarks]);
+  }, [teamId, effectiveTeamId, isLoadingTeam, isOrgWide, orgId, refreshCompletions, refresh2kBenchmarks, refreshNoteCounts]);
 
   const refreshAthletes = useCallback(async () => {
     if (teamId) {
@@ -151,12 +172,13 @@ export function CoachingRoster() {
         await Promise.all([
           refreshCompletions(loadedAthletes),
           refresh2kBenchmarks(),
+          refreshNoteCounts(),
         ]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to refresh');
       }
     }
-  }, [teamId, isOrgWide, orgId, effectiveTeamId, refreshCompletions, refresh2kBenchmarks]);
+  }, [teamId, isOrgWide, orgId, effectiveTeamId, refreshCompletions, refresh2kBenchmarks, refreshNoteCounts]);
 
   const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string; performance_tier?: CoachingAthlete['performance_tier'] }) => {
     if (!teamId) return;
@@ -699,6 +721,25 @@ export function CoachingRoster() {
                 </div>
                 {/* Always-visible actions on mobile */}
                 <div className="flex items-center gap-1 ml-2">
+                  {(() => {
+                    const count = noteCountsByAthlete[athlete.id] ?? 0;
+                    const hasNotes = count > 0;
+                    return (
+                      <button
+                        onClick={() => setNotesDrawerAthlete(athlete)}
+                        className="inline-flex items-center gap-0.5 p-2 rounded-lg hover:bg-neutral-700 transition-colors"
+                        aria-label={hasNotes ? `${count} notes` : 'Add note'}
+                        title={hasNotes ? `${count} note${count !== 1 ? 's' : ''}` : 'Add note'}
+                      >
+                        <MessageSquare className={`w-4 h-4 ${hasNotes ? 'text-indigo-400' : 'text-neutral-400'}`} />
+                        {hasNotes && (
+                          <span className="text-[10px] font-medium text-indigo-400 leading-none -mt-2">
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => navigate(`/team-management/roster/${athlete.id}`)}
                     className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
@@ -924,6 +965,7 @@ export function CoachingRoster() {
                   <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('performance_tier')}>Tier {renderSortIcon('performance_tier')}</th>
                   <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('height')}>Height {renderSortIcon('height')}</th>
                   <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:text-neutral-300 select-none" onClick={() => toggleSort('weight')}>Weight {renderSortIcon('weight')}</th>
+                  <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider w-14 text-center">Notes</th>
                   {hasAssignmentsToday && <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">Today</th>}
                   <th className="px-3 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider w-20"></th>
                 </tr>
@@ -1100,6 +1142,33 @@ export function CoachingRoster() {
                       ) : (
                         <span className="text-neutral-600">—</span>
                       )}
+                    </td>
+
+                    {/* Notes indicator */}
+                    <td className={`${cellBase} text-center`}>
+                      {(() => {
+                        const count = noteCountsByAthlete[athlete.id] ?? 0;
+                        const hasNotes = count > 0;
+                        return (
+                          <button
+                            onClick={() => setNotesDrawerAthlete(athlete)}
+                            className={`inline-flex items-center gap-0.5 p-1.5 rounded-lg transition-colors ${
+                              hasNotes
+                                ? 'hover:bg-neutral-700/60'
+                                : 'hover:bg-neutral-700 opacity-30 hover:opacity-80'
+                            }`}
+                            aria-label={`${hasNotes ? `${count} notes for` : 'Add note for'} ${athlete.first_name} ${athlete.last_name}`}
+                            title={hasNotes ? `${count} note${count !== 1 ? 's' : ''}` : 'Add note'}
+                          >
+                            <MessageSquare className={`w-3.5 h-3.5 ${hasNotes ? 'text-indigo-400' : 'text-neutral-600'}`} />
+                            {hasNotes && (
+                              <span className="text-[10px] font-medium text-indigo-400 leading-none -mt-2">
+                                {count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()}
                     </td>
 
                     {/* Today's completion status */}
@@ -1296,6 +1365,15 @@ export function CoachingRoster() {
           </div>
         </div>
       )}
+
+      {/* Notes Drawer */}
+      <AthleteNotesDrawer
+        athlete={notesDrawerAthlete}
+        teamId={effectiveTeamId}
+        userId={userId}
+        onClose={() => setNotesDrawerAthlete(null)}
+        onNoteAdded={refreshNoteCounts}
+      />
     </div>
     </>
   );

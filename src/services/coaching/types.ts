@@ -127,6 +127,23 @@ export interface CoachingSession {
   updated_at: string;
 }
 
+export type ScheduleEventType = 'regatta' | 'scrimmage' | 'head_race' | 'team_event' | 'off_day';
+
+export interface CoachingScheduleEvent {
+  id: string;
+  org_id: string;
+  coach_user_id: string;
+  date: string;
+  end_date?: string | null;
+  title: string;
+  event_type: ScheduleEventType;
+  location?: string | null;
+  team_ids: string[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CoachingAthleteNote {
   id: string;
   coach_user_id: string;
@@ -175,6 +192,8 @@ export interface CoachingBoating {
   boat_type: '8+' | '4+' | '4x' | '2x' | '1x' | '2-' | '4-';
   positions: BoatPosition[];
   notes?: string;
+  session_id?: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -25,6 +25,8 @@ import type {
   Organization,
   OrgRole,
   OrganizationMember,
+  CoachingScheduleEvent,
+  ScheduleEventType,
 } from './types';
 
 // Re-export types for convenience
@@ -52,6 +54,8 @@ export type {
   Organization,
   OrgRole,
   OrganizationMember,
+  CoachingScheduleEvent,
+  ScheduleEventType,
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1018,6 +1022,58 @@ export async function getMyCoachNotes(userId: string, limit = 50): Promise<Coach
   return attachCoachAuthorProfiles(notes);
 }
 
+/** Get coach-note counts for all athletes in a team (or org-wide). Lightweight — no note content. */
+export async function getCoachNoteCountsByTeam(
+  teamId: string
+): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .rpc('get_coach_note_counts_by_team', { p_team_id: teamId });
+
+  // Fallback: if RPC doesn't exist, do a client-side query
+  if (error) {
+    const rows = throwOnError(
+      await supabase
+        .from('coaching_athlete_coach_notes')
+        .select('athlete_id')
+        .eq('team_id', teamId)
+    ) as { athlete_id: string }[];
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) {
+      counts[row.athlete_id] = (counts[row.athlete_id] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as { athlete_id: string; count: number }[]) {
+    counts[row.athlete_id] = Number(row.count);
+  }
+  return counts;
+}
+
+/** Get coach-note counts across all teams in an org. */
+export async function getCoachNoteCountsByOrg(
+  orgId: string
+): Promise<Record<string, number>> {
+  const teams = await getTeamsForOrg(orgId);
+  const teamIds = teams.map((t) => t.id);
+  if (teamIds.length === 0) return {};
+
+  const rows = throwOnError(
+    await supabase
+      .from('coaching_athlete_coach_notes')
+      .select('athlete_id')
+      .in('team_id', teamIds)
+  ) as { athlete_id: string }[];
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.athlete_id] = (counts[row.athlete_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 // ─── Athletes (unified: athletes + team_athletes) ───────────────────────────
 
 /** Transfer an athlete from one team to another within the same org.
@@ -1317,6 +1373,91 @@ export async function deleteSession(id: string): Promise<void> {
   );
 }
 
+// ─── Schedule Events (Regattas, etc.) ───────────────────────────────────────
+
+/** Get schedule events for an org within a date range.
+ *  Includes multi-day events whose span overlaps the range.
+ *  Optionally filters to events that include a specific team. */
+export async function getScheduleEvents(
+  orgId: string,
+  start: string,
+  end: string,
+  teamId?: string
+): Promise<CoachingScheduleEvent[]> {
+  // Events where: date <= end AND (end_date >= start OR (end_date IS NULL AND date >= start))
+  let query = supabase
+    .from('coaching_schedule_events')
+    .select('*')
+    .eq('org_id', orgId)
+    .lte('date', end)
+    .or(`end_date.gte.${start},and(end_date.is.null,date.gte.${start})`)
+    .order('date');
+
+  if (teamId) {
+    query = query.contains('team_ids', [teamId]);
+  }
+
+  return throwOnError(await query) as CoachingScheduleEvent[];
+}
+
+export async function createScheduleEvent(
+  orgId: string,
+  coachUserId: string,
+  event: Pick<CoachingScheduleEvent, 'date' | 'title' | 'event_type'> &
+    Partial<Pick<CoachingScheduleEvent, 'end_date' | 'location' | 'team_ids' | 'notes'>>
+): Promise<CoachingScheduleEvent> {
+  return throwOnError(
+    await supabase
+      .from('coaching_schedule_events')
+      .insert({
+        org_id: orgId,
+        coach_user_id: coachUserId,
+        date: event.date,
+        end_date: event.end_date ?? null,
+        title: event.title,
+        event_type: event.event_type,
+        location: event.location ?? null,
+        team_ids: event.team_ids ?? [],
+        notes: event.notes ?? null,
+      })
+      .select()
+      .single()
+  );
+}
+
+export async function updateScheduleEvent(
+  id: string,
+  updates: Partial<Pick<CoachingScheduleEvent, 'date' | 'end_date' | 'title' | 'event_type' | 'location' | 'team_ids' | 'notes'>>
+): Promise<CoachingScheduleEvent> {
+  return throwOnError(
+    await supabase
+      .from('coaching_schedule_events')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+  );
+}
+
+export async function deleteScheduleEvent(id: string): Promise<void> {
+  throwOnError(
+    await supabase.from('coaching_schedule_events').delete().eq('id', id)
+  );
+}
+
+// ─── Boating ↔ Session Link ────────────────────────────────────────────────
+
+/** Get boatings linked to a specific session */
+export async function getBoatingsForSession(sessionId: string): Promise<CoachingBoating[]> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boatings')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at')
+  );
+}
+
 // ─── Athlete Notes ──────────────────────────────────────────────────────────
 
 export async function getNotesForSession(sessionId: string): Promise<CoachingAthleteNote[]> {
@@ -1450,6 +1591,18 @@ export async function getBoatings(teamId: string): Promise<CoachingBoating[]> {
   );
 }
 
+export async function getOrgBoatings(orgId: string): Promise<CoachingBoating[]> {
+  const teams = await getTeamsForOrg(orgId);
+  if (teams.length === 0) return [];
+
+  const perTeam = await Promise.all(
+    teams.map((team) => getBoatings(team.id))
+  );
+
+  // Merge and sort by date descending
+  return perTeam.flat().sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export async function createBoating(
   teamId: string,
   coachUserId: string,
@@ -1481,6 +1634,17 @@ export async function updateBoating(
 export async function deleteBoating(id: string): Promise<void> {
   throwOnError(
     await supabase.from('coaching_boatings').delete().eq('id', id)
+  );
+}
+
+export async function setBoatingActive(id: string, isActive: boolean): Promise<CoachingBoating> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boatings')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
   );
 }
 
