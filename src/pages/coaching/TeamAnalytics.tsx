@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { Loader2, BarChart3, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, Share2, Check, Users, Trophy, Gauge } from 'lucide-react';
+import { Loader2, BarChart3, ChevronUp, ChevronDown, ChevronsUpDown, ChevronRight, Share2, Check } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import {
@@ -39,7 +39,6 @@ import {
   getRangeForPreset,
 } from '../../services/coaching/analyticsView';
 
-const INFO_PILL_CLASS = 'rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-neutral-950/80 dark:text-neutral-300 dark:shadow-none';
 const SEGMENT_WRAP_CLASS = 'flex items-center gap-1.5 shrink-0 rounded-lg border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700/60 dark:bg-neutral-900/70';
 const INACTIVE_SEGMENT_CLASS = 'bg-transparent text-neutral-600 hover:bg-white hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200';
 
@@ -343,7 +342,6 @@ export function TeamAnalytics() {
   const hasAnyData = hasZoneData || hasErgData || hasLeaderboardData || hasComplianceData;
   const hasChartData = showZoneChart || hasErgData || hasLeaderboardData || hasComplianceData;
   const leaderboardLeader = sortedLeaderboard[0] ?? null;
-  const currentScopeLabel = filterTeamId ? 'Selected team' : isOrg ? 'Organization' : 'Current team';
 
   const leaderboardSummary = useMemo(() => {
     const titanValues = sortedLeaderboard
@@ -416,6 +414,7 @@ export function TeamAnalytics() {
 
         {!isLoading && !error && hasAnyData && (
           <div className="space-y-3">
+            {/* Compact filter bar */}
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Time range */}
@@ -486,151 +485,105 @@ export function TeamAnalytics() {
                     Min {qualifyMinCount}/{totalAssignments} workouts
                   </label>
                 )}
-
-                {/* Context pills */}
-                <div className="flex flex-wrap items-center gap-2 text-[11px] ml-auto">
-                  <span className={INFO_PILL_CLASS}>
-                    {currentScopeLabel}
-                  </span>
-                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
-                <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400 text-xs uppercase tracking-[0.18em]">
-                  <Users className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                  Visible athletes
-                </div>
-                <div className="mt-3 text-3xl font-semibold text-neutral-950 dark:text-white">{filteredAthletes.length}</div>
-                <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-500">Athletes currently included in the charts and leaderboard.</p>
+            {/* Lens indicator + summary strip */}
+            <div className="flex flex-col gap-1.5 px-1">
+              <div className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${titanTestOnly ? 'bg-amber-500/10 border border-amber-500/25 text-amber-300' : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-300'}`}>
+                <span className="font-semibold text-white">{titanTestOnly ? '⚡ Erg Test Lens' : `Consistency Lens · ${selectedRange.label}`}</span>
+                <span className="ml-1.5 text-[11px]">
+                  {titanTestOnly
+                    ? '— Showing only scored erg tests. Best for comparing benchmark performance.'
+                    : `— All scored workouts in the selected window. Best for spotting athletes who hold quality over time.`}
+                </span>
               </div>
-
-              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
-                <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400 text-xs uppercase tracking-[0.18em]">
-                  <Trophy className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                  Current leader
-                </div>
-                <div className="mt-3 text-lg font-semibold text-neutral-950 dark:text-white">{leaderboardLeader?.athlete_name ?? '—'}</div>
-                <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-500">
-                  {leaderboardLeader?.titan_index != null
-                    ? `Speed Index ${leaderboardLeader.titan_index.toFixed(1)} across the selected ${selectedRange.label.toLowerCase()}`
-                    : 'No Speed Index data yet.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
-                <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400 text-xs uppercase tracking-[0.18em]">
-                  <Gauge className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                  Group snapshot
-                </div>
-                <div className="mt-3 text-lg font-semibold text-neutral-950 dark:text-white">
-                  {leaderboardSummary.averageTitan != null ? leaderboardSummary.averageTitan.toFixed(1) : '—'}
-                  <span className="ml-2 text-sm font-medium text-neutral-500 dark:text-neutral-500">avg Speed Index</span>
-                </div>
-                <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-500">
-                  {leaderboardSummary.fastestAverageSplit?.avg_split_seconds != null
-                    ? `Fastest average split: ${formatSplit(leaderboardSummary.fastestAverageSplit.avg_split_seconds)}`
-                    : leaderboardSummary.workloadLeader
-                      ? `Most scored work: ${leaderboardSummary.workloadLeader.assignment_count} workouts`
-                      : 'Waiting for enough scored work to summarize.'}
-                </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-neutral-400">
+                <span><span className="font-semibold text-white">{filteredAthletes.length}</span> athletes</span>
+                {leaderboardLeader?.titan_index != null && (
+                  <span>Leader: <span className="font-semibold text-white">{leaderboardLeader.athlete_name}</span> <span className="text-indigo-400">{leaderboardLeader.titan_index.toFixed(1)}</span></span>
+                )}
+                {leaderboardSummary.averageTitan != null && (
+                  <span>Avg SI: <span className="font-semibold text-white">{leaderboardSummary.averageTitan.toFixed(1)}</span></span>
+                )}
+                {leaderboardSummary.fastestAverageSplit?.avg_split_seconds != null && (
+                  <span>Fastest avg: <span className="font-semibold text-white">{formatSplit(leaderboardSummary.fastestAverageSplit.avg_split_seconds)}</span></span>
+                )}
+                {disqualifiedCount > 0 && (
+                  <span className="text-neutral-500">{disqualifiedCount} below min — hidden</span>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab switcher */}
+        {/* Tab switcher + Share */}
         {!isLoading && (hasLeaderboardData || hasErgData) && (
-          <div className="flex items-center gap-1 rounded-lg border border-neutral-300 bg-neutral-100 p-1 w-fit dark:border-neutral-700/60 dark:bg-neutral-900/70">
-            <button
-              onClick={() => setAnalyticsTab('leaderboard')}
-              className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
-                analyticsTab === 'leaderboard'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : INACTIVE_SEGMENT_CLASS
-              }`}
-            >
-              Leaderboard
-            </button>
-            {hasErgData && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 rounded-lg border border-neutral-300 bg-neutral-100 p-1 w-fit dark:border-neutral-700/60 dark:bg-neutral-900/70">
               <button
-                onClick={() => setAnalyticsTab('erg-comparison')}
+                onClick={() => setAnalyticsTab('leaderboard')}
                 className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
-                  analyticsTab === 'erg-comparison'
+                  analyticsTab === 'leaderboard'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : INACTIVE_SEGMENT_CLASS
                 }`}
               >
-                Individual Workout Detail
+                Leaderboard
               </button>
+              {hasErgData && (
+                <button
+                  onClick={() => setAnalyticsTab('erg-comparison')}
+                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+                    analyticsTab === 'erg-comparison'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : INACTIVE_SEGMENT_CLASS
+                  }`}
+                >
+                  Individual Workout Detail
+                </button>
+              )}
+            </div>
+            {analyticsTab === 'leaderboard' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (shareStatus !== 'idle') return;
+                    setShareStatus('loading');
+                    try {
+                      const { token } = await createTeamLeaderboardShare(teamId!, {
+                        orgId,
+                        filterSquad: squadFilter !== 'all' ? squadFilter : null,
+                        filterTier: tierFilter !== 'all' ? tierFilter : null,
+                        filterTeamId: filterTeamId ?? null,
+                      });
+                      const url = new URL(buildTeamLeaderboardShareUrl(token));
+                      url.searchParams.set('range', timeRangePreset);
+                      if (titanTestOnly) {
+                        url.searchParams.set('tests', '1');
+                      }
+                      await navigator.clipboard.writeText(url.toString());
+                      setShareStatus('copied');
+                      setTimeout(() => setShareStatus('idle'), 2500);
+                    } catch {
+                      setShareStatus('idle');
+                    }
+                  }}
+                  disabled={shareStatus === 'loading'}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 transition-colors disabled:opacity-50"
+                >
+                  {shareStatus === 'copied' ? <Check className="w-3 h-3 text-emerald-400" /> : <Share2 className="w-3 h-3" />}
+                  {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'loading' ? '…' : 'Share'}
+                </button>
+              </div>
             )}
           </div>
         )}
 
         {/* Leaderboard — full width */}
         {!isLoading && hasLeaderboardData && analyticsTab === 'leaderboard' && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <div>
-                <h3 className="text-sm font-medium text-neutral-400">Leaderboard</h3>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Lead with Speed Index, then read recent split, efficiency, and workload together before making coaching decisions.
-                </p>
-              </div>
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (shareStatus !== 'idle') return;
-                  setShareStatus('loading');
-                  try {
-                    const { token } = await createTeamLeaderboardShare(teamId!, {
-                      orgId,
-                      filterSquad: squadFilter !== 'all' ? squadFilter : null,
-                      filterTier: tierFilter !== 'all' ? tierFilter : null,
-                      filterTeamId: filterTeamId ?? null,
-                    });
-                    const url = new URL(buildTeamLeaderboardShareUrl(token));
-                    url.searchParams.set('range', timeRangePreset);
-                    if (titanTestOnly) {
-                      url.searchParams.set('tests', '1');
-                    }
-                    await navigator.clipboard.writeText(url.toString());
-                    setShareStatus('copied');
-                    setTimeout(() => setShareStatus('idle'), 2500);
-                  } catch {
-                    setShareStatus('idle');
-                  }
-                }}
-                disabled={shareStatus === 'loading'}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 transition-colors disabled:opacity-50"
-              >
-                {shareStatus === 'copied' ? <Check className="w-3 h-3 text-emerald-400" /> : <Share2 className="w-3 h-3" />}
-                {shareStatus === 'copied' ? 'Link copied!' : shareStatus === 'loading' ? 'Creating…' : 'Share'}
-              </button>
-            </div>
-            <details className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700/40 dark:bg-neutral-800/50">
-              <summary className="cursor-pointer px-4 py-2.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 select-none">
-                {titanTestOnly ? 'Erg test lens' : 'Consistency lens'} — how Speed Index works
-              </summary>
-              <div className="px-4 pb-3">
-                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">
-                  <span className="font-semibold">{titanTestOnly ? 'Erg test lens' : 'Consistency lens'}</span>
-                  {titanTestOnly
-                    ? ' isolates scored tests so you can see who performs best when the workout is explicitly a benchmark.'
-                    : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
-                </p>
-                <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
-                  Speed Index is a blend of normalized speed (Watts) and efficiency (Watts/lb), averaged across the selected time range. Higher is better. Expand any athlete to inspect recent scored work, or open <a href="/team-management/assignments" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Team Workouts</a> for assignment-level ranking detail.
-                </p>
-              </div>
-            </details>
-            {disqualifiedCount > 0 && (
-              <p className="mb-3 text-[11px] text-neutral-500 dark:text-neutral-500">
-                {disqualifiedCount} athlete{disqualifiedCount !== 1 ? 's' : ''} below the {qualifyMinCount}-workout minimum ({Math.round(QUALIFY_MIN_PCT * 100)}% of {totalAssignments}) — not shown.
-              </p>
-            )}
-            <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200 bg-neutral-100 text-xs font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/95 dark:text-neutral-200">
@@ -784,9 +737,8 @@ export function TeamAnalytics() {
                   })}
                 </tbody>
               </table>
-              {/* Pagination */}
               {lbTotalPages > 1 && (
-                <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500">
+                <div className="mt-3 flex items-center justify-between px-3 pb-3 text-xs text-neutral-500 dark:text-neutral-500">
                   <span>Page {lbPage + 1} of {lbTotalPages} ({sortedLeaderboard.length} athletes)</span>
                   <div className="flex gap-2">
                     <button
@@ -802,7 +754,6 @@ export function TeamAnalytics() {
                   </div>
                 </div>
               )}
-            </div>
           </div>
         )}
 
