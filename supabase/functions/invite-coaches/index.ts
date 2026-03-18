@@ -162,7 +162,7 @@ Deno.serve(async (req: Request) => {
               email,
               {
                 data: { invited_as: role },
-                redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/reset-password?type=invite`,
+                redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/auth/callback?next=${encodeURIComponent('/reset-password?type=invite')}`,
               },
             );
 
@@ -187,7 +187,7 @@ Deno.serve(async (req: Request) => {
             email,
             {
               data: { invited_as: role },
-              redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/reset-password?type=invite`,
+              redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/auth/callback?next=${encodeURIComponent('/reset-password?type=invite')}`,
             },
           );
 

@@ -41,6 +41,7 @@ import { CoachingProvider } from './contexts/CoachingContext';
 import { NotFound } from './pages/NotFound';
 import { PublicAssignmentResultsShare } from './pages/PublicAssignmentResultsShare';
 import { PublicTeamLeaderboardShare } from './pages/PublicTeamLeaderboardShare';
+import { AuthCallback } from './pages/AuthCallback';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -133,6 +134,7 @@ const AppContent: React.FC = () => {
                 <Routes>
           <Route path="/login" element={<Login />} />
                   <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/share/assignment-results/:shareToken" element={<PublicAssignmentResultsShare />} />
           <Route path="/share/team-leaderboard/:shareToken" element={<PublicTeamLeaderboardShare />} />
