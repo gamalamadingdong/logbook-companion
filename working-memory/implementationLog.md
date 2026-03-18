@@ -4,6 +4,161 @@
 
 ---
 
+## Phase 51: Team Info editor UI simplification (March 18, 2026)
+
+**Timeline**: March 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/components/team/TeamInfoEditorList.tsx`
+  - simplified the Team Info surface into a grouped table-style editor
+  - each row now focuses on the only two editable fields that matter here: `name` and `description`
+  - save actions are inline per team and grouped by organization / standalone teams
+
+- `src/pages/coaching/CoachDashboard.tsx`
+  - removed the visual "Active" state from org/team rows so the dashboard no longer suggests that team editing depends on a selected active team
+
+### Why This Approach Won
+
+- the previous card-per-team layout was too heavy for such a small data model
+- the user’s workflow is list-oriented: scan teams, edit name/description, save, move on
+- removing the visible "Active" badge keeps the hidden technical anchor from masquerading as a product-level concept
+
+### Validation
+
+- `npx eslint src/components/team/TeamInfoEditorList.tsx src/pages/team/MyTeamSettings.tsx src/pages/coaching/CoachingSettings.tsx src/pages/coaching/CoachDashboard.tsx src/services/coaching/coachingService.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Team Info editing now feels more like a simple admin table than a stack of mini forms, and the dashboard no longer reinforces the confusing idea that one team must be "active" before it can be edited.
+
+---
+
+## Phase 50: Team Info editor decoupled from active selector (March 18, 2026)
+
+**Timeline**: March 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/components/team/TeamInfoEditorList.tsx`
+  - new shared editor that loads full details for all accessible teams and renders per-team name/description forms
+  - Team Info editing is now explicitly independent from the active team selector and filter pills
+  - non-coach teams render read-only
+
+- `src/services/coaching/coachingService.ts`
+  - added `getTeamsByIds()` so the shared editor can hydrate full team records (including description) for many teams at once
+
+- `src/pages/team/MyTeamSettings.tsx`
+  - Team Info section now renders the shared all-teams editor
+  - removed the previous scope-centric copy that implied editing followed the active/team filter state
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - replaced the single active-team Team Info form with the shared all-teams editor
+  - left the rest of the page (invite code, members, org assignment) on the active-team model for now
+
+### Why This Approach Won
+
+- the user’s real complaint was workflow friction: editing team identity should not require preselecting one “active” team first
+- making Team Info filter-independent fixes the UX without destabilizing the rest of the coaching module
+- a shared component keeps the team and coaching settings pages aligned so the same bug does not reappear in two places
+
+### Validation
+
+- `npx eslint src/components/team/TeamInfoEditorList.tsx src/pages/team/MyTeamSettings.tsx src/pages/coaching/CoachingSettings.tsx src/services/coaching/coachingService.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Team Info editing on both settings pages now shows all accessible teams directly and no longer depends on whichever team is currently marked active elsewhere in the app.
+
+---
+
+## Phase 49: Team self-service scope alignment audit (March 18, 2026)
+
+**Timeline**: March 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/hooks/useScopedTeamScope.ts`
+  - new shared hook that derives the visible scoped team set from `CoachingContext`
+  - centralizes the rule: `filterTeamId` wins, otherwise org-wide means all teams in the active org, otherwise fall back to the anchor team
+
+- `src/services/coaching/coachingService.ts`
+  - updated `getMyErgScores`, `getMySessionNotes`, and `getMyCoachNotes` to accept one or many team IDs
+  - these self-service reads now explicitly filter by `team_id`, which removes the old app-side cross-team ambiguity for coach notes
+
+- `src/pages/team/MyTeamDashboard.tsx`
+  - now reflects scoped team visibility instead of a first-membership lookup
+  - routes membership management to `MyTeamSettings` instead of duplicating destructive logic
+
+- `src/pages/team/MyScores.tsx`
+  - now loads scores for the full current scoped team set
+  - shows scope badges and team labels when multiple teams are in scope
+
+- `src/pages/team/MyTeamNotes.tsx`
+  - now loads coach notes and session notes for the full current scoped team set
+  - displays team labels in multi-team views and uses explicit team scoping for coach notes
+
+- `src/pages/team/MyTeamSettings.tsx`
+  - now consumes the shared `useScopedTeamScope()` hook instead of carrying a duplicate scoped-team derivation
+
+### Why This Approach Won
+
+- the core problem was consistency, not just one broken page: coaching pages were multi-team aware, while athlete self-service pages still behaved like the app only supported one team
+- extracting a shared scope hook is the lowest-risk way to keep the team side aligned with the coaching side going forward
+- expanding self-service service helpers to accept multiple team IDs let us preserve the existing UI surfaces while fixing the underlying scope model
+
+### Validation
+
+- `npx eslint src/hooks/useScopedTeamScope.ts src/pages/team/MyTeamDashboard.tsx src/pages/team/MyScores.tsx src/pages/team/MyTeamNotes.tsx src/pages/team/MyTeamSettings.tsx src/services/coaching/coachingService.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The `/team/*` and `/team-management/*` sides now follow the same visible-scope model for single-team, multi-team, and All Teams workflows, and the previous athlete coach-note read path no longer risks cross-team leakage at the app-query layer.
+
+---
+
+## Phase 48: MyTeamSettings scope reset for All Teams / multi-team access (March 18, 2026)
+
+**Timeline**: March 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/team/MyTeamSettings.tsx`
+  - replaced the old single-membership load with `CoachingContext`-driven scope rendering
+  - Team Info now reflects `filterTeamId` / `filterTeamName`, distinguishes org-wide `All Teams` scope from single-team scope, and lists the teams currently represented on the page
+  - Danger Zone now operates on explicit direct memberships instead of whatever team happened to be returned first
+- `src/services/coaching/coachingService.ts`
+  - added `getMyDirectTeamMemberships(userId)` to fetch direct `team_members` rows with `memberId`, role, and joined team for leave actions
+
+### Why This Approach Won
+
+- the bug was not just UI copy — it was a data-model mismatch: the page mixed up **visibility scope** with **direct membership**
+- `CoachingContext` is already the canonical source of filter state (`null = All Teams`), so the settings page needed to align with that instead of making its own single-team query
+- leaving a team requires a precise `team_members.id`, so that action needed a separate direct-membership query even when the user can see teams through org-wide access
+
+### Validation
+
+- `npx eslint src/pages/team/MyTeamSettings.tsx src/services/coaching/coachingService.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ⚠️ still failing on unrelated pre-existing files across the repo
+
+### Outcome
+
+`MyTeamSettings` now correctly reflects the intended workflow for org-scoped coaches and multi-team users: All Teams shows org-wide scope, while destructive membership actions stay explicit and unambiguous.
+
+---
+
 ## Phase 47: Boatings UX Overhaul — DnD, Compact View, Org-Wide, Persistent Sort (March 17, 2026)
 
 **Timeline**: March 17, 2026  

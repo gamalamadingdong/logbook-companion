@@ -6,6 +6,33 @@
 
 ### Completed This Session (Latest)
 
+#### Team Info editor decoupled from active selector ✅
+- [x] Added `TeamInfoEditorList` shared component to render/save all accessible teams directly in settings
+- [x] `MyTeamSettings` Team Info now shows all accessible teams and no longer follows the active team selector or filter pills
+- [x] `CoachingSettings` Team Info now uses the same all-teams editor instead of a single active-team form
+- [x] Added `getTeamsByIds()` service helper to hydrate full team details for the shared editor
+- [x] Validation: targeted ESLint on touched files, `npm run build`, and `npm run test:run` all passed
+
+#### Team Info editor UI pass ✅
+- [x] Reworked `TeamInfoEditorList` from stacked cards into a cleaner grouped table-style editor focused on just team name + description
+- [x] Removed the misleading "Active" visual state from the CoachDashboard org/team list while keeping the internal context anchor intact
+- [x] Validation: targeted ESLint on touched files, `npm run build`, and `npm run test:run` all passed
+
+#### Team/coaching scope consistency audit + alignment ✅
+- [x] Audited `/team/*` against coaching-side `CoachingContext` scoping and confirmed `MyScores`, `MyTeamNotes`, and `MyTeamDashboard` were still using single-team assumptions
+- [x] Added `useScopedTeamScope()` so team self-service pages share the same visible-scope logic as coaching pages
+- [x] Updated self-service helpers (`getMyErgScores`, `getMySessionNotes`, `getMyCoachNotes`) to accept one or many team IDs and explicitly apply `team_id` filters
+- [x] Refactored `MyTeamDashboard`, `MyScores`, `MyTeamNotes`, and `MyTeamSettings` to use the shared scoped-team model
+- [x] Removed the app-side coach-note leakage risk by requiring explicit team scoping in `getMyCoachNotes()`
+- [x] Validation: targeted ESLint on touched files, `npm run build`, and `npm run test:run` all passed
+
+#### MyTeamSettings multi-team scope fix ✅
+- [x] `MyTeamSettings` now reads current scope from `CoachingContext` (`filterTeamId`, `filterTeamName`, org/all-teams state) instead of assuming a single fallback team via `getMyTeamMembership()`
+- [x] Added `getMyDirectTeamMemberships()` so leave actions stay tied to explicit `team_members` rows while team visibility can still come from org-wide access
+- [x] Team Info section now explains All Teams vs single-team scope and lists the teams currently reflected on the page
+- [x] Danger Zone now lists direct memberships individually and no longer implies that every visible team is directly leaveable
+- [x] Validation: targeted ESLint on touched files, `npm run build`, and `npm run test:run` all passed; repo-wide `npm run lint` still fails on pre-existing unrelated files
+
 #### Bulk Coach Invite — Names + Org + Onboarding Skip ✅
 - [x] **BulkCoachInviteModal** — Row-based input (First Name, Last Name, Email) with add/remove rows, replaces textarea
 - [x] **Edge Function v6** — Accepts `entries[]` with names, looks up org name, passes `{ first_name, last_name, org_name }` as user metadata to `inviteUserByEmail()`, sets `display_name` to "First Last", sets `onboarding_complete: true` for invited coaches

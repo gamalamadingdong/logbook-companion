@@ -307,6 +307,21 @@ export async function getTeam(teamId: string): Promise<Team | null> {
   return data as Team;
 }
 
+/** Get full details for many teams by ID */
+export async function getTeamsByIds(teamIds: string[]): Promise<Team[]> {
+  const ids = [...new Set(teamIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*')
+    .in('id', ids)
+    .order('name');
+
+  if (error || !data) return [];
+  return data as Team[];
+}
+
 /** Create a new team + add the creator as coach in team_members */
 export async function createTeam(
   coachUserId: string,
@@ -916,6 +931,35 @@ export async function getMyTeamMembership(
   };
 }
 
+/** Get all direct team memberships for the current user. */
+export async function getMyDirectTeamMemberships(
+  userId: string
+): Promise<{ team: Team; role: TeamRole; memberId: string }[]> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('id, role, joined_at, teams(*)')
+    .eq('user_id', userId)
+    .order('joined_at');
+
+  if (error || !data) return [];
+
+  return (data as unknown as Array<{
+    id: string;
+    role: TeamRole;
+    teams: Team | Team[] | null;
+  }>)
+    .flatMap((row) => {
+      const team = Array.isArray(row.teams) ? row.teams[0] ?? null : row.teams;
+      if (!team) return [];
+      return [{
+        team,
+        role: row.role,
+        memberId: row.id,
+      }];
+    })
+    .sort((a, b) => a.team.name.localeCompare(b.team.name));
+}
+
 /** Leave a team (member self-service) */
 export async function leaveTeam(memberId: string): Promise<void> {
   throwOnError(
@@ -926,13 +970,24 @@ export async function leaveTeam(memberId: string): Promise<void> {
   );
 }
 
+function normalizeTeamScope(teamScope: string | string[]): string[] {
+  return Array.isArray(teamScope)
+    ? [...new Set(teamScope.filter(Boolean))]
+    : teamScope
+      ? [teamScope]
+      : [];
+}
+
 // ─── Athlete Self-Service Queries ───────────────────────────────────────────
 
 /** Get erg scores for a specific athlete (self-service view) */
 export async function getMyErgScores(
   userId: string,
-  teamId: string
+  teamScope: string | string[]
 ): Promise<CoachingErgScore[]> {
+  const teamIds = normalizeTeamScope(teamScope);
+  if (teamIds.length === 0) return [];
+
   // Find the athlete record linked to this user
   const { data: athleteLink } = await supabase
     .from('athletes')
@@ -942,22 +997,28 @@ export async function getMyErgScores(
 
   if (!athleteLink) return [];
 
-  return throwOnError(
-    await supabase
-      .from('coaching_erg_scores')
-      .select('*')
-      .eq('team_id', teamId)
-      .eq('athlete_id', athleteLink.id)
-      .order('date', { ascending: false })
-  );
+  const query = supabase
+    .from('coaching_erg_scores')
+    .select('*')
+    .eq('athlete_id', athleteLink.id)
+    .order('date', { ascending: false });
+
+  if (teamIds.length === 1) {
+    return throwOnError(await query.eq('team_id', teamIds[0]));
+  }
+
+  return throwOnError(await query.in('team_id', teamIds));
 }
 
 /** Get session notes about a specific athlete (self-service view) */
 export async function getMySessionNotes(
   userId: string,
-  teamId: string,
+  teamScope: string | string[],
   limit = 30
 ): Promise<(CoachingAthleteNote & { session?: CoachingSession })[]> {
+  const teamIds = normalizeTeamScope(teamScope);
+  if (teamIds.length === 0) return [];
+
   // Find the athlete record linked to this user
   const { data: athleteLink } = await supabase
     .from('athletes')
@@ -967,14 +1028,17 @@ export async function getMySessionNotes(
 
   if (!athleteLink) return [];
 
+  const query = supabase
+    .from('coaching_athlete_notes')
+    .select('*, coaching_sessions(*)')
+    .eq('athlete_id', athleteLink.id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
   const notes = throwOnError(
-    await supabase
-      .from('coaching_athlete_notes')
-      .select('*, coaching_sessions(*)')
-      .eq('team_id', teamId)
-      .eq('athlete_id', athleteLink.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    teamIds.length === 1
+      ? await query.eq('team_id', teamIds[0])
+      : await query.in('team_id', teamIds)
   ) as (CoachingAthleteNote & { coaching_sessions?: CoachingSession })[];
 
   return notes.map(({ coaching_sessions, ...note }) => ({
@@ -1050,7 +1114,14 @@ export async function createCoachNote(
 }
 
 /** Get athlete-level coach notes that are visible to the athlete. */
-export async function getMyCoachNotes(userId: string, limit = 50): Promise<CoachingAthleteCoachNote[]> {
+export async function getMyCoachNotes(
+  userId: string,
+  teamScope: string | string[],
+  limit = 50
+): Promise<CoachingAthleteCoachNote[]> {
+  const teamIds = normalizeTeamScope(teamScope);
+  if (teamIds.length === 0) return [];
+
   const { data: athleteLink } = await supabase
     .from('athletes')
     .select('id')
@@ -1059,14 +1130,18 @@ export async function getMyCoachNotes(userId: string, limit = 50): Promise<Coach
 
   if (!athleteLink?.id) return [];
 
+  const query = supabase
+    .from('coaching_athlete_coach_notes')
+    .select('*')
+    .eq('athlete_id', athleteLink.id)
+    .eq('visible_to_athlete', true)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
   const notes = throwOnError(
-    await supabase
-      .from('coaching_athlete_coach_notes')
-      .select('*')
-      .eq('athlete_id', athleteLink.id)
-      .eq('visible_to_athlete', true)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    teamIds.length === 1
+      ? await query.eq('team_id', teamIds[0])
+      : await query.in('team_id', teamIds)
   ) as CoachingAthleteCoachNote[];
 
   return attachCoachAuthorProfiles(notes);

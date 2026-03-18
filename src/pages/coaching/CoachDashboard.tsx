@@ -75,13 +75,11 @@ function athleteEditorLabel(athleteName: string, fieldLabel: string): string {
 
 interface OrgCardProps {
   group: OrgTeamGroup;
-  activeTeamId: string;
   athleteCounts: Record<string, number>;
-  onSelectTeam: (teamId: string) => void;
   onOpenTeam: (teamId: string) => void;
 }
 
-const OrgCard: React.FC<OrgCardProps> = ({ group, activeTeamId, athleteCounts, onSelectTeam, onOpenTeam }) => {
+const OrgCard: React.FC<OrgCardProps> = ({ group, athleteCounts, onOpenTeam }) => {
   const [expanded, setExpanded] = useState(true);
   const isOrg = group.org_id !== null;
   const totalAthletes = group.teams.reduce((sum, t) => sum + (athleteCounts[t.team_id] ?? 0), 0);
@@ -116,33 +114,20 @@ const OrgCard: React.FC<OrgCardProps> = ({ group, activeTeamId, athleteCounts, o
       {expanded && (
         <div className="border-t border-neutral-800">
           {group.teams.map((team: UserTeamInfo) => {
-            const isActive = team.team_id === activeTeamId;
             const count = athleteCounts[team.team_id] ?? 0;
             return (
               <button
                 type="button"
                 key={team.team_id}
-                onClick={() => {
-                  onSelectTeam(team.team_id);
-                  onOpenTeam(team.team_id);
-                }}
-                className={`w-full flex items-center justify-between gap-3 px-4 py-3 sm:px-5 transition-colors text-left ${
-                  isActive
-                    ? 'bg-indigo-500/10 border-l-2 border-l-indigo-500'
-                    : 'hover:bg-neutral-800/40 border-l-2 border-l-transparent'
-                }`}
+                onClick={() => onOpenTeam(team.team_id)}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 sm:px-5 transition-colors text-left hover:bg-neutral-800/40 border-l-2 border-l-transparent"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`font-medium truncate ${isActive ? 'text-white' : 'text-neutral-200'}`}>
+                      <span className="font-medium truncate text-neutral-200">
                         {team.team_name}
                       </span>
-                      {isActive && (
-                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300">
-                          Active
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {roleBadge(team.role)}
@@ -152,7 +137,7 @@ const OrgCard: React.FC<OrgCardProps> = ({ group, activeTeamId, athleteCounts, o
                     </div>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-400' : 'text-neutral-600'}`} />
+                <ChevronRight className="w-4 h-4 shrink-0 text-neutral-600" />
               </button>
             );
           })}
@@ -1159,9 +1144,7 @@ export const CoachDashboard: React.FC = () => {
           <OrgCard
             key={group.org_id ?? '__standalone'}
             group={group}
-            activeTeamId={teamId}
             athleteCounts={athleteCounts}
-            onSelectTeam={switchTeam}
             onOpenTeam={handleOpenTeam}
           />
         ))}

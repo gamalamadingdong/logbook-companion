@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -7,17 +7,13 @@ import {
   Settings,
   Loader2,
   AlertTriangle,
-  LogOut,
   Shield,
   ShieldAlert,
   User,
 } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import {
-  getMyTeamMembership,
-  leaveTeam,
-} from '../../services/coaching/coachingService';
-import type { Team, TeamRole } from '../../services/coaching/types';
+import type { TeamRole } from '../../services/coaching/types';
+import { useScopedTeamScope } from '../../hooks/useScopedTeamScope';
+import { Badge } from '../../components/ui/Badge';
 
 const ROLE_DISPLAY: Record<TeamRole, { label: string; color: string; icon: typeof Shield; description: string }> = {
   coach: { label: 'Coach', color: 'text-indigo-400', icon: ShieldAlert, description: 'Full team management access' },
@@ -26,47 +22,17 @@ const ROLE_DISPLAY: Record<TeamRole, { label: string; color: string; icon: typeo
 };
 
 export function MyTeamDashboard() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-
-  const [team, setTeam] = useState<Team | null>(null);
-  const [role, setRole] = useState<TeamRole>('member');
-  const [memberId, setMemberId] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    activeTeam,
+    scopedTeams,
+    scopeLabel,
+    isOrgWideScope,
+    isLoadingTeam,
+  } = useScopedTeamScope();
   const [error, setError] = useState<string | null>(null);
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [isLeaving, setIsLeaving] = useState(false);
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    getMyTeamMembership(user.id)
-      .then((result) => {
-        if (result) {
-          setTeam(result.team);
-          setRole(result.role);
-          setMemberId(result.memberId);
-        }
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load team'))
-      .finally(() => setIsLoading(false));
-  }, [user?.id]);
-
-  const handleLeave = async () => {
-    if (!memberId) return;
-    setIsLeaving(true);
-    try {
-      await leaveTeam(memberId);
-      navigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to leave team');
-    } finally {
-      setIsLeaving(false);
-      setShowLeaveConfirm(false);
-    }
-  };
-
-  if (isLoading) {
+  if (isLoadingTeam) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
@@ -75,7 +41,7 @@ export function MyTeamDashboard() {
   }
 
   // Not on a team — show join prompt
-  if (!team) {
+  if (!activeTeam && scopedTeams.length === 0) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="text-center max-w-md">
@@ -98,12 +64,24 @@ export function MyTeamDashboard() {
     );
   }
 
+  const scopedRoles = scopedTeams.map((team) => team.role);
+  const role = scopedRoles.includes('coach')
+    ? 'coach'
+    : scopedRoles.includes('coxswain')
+      ? 'coxswain'
+      : 'member';
   const roleConfig = ROLE_DISPLAY[role];
   const RoleIcon = roleConfig.icon;
+  const headline = isOrgWideScope
+    ? activeTeam?.org_name ?? 'All Teams'
+    : scopedTeams[0]?.team_name ?? activeTeam?.team_name ?? 'My Team';
+  const subhead = isOrgWideScope
+    ? 'You are viewing the full All Teams scope from your current organization filter.'
+    : scopedTeams[0]?.org_name ?? scopeLabel;
 
   const sections = [
-    { path: '/team/scores', label: 'My Erg Scores', icon: Trophy, description: 'View your test results & progress' },
-    { path: '/team/notes', label: 'My Session Notes', icon: FileText, description: 'Notes from your coaches' },
+    { path: '/team/scores', label: 'My Erg Scores', icon: Trophy, description: 'View your test results & progress in the current scope' },
+    { path: '/team/notes', label: 'My Session Notes', icon: FileText, description: 'Notes from your coaches in the current scope' },
   ];
 
   return (
@@ -127,10 +105,8 @@ export function MyTeamDashboard() {
               <Users className="w-7 h-7 text-indigo-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">{team.name}</h1>
-              {team.description && (
-                <p className="text-neutral-400 text-sm mt-0.5">{team.description}</p>
-              )}
+              <h1 className="text-2xl font-bold text-white">{headline}</h1>
+              <p className="text-neutral-400 text-sm mt-0.5">{subhead}</p>
               <div className="flex items-center gap-1.5 mt-2">
                 <RoleIcon className={`w-3.5 h-3.5 ${roleConfig.color}`} />
                 <span className={`text-sm font-medium ${roleConfig.color}`}>
@@ -139,6 +115,14 @@ export function MyTeamDashboard() {
                 <span className="text-neutral-500 text-xs">
                   — {roleConfig.description}
                 </span>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Badge variant={isOrgWideScope ? 'coaching' : 'info'} dot>
+                  {isOrgWideScope ? 'All Teams scope' : 'Single team scope'}
+                </Badge>
+                <Badge variant="muted">
+                  {scopedTeams.length} team{scopedTeams.length === 1 ? '' : 's'} in scope
+                </Badge>
               </div>
             </div>
           </div>
@@ -172,52 +156,16 @@ export function MyTeamDashboard() {
         ))}
       </div>
 
-      {/* Leave Team */}
+      {/* Team access */}
       <div className="border-t border-neutral-800 pt-6 mt-8">
         <button
-          onClick={() => setShowLeaveConfirm(true)}
-          className="text-sm text-neutral-500 hover:text-red-400 transition-colors inline-flex items-center gap-1.5"
+          onClick={() => navigate('/team/settings')}
+          className="text-sm text-neutral-500 hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          Leave Team
+          <Settings className="w-3.5 h-3.5" />
+          Manage team access in Settings
         </button>
       </div>
-
-      {/* Leave Confirmation Dialog */}
-      {showLeaveConfirm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Leave Team</h3>
-            </div>
-            <p className="text-neutral-300 mb-1">
-              Leave <span className="font-medium text-white">{team.name}</span>?
-            </p>
-            <p className="text-neutral-500 text-sm mb-6">
-              You can rejoin later using a new invite code from your coach.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowLeaveConfirm(false)}
-                className="px-4 py-2 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLeave}
-                disabled={isLeaving}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {isLeaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                Leave Team
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

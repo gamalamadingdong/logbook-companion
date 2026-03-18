@@ -20,11 +20,11 @@ import {
 } from 'lucide-react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
+import { TeamInfoEditorList } from '../../components/team/TeamInfoEditorList';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { formatErgTime, getDefaultBenchmarkRubric, parseErgTimeInput, PERFORMANCE_TIER_SQUADS, type SquadKey } from '../../utils/performanceTierRubric';
 import {
   getTeam,
-  updateTeam,
   deleteTeam,
   getTeamDataCounts,
   regenerateInviteCode,
@@ -98,12 +98,6 @@ export function CoachingSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit state
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
   // Invite code
   const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -154,8 +148,6 @@ export function CoachingSettings() {
       .then(([t, m, userOrgs]) => {
         setTeam(t);
         setMembers(m);
-        setEditName(t?.name ?? '');
-        setEditDescription(t?.description ?? '');
         setOrgs(userOrgs);
         setSelectedOrgId(t?.org_id ?? 'none');
         const selectedOrg = userOrgs.find((org) => org.id === (t?.org_id ?? ''));
@@ -166,22 +158,11 @@ export function CoachingSettings() {
       .finally(() => setIsLoading(false));
   }, [teamId, isLoadingTeam, userId]);
 
-  const handleSaveTeam = async () => {
-    if (!teamId || !editName.trim()) return;
-    setIsSaving(true);
-    try {
-      const updated = await updateTeam(teamId, {
-        name: editName.trim(),
-        description: editDescription.trim() || undefined,
-      });
-      setTeam(updated);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleTeamInfoChanged = async () => {
+    await refreshTeam();
+    if (!teamId) return;
+    const refreshedTeam = await getTeam(teamId);
+    setTeam(refreshedTeam);
   };
 
   const handleCopyCode = async () => {
@@ -434,49 +415,7 @@ export function CoachingSettings() {
         {/* Team Info */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white">Team Info</h2>
-
-          <div>
-            <label htmlFor="team-name" className="block text-sm font-medium text-neutral-300 mb-1">
-              Team Name
-            </label>
-            <input
-              id="team-name"
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              minLength={3}
-              maxLength={100}
-              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="team-desc" className="block text-sm font-medium text-neutral-300 mb-1">
-              Description
-            </label>
-            <textarea
-              id="team-desc"
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              rows={2}
-              className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none"
-            />
-          </div>
-
-          <button
-            onClick={handleSaveTeam}
-            disabled={isSaving || editName.trim().length < 3}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : saveSuccess ? (
-              <Check className="w-4 h-4" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {saveSuccess ? 'Saved!' : 'Save Changes'}
-          </button>
+          <TeamInfoEditorList teams={teams} onTeamsChanged={handleTeamInfoChanged} />
         </div>
 
         {/* Organization */}

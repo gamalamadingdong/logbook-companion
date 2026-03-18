@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Loader2, AlertTriangle, ArrowLeft, TrendingUp, TrendingDown, Minus, Filter } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useCoachingContext } from '../../hooks/useCoachingContext';
+import { useScopedTeamScope } from '../../hooks/useScopedTeamScope';
 import { getMyErgScores } from '../../services/coaching/coachingService';
 import type { CoachingErgScore } from '../../services/coaching/types';
+import { Badge } from '../../components/ui/Badge';
 
 const DISTANCE_FILTERS = [
   { value: 0, label: 'All Distances' },
@@ -30,21 +31,38 @@ function formatSplit(split: number | undefined): string {
 
 export function MyScores() {
   const { user } = useAuth();
-  const { teamId, isLoadingTeam } = useCoachingContext();
+  const { scopedTeamIds, scopedTeams, scopeLabel, isOrgWideScope, isLoadingTeam } = useScopedTeamScope();
 
   const [scores, setScores] = useState<CoachingErgScore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [distanceFilter, setDistanceFilter] = useState(0);
+  const teamNameById = useMemo(
+    () => new Map(scopedTeams.map((team) => [team.team_id, team.team_name])),
+    [scopedTeams]
+  );
+  const showTeamLabels = scopedTeams.length > 1;
+  const hasScopedTeams = scopedTeamIds.length > 0;
+
+  const loadScores = useCallback(async () => {
+    if (!user?.id || !hasScopedTeams) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const nextScores = await getMyErgScores(user.id, scopedTeamIds);
+      setScores(nextScores);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load scores');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id, hasScopedTeams, scopedTeamIds]);
 
   useEffect(() => {
-    if (!user?.id || !teamId || isLoadingTeam) return;
-
-    getMyErgScores(user.id, teamId)
-      .then(setScores)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load scores'))
-      .finally(() => setIsLoading(false));
-  }, [user?.id, teamId, isLoadingTeam]);
+    if (isLoadingTeam || !hasScopedTeams) return;
+    void loadScores();
+  }, [isLoadingTeam, hasScopedTeams, loadScores]);
 
   const filtered = distanceFilter > 0
     ? scores.filter((s) => s.distance === distanceFilter)
@@ -74,6 +92,17 @@ export function MyScores() {
     );
   }
 
+  if (!hasScopedTeams) {
+    return (
+      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+        <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-4 text-red-400 text-sm flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          You do not have any team access yet.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -87,9 +116,21 @@ export function MyScores() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-white">My Erg Scores</h1>
-            <p className="text-neutral-400 text-sm">Test results recorded by your coaches</p>
+            <p className="text-neutral-400 text-sm">
+              Test results recorded by your coaches
+              {scopeLabel ? ` · ${scopeLabel}` : ''}
+            </p>
           </div>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Badge variant={isOrgWideScope ? 'coaching' : 'info'} dot>
+          {isOrgWideScope ? 'All Teams scope' : 'Single team scope'}
+        </Badge>
+        <Badge variant="muted">
+          {scopedTeams.length} team{scopedTeams.length === 1 ? '' : 's'} in scope
+        </Badge>
       </div>
 
       {/* Error */}
@@ -146,6 +187,13 @@ export function MyScores() {
                     })}
                   </div>
                   <div className="text-neutral-500 text-sm">{score.distance.toLocaleString()}m</div>
+                  {showTeamLabels && score.team_id && (
+                    <div className="mt-2">
+                      <Badge variant="muted" size="sm">
+                        {teamNameById.get(score.team_id) ?? 'Unknown team'}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 {/* Time + Split */}
