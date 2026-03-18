@@ -13,13 +13,31 @@ export const ResetPassword: React.FC = () => {
     const [success, setSuccess] = useState(false);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isNewUser, setIsNewUser] = useState(false);
+    const [linkError, setLinkError] = useState<string | null>(null);
+    const [hasSession, setHasSession] = useState(false);
 
     // Supabase puts auth tokens in the URL hash for invite/recovery links.
     // The JS client picks them up automatically via onAuthStateChange,
     // but we need to wait for that to complete before showing the form.
+    // If the link is expired/invalid, Supabase puts error info in the hash instead.
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        // Check for error in the URL hash (e.g. expired invite link)
+        const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+        if (hash) {
+            const hashParams = new URLSearchParams(hash);
+            const hashError = hashParams.get('error_description');
+            if (hashError) {
+                setLinkError(hashError);
+                setIsInitializing(false);
+                // Clean the hash
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                return;
+            }
+        }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+                if (session) setHasSession(true);
                 setIsInitializing(false);
             }
         });
@@ -27,6 +45,7 @@ export const ResetPassword: React.FC = () => {
         // Check if we already have a session (e.g., user navigated here manually)
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
+                setHasSession(true);
                 // Detect new users: invited users have no confirmed_at or very recent creation
                 const createdAt = session.user?.created_at ? new Date(session.user.created_at) : null;
                 const confirmedAt = session.user?.confirmed_at ? new Date(session.user.confirmed_at) : null;
@@ -69,6 +88,13 @@ export const ResetPassword: React.FC = () => {
             return;
         }
 
+        // Re-verify session exists before attempting update
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            setError('Your session has expired. Please use "Forgot Password" on the login page to get a fresh link.');
+            return;
+        }
+
         setLoading(true);
         try {
             const { error: updateError } = await supabase.auth.updateUser({ password });
@@ -82,12 +108,59 @@ export const ResetPassword: React.FC = () => {
         }
     };
 
+    if (linkError) {
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 max-w-md w-full text-center">
+                    <div className="inline-flex p-3 bg-red-500/10 rounded-full text-red-400 mb-4">
+                        <AlertCircle size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Link Expired</h2>
+                    <p className="text-neutral-400 text-sm mb-6">
+                        This invite link has expired or is no longer valid.
+                        Please ask your coach to send a new invitation, or use
+                        &quot;Forgot Password&quot; on the login page to get a fresh link.
+                    </p>
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-lg transition-colors"
+                    >
+                        Go to Login
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if (isInitializing) {
         return (
             <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 max-w-md w-full text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
                     <p className="text-neutral-400 text-sm">Verifying your link…</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!hasSession && !success) {
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 max-w-md w-full text-center">
+                    <div className="inline-flex p-3 bg-amber-500/10 rounded-full text-amber-400 mb-4">
+                        <AlertCircle size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Session Not Found</h2>
+                    <p className="text-neutral-400 text-sm mb-6">
+                        We couldn&apos;t establish a session from your link. The link may have expired
+                        or already been used. Use &quot;Forgot Password&quot; on the login page to get a fresh link.
+                    </p>
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-lg transition-colors"
+                    >
+                        Go to Login
+                    </button>
                 </div>
             </div>
         );

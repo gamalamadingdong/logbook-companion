@@ -150,7 +150,36 @@ Deno.serve(async (req: Request) => {
         let wasNewUser = false;
 
         if (existingProfile) {
-          userId = existingProfile.user_id;
+          // Verify the auth user still exists (profile may be orphaned if user was deleted from dashboard)
+          const { data: { user: authCheck } } = await supabase.auth.admin.getUserById(existingProfile.user_id);
+          if (authCheck) {
+            userId = existingProfile.user_id;
+          } else {
+            // Orphaned profile — clean it up and invite fresh
+            await supabase.from('user_profiles').delete().eq('user_id', existingProfile.user_id);
+
+            const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+              email,
+              {
+                data: { invited_as: role },
+                redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/reset-password?type=invite`,
+              },
+            );
+
+            if (inviteError) {
+              results.push({ email, status: 'error', message: inviteError.message });
+              continue;
+            }
+
+            userId = inviteData.user.id;
+            wasNewUser = true;
+
+            await supabase.from('user_profiles').upsert({
+              user_id: userId,
+              email: email,
+              display_name: email.split('@')[0],
+            }, { onConflict: 'user_id' });
+          }
         } else {
           // Invite via Supabase — sends a branded invite email with a magic link.
           // When the coach clicks the link they land on the app and can set their password.
@@ -246,7 +275,7 @@ Deno.serve(async (req: Request) => {
               .insert({
                 org_id: orgId,
                 user_id: userId,
-                role: 'member',
+                role: 'coach',
               });
           }
         }
