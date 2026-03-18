@@ -1083,6 +1083,7 @@ export function CoachingSettings() {
           teamId={teamId}
           teamName={team.name}
           orgId={team?.org_id ?? null}
+          orgName={editOrgName || null}
           onClose={() => setShowBulkInvite(false)}
           onInvited={() => {
             getTeamMembers(teamId).then(setMembers).catch(() => {});

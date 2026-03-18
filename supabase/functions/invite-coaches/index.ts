@@ -16,7 +16,8 @@ const corsHeaders = {
 
 type InviteCoachesRequest = {
   teamId?: string;
-  emails?: string[];
+  entries?: { email: string; firstName?: string; lastName?: string }[];
+  emails?: string[]; // legacy fallback
   role?: 'coach' | 'coxswain';
   orgId?: string;
 };
@@ -79,20 +80,28 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as InviteCoachesRequest;
     const teamId = body.teamId?.trim();
-    const emails = body.emails;
     const role = body.role ?? 'coach';
     const orgId = body.orgId?.trim() || null;
+
+    // Support both new entries[] format and legacy emails[] format
+    const entries: { email: string; firstName: string; lastName: string }[] = body.entries
+      ? body.entries.map((e) => ({
+          email: (e.email || '').trim().toLowerCase(),
+          firstName: (e.firstName || '').trim(),
+          lastName: (e.lastName || '').trim(),
+        }))
+      : (body.emails || []).map((e) => ({ email: e.trim().toLowerCase(), firstName: '', lastName: '' }));
 
     if (!teamId) {
       return jsonResponse(400, { error: 'teamId is required.' });
     }
 
-    if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return jsonResponse(400, { error: 'emails array is required and must not be empty.' });
+    if (entries.length === 0) {
+      return jsonResponse(400, { error: 'entries (or emails) array is required and must not be empty.' });
     }
 
-    if (emails.length > 50) {
-      return jsonResponse(400, { error: 'Maximum 50 emails per request.' });
+    if (entries.length > 50) {
+      return jsonResponse(400, { error: 'Maximum 50 entries per request.' });
     }
 
     if (!['coach', 'coxswain'].includes(role)) {
@@ -128,10 +137,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Look up org name for email personalization
+    let orgName = '';
+    if (orgId) {
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', orgId)
+        .single();
+      orgName = orgData?.name || '';
+    }
+
+    // Look up team name for email personalization
+    const { data: teamData } = await supabase
+      .from('teams')
+      .select('name')
+      .eq('id', teamId)
+      .single();
+    const teamName = teamData?.name || '';
+
     const results: InviteResult[] = [];
 
-    for (const rawEmail of emails) {
-      const email = rawEmail.trim().toLowerCase();
+    for (const entry of entries) {
+      const email = entry.email;
+      const firstName = entry.firstName;
+      const lastName = entry.lastName;
+      const displayName = [firstName, lastName].filter(Boolean).join(' ') || email.split('@')[0];
 
       if (!emailPattern.test(email)) {
         results.push({ email, status: 'error', message: 'Invalid email format.' });
@@ -149,11 +180,23 @@ Deno.serve(async (req: Request) => {
         let userId: string;
         let wasNewUser = false;
 
+        const inviteData_metadata = {
+          invited_as: role,
+          first_name: firstName,
+          last_name: lastName,
+          org_name: orgName,
+          team_name: teamName,
+        };
+
         if (existingProfile) {
           // Verify the auth user still exists (profile may be orphaned if user was deleted from dashboard)
           const { data: { user: authCheck } } = await supabase.auth.admin.getUserById(existingProfile.user_id);
           if (authCheck) {
             userId = existingProfile.user_id;
+            // Update display name if names were provided and current is just email prefix
+            if (firstName && existingProfile.display_name === existingProfile.email?.split('@')[0]) {
+              await supabase.from('user_profiles').update({ display_name: displayName }).eq('user_id', userId);
+            }
           } else {
             // Orphaned profile — clean it up and invite fresh
             await supabase.from('user_profiles').delete().eq('user_id', existingProfile.user_id);
@@ -161,7 +204,7 @@ Deno.serve(async (req: Request) => {
             const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
               email,
               {
-                data: { invited_as: role },
+                data: inviteData_metadata,
                 redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/auth/callback?next=${encodeURIComponent('/reset-password?type=invite')}`,
               },
             );
@@ -177,16 +220,16 @@ Deno.serve(async (req: Request) => {
             await supabase.from('user_profiles').upsert({
               user_id: userId,
               email: email,
-              display_name: email.split('@')[0],
+              display_name: displayName,
+              preferences: { onboarding_complete: true },
             }, { onConflict: 'user_id' });
           }
         } else {
-          // Invite via Supabase — sends a branded invite email with a magic link.
-          // When the coach clicks the link they land on the app and can set their password.
+          // Invite via Supabase — sends a branded invite email.
           const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
             email,
             {
-              data: { invited_as: role },
+              data: inviteData_metadata,
               redirectTo: `${Deno.env.get('SITE_URL') || 'https://logbook.readyall.org'}/auth/callback?next=${encodeURIComponent('/reset-password?type=invite')}`,
             },
           );
@@ -204,7 +247,7 @@ Deno.serve(async (req: Request) => {
                   .upsert({
                     user_id: authUser.id,
                     email: email,
-                    display_name: email.split('@')[0],
+                    display_name: displayName,
                   }, { onConflict: 'user_id' });
               } else {
                 results.push({ email, status: 'error', message: inviteError.message });
@@ -218,13 +261,14 @@ Deno.serve(async (req: Request) => {
             userId = inviteData.user.id;
             wasNewUser = true;
 
-            // Create user_profiles row
+            // Create user_profiles row — skip onboarding for invited coaches
             await supabase
               .from('user_profiles')
               .upsert({
                 user_id: userId,
                 email: email,
-                display_name: email.split('@')[0],
+                display_name: displayName,
+                preferences: { onboarding_complete: true },
               }, { onConflict: 'user_id' });
           }
         }

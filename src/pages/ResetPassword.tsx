@@ -100,7 +100,8 @@ export const ResetPassword: React.FC = () => {
             const { error: updateError } = await supabase.auth.updateUser({ password });
             if (updateError) throw updateError;
             setSuccess(true);
-            setTimeout(() => navigate('/'), 3000);
+            const destination = isNewUser ? '/team-management' : '/';
+            setTimeout(() => navigate(destination), 3000);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Failed to update password.');
         } finally {

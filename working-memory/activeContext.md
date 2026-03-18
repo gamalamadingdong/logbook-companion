@@ -1,29 +1,36 @@
 # Active Context
 
-> Last updated: March 17, 2026
+> Last updated: March 18, 2026
 
-## Session Summary (2026-03-17) — Bulk Coach Invite Flow
+## Session Summary (2026-03-18) — Bulk Coach Invite Flow Complete
 
 ### Completed This Session (Latest)
 
-#### Bulk Coach Invite System
-- [x] **Edge Function** — `supabase/functions/invite-coaches/index.ts`: Accepts `{ teamId, emails[], role, orgId? }`. For each email: calls `auth.admin.inviteUserByEmail()` (creates account + sends magic link), creates `user_profiles` row, inserts `team_members` with coach/coxswain role, optionally adds to org. Returns per-email results.
-- [x] **Service function** — `inviteCoaches()` in `coachingService.ts`: Typed wrapper calling the edge function.
-- [x] **BulkCoachInviteModal** — `src/components/coaching/BulkCoachInviteModal.tsx`: Paste emails (comma/newline/semicolon separated), live validation preview, role selector (coach/coxswain), sends invites, shows per-email results (✅ invited, ⚠️ already existed, ❌ error).
-- [x] **CoachingSettings wired** — "Invite Coaches" button in Team Members section opens the modal. Refreshes member list on close.
-- [x] **ResetPassword page updated** — `src/pages/ResetPassword.tsx`: Detects new users (invite flow) vs password reset. Shows "Set Your Password" title + welcome message for invited users. Waits for Supabase auth session from magic link URL hash before showing form. Loading spinner while verifying link.
-- [ ] **Supabase email template** — Manual step: customize invite email template in Supabase Dashboard > Auth > Email Templates > "Invite user" to mention ReadyAll.
-- [ ] **Deploy edge function** — `supabase functions deploy invite-coaches` (requires CLI)
+#### Bulk Coach Invite System — Full Flow Working ✅
+- [x] **Edge Function v5** — `invite-coaches`: Uses `inviteUserByEmail()`, orphaned profile detection, org role fix (`'coach'` not `'member'`)
+- [x] **BulkCoachInviteModal** — Fixed all broken token classes (was using nonexistent `bg-surface-primary` etc.), switched to coaching accent (indigo)
+- [x] **BulkRosterModal** — Migrated all hardcoded `neutral-*` colors to design token system
+- [x] **ResetPassword page** — Added expired link handling, session validation, "Link Expired" / "Session Not Found" screens
+- [x] **AuthCallback page** — PKCE code exchange handler at `/auth/callback`
+- [x] **AuthConfirm page** — Client-side token verification at `/auth/confirm` — **the key fix for email pre-fetching**
+- [x] **Supabase email template** — Updated to link to `/auth/confirm?token_hash=...&type=invite` instead of Supabase's `/auth/v1/verify`
+- [x] **End-to-end tested and working in production**
 
-### Validation
-- `npm run build` ✅ (clean)
-- `npm run test:run` ✅ (225/225 pass)
+### Key Architecture — Email Pre-Fetch Solution
+- **Problem**: Email providers (Outlook Safe Links, Gmail) pre-fetch URLs, consuming Supabase's one-time invite tokens before users click.
+- **Solution**: Email links point to `/auth/confirm` on our app. The page calls `supabase.auth.verifyOtp({ token_hash, type })` via JavaScript — email scanners can't execute JS, so tokens survive.
+- **Flow**: Coach enters emails → edge function creates accounts + sends invite emails → user clicks link → `/auth/confirm` verifies token client-side → redirects to `/reset-password?type=invite` → user sets password → authenticated.
+- **Supabase email template** uses `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`
 
-### Key Architecture Notes
-- **`inviteUserByEmail`** is a Supabase admin API requiring the service role key — hence the edge function pattern (same as existing `send-team-invite`).
-- **Flow**: Coach enters emails in modal → edge function creates accounts + sends Supabase invite emails → invited user clicks magic link → lands on `/reset-password` → sets password → redirected to dashboard as authenticated coach.
-- **Existing users** are handled gracefully: if email already has an account, they're just added to the team directly (no invite email needed).
-- **Organization membership**: If the team belongs to an org, invited coaches are also added as org members.
+### Files Changed
+- `supabase/functions/invite-coaches/index.ts` — orphan detection, org role fix, redirect URL updates
+- `src/components/coaching/BulkCoachInviteModal.tsx` — design token fixes
+- `src/components/coaching/BulkRosterModal.tsx` — design token migration
+- `src/pages/ResetPassword.tsx` — expired link / session error handling
+- `src/pages/AuthCallback.tsx` — PKCE code exchange (new)
+- `src/pages/AuthConfirm.tsx` — client-side OTP verification (new, **key fix**)
+- `src/services/supabase.ts` — added PKCE + session config
+- `src/App.tsx` — added `/auth/callback` and `/auth/confirm` routes
 
 ## Session Summary (2026-03-17) — Boatings UX Overhaul + Mobile Responsiveness
 

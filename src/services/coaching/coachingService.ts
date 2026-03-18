@@ -796,14 +796,14 @@ export interface InviteCoachesResponse {
 /** Bulk-invite coaches via the invite-coaches edge function */
 export async function inviteCoaches(params: {
   teamId: string;
-  emails: string[];
+  entries: { email: string; firstName: string; lastName: string }[];
   role: 'coach' | 'coxswain';
   orgId?: string;
 }): Promise<InviteCoachesResponse> {
   const { data, error } = await supabase.functions.invoke('invite-coaches', {
     body: {
       teamId: params.teamId,
-      emails: params.emails,
+      entries: params.entries,
       role: params.role,
       orgId: params.orgId || undefined,
     },

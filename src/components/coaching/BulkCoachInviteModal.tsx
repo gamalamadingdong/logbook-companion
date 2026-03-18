@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
-import { X, UserPlus, Loader2, CheckCircle2, AlertCircle, Mail } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, UserPlus, Loader2, CheckCircle2, AlertCircle, Mail, Plus, Trash2 } from 'lucide-react';
 import { inviteCoaches, type InviteCoachResult } from '../../services/coaching/coachingService';
 import { toast } from 'sonner';
 
@@ -7,53 +7,52 @@ interface BulkCoachInviteModalProps {
   teamId: string;
   teamName: string;
   orgId?: string | null;
+  orgName?: string | null;
   onClose: () => void;
   onInvited: () => void;
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function parseEmails(input: string): string[] {
-  return input
-    .split(/[,;\n\r]+/)
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
+interface InviteEntry {
+  firstName: string;
+  lastName: string;
+  email: string;
 }
+
+const emptyEntry = (): InviteEntry => ({ firstName: '', lastName: '', email: '' });
 
 export function BulkCoachInviteModal({
   teamId,
   teamName,
   orgId,
+  orgName,
   onClose,
   onInvited,
 }: BulkCoachInviteModalProps) {
-  const [emailInput, setEmailInput] = useState('');
+  const [entries, setEntries] = useState<InviteEntry[]>([emptyEntry(), emptyEntry(), emptyEntry()]);
   const [role, setRole] = useState<'coach' | 'coxswain'>('coach');
   const [step, setStep] = useState<'input' | 'sending' | 'results'>('input');
   const [results, setResults] = useState<InviteCoachResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const parsed = useMemo(() => parseEmails(emailInput), [emailInput]);
+  const updateEntry = (idx: number, field: keyof InviteEntry, value: string) => {
+    setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
+  };
 
-  const validEmails = useMemo(
-    () => parsed.filter((e) => emailPattern.test(e)),
-    [parsed],
-  );
+  const addRow = () => setEntries((prev) => [...prev, emptyEntry()]);
 
-  const invalidEmails = useMemo(
-    () => parsed.filter((e) => !emailPattern.test(e)),
-    [parsed],
-  );
+  const removeRow = (idx: number) => {
+    if (entries.length <= 1) return;
+    setEntries((prev) => prev.filter((_, i) => i !== idx));
+  };
 
-  const uniqueValid = useMemo(
-    () => [...new Set(validEmails)],
-    [validEmails],
-  );
-
-  const duplicateCount = validEmails.length - uniqueValid.length;
+  const validEntries = entries.filter((e) => emailPattern.test(e.email.trim()));
+  const filledCount = entries.filter((e) => e.email.trim().length > 0).length;
+  const invalidCount = filledCount - validEntries.length;
 
   const handleSend = useCallback(async () => {
-    if (uniqueValid.length === 0) return;
+    if (validEntries.length === 0) return;
 
     setError(null);
     setStep('sending');
@@ -61,7 +60,11 @@ export function BulkCoachInviteModal({
     try {
       const response = await inviteCoaches({
         teamId,
-        emails: uniqueValid,
+        entries: validEntries.map((e) => ({
+          email: e.email.trim().toLowerCase(),
+          firstName: e.firstName.trim(),
+          lastName: e.lastName.trim(),
+        })),
         role,
         orgId: orgId ?? undefined,
       });
@@ -83,11 +86,11 @@ export function BulkCoachInviteModal({
       setError(err instanceof Error ? err.message : 'Failed to send invites');
       setStep('input');
     }
-  }, [uniqueValid, teamId, role, orgId, onInvited]);
+  }, [validEntries, teamId, role, orgId, onInvited]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface-card border border-border rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="bg-surface-card border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-3">
@@ -96,7 +99,7 @@ export function BulkCoachInviteModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-content-primary">Invite Coaches</h2>
-              <p className="text-xs text-content-muted">{teamName}</p>
+              <p className="text-xs text-content-muted">{teamName}{orgName ? ` · ${orgName}` : ''}</p>
             </div>
           </div>
           <button
@@ -119,37 +122,75 @@ export function BulkCoachInviteModal({
                 </p>
               </div>
 
-              {/* Email input */}
-              <div>
-                <label className="block text-sm font-medium text-content-secondary mb-1">
-                  Email addresses
-                </label>
-                <textarea
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="coach1@school.edu, coach2@school.edu&#10;&#10;Separate with commas, semicolons, or new lines"
-                  rows={5}
-                  className="w-full px-3 py-2.5 bg-surface-secondary border border-border rounded-lg text-content-primary placeholder-content-muted text-sm focus:ring-2 focus:ring-accent-coaching/40 focus:border-accent-coaching outline-none resize-y"
-                />
+              {/* Column headers */}
+              <div className="grid grid-cols-[1fr_1fr_1.5fr_2rem] gap-2 px-1">
+                <label className="text-xs font-medium text-content-muted uppercase tracking-wider">First Name</label>
+                <label className="text-xs font-medium text-content-muted uppercase tracking-wider">Last Name</label>
+                <label className="text-xs font-medium text-content-muted uppercase tracking-wider">Email *</label>
+                <span />
               </div>
 
+              {/* Entry rows */}
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {entries.map((entry, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_1fr_1.5fr_2rem] gap-2 items-center">
+                    <input
+                      type="text"
+                      value={entry.firstName}
+                      onChange={(e) => updateEntry(idx, 'firstName', e.target.value)}
+                      placeholder="Jane"
+                      className="px-2.5 py-2 bg-surface-secondary border border-border rounded-lg text-content-primary placeholder-content-muted text-sm focus:ring-2 focus:ring-accent-coaching/40 focus:border-accent-coaching outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={entry.lastName}
+                      onChange={(e) => updateEntry(idx, 'lastName', e.target.value)}
+                      placeholder="Smith"
+                      className="px-2.5 py-2 bg-surface-secondary border border-border rounded-lg text-content-primary placeholder-content-muted text-sm focus:ring-2 focus:ring-accent-coaching/40 focus:border-accent-coaching outline-none"
+                    />
+                    <input
+                      type="email"
+                      value={entry.email}
+                      onChange={(e) => updateEntry(idx, 'email', e.target.value)}
+                      placeholder="coach@school.edu"
+                      className={`px-2.5 py-2 bg-surface-secondary border rounded-lg text-content-primary placeholder-content-muted text-sm focus:ring-2 focus:ring-accent-coaching/40 focus:border-accent-coaching outline-none ${
+                        entry.email.trim() && !emailPattern.test(entry.email.trim())
+                          ? 'border-red-500/50'
+                          : 'border-border'
+                      }`}
+                    />
+                    <button
+                      onClick={() => removeRow(idx)}
+                      disabled={entries.length <= 1}
+                      className="p-1 text-content-muted hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Remove row"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add row button */}
+              <button
+                onClick={addRow}
+                className="flex items-center gap-1.5 text-sm text-accent-coaching hover:text-accent-coaching-hover transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add another
+              </button>
+
               {/* Validation feedback */}
-              {parsed.length > 0 && (
+              {filledCount > 0 && (
                 <div className="space-y-1.5 text-sm">
-                  {uniqueValid.length > 0 && (
+                  {validEntries.length > 0 && (
                     <p className="text-emerald-400">
-                      ✓ {uniqueValid.length} valid email{uniqueValid.length !== 1 ? 's' : ''}
+                      ✓ {validEntries.length} valid email{validEntries.length !== 1 ? 's' : ''}
                     </p>
                   )}
-                  {duplicateCount > 0 && (
-                    <p className="text-content-muted">
-                      {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} removed
-                    </p>
-                  )}
-                  {invalidEmails.length > 0 && (
+                  {invalidCount > 0 && (
                     <p className="text-red-400">
-                      ✗ {invalidEmails.length} invalid: {invalidEmails.slice(0, 3).join(', ')}
-                      {invalidEmails.length > 3 && ` +${invalidEmails.length - 3} more`}
+                      ✗ {invalidCount} invalid email{invalidCount !== 1 ? 's' : ''}
                     </p>
                   )}
                 </div>
@@ -198,7 +239,7 @@ export function BulkCoachInviteModal({
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="w-8 h-8 animate-spin text-accent-coaching" />
               <p className="text-content-secondary text-sm">
-                Sending {uniqueValid.length} invite{uniqueValid.length !== 1 ? 's' : ''}…
+                Sending {validEntries.length} invite{validEntries.length !== 1 ? 's' : ''}…
               </p>
             </div>
           )}
@@ -267,11 +308,11 @@ export function BulkCoachInviteModal({
               </button>
               <button
                 onClick={handleSend}
-                disabled={uniqueValid.length === 0}
+                disabled={validEntries.length === 0}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-coaching text-white rounded-lg hover:bg-accent-coaching-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Mail className="w-4 h-4" />
-                Invite {uniqueValid.length > 0 ? uniqueValid.length : ''} Coach{uniqueValid.length !== 1 ? 'es' : ''}
+                Invite {validEntries.length > 0 ? validEntries.length : ''} Coach{validEntries.length !== 1 ? 'es' : ''}
               </button>
             </>
           )}
