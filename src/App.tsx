@@ -42,6 +42,7 @@ import { NotFound } from './pages/NotFound';
 import { PublicAssignmentResultsShare } from './pages/PublicAssignmentResultsShare';
 import { PublicTeamLeaderboardShare } from './pages/PublicTeamLeaderboardShare';
 import { AuthCallback } from './pages/AuthCallback';
+import { AuthConfirm } from './pages/AuthConfirm';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -135,6 +136,7 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<Login />} />
                   <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/auth/confirm" element={<AuthConfirm />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/share/assignment-results/:shareToken" element={<PublicAssignmentResultsShare />} />
           <Route path="/share/team-leaderboard/:shareToken" element={<PublicTeamLeaderboardShare />} />
