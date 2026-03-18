@@ -2,32 +2,41 @@
 
 > Last updated: March 18, 2026
 
-## Session Summary (2026-03-18) — Bulk Coach Invite Flow Complete
+## Session Summary (2026-03-18) — Bulk Coach Invite Flow Complete + Enhancements
 
 ### Completed This Session (Latest)
 
-#### Bulk Coach Invite System — Full Flow Working ✅
-- [x] **Edge Function v5** — `invite-coaches`: Uses `inviteUserByEmail()`, orphaned profile detection, org role fix (`'coach'` not `'member'`)
-- [x] **BulkCoachInviteModal** — Fixed all broken token classes (was using nonexistent `bg-surface-primary` etc.), switched to coaching accent (indigo)
-- [x] **BulkRosterModal** — Migrated all hardcoded `neutral-*` colors to design token system
-- [x] **ResetPassword page** — Added expired link handling, session validation, "Link Expired" / "Session Not Found" screens
+#### Bulk Coach Invite — Names + Org + Onboarding Skip ✅
+- [x] **BulkCoachInviteModal** — Row-based input (First Name, Last Name, Email) with add/remove rows, replaces textarea
+- [x] **Edge Function v6** — Accepts `entries[]` with names, looks up org name, passes `{ first_name, last_name, org_name }` as user metadata to `inviteUserByEmail()`, sets `display_name` to "First Last", sets `onboarding_complete: true` for invited coaches
+- [x] **Supabase email template** — Uses `{{ .Data.first_name }}` and `{{ .Data.org_name }}` for personalized invite emails
+- [x] **ResetPassword** — Invited coaches redirect to `/team-management` after setting password (not `/`)
+- [x] **OnboardingWizard** — Migrated all hardcoded `neutral-*`/`emerald-*` to design tokens for light mode support
+
+#### Previous (same session)
+- [x] **Edge Function v5** — `inviteUserByEmail()`, orphaned profile detection, org role fix (`'coach'` not `'member'`)
+- [x] **BulkCoachInviteModal** — Fixed broken token classes, coaching accent (indigo)
+- [x] **BulkRosterModal** — Migrated hardcoded `neutral-*` colors to design token system
+- [x] **ResetPassword page** — Expired link handling, session validation screens
 - [x] **AuthCallback page** — PKCE code exchange handler at `/auth/callback`
-- [x] **AuthConfirm page** — Client-side token verification at `/auth/confirm` — **the key fix for email pre-fetching**
-- [x] **Supabase email template** — Updated to link to `/auth/confirm?token_hash=...&type=invite` instead of Supabase's `/auth/v1/verify`
+- [x] **AuthConfirm page** — Client-side OTP verification at `/auth/confirm` (email pre-fetch fix)
 - [x] **End-to-end tested and working in production**
 
 ### Key Architecture — Email Pre-Fetch Solution
 - **Problem**: Email providers (Outlook Safe Links, Gmail) pre-fetch URLs, consuming Supabase's one-time invite tokens before users click.
 - **Solution**: Email links point to `/auth/confirm` on our app. The page calls `supabase.auth.verifyOtp({ token_hash, type })` via JavaScript — email scanners can't execute JS, so tokens survive.
-- **Flow**: Coach enters emails → edge function creates accounts + sends invite emails → user clicks link → `/auth/confirm` verifies token client-side → redirects to `/reset-password?type=invite` → user sets password → authenticated.
-- **Supabase email template** uses `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`
+- **Flow**: Coach enters names+emails → edge function creates accounts with metadata → sends invite emails with org/name personalization → user clicks link → `/auth/confirm` verifies token → `/reset-password?type=invite` → sets password → redirects to `/team-management`
 
 ### Files Changed
-- `supabase/functions/invite-coaches/index.ts` — orphan detection, org role fix, redirect URL updates
-- `src/components/coaching/BulkCoachInviteModal.tsx` — design token fixes
+- `supabase/functions/invite-coaches/index.ts` — v6: entries with names, org lookup, onboarding skip
+- `src/components/coaching/BulkCoachInviteModal.tsx` — row-based name+email input
+- `src/services/coaching/coachingService.ts` — entries[] instead of emails[]
+- `src/pages/coaching/CoachingSettings.tsx` — passes orgName to modal
+- `src/components/OnboardingWizard.tsx` — design token migration for light mode
+- `src/pages/ResetPassword.tsx` — invite redirect to /team-management
 - `src/components/coaching/BulkRosterModal.tsx` — design token migration
-- `src/pages/ResetPassword.tsx` — expired link / session error handling
 - `src/pages/AuthCallback.tsx` — PKCE code exchange (new)
+- `src/pages/AuthConfirm.tsx` — client-side OTP verification (new)
 - `src/pages/AuthConfirm.tsx` — client-side OTP verification (new, **key fix**)
 - `src/services/supabase.ts` — added PKCE + session config
 - `src/App.tsx` — added `/auth/callback` and `/auth/confirm` routes
