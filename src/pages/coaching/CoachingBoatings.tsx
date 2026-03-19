@@ -263,6 +263,12 @@ export function CoachingBoatings() {
     const seatContainers = args.droppableContainers.filter((container) =>
       typeof container.id === 'string' && /-seat-\d+$/.test(container.id)
     );
+    const expandedSeatContainers = seatContainers.filter(
+      (container) => container.data.current?.layout === 'expanded'
+    );
+    const compactSeatContainers = seatContainers.filter(
+      (container) => container.data.current?.layout === 'compact'
+    );
 
     const rosterHits = rectIntersection({
       ...args,
@@ -270,11 +276,29 @@ export function CoachingBoatings() {
     }).filter((collision) => collision.id === 'roster-panel');
     if (rosterHits.length > 0) return rosterHits;
 
-    const pointerHits = pointerWithin({
+    const expandedPointerHits = pointerWithin({
+      ...args,
+      droppableContainers: expandedSeatContainers,
+    });
+    if (expandedPointerHits.length > 0) return expandedPointerHits;
+
+    const compactPointerHits = pointerWithin({
+      ...args,
+      droppableContainers: compactSeatContainers,
+    });
+    if (compactPointerHits.length > 0) return compactPointerHits;
+
+    const anyPointerHits = pointerWithin({
       ...args,
       droppableContainers: seatContainers,
     });
-    if (pointerHits.length > 0) return pointerHits;
+    if (anyPointerHits.length > 0) return anyPointerHits;
+
+    const expandedRectHits = rectIntersection({
+      ...args,
+      droppableContainers: expandedSeatContainers,
+    });
+    if (expandedRectHits.length > 0) return expandedRectHits;
 
     const seatRectHits = rectIntersection({
       ...args,
@@ -820,7 +844,7 @@ function CompactSeatBadge({
   const droppableId = `${boatingId}-seat-${seat}`;
   const { setNodeRef, isOver } = useDroppable({
     id: droppableId,
-    data: { type: 'Seat', boatingId, seat },
+    data: { type: 'Seat', boatingId, seat, layout: 'compact' },
     disabled: !dndEnabled,
   });
 
@@ -1131,7 +1155,7 @@ function DroppableSeatRow({
   const isDropEnabled = !!droppableId && !!isDragging && !!onPositionsChange;
   const { setNodeRef, isOver } = useDroppable({
     id: droppableId ?? `noop-${seat}`,
-    data: { type: 'Seat', boatingId, seat },
+    data: { type: 'Seat', boatingId, seat, layout: 'expanded' },
     disabled: !isDropEnabled,
   });
 

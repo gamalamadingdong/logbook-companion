@@ -19,7 +19,7 @@
 - Audited all current drag/drop surfaces in `src/pages/coaching/CoachingBoatings.tsx`: roster panel, compact seat badges, expanded seat rows, seated-athlete drags, and roster unseat drop.
 - Fixed seat targeting so drag resolution now prefers the seat actually under the pointer before falling back to proximity matching.
 - Seated-athlete drags now carry source boat/seat metadata, which makes seat-to-seat and cross-boat drops deterministic instead of silently mis-targeting nearby boats.
-- Dragging a seated athlete onto an occupied seat now swaps athletes instead of orphaning the displaced row.
+- Dragging a seated athlete onto an occupied seat now swaps athletes instead of orphaning the displaced row. Expanded seat-row targets now win over compact strip targets when both are plausible candidates.
 - Validation: targeted ESLint on `CoachingBoatings.tsx`, `npm run build`, and `npm run test:run` all passed.
 ### Team Info editing UX simplification
 - Added `src/components/team/TeamInfoEditorList.tsx` as the shared Team Info editor for all accessible teams.
@@ -59,4 +59,5 @@
 ## Blockers
 - No feature blockers for the March 18 work.
 - Repo-wide lint remains noisy because of unrelated pre-existing issues.
+
 

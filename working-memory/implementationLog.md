@@ -13,7 +13,7 @@
 
 - `src/pages/coaching/CoachingBoatings.tsx`
   - audited every active drag/drop surface on the page: roster panel, compact seat badges, expanded seat rows, seated-athlete drags, and drag-to-roster unseating
-  - changed collision resolution to prefer the seat directly under the pointer before falling back to broader proximity matching
+  - changed collision resolution to prefer the seat directly under the pointer before falling back to broader proximity matching`r`n  - tagged compact vs expanded seat droppables separately so expanded seat rows are now prioritized over compact seat badges when both are candidates
   - added source boat/seat metadata to seated drags so same-boat and cross-boat moves resolve against the intended source row
   - fixed occupied-seat drops for seated athletes so they swap cleanly instead of silently dropping the displaced athlete
   - cleaned up nearby file-level lint issues by moving the expansion ref sync into `useEffect` and stabilizing `getAthleteName` with `useCallback`
@@ -2390,6 +2390,7 @@ Examples:
 ### Key Learnings
 -   **Date Parsing**: Concept2 dates can be tricky; standardized on specific parsing logic.
 -   **Interval Detection**: `rest_time` vs `rest_distance` requires careful handling for variable identifiers.
+
 
 
 
