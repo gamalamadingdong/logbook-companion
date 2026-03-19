@@ -4,6 +4,82 @@
 
 ---
 
+## Phase 53: CoachingBoatings drag/drop audit and seat targeting fix (March 19, 2026)
+
+**Timeline**: March 19, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - audited every active drag/drop surface on the page: roster panel, compact seat badges, expanded seat rows, seated-athlete drags, and drag-to-roster unseating
+  - changed collision resolution to prefer the seat directly under the pointer before falling back to broader proximity matching
+  - added source boat/seat metadata to seated drags so same-boat and cross-boat moves resolve against the intended source row
+  - fixed occupied-seat drops for seated athletes so they swap cleanly instead of silently dropping the displaced athlete
+  - cleaned up nearby file-level lint issues by moving the expansion ref sync into `useEffect` and stabilizing `getAthleteName` with `useCallback`
+
+### Why This Approach Won
+
+- the original collision strategy was too broad for stacked boat cards, so nearby seats from boats above or below could win even when the pointer was over stroke
+- the seated-drag payload did not include enough source context to make occupied-seat drops deterministic
+- keeping the fix inside the existing DnD model preserved the intended roster-panel and compact-seat workflows without redesigning the page
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Boating drag/drop now matches the visible target more reliably, and seat-to-seat moves no longer risk sending athletes to the wrong boat or silently discarding the displaced seat occupant.
+
+---
+## Phase 52: Bulk coach invite polish and routing cleanup (March 18, 2026)
+
+**Timeline**: March 18, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/components/coaching/BulkCoachInviteModal.tsx`
+  - replaced the textarea-based bulk input with structured row-based fields for first name, last name, and email
+  - made coach invites easier to review before submission and aligned the UI with the richer payload the backend now expects
+
+- `supabase/functions/invite-coaches/index.ts`
+  - updated the edge function to accept `entries[]` instead of a bare email list
+  - looks up organization name and passes invite metadata (`first_name`, `last_name`, `org_name`) into the created user record
+  - marks invited coaches as `onboarding_complete` so they land in the coaching product flow instead of generic onboarding
+
+- `src/services/coaching/coachingService.ts`
+  - updated the invite call shape to send structured invite entries to the edge function
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - passes organization context through to the invite modal so invites can be personalized correctly
+
+- `src/pages/ResetPassword.tsx`
+  - routes invited coaches to `/team-management` after password creation instead of dropping them at the generic app entry point
+
+- `src/components/OnboardingWizard.tsx`
+- `src/components/coaching/BulkRosterModal.tsx`
+  - migrated remaining hardcoded neutral/emerald utility classes to design-token-based colors for better theme consistency
+
+### Why This Approach Won
+
+- the old textarea flow was too lossy once invites needed personalized metadata and predictable post-invite routing
+- carrying names and org context all the way through the invite path improves the email, the created profile metadata, and the initial in-app experience in one pass
+- redirecting invited coaches straight to team management matches the actual job-to-be-done after accepting the invite
+
+### Validation
+
+- end-to-end invite flow was tested in production during the March 18 session
+- later March 18 validation passes also confirmed the repo still built and tests still passed after adjacent follow-up work: `npm run build` ✅, `npm run test:run` ✅
+
+### Outcome
+
+Coach invites now carry the right identity metadata, land users in the right post-password destination, and present a more reliable admin-facing bulk entry workflow.
+
+---
 ## Phase 51: Team Info editor UI simplification (March 18, 2026)
 
 **Timeline**: March 18, 2026  
@@ -2314,4 +2390,6 @@ Examples:
 ### Key Learnings
 -   **Date Parsing**: Concept2 dates can be tricky; standardized on specific parsing logic.
 -   **Interval Detection**: `rest_time` vs `rest_distance` requires careful handling for variable identifiers.
+
+
 

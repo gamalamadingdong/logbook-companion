@@ -25,6 +25,7 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  pointerWithin,
   rectIntersection,
   KeyboardSensor,
   PointerSensor,
@@ -59,12 +60,15 @@ export function CoachingBoatings() {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const preExpandRef = useRef<string | null>(null);
   const expandedBoatingRef = useRef<string | null>(null);
-  expandedBoatingRef.current = expandedBoating;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  useEffect(() => {
+    expandedBoatingRef.current = expandedBoating;
+  }, [expandedBoating]);
 
   useEffect(() => {
     if (isLoadingTeam) return;
@@ -174,8 +178,9 @@ export function CoachingBoatings() {
     }
   };
 
-  const getAthleteName = (athleteId: string) =>
-    athletes.find((a) => a.id === athleteId)?.name ?? '';
+  const getAthleteName = useCallback((athleteId: string) =>
+    athletes.find((a) => a.id === athleteId)?.name ?? ''
+  , [athletes]);
 
   const moveBoating = useCallback((boatingId: string, direction: 'up' | 'down') => {
     setBoatings((prev) => {
@@ -252,11 +257,35 @@ export function CoachingBoatings() {
     return list;
   }, [athletes, rosterTeamFilter, showUnboatedOnly, athleteBoatMap, rosterSearch]);
 
-  // Custom collision: prioritize roster-panel when pointer intersects it, else closestCorners for seats
+  // Prioritize the explicit zone under the pointer before falling back to proximity.
   const collisionDetection: CollisionDetection = useCallback((args) => {
-    const rosterHits = rectIntersection(args).filter((c) => c.id === 'roster-panel');
+    const rosterContainers = args.droppableContainers.filter((container) => container.id === 'roster-panel');
+    const seatContainers = args.droppableContainers.filter((container) =>
+      typeof container.id === 'string' && /-seat-\d+$/.test(container.id)
+    );
+
+    const rosterHits = rectIntersection({
+      ...args,
+      droppableContainers: rosterContainers,
+    }).filter((collision) => collision.id === 'roster-panel');
     if (rosterHits.length > 0) return rosterHits;
-    return closestCorners(args);
+
+    const pointerHits = pointerWithin({
+      ...args,
+      droppableContainers: seatContainers,
+    });
+    if (pointerHits.length > 0) return pointerHits;
+
+    const seatRectHits = rectIntersection({
+      ...args,
+      droppableContainers: seatContainers,
+    });
+    if (seatRectHits.length > 0) return seatRectHits;
+
+    return closestCorners({
+      ...args,
+      droppableContainers: seatContainers,
+    });
   }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -275,14 +304,32 @@ export function CoachingBoatings() {
     const overId = over.id as string;
     const rawActiveId = active.id as string;
     const athleteId = rawActiveId.startsWith('seated-') ? rawActiveId.slice(7) : rawActiveId;
+    const activeData = active.data.current as {
+      type?: 'Athlete' | 'SeatedAthlete';
+      athleteId?: string;
+      boatingId?: string;
+      seat?: number;
+    } | undefined;
+    const sourceBoatingId = activeData?.type === 'SeatedAthlete' ? activeData.boatingId : undefined;
+    const sourceSeat = activeData?.type === 'SeatedAthlete' ? activeData.seat : undefined;
 
     // Dropped back on roster panel — remove from any boat
     if (overId === 'roster-panel') {
-      for (const b of activeBoatings) {
-        const inBoat = b.positions.find((p) => p.athlete_id === athleteId);
+      if (sourceBoatingId) {
+        const sourceBoating = activeBoatings.find((b) => b.id === sourceBoatingId);
+        if (sourceBoating) {
+          const cleaned = sourceBoating.positions.filter((p) => p.athlete_id !== athleteId);
+          handleInlinePositionUpdate(sourceBoating.id, cleaned);
+        }
+        return;
+      }
+
+      for (const boating of activeBoatings) {
+        const inBoat = boating.positions.find((p) => p.athlete_id === athleteId);
         if (inBoat) {
-          const cleaned = b.positions.filter((p) => p.athlete_id !== athleteId);
-          handleInlinePositionUpdate(b.id, cleaned);
+          const cleaned = boating.positions.filter((p) => p.athlete_id !== athleteId);
+          handleInlinePositionUpdate(boating.id, cleaned);
+          break;
         }
       }
       return;
@@ -299,24 +346,76 @@ export function CoachingBoatings() {
 
     const targetBoating = activeBoatings.find((b) => b.id === boatingId);
     if (!targetBoating) return;
+    const targetOccupant = targetBoating.positions.find((p) => p.seat === seat);
+    const sourceBoating = sourceBoatingId
+      ? activeBoatings.find((b) => b.id === sourceBoatingId)
+      : activeBoatings.find((b) => b.positions.some((p) => p.athlete_id === athleteId));
 
-    // Build new positions: replace/add athlete at target seat
+    if (sourceBoating?.id === boatingId && sourceSeat === seat) return;
+
+    const athleteName = athlete.name;
+
+    if (
+      sourceBoating &&
+      typeof sourceSeat === 'number' &&
+      targetOccupant &&
+      targetOccupant.athlete_id !== athleteId
+    ) {
+      const nextTargetPositions = [
+        ...targetBoating.positions.filter((p) => p.seat !== seat && p.athlete_id !== athleteId),
+        { seat, athlete_id: athleteId, athlete_name: athleteName },
+      ];
+
+      if (sourceBoating.id === targetBoating.id) {
+        const swappedPositions = [
+          ...nextTargetPositions.filter((p) => p.seat !== sourceSeat && p.athlete_id !== targetOccupant.athlete_id),
+          {
+            seat: sourceSeat,
+            athlete_id: targetOccupant.athlete_id,
+            athlete_name: targetOccupant.athlete_name || getAthleteName(targetOccupant.athlete_id),
+          },
+        ];
+        handleInlinePositionUpdate(targetBoating.id, swappedPositions);
+        return;
+      }
+
+      const nextSourcePositions = [
+        ...sourceBoating.positions.filter((p) => p.seat !== sourceSeat && p.athlete_id !== athleteId),
+        {
+          seat: sourceSeat,
+          athlete_id: targetOccupant.athlete_id,
+          athlete_name: targetOccupant.athlete_name || getAthleteName(targetOccupant.athlete_id),
+        },
+      ];
+
+      handleInlinePositionUpdate(targetBoating.id, nextTargetPositions);
+      handleInlinePositionUpdate(sourceBoating.id, nextSourcePositions);
+      return;
+    }
+
+    // Build new positions: place the dragged athlete in the target seat.
     const newPositions = [
       ...targetBoating.positions.filter((p) => p.seat !== seat && p.athlete_id !== athleteId),
-      { seat, athlete_id: athleteId, athlete_name: athlete.name },
+      { seat, athlete_id: athleteId, athlete_name: athleteName },
     ];
     handleInlinePositionUpdate(boatingId, newPositions);
 
-    // Silently remove athlete from any OTHER active boat (no context switch)
-    for (const b of activeBoatings) {
-      if (b.id === boatingId) continue;
-      const inOther = b.positions.find((p) => p.athlete_id === athleteId);
+    if (sourceBoating && sourceBoating.id !== boatingId) {
+      const cleaned = sourceBoating.positions.filter((p) => p.athlete_id !== athleteId);
+      handleInlinePositionUpdate(sourceBoating.id, cleaned);
+      return;
+    }
+
+    for (const boating of activeBoatings) {
+      if (boating.id === boatingId) continue;
+      const inOther = boating.positions.find((p) => p.athlete_id === athleteId);
       if (inOther) {
-        const cleaned = b.positions.filter((p) => p.athlete_id !== athleteId);
-        handleInlinePositionUpdate(b.id, cleaned);
+        const cleaned = boating.positions.filter((p) => p.athlete_id !== athleteId);
+        handleInlinePositionUpdate(boating.id, cleaned);
+        break;
       }
     }
-  }, [athletes, activeBoatings, handleInlinePositionUpdate]);
+  }, [athletes, activeBoatings, getAthleteName, handleInlinePositionUpdate]);
 
   // Show DnD roster panel only on desktop when there are active boats and not in form mode
   const showDndPanel = activeBoatings.length > 0 && !isAdding && !editingBoating && !isLoading && athletes.length > 0;
@@ -719,7 +818,11 @@ function CompactSeatBadge({
   dndEnabled?: boolean;
 }) {
   const droppableId = `${boatingId}-seat-${seat}`;
-  const { setNodeRef, isOver } = useDroppable({ id: droppableId, disabled: !dndEnabled });
+  const { setNodeRef, isOver } = useDroppable({
+    id: droppableId,
+    data: { type: 'Seat', boatingId, seat },
+    disabled: !dndEnabled,
+  });
 
   return (
     <div
@@ -927,6 +1030,8 @@ function BoatDiagram({
               name={getAthleteNameForSeat(seat)}
               isSwapSource={isSwapSource}
               isDndActive={dndEnabled && !!athleteId}
+              boatingId={boatingId}
+              seat={seat}
             />
           )}
         </div>
@@ -965,17 +1070,21 @@ function DraggableSeatedAthlete({
   name,
   isSwapSource,
   isDndActive,
+  boatingId,
+  seat,
 }: {
   athleteId: string;
   name: string;
   isSwapSource: boolean;
   isDndActive?: boolean;
+  boatingId?: string;
+  seat?: number;
 }) {
   // Prefix to avoid ID collision with roster DraggableAthleteCard
   const draggableId = `seated-${athleteId}`;
   const { attributes, listeners, setNodeRef, isDragging: selfDragging } = useDraggable({
     id: draggableId,
-    data: { type: 'SeatedAthlete', athleteId },
+    data: { type: 'SeatedAthlete', athleteId, boatingId, seat },
     disabled: !isDndActive,
   });
 
