@@ -21,6 +21,11 @@
 - Seated-athlete drags now carry source boat/seat metadata, which makes seat-to-seat and cross-boat drops deterministic instead of silently mis-targeting nearby boats.
 - Dragging a seated athlete onto an occupied seat now swaps athletes instead of orphaning the displaced row. Expanded seat-row targets now win over compact strip targets when both are plausible candidates.
 - Validation: targeted ESLint on `CoachingBoatings.tsx`, `npm run build`, and `npm run test:run` all passed.
+### CoachingBoatings UX polish pass
+- Added a desktop drag-and-drop guidance callout so the Boathouse/seat workflow is easier to discover.
+- Added confirmation dialog coverage for destructive boating actions (`Archive`, `Delete`) so those paths are no longer single-click.
+- Added explicit success feedback for create, edit, duplicate, archive/reactivate, and delete actions via `toast.success(...)`.
+- Added missing `aria-label` coverage to icon-only boating controls and swap actions for better keyboard/screen-reader support.
 ### Team Info editing UX simplification
 - Added `src/components/team/TeamInfoEditorList.tsx` as the shared Team Info editor for all accessible teams.
 - `src/pages/team/MyTeamSettings.tsx` and `src/pages/coaching/CoachingSettings.tsx` now use the shared editor instead of tying Team Info editing to the active team selector.
@@ -59,5 +64,6 @@
 ## Blockers
 - No feature blockers for the March 18 work.
 - Repo-wide lint remains noisy because of unrelated pre-existing issues.
+
 
 

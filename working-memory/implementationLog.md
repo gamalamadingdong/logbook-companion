@@ -4,6 +4,36 @@
 
 ---
 
+## Phase 54: CoachingBoatings UX polish pass (March 19, 2026)
+
+**Timeline**: March 19, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - added a desktop drag-and-drop help callout clarifying assign, swap, and unseat behavior
+  - added a confirmation dialog for destructive lineup actions so archive/delete no longer happen on a single click
+  - added success toasts for create, edit, duplicate, archive/reactivate, and delete actions
+  - added `aria-label` coverage for icon-only boating controls and seat-swap actions
+
+### UX Assessment
+
+- **Reviewed flows**: active lineup management, archived lineup actions, drag-and-drop assignment, seat swap, roster-panel unseat flow
+- **Assessment**: solid after polish
+- **Moderate issues fixed**: destructive actions lacked confirmation; the drag workflow relied too much on implicit discovery; icon-only actions were under-labeled for accessibility
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The page now gives clearer guidance, safer destructive actions, more explicit success feedback, and better accessibility without changing the core boating workflow.
+
+---
 ## Phase 53: CoachingBoatings drag/drop audit and seat targeting fix (March 19, 2026)
 
 **Timeline**: March 19, 2026  
@@ -2390,6 +2420,7 @@ Examples:
 ### Key Learnings
 -   **Date Parsing**: Concept2 dates can be tricky; standardized on specific parsing logic.
 -   **Interval Detection**: `rest_time` vs `rest_distance` requires careful handling for variable identifiers.
+
 
 
 

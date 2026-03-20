@@ -18,7 +18,7 @@ import {
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
 import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, ArrowUp, ArrowDown, Ship, Archive, RotateCcw, History, GripVertical, Search } from 'lucide-react';
-import { EmptyState } from '../../components/ui';
+import { Button, EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
 import {
@@ -41,6 +41,11 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
+type PendingBoatingAction = {
+  kind: 'delete' | 'archive';
+  boating: CoachingBoating;
+} | null;
+
 export function CoachingBoatings() {
   const { userId, teamId, isLoadingTeam, orgId } = useCoachingContext();
   // Boatings page is always org-wide for maximum flexibility
@@ -58,6 +63,8 @@ export function CoachingBoatings() {
   const [showUnboatedOnly, setShowUnboatedOnly] = useState(false);
   const [rosterTeamFilter, setRosterTeamFilter] = useState<string | 'all'>('all');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingBoatingAction>(null);
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const preExpandRef = useRef<string | null>(null);
   const expandedBoatingRef = useRef<string | null>(null);
 
@@ -114,6 +121,7 @@ export function CoachingBoatings() {
       await createBoating(teamId, userId, data);
       setIsAdding(false);
       await refreshData();
+      toast.success('Lineup created.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save boating');
     }
@@ -125,25 +133,29 @@ export function CoachingBoatings() {
       await updateBoating(editingBoating.id, data);
       setEditingBoating(null);
       await refreshData();
+      toast.success('Lineup updated.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update boating');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     try {
       await deleteBoating(id);
       await refreshData();
+      toast.success('Lineup deleted.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete boating');
+      throw err;
     }
-  };
+  }, [refreshData]);
 
   const handleDuplicate = async (boating: CoachingBoating) => {
     if (!teamId) return;
     try {
       await duplicateBoating(teamId, userId, boating);
       await refreshData();
+      toast.success(`Duplicated ${boating.boat_name}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to duplicate boating');
     }
@@ -165,18 +177,37 @@ export function CoachingBoatings() {
     }
   }, [boatings, refreshData]);
 
-  const handleToggleActive = async (boatingId: string, isActive: boolean) => {
+  const handleToggleActive = useCallback(async (boatingId: string, isActive: boolean) => {
     // Optimistic update
     setBoatings((prev) =>
       prev.map((b) => (b.id === boatingId ? { ...b, is_active: isActive } : b))
     );
     try {
       await setBoatingActive(boatingId, isActive);
+      toast.success(isActive ? 'Lineup reactivated.' : 'Lineup archived.');
     } catch {
       await refreshData();
       toast.error(`Failed to ${isActive ? 'reactivate' : 'archive'} lineup`);
+      throw new Error(`Failed to ${isActive ? 'reactivate' : 'archive'} lineup`);
     }
-  };
+  }, [refreshData]);
+
+  const handleConfirmPendingAction = useCallback(async () => {
+    if (!pendingAction) return;
+    setIsConfirmingAction(true);
+    try {
+      if (pendingAction.kind === 'delete') {
+        await handleDelete(pendingAction.boating.id);
+      } else {
+        await handleToggleActive(pendingAction.boating.id, false);
+      }
+      setPendingAction(null);
+    } catch {
+      // keep dialog open so the user can retry or cancel
+    } finally {
+      setIsConfirmingAction(false);
+    }
+  }, [handleDelete, handleToggleActive, pendingAction]);
 
   const getAthleteName = useCallback((athleteId: string) =>
     athletes.find((a) => a.id === athleteId)?.name ?? ''
@@ -506,6 +537,19 @@ export function CoachingBoatings() {
         </div>
       )}
 
+      {showDndPanel && (
+        <div className="hidden md:flex items-start gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-sm">
+          <ArrowRightLeft className="w-4 h-4 mt-0.5 text-indigo-400 shrink-0" />
+          <div className="space-y-1">
+            <p className="font-medium text-white">Drag-and-drop tips</p>
+            <p className="text-neutral-300">
+              Drag athletes from the Boathouse onto a seat. Drop a seated athlete onto an occupied seat to swap.
+              Drop them back into the Boathouse to unseat. Expanded boats now use the most precise seat targets.
+            </p>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -567,12 +611,12 @@ export function CoachingBoatings() {
                   expanded={expandedBoating === boating.id}
                   onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
                   onEdit={() => setEditingBoating(boating)}
-                  onDelete={() => handleDelete(boating.id)}
-                  onDuplicate={() => handleDuplicate(boating)}
-                  onArchive={() => handleToggleActive(boating.id, false)}
-                  onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
-                  getAthleteName={getAthleteName}
-                  isDragging={activeDragId !== null}
+                   onDelete={() => setPendingAction({ kind: 'delete', boating })}
+                   onDuplicate={() => handleDuplicate(boating)}
+                   onArchive={() => setPendingAction({ kind: 'archive', boating })}
+                   onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                   getAthleteName={getAthleteName}
+                   isDragging={activeDragId !== null}
                   dndEnabled={showDndPanel}
                   onMoveUp={idx > 0 ? () => moveBoating(boating.id, 'up') : undefined}
                   onMoveDown={idx < activeBoatings.length - 1 ? () => moveBoating(boating.id, 'down') : undefined}
@@ -616,10 +660,10 @@ export function CoachingBoatings() {
                             expanded={expandedBoating === boating.id}
                             onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
                             onEdit={() => setEditingBoating(boating)}
-                            onDelete={() => handleDelete(boating.id)}
-                            onReactivate={() => handleToggleActive(boating.id, true)}
-                            onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
-                            getAthleteName={getAthleteName}
+                             onDelete={() => setPendingAction({ kind: 'delete', boating })}
+                             onReactivate={() => handleToggleActive(boating.id, true)}
+                             onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                             getAthleteName={getAthleteName}
                             archived
                           />
                         ))}
@@ -653,6 +697,17 @@ export function CoachingBoatings() {
           boating={editingBoating}
           onSave={handleEdit}
           onCancel={() => setEditingBoating(null)}
+        />
+      )}
+
+      {pendingAction && (
+        <BoatingActionDialog
+          action={pendingAction}
+          loading={isConfirmingAction}
+          onCancel={() => {
+            if (!isConfirmingAction) setPendingAction(null);
+          }}
+          onConfirm={handleConfirmPendingAction}
         />
       )}
     </div>
@@ -711,34 +766,34 @@ function BoatingCard({
         <p className="font-medium text-white text-sm truncate flex-1">{boating.boat_name}</p>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {onMoveUp && (
-            <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move up">
+            <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move up" aria-label={`Move ${boating.boat_name} up`}>
               <ArrowUp className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
           {onMoveDown && (
-            <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move down">
+            <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move down" aria-label={`Move ${boating.boat_name} down`}>
               <ArrowDown className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Edit">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Edit" aria-label={`Edit ${boating.boat_name}`}>
             <Edit2 className="w-3.5 h-3.5 text-neutral-500" />
           </button>
           {!archived && onDuplicate && (
-            <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Duplicate">
+            <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Duplicate" aria-label={`Duplicate ${boating.boat_name}`}>
               <Copy className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
           {!archived && onArchive && (
-            <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Archive">
+            <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Archive" aria-label={`Archive ${boating.boat_name}`}>
               <Archive className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
           {archived && onReactivate && (
-            <button onClick={(e) => { e.stopPropagation(); onReactivate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Reactivate">
+            <button onClick={(e) => { e.stopPropagation(); onReactivate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Reactivate" aria-label={`Reactivate ${boating.boat_name}`}>
               <RotateCcw className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Delete">
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Delete" aria-label={`Delete ${boating.boat_name}`}>
             <Trash2 className="w-3.5 h-3.5 text-neutral-500" />
           </button>
           {expanded ? (
@@ -1043,6 +1098,7 @@ function BoatDiagram({
                   onClick={(e) => startSwapMode(seat, e)}
                   className="p-1 hover:bg-neutral-700 rounded transition-colors"
                   title="Swap with another seat"
+                  aria-label={`Swap ${getSeatLabel(seat)} seat`}
                 >
                   <ArrowRightLeft className="w-4 h-4 text-amber-400" />
                 </button>
@@ -1315,6 +1371,61 @@ function RosterPanel({
       </div>
 
       <p className="text-[10px] text-neutral-600 text-center">Drag to seats · Drop here to unseat</p>
+    </div>
+  );
+}
+
+function BoatingActionDialog({
+  action,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  action: Exclude<PendingBoatingAction, null>;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const isDelete = action.kind === 'delete';
+  const title = isDelete ? 'Delete lineup?' : 'Archive lineup?';
+  const description = isDelete
+    ? 'This will permanently remove the lineup and all of its current seat assignments.'
+    : 'This will move the lineup into history. You can reactivate it later from Past Lineups.';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-800 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">{title}</h2>
+            <p className="mt-1 text-sm text-neutral-400">{action.boating.boat_name}</p>
+          </div>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-md p-2 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+            aria-label="Close confirmation dialog"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3 px-5 py-4 text-sm text-neutral-300">
+          <p>{description}</p>
+          <p className="text-neutral-500">
+            {isDelete ? 'This action cannot be undone.' : 'Use reactivation if you need it back in the active list.'}
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-neutral-800 px-5 py-4">
+          <Button variant="secondary" onClick={onCancel} disabled={loading}>
+            Cancel
+          </Button>
+          <Button variant={isDelete ? 'danger' : 'secondary'} loading={loading} onClick={onConfirm}>
+            {isDelete ? 'Delete lineup' : 'Archive lineup'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
