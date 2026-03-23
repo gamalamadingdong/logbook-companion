@@ -4,6 +4,202 @@
 
 ---
 
+## ADR-018: Coaching boats vs boating logs vs sessions
+
+**Date**: March 20, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+The coaching module already had:
+
+- `coaching_sessions` for dated practice sessions,
+- `coaching_boatings` for dated lineups/notes,
+- `coaching_athlete_notes` for rower-specific session notes.
+
+However, the user’s mental model is not “a boating is just a one-off lineup.” It is:
+
+1. the club has a finite set of real boats/shells in the boathouse,
+2. each outing/session creates a dated record of how a given boat was rigged/rowed that day,
+3. schedule and boating work should feel tightly coupled, especially for water sessions,
+4. rower note context should be visible from the boating surface.
+
+Live schema inspection showed that `coaching_boatings` already had a nullable `session_id`, which made it look more like an outing-log table than a persistent boat entity.
+
+### Decision
+
+Adopt a three-level model:
+
+1. **Session** (`coaching_sessions`) = overall practice container
+2. **Persistent boat/shell** (`coaching_boats`) = reusable physical boat
+3. **Boating log** (`coaching_boatings`) = dated lineup/narrative record for a specific outing, optionally linked to a session
+
+`coaching_boatings` keeps snapshot fields like `boat_name` and `boat_type` for historical stability, but now also gains `boat_id` pointing at the persistent parent.
+
+### Rationale
+
+1. **Matches the user’s real-world model** — coaches think about shells over time, not just anonymous daily lineups
+2. **Preserves history safely** — old boating rows remain valid outing logs
+3. **Fits live schema direction** — `session_id` already existed on `coaching_boatings`
+4. **Supports tighter schedule coupling** — water sessions can own boating logs without forcing boating concepts onto erg/land/meeting sessions
+5. **Avoids premature overbuild** — the expanded boating card can act as the first detail surface before committing to a dedicated route
+
+### Consequences
+
+**Positive**:
+- schedule can remain the main planning/review hub
+- water sessions can visibly own boating work
+- boating logs can expose rower note context inline
+- persistent boats can accumulate outing history over time
+
+**Negative**:
+- there is still some UI split between Schedule and Boatings in the first pass
+- the first boating “detail” experience is an expanded card, not a dedicated page
+- manual TypeScript coaching models still create some schema-drift risk without generated DB types
+
+### Alternatives Considered
+
+1. **Keep `coaching_boatings` as the only model**  
+   Rejected because it does not represent persistent physical boats well and makes long-term boat history awkward.
+
+2. **Fully merge boating CRUD into the schedule page immediately**  
+   Deferred. Stronger coupling is desirable, but a full UI merge in one pass would have created more risk and surface area than needed.
+
+3. **Create a separate boat-scoped rower-note table**  
+   Rejected for v1. Existing athlete/session note models are sufficient for crew-context display and inline session-note editing.
+
+---
+
+## ADR-019: Session report becomes the canonical daily coaching record
+
+**Date**: March 20, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+After multiple UX improvements, the coaching workflow was internally more consistent but still felt conceptually awkward to the user. The problem was not just page routing; it was the product model itself.
+
+The current implementation still asks the coach to reason about:
+
+- a session,
+- a boating/log/lineup record,
+- and the link between them.
+
+The user clarified the real job-to-be-done:
+
+1. click a day,
+2. add a session report,
+3. record what was done,
+4. record who was in each boat,
+5. leave notes another coach can later understand.
+
+The user also clarified that lineups often change day to day, especially early in the season, which makes a live linked-boating mental model less useful than a daily snapshot model.
+
+### Decision
+
+Adopt a **session-first coaching model**:
+
+1. **Session report** is the canonical daily record.
+2. Daily crew/boat lineups should be stored as **snapshots inside the session report**.
+3. `CoachingBoatings` should evolve into a **secondary templates/history surface** for reusable lineups, recent crews, and shell history.
+4. The primary coach workflow should no longer depend on the concept of "linking a boating to a session" for ordinary daily use.
+
+### Rationale
+
+1. **Matches coaching workflow** — coaches think in terms of a practice day first, not cross-linked entities.
+2. **Preserves historical truth** — once a session is saved, the lineup for that day should remain stable even if templates change later.
+3. **Improves collaboration** — one coach can open the session report and immediately see the narrative plus who rowed where.
+4. **Reduces UX overhead** — the primary action becomes "open session and record the day" instead of navigating between two co-equal pages.
+
+### Consequences
+
+**Positive**:
+- the main schedule/session surface can become the true rowing-day workspace
+- lineup templates can still exist without being the canonical saved record
+- historical session review becomes clearer because lineups live with the session narrative
+
+**Negative**:
+- the current "session child boating log" implementation will need a follow-up redesign
+- one open storage question remains: whether `coaching_boatings` becomes template/history storage or whether new session-owned snapshot tables should be introduced
+
+### Alternatives Considered
+
+1. **Keep improving the linked session + boating model**  
+   Rejected. Although recent changes reduced confusion, the underlying concept still asks coaches to think about the wrong primary object.
+
+2. **Fully remove the boating concept**  
+   Rejected. Reusable lineups, recent crews, and shell history still provide value as helper/template tooling.
+
+3. **Make Boatings the primary page and demote Schedule**  
+   Rejected. The user explicitly wants to click a day and write the daily report from there.
+
+---
+
+## ADR-020: Session crew snapshots use dedicated tables; boatings remain templates/history
+
+**Date**: March 21, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+ADR-019 established that the session report should become the canonical daily coaching record, but it intentionally left one implementation detail open:
+
+- repurpose `coaching_boatings` into template/history storage,
+- or introduce dedicated session-owned snapshot tables alongside it.
+
+By implementation time, the existing system already had:
+
+- `coaching_boats` as persistent physical shells,
+- `coaching_boatings` as dated boating/log/history rows,
+- `coaching_sessions` as the daily session report container.
+
+The new requirement was to store the actual saved crew truth **inside the session** without making that truth depend on live boating linkage.
+
+### Decision
+
+Adopt **dedicated session-owned snapshot tables**:
+
+1. `coaching_session_crews`
+   - one row per saved crew snapshot inside a coaching session
+   - includes boat snapshot fields plus optional references to a persistent boat and source boating template/history row
+
+2. `coaching_session_crew_positions`
+   - one row per seat assignment inside a session crew snapshot
+   - includes `athlete_name` snapshot storage so historical reports survive later athlete deletion or roster changes
+
+`coaching_boatings` remains a reusable **templates/history** source and is not repurposed into the canonical daily-report table.
+
+### Rationale
+
+1. **Preserves clean product boundaries** — session report owns daily truth; boating history remains helper tooling
+2. **Avoids risky repurposing** — existing boating/history workflows and prior data stay valid
+3. **Supports historical stability** — session snapshots keep their own copied crew state even if templates later change
+4. **Enables safe migration** — existing `coaching_boatings.session_id` data could be backfilled into the new session-owned model
+
+### Consequences
+
+**Positive**:
+- daily rowing records now have a dedicated storage model that matches the user workflow
+- boating history can still power prefills/templates without being a fragile live dependency
+- Schedule can evolve further without inheriting boating-linking constraints
+
+**Negative**:
+- coaching data model now has another pair of tables to maintain
+- some product/UI copy still needs follow-up so the secondary Boatings page is consistently framed as templates/history
+
+### Alternatives Considered
+
+1. **Repurpose `coaching_boatings` into templates/history only**  
+   Rejected. It would have mixed a product reframing with riskier storage/meaning changes to an already-used table.
+
+2. **Keep `coaching_boatings` as the canonical daily session-child record**  
+   Rejected. That would preserve the very abstraction ADR-019 was intended to move away from.
+
+---
+
 ## ADR-017: ErgLink ↔ LogbookCompanion Integration Contract
 
 **Date**: June 2025

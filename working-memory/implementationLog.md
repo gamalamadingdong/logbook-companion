@@ -4,6 +4,480 @@
 
 ---
 
+## Phase 55: Persistent boats + session-linked boating logs (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `db/migrations/20260320_add_persistent_coaching_boats.sql`
+  - added persistent parent table `public.coaching_boats`
+  - added nullable `boat_id` to `public.coaching_boatings`
+  - backfilled existing boating rows onto parent boats by `(team_id, boat_name, boat_type)`
+  - added team/view + coach/manage RLS policies mirroring existing coaching access rules
+
+- `src/services/coaching/types.ts`
+  - added `BoatType`
+  - added `CoachingBoat`
+  - added `boat_id` to `CoachingBoating`
+
+- `src/services/coaching/coachingService.ts`
+  - added `getBoats()`, `getOrgBoats()`, `createBoat()`, `getOrgSessions()`, and `getBoatingsByDateRange()`
+  - updated `createBoating()` and `updateBoating()` to persist `boat_id` and `session_id`
+  - preserved `boat_name` / `boat_type` snapshots on boating logs for historical stability
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - boating logs can now select an existing persistent boat or create a new one implicitly from the log
+  - boating logs can link directly to a session
+  - session-linked Boatings opens with a contextual banner from the `sessionId` query param
+  - expanded boating cards now act as the first detail surface and show rower-context notes:
+    - historical coach notes per rower
+    - linked-session notes per rower
+    - inline add/edit/delete for session notes from the boating surface
+  - copy was updated from pure “lineup” language toward “boating log” language
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - schedule now loads boating logs in the visible date range
+  - water sessions show boating-count badges
+  - expanded water-session cards expose a boating-management CTA into the Boatings flow
+  - non-water sessions remain session-only
+
+### Why This Shape Won
+
+- the user’s mental model is **persistent physical boats/shells with repeated outing logs**, not one-off unnamed snapshots
+- live schema already had `coaching_boatings.session_id`, which strongly suggested that `coaching_boatings` should stay the outing-log table instead of becoming the persistent boat entity
+- adding a parent `coaching_boats` table was safer than repurposing `coaching_boatings` and breaking history
+- keeping the expanded boating card as the first “detail” surface delivered the new rower-note workflow without the extra routing/UI overhead of a brand-new detail page in the same pass
+
+### Validation
+
+- Supabase MCP migration applied: `add_persistent_coaching_boats` ✅
+- Supabase MCP verification:
+  - `coaching_boats` table present ✅
+  - `coaching_boatings.boat_id` present ✅
+  - `coaching_boats` RLS policies present ✅
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/pages/coaching/CoachingSchedule.tsx src/services/coaching/coachingService.ts src/services/coaching/types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — unrelated pre-existing repo-wide failures remain outside the touched coaching files
+
+### Outcome
+
+The app now has a real parent/child model for boats and outing logs, water sessions can visibly own boating work, and boating cards can serve as a practical crew-detail surface with rower notes even before a dedicated boating-detail route exists.
+
+---
+
+## Phase 60: Session-first coaching workflow reset plan (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `C:\Users\samgammon\.copilot\session-state\eb170977-aaf2-4942-8d86-3506a4f44686\plan.md`
+  - rewrote the coaching sessions/boatings plan from first principles instead of iterating further on the existing linked-record UX
+  - reframed the primary artifact as the **session report**
+  - proposed that daily crew/boat lineups be stored as **snapshots inside the session**
+  - repositioned `CoachingBoatings.tsx` as a future **templates/history** surface rather than a co-equal daily workflow page
+
+- `working-memory/activeContext.md`
+  - updated the current focus to reflect the new approved direction
+  - recorded that the implemented app still reflects the older session-child-boating model and will need a follow-up redesign pass
+
+- SQL todo tracking
+  - marked completed planning tasks:
+    - `define-session-report-model`
+    - `design-session-crew-ui`
+    - `plan-session-centered-rollout`
+  - left `decide-template-storage` pending because the storage boundary between current `coaching_boatings` and potential session-owned snapshot tables is still intentionally open
+
+### Why This Approach Won
+
+- repeated UX fixes made the current model more coherent, but the user feedback made clear that the deeper abstraction was still wrong
+- the coach’s real job is to open a day, write what happened, and record which crews went out
+- "link a boating to a session" is an internal data-model concern, not the right primary user workflow
+
+### Outcome
+
+The project now has an approved redesign direction: **session report first, crew snapshots inside the session, boatings/templates as secondary tooling**. No new code was implemented in this phase; the work product was a clean reset plan and durable session handoff documentation.
+
+---
+
+## Phase 61: Session-owned crew snapshots land in Schedule (March 21, 2026)
+
+**Timeline**: March 21, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `db/migrations/20260321_add_session_crew_snapshots.sql`
+  - added `public.coaching_session_crews` as the canonical per-session crew snapshot table
+  - added `public.coaching_session_crew_positions` for seat-by-seat athlete snapshots
+  - added team-scoped SELECT/INSERT/UPDATE/DELETE RLS policies mirroring the existing coaching access model
+  - backfilled existing `coaching_boatings.session_id` rows into the new session-crew snapshot tables
+
+- `src/services/coaching/types.ts`
+  - added `CoachingSessionCrew`
+  - added `CoachingSessionCrewPosition`
+
+- `src/services/coaching/coachingService.ts`
+  - added `getSessionCrewsForSession()` and `getSessionCrewsForSessions()`
+  - added `createSessionCrew()`, `updateSessionCrew()`, and `deleteSessionCrew()`
+  - kept team-scoped queries explicit so the new tables follow the existing coaching service/RLS contract
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - now loads session-owned crew snapshots for the visible range
+  - water sessions now show crew snapshot counts as the primary daily-record indicator
+  - session detail now supports add/edit/delete for crew snapshots directly inside the session report
+  - the crew form can start from:
+    - a persistent boat's latest saved lineup
+    - any saved boating-history template
+  - Boatings is now referenced as `Templates & history` from Schedule rather than the main daily logging path
+
+### Why This Approach Won
+
+- it resolves the still-open storage question from Phase 60 with the safest model: **new session-owned snapshot tables** instead of repurposing `coaching_boatings`
+- it preserves the value of boating history/templates without making daily reports depend on a live linked record
+- it allows historical session truth to remain stable even if boats, templates, or athlete membership change later
+- the migration could safely backfill the existing linked-boating data so current history was not lost
+
+### Validation
+
+- Supabase MCP migration applied: `add_session_crew_snapshots` ✅
+- Supabase MCP verification:
+  - `coaching_session_crews` present ✅
+  - `coaching_session_crew_positions` present ✅
+  - RLS policies present on both new tables ✅
+- `npx eslint src/pages/coaching/CoachingSchedule.tsx src/services/coaching/coachingService.ts src/services/coaching/types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The primary coaching workflow is now materially session-first: a coach can open a water session and save the actual crews that went out as part of the session report itself, while boating history remains useful as helper/template tooling rather than the canonical daily record.
+
+---
+
+## Phase 62: Boatings is reframed as Templates & History (March 23, 2026)
+
+**Timeline**: March 23, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/components/coaching/CoachingNav.tsx`
+  - renamed the boating tab to `Templates & History`
+  - fixed touched-file hook lint violations while updating the navigation label
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - updated the page header to explicitly frame the route as secondary tooling for reusable crew records, shell history, and session-linked references
+  - added a clearer path back to `Schedule` from both the header and session-context workflow
+  - updated session-context copy so coaches are reminded that the session report remains the primary daily record
+  - renamed key UX surfaces away from "primary daily logging" language:
+    - `New Boating Log` → `New Crew Record`
+    - `Past Lineups` → `Crew history archive`
+    - archive/reactivate/delete wording now consistently references crew records/history
+    - form labels and helper text now explain that linking a session is optional and secondary to the session report
+  - updated empty states and DnD helper copy so the page reads like templates/history tooling rather than the normal start point for logging a day
+
+### Why This Approach Won
+
+- the session-first schema/UI work in Phase 61 changed the data boundary, but the product language still made Boatings feel like a competing primary workflow
+- coaches need wayfinding that reinforces: **Schedule = daily report**, **Boatings = reusable crew records and history**
+- a copy/IA pass on the existing route was the safest way to align the UX without another risky data or routing change
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/components/coaching/CoachingNav.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The secondary boating surface now reads coherently as `Templates & History`, which better matches the implemented session-first workflow and reduces the chance that coaches treat it as the normal place to log the day.
+
+---
+
+## Phase 63: Lineups becomes team-scoped and drops session-linking UI (March 23, 2026)
+
+**Timeline**: March 23, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- Live-data debugging via Supabase MCP
+  - confirmed the apparent Schedule dropdown bug was actually a scoping mismatch
+  - found duplicate same-name team rows in the org, with saved `coaching_boatings` attached to only one set of team IDs
+  - verified that `CoachingSchedule` was correctly staying session-team-scoped while `CoachingBoatings` was still showing org-wide records
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - removed the session-context banner, same-day link/unlink panels, and related `sessionId` query-param workflow
+  - removed the form field for linking a crew record to a session from the Boatings page
+  - changed page data loading from org-wide to selected-team-scoped so the page now matches Schedule's lineup source boundary
+  - kept rower-note context functional for legacy linked boating rows by reading/writing session notes through `boating.session_id` when it already exists
+  - retained the page as reusable lineup/history tooling instead of a daily session workflow
+
+- `src/components/coaching/CoachingNav.tsx`
+  - renamed the boating tab from `Templates & History` to `Lineups`
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - renamed the secondary CTA/copy from `Templates & history` to `Lineups`
+
+### Why This Approach Won
+
+- the user report was correct about the confusion, but the root cause was not the Schedule modal itself — it was the secondary page advertising lineups that belonged to a different same-named team
+- team-scoping the Lineups page is safer than widening Schedule across team boundaries, which would risk cross-team data leakage and break the intended coaching access model
+- removing the in-between session-linking workflow keeps the product aligned with the session-first direction: **Schedule owns the day, Lineups stores reusable crew records/history**
+
+### Validation
+
+- Supabase MCP SQL verification of `teams` + `coaching_boatings` counts ✅
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/pages/coaching/CoachingSchedule.tsx src/components/coaching/CoachingNav.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The secondary boating surface is now `Lineups`, scoped to the selected team, and no longer pretends to be a session-linking workflow. Schedule and Lineups now agree on what counts as an available saved lineup, so coaches are no longer misled by org-wide records from the wrong team.
+
+---
+
+## Phase 64: Org-wide lineup reuse and reusable source fix (March 23, 2026)
+
+**Timeline**: March 23, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - `Start from saved lineup` now loads org-wide lineup sources when the coach is operating inside an org
+  - lineup options show explicit team labels when the source record belongs to another team
+  - applying another team's lineup copies the saved boat name/type and seat assignments without attaching that other team's persistent `boat_id`
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - Lineups page now loads org-wide lineup/boat/athlete data again so lineup reuse matches the user’s real seasonal workflow across teams
+  - the earlier session-linking removal remains in place
+  - copy now frames Lineups as an org-wide resource
+
+- `db/migrations/20260323_allow_reusable_session_crew_sources.sql`
+  - drops the accidental unique constraint on `public.coaching_session_crews.source_boating_id`
+  - adds a non-unique partial index for lookup performance instead
+
+- Live Supabase migration
+  - applied `allow_reusable_session_crew_sources` directly to the ReadyAll project via MCP
+
+### Why This Approach Won
+
+- the product rule is now explicit: **lineups are org-wide reusable resources**, while **sessions remain team-scoped daily reports**
+- the immediate save failure was not a frontend-only bug: the schema incorrectly enforced one-to-one usage of a lineup source via `UNIQUE (source_boating_id)`
+- removing that uniqueness is the correct provenance model because the same saved lineup template should be reusable across many session snapshots over time
+
+### Validation
+
+- Live schema inspection:
+  - verified `coaching_session_crews_source_boating_id_key` is gone ✅
+  - verified `idx_coaching_session_crews_source_boating_id` exists ✅
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/pages/coaching/CoachingSchedule.tsx src/components/coaching/CoachingNav.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails only because of unrelated pre-existing repo-wide issues (`scripts/*`, `src/App.tsx`, `src/api/concept2.ts`, etc.)
+
+### Outcome
+
+Coaches can now reuse the same lineup source across multiple session snapshots without hitting a 409, and the Schedule picker can intentionally pull reusable org-wide lineups instead of pretending templates are locked to one team for the whole season.
+
+---
+
+## Phase 65: Schedule absorbs Lineups and adds Day view (March 23, 2026)
+
+**Timeline**: March 23, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - added internal `Schedule | Lineups` tabs using URL query state so deep links can still open the Lineups surface
+  - added a true `Day` view in addition to `Week` and `Month`
+  - added persistent top-level `Add Session` and `Add Event` CTAs plus more visible event actions inside schedule views
+  - session cards now open the embedded Lineups tab instead of routing to a separate top-level page
+  - add-session flow now supports choosing the target team at creation time when org team context is available
+  - event scope now reads more clearly with explicit team/all-team badges
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - extracted the reusable `LineupsWorkspace` surface so Schedule can render it inline
+  - lineup cards now show the owning team badge directly
+  - `CoachingBoatings` is now just a redirect into `Schedule?tab=lineups&from=boatings`
+
+- `src/components/coaching/CoachingNav.tsx`
+  - removed the separate top-level Lineups tab, since Lineups now lives inside Schedule
+
+- `src/pages/coaching/CoachDashboard.tsx`
+  - updated the lineup summary card to deep-link into `Schedule?tab=lineups`
+
+### Why This Approach Won
+
+- the user’s core feedback was about workflow, not just labels: coaches think in **days and practices first**, then drill into saved lineups as secondary tooling
+- embedding Lineups inside Schedule preserves deep linking while eliminating unnecessary route/context switching
+- adding Day view and visible event/session CTAs makes Schedule feel like the true operational hub instead of just a weekly list
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingSchedule.tsx src/pages/coaching/CoachingBoatings.tsx src/components/coaching/CoachingNav.tsx src/pages/coaching/CoachDashboard.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Coaching navigation is now closer to the approved product direction: Schedule is the single parent surface, Lineups is available as a fast in-context tab, and coaches can move between day/week/month planning without leaving the same page.
+
+---
+
+## Phase 56: Session-first boating handoff and linking workflow (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - expanded water-session cards now present clearer actions:
+    - `Add boating log`
+    - `Manage lineup & logs`
+  - the empty-state copy now explains that coaches can either create a new boating log or link an existing same-day boating
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - opening the page with a `sessionId` query param now creates a real session-context workflow instead of just a banner
+  - session context now shows:
+    - boating logs already linked to that session,
+    - same-day unlinked boating logs available to link,
+    - explicit `Link to session` and `Unlink` actions,
+    - `Edit` access for each surfaced boating,
+    - a clearer `Exit session view` action
+  - `create=1` query-param support now opens the new boating form directly for schedule-driven creation
+
+### Why This Approach Won
+
+- the previous handoff was the core UX failure: "Manage boatings" sent coaches to another page that effectively only supported creating a new boating
+- keeping `Schedule` as the primary daily surface while making `CoachingBoatings.tsx` a real secondary linking/editor workflow fixed the confusion without forcing a risky one-pass full-page merge
+- separating "new boating log" from "link existing boating" better matches the coach’s mental model when collaborating with another coach across the same practice day
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/pages/coaching/CoachingSchedule.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails only because of unrelated pre-existing repo-wide issues such as `src/App.tsx`, `src/api/concept2.ts`, and multiple `scripts/*.ts` files
+
+### Outcome
+
+Coaches can now move from a water session into a boating workflow that actually supports the three real jobs: create a new boating log, link an existing same-day boating, and remove an incorrect link. The flow is still split across two pages, but it is now understandable instead of misleading.
+
+---
+
+## Phase 57: New boating logs inherit the selected boat's latest crew (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - selecting an existing persistent boat while creating a new boating log now seeds the form with that shell's most recent saved lineup
+  - lineup templating uses recent boating history for the selected shell rather than forcing the coach to reseat the whole crew manually every time
+  - the behavior is scoped to new boating creation so changing boats while editing does not unexpectedly overwrite an existing crew
+
+### Why This Approach Won
+
+- the user expectation is correct: picking an existing shell usually implies "start from who was in this boat last time"
+- applying the behavior only in new-log mode preserves convenience without creating destructive surprises in edit mode
+- sourcing the template from recent boating history keeps the persistent boat useful as a seasonal anchor rather than just a name/type container
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Creating a new boating log from an existing boat now starts from a realistic crew template, which better matches real coach workflow and reduces repetitive seat entry.
+
+---
+
+## Phase 58: Session-driven boating creation now returns to the main schedule workflow (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - creating a boating log from session context now uses the session's team as the save target instead of blindly relying on the boating page's current team
+  - the add form now inherits the session date so a session-created boating starts on the actual practice day
+  - after a session-driven boating create succeeds, the app routes back to `CoachingSchedule` with the target session in the URL
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - schedule now initializes its selected day / expanded session from `sessionId` + `date` query params
+  - this makes session-driven boating creation land back on the main rowing-day surface with the correct session already focused
+
+### Why This Approach Won
+
+- the user’s complaint was valid: the previous flow still treated Boatings as the primary destination after creation, which contradicted the product decision that Schedule is the main coach workflow
+- using URL-driven session focus avoided the lint-unfriendly pattern of forcing multiple local state updates inside an effect
+- tying creation to the session's own team/date context reduces the chance of a boating looking linked on one page but failing to appear as the expected child of that session
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingBoatings.tsx src/pages/coaching/CoachingSchedule.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Adding a boating log from a session now behaves much more like "add a child record to this rowing day" and much less like "go work on a separate boating page and maybe come back later."
+
+---
+
+## Phase 59: Schedule now owns net-new boating creation (March 20, 2026)
+
+**Timeline**: March 20, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - `Add boating log` on expanded water sessions now opens a real session-bound creation modal inside Schedule
+  - the modal uses the session date automatically and saves the boating directly with `session_id = session.id`
+  - the modal supports:
+    - selecting an existing persistent boat,
+    - inheriting that shell's latest crew,
+    - creating a new boat record when needed,
+    - writing the boat-level outing note,
+    - assigning the lineup seat-by-seat
+  - after save, Schedule refreshes and keeps the session as the primary surface instead of redirecting away
+
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - remains the secondary page for deeper lineup/history work and explicit link/unlink management
+
+### Why This Approach Won
+
+- the user feedback was clear: a primary Schedule action should not immediately bounce the coach into a different page just to create a child record
+- moving net-new creation into Schedule aligns the product with the intended mental model: the session is the rowing day, and the boating log is one child artifact of that day
+- keeping Boatings as the advanced editor/history surface preserves the existing deeper tooling without making it the default path for ordinary session work
+
+### Validation
+
+- `npx eslint src/pages/coaching/CoachingSchedule.tsx src/pages/coaching/CoachingBoatings.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The workflow is now much more coherent: coaches can create a boating log directly from the session they are reviewing, and only use the separate Boatings page when they actually want deeper lineup/history management.
+
+---
+
 ## Phase 54: CoachingBoatings UX polish pass (March 19, 2026)
 
 **Timeline**: March 19, 2026  

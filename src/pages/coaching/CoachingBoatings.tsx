@@ -2,25 +2,37 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
+  getBoats,
   getBoatings,
-  getOrgBoatings,
   getAthletes,
+  getOrgBoats,
+  getOrgBoatings,
   getOrgAthletesWithTeam,
   createBoating,
+  createBoat,
   updateBoating,
   deleteBoating,
   duplicateBoating,
   setBoatingActive,
   updateBoatingSortOrders,
+  getCoachNotesForAthlete,
+  getNotesForSession,
+  createNote,
+  updateNote,
+  deleteNote,
   type CoachingBoating,
+  type CoachingBoat,
   type CoachingAthlete,
+  type CoachingAthleteCoachNote,
+  type CoachingAthleteNote,
   type BoatPosition,
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, ArrowUp, ArrowDown, Ship, Archive, RotateCcw, History, GripVertical, Search } from 'lucide-react';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, ArrowUp, ArrowDown, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare } from 'lucide-react';
 import { Button, EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
+import { Link, Navigate } from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
@@ -46,11 +58,17 @@ type PendingBoatingAction = {
   boating: CoachingBoating;
 } | null;
 
-export function CoachingBoatings() {
-  const { userId, teamId, isLoadingTeam, orgId } = useCoachingContext();
-  // Boatings page is always org-wide for maximum flexibility
+type BoatingFormData = Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions'> & {
+  notes?: string;
+  boat_id?: string | null;
+};
+
+export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
+  const { userId, teamId, filterTeamId, orgId, isLoadingTeam } = useCoachingContext();
+  const effectiveTeamId = filterTeamId ?? teamId;
   const hasOrg = !!orgId;
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
+  const [boats, setBoats] = useState<CoachingBoat[]>([]);
   const [boatings, setBoatings] = useState<CoachingBoating[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingBoating, setEditingBoating] = useState<CoachingBoating | null>(null);
@@ -79,63 +97,100 @@ export function CoachingBoatings() {
 
   useEffect(() => {
     if (isLoadingTeam) return;
-    if (!hasOrg && !teamId) return;
+    if (!hasOrg && !effectiveTeamId) return;
 
     const fetchAthletes = hasOrg
       ? () => getOrgAthletesWithTeam(orgId!)
-      : () => getAthletes(teamId);
+      : () => getAthletes(effectiveTeamId);
+    const fetchBoats = hasOrg
+      ? () => getOrgBoats(orgId!)
+      : () => getBoats(effectiveTeamId);
     const fetchBoatings = hasOrg
       ? () => getOrgBoatings(orgId!)
-      : () => getBoatings(teamId);
+      : () => getBoatings(effectiveTeamId);
 
-    Promise.all([fetchAthletes(), fetchBoatings()])
-      .then(([a, b]) => {
+    Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings()])
+      .then(([a, allBoats, b]) => {
         setAthletes(a);
+        setBoats(allBoats);
         setBoatings(b);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
-  }, [teamId, isLoadingTeam, hasOrg, orgId]);
+  }, [effectiveTeamId, hasOrg, isLoadingTeam, orgId]);
 
   const refreshData = useCallback(async () => {
-    if (!hasOrg && !teamId) return;
+    if (!hasOrg && !effectiveTeamId) return;
     try {
       const fetchAthletes = hasOrg
         ? () => getOrgAthletesWithTeam(orgId!)
-        : () => getAthletes(teamId);
+        : () => getAthletes(effectiveTeamId);
+      const fetchBoats = hasOrg
+        ? () => getOrgBoats(orgId!)
+        : () => getBoats(effectiveTeamId);
       const fetchBoatings = hasOrg
         ? () => getOrgBoatings(orgId!)
-        : () => getBoatings(teamId);
+        : () => getBoatings(effectiveTeamId);
 
-      const [a, b] = await Promise.all([fetchAthletes(), fetchBoatings()]);
+      const [a, allBoats, b] = await Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings()]);
       setAthletes(a);
+      setBoats(allBoats);
       setBoatings(b);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh');
     }
-  }, [teamId, hasOrg, orgId]);
+  }, [effectiveTeamId, hasOrg, orgId]);
 
-  const handleSave = async (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => {
-    if (!teamId) return;
+  const resolveBoatId = useCallback(async (
+    targetTeamId: string,
+    data: BoatingFormData,
+    existingBoatId?: string | null,
+  ): Promise<string | null> => {
+    if (data.boat_id) return data.boat_id;
+    if (existingBoatId) return existingBoatId;
+
+    const normalizedName = data.boat_name.trim().toLowerCase();
+    const existing = boats.find((boat) =>
+      boat.team_id === targetTeamId &&
+      boat.boat_type === data.boat_type &&
+      boat.boat_name.trim().toLowerCase() === normalizedName
+    );
+    if (existing) return existing.id;
+
+    const created = await createBoat(targetTeamId, userId, {
+      boat_name: data.boat_name.trim(),
+      boat_type: data.boat_type,
+      sort_order: boats.filter((boat) => boat.team_id === targetTeamId).length,
+    });
+    return created.id;
+  }, [boats, userId]);
+
+  const handleSave = async (data: BoatingFormData) => {
+    const targetTeamId = effectiveTeamId;
+    if (!targetTeamId) return;
     try {
-      await createBoating(teamId, userId, data);
+      const boatId = await resolveBoatId(targetTeamId, data);
+      await createBoating(targetTeamId, userId, { ...data, boat_id: boatId });
       setIsAdding(false);
+      toast.success('Crew record saved.');
       await refreshData();
-      toast.success('Lineup created.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save boating');
+      toast.error(err instanceof Error ? err.message : 'Failed to save crew record');
     }
   };
 
-  const handleEdit = async (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => {
+  const handleEdit = async (data: BoatingFormData) => {
     if (!editingBoating) return;
     try {
-      await updateBoating(editingBoating.id, data);
+      const targetTeamId = editingBoating.team_id ?? teamId;
+      if (!targetTeamId) return;
+      const boatId = await resolveBoatId(targetTeamId, data, editingBoating.boat_id);
+      await updateBoating(editingBoating.id, { ...data, boat_id: boatId });
       setEditingBoating(null);
       await refreshData();
-      toast.success('Lineup updated.');
+      toast.success('Crew record updated.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update boating');
+      toast.error(err instanceof Error ? err.message : 'Failed to update crew record');
     }
   };
 
@@ -143,21 +198,21 @@ export function CoachingBoatings() {
     try {
       await deleteBoating(id);
       await refreshData();
-      toast.success('Lineup deleted.');
+      toast.success('Crew record deleted.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete boating');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete crew record');
       throw err;
     }
   }, [refreshData]);
 
   const handleDuplicate = async (boating: CoachingBoating) => {
-    if (!teamId) return;
+    if (!effectiveTeamId) return;
     try {
-      await duplicateBoating(teamId, userId, boating);
+      await duplicateBoating(effectiveTeamId, userId, boating);
       await refreshData();
-      toast.success(`Duplicated ${boating.boat_name}.`);
+      toast.success(`Copied ${boating.boat_name} into a new crew record.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to duplicate boating');
+      toast.error(err instanceof Error ? err.message : 'Failed to duplicate crew record');
     }
   };
 
@@ -184,11 +239,11 @@ export function CoachingBoatings() {
     );
     try {
       await setBoatingActive(boatingId, isActive);
-      toast.success(isActive ? 'Lineup reactivated.' : 'Lineup archived.');
+      toast.success(isActive ? 'Crew record restored.' : 'Crew record moved to history.');
     } catch {
       await refreshData();
-      toast.error(`Failed to ${isActive ? 'reactivate' : 'archive'} lineup`);
-      throw new Error(`Failed to ${isActive ? 'reactivate' : 'archive'} lineup`);
+      toast.error(`Failed to ${isActive ? 'restore' : 'move'} crew record`);
+      throw new Error(`Failed to ${isActive ? 'restore' : 'move'} crew record`);
     }
   }, [refreshData]);
 
@@ -245,6 +300,10 @@ export function CoachingBoatings() {
   // Split active vs archived
   const activeBoatings = useMemo(() => boatings.filter((b) => b.is_active !== false), [boatings]);
   const archivedBoatings = useMemo(() => boatings.filter((b) => b.is_active === false), [boatings]);
+  const boatsById = useMemo(
+    () => new Map(boats.map((boat) => [boat.id, boat])),
+    [boats]
+  );
 
   // Map athlete ID → which active boat they're assigned to
   const athleteBoatMap = useMemo(() => {
@@ -485,20 +544,25 @@ export function CoachingBoatings() {
 
   return (
     <>
-    <CoachingNav />
-    <div className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6">
+    {!embedded && <CoachingNav />}
+    <div className={embedded ? 'space-y-6' : 'px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6'}>
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Boatings</h1>
+            <h1 className={`${embedded ? 'text-xl' : 'text-2xl'} font-bold text-white`}>Lineups</h1>
             <p className="text-neutral-400 mt-1">
-              {activeBoatings.length} current lineup{activeBoatings.length !== 1 ? 's' : ''}
+              {embedded
+                ? 'Browse reusable org-wide lineups and recent shell history without leaving Schedule.'
+                : 'Use this page for reusable org-wide lineups, crew records, and shell history across the program.'}
+            </p>
+            <p className="text-neutral-500 mt-1 text-sm">
+              {activeBoatings.length} saved crew record{activeBoatings.length !== 1 ? 's' : ''}
               {archivedBoatings.length > 0 && (
-                <span className="text-neutral-600"> · {archivedBoatings.length} archived</span>
+                <span className="text-neutral-600"> · {archivedBoatings.length} in history</span>
               )}
             </p>
           </div>
-           <div className="flex items-center gap-3">
+           <div className="flex items-center gap-3 flex-wrap">
             {/* Squad filter: show inline on mobile, hidden on desktop when DnD panel is shown */}
             {squads.length > 0 && (
               <div className={`flex items-center gap-2 ${showDndPanel ? 'md:hidden' : ''}`}>
@@ -516,16 +580,24 @@ export function CoachingBoatings() {
                 </select>
               </div>
             )}
-            <button
-              onClick={() => setIsAdding(true)}
-              disabled={athletes.length === 0}
-              title={athletes.length === 0 ? 'Add athletes to the roster first' : 'Create a new boat lineup'}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-5 h-5" />
-              New Lineup
-            </button>
-          </div>
+             <button
+               onClick={() => setIsAdding(true)}
+                disabled={athletes.length === 0}
+                title={athletes.length === 0 ? 'Add athletes to the roster first' : 'Save a new crew record'}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-5 h-5" />
+                New Crew Record
+              </button>
+              {!embedded && (
+                <Link
+                  to="/team-management/schedule"
+                  className="flex items-center gap-2 px-4 py-2 border border-neutral-700 text-neutral-200 rounded-lg hover:bg-neutral-800 transition-colors"
+                >
+                  Open Schedule
+                </Link>
+              )}
+            </div>
         </div>
       </div>
 
@@ -543,8 +615,8 @@ export function CoachingBoatings() {
           <div className="space-y-1">
             <p className="font-medium text-white">Drag-and-drop tips</p>
             <p className="text-neutral-300">
-              Drag athletes from the Boathouse onto a seat. Drop a seated athlete onto an occupied seat to swap.
-              Drop them back into the Boathouse to unseat. Expanded boats now use the most precise seat targets.
+              Drag athletes from the roster pool onto a seat. Drop a seated athlete onto an occupied seat to swap.
+              Drop them back into the roster pool to unseat. Expanded crew records now use the most precise seat targets.
             </p>
           </div>
         </div>
@@ -558,7 +630,7 @@ export function CoachingBoatings() {
         <EmptyState
           icon={<Ship className="w-8 h-8" />}
           title="No athletes on roster"
-          description="Add athletes to the roster before creating lineups."
+          description="Add athletes to the roster before saving lineups or history records."
           action={
             <a href="/team-management/roster" className="text-indigo-400 hover:underline font-medium">Go to Roster</a>
           }
@@ -566,15 +638,20 @@ export function CoachingBoatings() {
       ) : activeBoatings.length === 0 && archivedBoatings.length === 0 ? (
         <EmptyState
           icon={<Ship className="w-8 h-8" />}
-          title="No lineups yet"
-          description="Create your first boat lineup."
-          action={
-            <button onClick={() => setIsAdding(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
-              Create your first lineup
-            </button>
-          }
-        />
+              title="No lineups or history yet"
+              description="Save your first crew record here, then use Schedule for the day-by-day session report."
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button onClick={() => setIsAdding(true)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
+                    Save your first crew record
+                  </button>
+                  <Link to="/team-management/schedule" className="text-indigo-400 hover:underline font-medium">
+                    Go to Schedule
+                  </Link>
+                </div>
+              }
+            />
       ) : (
         <DndContext
           sensors={sensors}
@@ -599,9 +676,15 @@ export function CoachingBoatings() {
           )}
 
           <div className={`space-y-6 ${showDndPanel ? 'md:flex-1 md:min-w-0' : ''}`}>
-          {/* ── Current Lineups ── */}
+          {/* ── Saved Crew Records ── */}
           {activeBoatings.length > 0 ? (
             <div className="space-y-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">Saved crew records</h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Reusable org-wide lineups and recent shell records you can reference from session reports.
+                </p>
+              </div>
               {activeBoatings.map((boating, idx) => (
                 <BoatingCard
                   key={boating.id}
@@ -614,18 +697,22 @@ export function CoachingBoatings() {
                    onDelete={() => setPendingAction({ kind: 'delete', boating })}
                    onDuplicate={() => handleDuplicate(boating)}
                    onArchive={() => setPendingAction({ kind: 'archive', boating })}
-                   onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
-                   getAthleteName={getAthleteName}
-                   isDragging={activeDragId !== null}
+                  onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                  getAthleteName={getAthleteName}
+                  isDragging={activeDragId !== null}
                   dndEnabled={showDndPanel}
                   onMoveUp={idx > 0 ? () => moveBoating(boating.id, 'up') : undefined}
                   onMoveDown={idx < activeBoatings.length - 1 ? () => moveBoating(boating.id, 'down') : undefined}
+                  boat={boating.boat_id ? boatsById.get(boating.boat_id) ?? null : null}
+                  teamId={boating.team_id ?? null}
+                  teamName={teams.find(([id]) => id === boating.team_id)?.[1] ?? null}
+                  userId={userId}
                 />
               ))}
             </div>
           ) : (
             <div className="text-center py-8 text-neutral-500 text-sm">
-              No current lineups. Create a new one or reactivate from history.
+              No saved crew records yet. Save a new one or restore one from history.
             </div>
           )}
 
@@ -637,7 +724,7 @@ export function CoachingBoatings() {
                 className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-300 transition-colors mb-3"
               >
                 <History className="w-4 h-4" />
-                Past Lineups ({archivedBoatings.length})
+                Crew history archive ({archivedBoatings.length})
                 {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {showHistory && (
@@ -665,8 +752,12 @@ export function CoachingBoatings() {
                              onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
                              getAthleteName={getAthleteName}
                             archived
-                          />
-                        ))}
+                            boat={boating.boat_id ? boatsById.get(boating.boat_id) ?? null : null}
+                             teamId={boating.team_id ?? null}
+                             teamName={teams.find(([id]) => id === boating.team_id)?.[1] ?? null}
+                             userId={userId}
+                           />
+                         ))}
                       </div>
                     </div>
                   ))}
@@ -687,13 +778,22 @@ export function CoachingBoatings() {
       )}
 
       {isAdding && (
-        <BoatingForm athletes={formAthletes} allBoatings={activeBoatings} onSave={handleSave} onCancel={() => setIsAdding(false)} />
+        <BoatingForm
+          athletes={formAthletes}
+          boats={boats}
+          allBoatings={activeBoatings}
+          templateBoatings={boatings}
+          onSave={handleSave}
+          onCancel={() => setIsAdding(false)}
+        />
       )}
 
       {editingBoating && (
         <BoatingForm
           athletes={formAthletes}
+          boats={boats}
           allBoatings={activeBoatings}
+          templateBoatings={boatings}
           boating={editingBoating}
           onSave={handleEdit}
           onCancel={() => setEditingBoating(null)}
@@ -713,6 +813,10 @@ export function CoachingBoatings() {
     </div>
     </>
   );
+}
+
+export function CoachingBoatings() {
+  return <Navigate to="/team-management/schedule?tab=lineups&from=boatings" replace />;
 }
 
 /* ─── Boating Card ─────────────────────────────────────────────────────────── */
@@ -735,6 +839,10 @@ function BoatingCard({
   dndEnabled,
   onMoveUp,
   onMoveDown,
+  boat,
+  teamId,
+  teamName,
+  userId,
 }: {
   boating: CoachingBoating;
   athletes: CoachingAthlete[];
@@ -753,6 +861,10 @@ function BoatingCard({
   dndEnabled?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  boat?: CoachingBoat | null;
+  teamId?: string | null;
+  teamName?: string | null;
+  userId: string;
 }) {
   return (
     <div className={`bg-neutral-900 border rounded-xl overflow-hidden ${archived ? 'border-neutral-800/60 opacity-75' : 'border-neutral-800'}`}>
@@ -763,7 +875,21 @@ function BoatingCard({
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${archived ? 'bg-neutral-700' : 'bg-indigo-600'}`}>
           <span className="text-white font-bold text-xs">{boating.boat_type}</span>
         </div>
-        <p className="font-medium text-white text-sm truncate flex-1">{boating.boat_name}</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-white text-sm truncate">{boating.boat_name}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {teamName && (
+              <span className="inline-flex items-center rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-200">
+                {teamName}
+              </span>
+            )}
+            {boat && (
+              <span className="text-[11px] text-neutral-500 truncate">
+                Boat record: {boat.boat_name}
+              </span>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {onMoveUp && (
             <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move up" aria-label={`Move ${boating.boat_name} up`}>
@@ -775,25 +901,25 @@ function BoatingCard({
               <ArrowDown className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Edit" aria-label={`Edit ${boating.boat_name}`}>
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Edit crew record" aria-label={`Edit ${boating.boat_name}`}>
             <Edit2 className="w-3.5 h-3.5 text-neutral-500" />
           </button>
           {!archived && onDuplicate && (
-            <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Duplicate" aria-label={`Duplicate ${boating.boat_name}`}>
+            <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Copy crew record" aria-label={`Copy ${boating.boat_name}`}>
               <Copy className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
           {!archived && onArchive && (
-            <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Archive" aria-label={`Archive ${boating.boat_name}`}>
+            <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move to history" aria-label={`Move ${boating.boat_name} to history`}>
               <Archive className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
           {archived && onReactivate && (
-            <button onClick={(e) => { e.stopPropagation(); onReactivate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Reactivate" aria-label={`Reactivate ${boating.boat_name}`}>
+            <button onClick={(e) => { e.stopPropagation(); onReactivate(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Restore from history" aria-label={`Restore ${boating.boat_name} from history`}>
               <RotateCcw className="w-3.5 h-3.5 text-neutral-500" />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Delete" aria-label={`Delete ${boating.boat_name}`}>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Delete crew record" aria-label={`Delete ${boating.boat_name}`}>
             <Trash2 className="w-3.5 h-3.5 text-neutral-500" />
           </button>
           {expanded ? (
@@ -811,6 +937,9 @@ function BoatingCard({
 
       {expanded && (
         <div className="border-t border-neutral-800 p-4 bg-neutral-800/30">
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
+            <span>{format(parseLocalDate(boating.date), 'EEEE, MMM d, yyyy')}</span>
+          </div>
           <BoatDiagram
             boatType={boating.boat_type}
             positions={boating.positions}
@@ -828,8 +957,261 @@ function BoatingCard({
               {boating.notes}
             </p>
           )}
+          <BoatingRowerNotesPanel
+            boating={boating}
+            teamId={teamId}
+            userId={userId}
+            athletes={athletes}
+            getAthleteName={getAthleteName}
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+function BoatingRowerNotesPanel({
+  boating,
+  teamId,
+  userId,
+  athletes,
+  getAthleteName,
+}: {
+  boating: CoachingBoating;
+  teamId?: string | null;
+  userId: string;
+  athletes: CoachingAthlete[];
+  getAthleteName: (id: string) => string;
+}) {
+  const sessionId = boating.session_id ?? null;
+  const [sessionNotes, setSessionNotes] = useState<CoachingAthleteNote[]>([]);
+  const [coachNotesByAthlete, setCoachNotesByAthlete] = useState<Record<string, CoachingAthleteCoachNote[]>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  useEffect(() => {
+    const athleteIds = [...new Set(boating.positions.map((position) => position.athlete_id))];
+    Promise.all([
+      sessionId ? getNotesForSession(sessionId) : Promise.resolve([]),
+      Promise.all(
+        athleteIds.map(async (athleteId) => [athleteId, await getCoachNotesForAthlete(athleteId, 3)] as const)
+      ),
+    ])
+      .then(([sessionRows, coachNoteRows]) => {
+        setSessionNotes(sessionRows);
+        setCoachNotesByAthlete(Object.fromEntries(coachNoteRows));
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error(err instanceof Error ? err.message : 'Failed to load rower notes');
+      });
+  }, [boating.positions, sessionId]);
+
+  const reloadNotes = async () => {
+    const athleteIds = [...new Set(boating.positions.map((position) => position.athlete_id))];
+    const [sessionRows, coachNoteRows] = await Promise.all([
+      sessionId ? getNotesForSession(sessionId) : Promise.resolve([]),
+      Promise.all(
+        athleteIds.map(async (athleteId) => [athleteId, await getCoachNotesForAthlete(athleteId, 3)] as const)
+      ),
+    ]);
+    setSessionNotes(sessionRows);
+    setCoachNotesByAthlete(Object.fromEntries(coachNoteRows));
+  };
+
+  const handleSaveDraft = async (athleteId: string) => {
+    if (!teamId || !sessionId) return;
+    const value = drafts[athleteId]?.trim();
+    if (!value) return;
+
+    try {
+      await createNote(teamId, userId, {
+        session_id: sessionId,
+        athlete_id: athleteId,
+        note: value,
+      });
+      setDrafts((prev) => ({ ...prev, [athleteId]: '' }));
+      await reloadNotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save rower note');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingNoteId || !editingText.trim()) return;
+    try {
+      await updateNote(editingNoteId, { note: editingText.trim() });
+      setEditingNoteId(null);
+      setEditingText('');
+      await reloadNotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update rower note');
+    }
+  };
+
+  const handleDeleteExisting = async (noteId: string) => {
+    try {
+      await deleteNote(noteId);
+      await reloadNotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete rower note');
+    }
+  };
+
+  const seatedAthletes = boating.positions
+    .slice()
+    .sort((a, b) => a.seat - b.seat)
+    .map((position) => ({
+      ...position,
+      athlete: athletes.find((athlete) => athlete.id === position.athlete_id),
+      displayName: position.athlete_name || getAthleteName(position.athlete_id),
+      sessionNotes: sessionNotes.filter((note) => note.athlete_id === position.athlete_id),
+      coachNotes: coachNotesByAthlete[position.athlete_id] ?? [],
+    }));
+
+  if (seatedAthletes.length === 0) return null;
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Crew note context</h4>
+          <p className="text-xs text-neutral-500 mt-1">
+            Session notes stay tied to the linked practice. Coach notes provide longer-term rower context.
+          </p>
+        </div>
+        {!sessionId && (
+          <span className="text-xs text-amber-400">
+            Practice-specific rower notes only appear for crew records that already have a linked session.
+          </span>
+        )}
+      </div>
+
+      {seatedAthletes.map((position) => (
+        <div key={`${boating.id}-${position.seat}`} className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Seat {position.seat === 0 ? 'Cox' : position.seat} · {position.displayName}
+              </p>
+              <p className="text-xs text-neutral-500">
+                {position.athlete?.side ? `Side: ${position.athlete.side}` : 'Crew context'}
+              </p>
+            </div>
+            {position.coachNotes.length > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-1 text-[11px] text-neutral-400">
+                <MessageSquare className="w-3 h-3" />
+                {position.coachNotes.length} coach note{position.coachNotes.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {position.coachNotes.length > 0 && (
+            <div className="mb-3 space-y-2">
+              {position.coachNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border border-neutral-800 bg-neutral-800/70 p-3">
+                  <p className="text-xs text-neutral-500">
+                    Coach context · {note.author_display_name ?? 'Coach'} · {format(new Date(note.created_at), 'MMM d')}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-300">{note.note}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {position.sessionNotes.length > 0 ? (
+              position.sessionNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border border-indigo-500/10 bg-indigo-500/5 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-indigo-300">Session note</p>
+                      {editingNoteId === note.id ? (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            value={editingText}
+                            onChange={(event) => setEditingText(event.target.value)}
+                            rows={2}
+                            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={!editingText.trim()}
+                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setEditingText('');
+                              }}
+                              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-sm text-neutral-300">{note.note}</p>
+                      )}
+                    </div>
+                    {editingNoteId !== note.id && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingNoteId(note.id);
+                            setEditingText(note.note);
+                          }}
+                          className="rounded-md p-1.5 hover:bg-neutral-800"
+                          title="Edit session note"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-neutral-400" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExisting(note.id)}
+                          className="rounded-md p-1.5 hover:bg-neutral-800"
+                          title="Delete session note"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-neutral-400" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-neutral-500">No linked session notes for this rower yet.</p>
+            )}
+
+            {sessionId && teamId && (
+              <div className="rounded-lg border border-neutral-800 bg-neutral-800/40 p-3">
+                <label className="block text-xs font-medium text-neutral-400 mb-2">
+                  Add session note for {position.displayName}
+                </label>
+                <textarea
+                  value={drafts[position.athlete_id] ?? ''}
+                  onChange={(event) => setDrafts((prev) => ({ ...prev, [position.athlete_id]: event.target.value }))}
+                  rows={2}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Technical cue, lineup context, or seat-specific observation..."
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    onClick={() => handleSaveDraft(position.athlete_id)}
+                    disabled={!drafts[position.athlete_id]?.trim()}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    Save session note
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1310,7 +1692,7 @@ function RosterPanel({
         isOver ? 'border-indigo-400 bg-indigo-500/5' : 'border-neutral-800'
       }`}
     >
-      <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Boathouse</h3>
+      <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Roster pool</h3>
 
       {/* Search */}
       <div className="relative">
@@ -1348,7 +1730,7 @@ function RosterPanel({
             : 'bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-neutral-300'
         }`}
       >
-        <span>{showUnboatedOnly ? 'Showing unboated' : 'Show unboated only'}</span>
+          <span>{showUnboatedOnly ? 'Showing unassigned' : 'Show unassigned only'}</span>
         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
           showUnboatedOnly ? 'bg-indigo-500/30 text-indigo-300' : 'bg-neutral-700 text-neutral-400'
         }`}>
@@ -1370,7 +1752,7 @@ function RosterPanel({
         )}
       </div>
 
-      <p className="text-[10px] text-neutral-600 text-center">Drag to seats · Drop here to unseat</p>
+      <p className="text-[10px] text-neutral-600 text-center">Drag to seats · Drop here to remove from a crew</p>
     </div>
   );
 }
@@ -1387,10 +1769,10 @@ function BoatingActionDialog({
   onConfirm: () => void;
 }) {
   const isDelete = action.kind === 'delete';
-  const title = isDelete ? 'Delete lineup?' : 'Archive lineup?';
+  const title = isDelete ? 'Delete crew record?' : 'Move crew record to history?';
   const description = isDelete
-    ? 'This will permanently remove the lineup and all of its current seat assignments.'
-    : 'This will move the lineup into history. You can reactivate it later from Past Lineups.';
+    ? 'This will permanently remove the crew record and all of its current seat assignments.'
+    : 'This will move the crew record into the history archive. You can restore it later from Crew history archive.';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -1422,7 +1804,7 @@ function BoatingActionDialog({
             Cancel
           </Button>
           <Button variant={isDelete ? 'danger' : 'secondary'} loading={loading} onClick={onConfirm}>
-            {isDelete ? 'Delete lineup' : 'Archive lineup'}
+            {isDelete ? 'Delete crew record' : 'Move to history'}
           </Button>
         </div>
       </div>
@@ -1445,17 +1827,22 @@ function DragOverlayCard({ athlete }: { athlete?: CoachingAthlete }) {
 
 function BoatingForm({
   athletes,
+  boats,
   allBoatings,
+  templateBoatings,
   boating,
   onSave,
   onCancel,
 }: {
   athletes: CoachingAthlete[];
+  boats: CoachingBoat[];
   allBoatings: CoachingBoating[];
+  templateBoatings: CoachingBoating[];
   boating?: CoachingBoating;
-  onSave: (data: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>) => void;
+  onSave: (data: BoatingFormData) => void;
   onCancel: () => void;
 }) {
+  const [selectedBoatId, setSelectedBoatId] = useState(boating?.boat_id ?? '');
   const [boatName, setBoatName] = useState(boating?.boat_name ?? '');
   const [boatType, setBoatType] = useState<CoachingBoating['boat_type']>(boating?.boat_type ?? '8+');
   const [date, setDate] = useState(boating?.date?.slice(0, 10) ?? format(new Date(), 'yyyy-MM-dd'));
@@ -1531,9 +1918,36 @@ function BoatingForm({
   const getAthleteForSeat = (seat: number) =>
     positions.find((p) => p.seat === seat)?.athlete_id ?? '';
 
+  const findLatestBoatTemplate = (boatId: string) => {
+    return [...templateBoatings]
+      .filter((entry) => entry.boat_id === boatId && entry.id !== boating?.id && entry.positions.length > 0)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+  };
+
+  const handleBoatSelection = (boatId: string) => {
+    setSelectedBoatId(boatId);
+    if (!boatId) return;
+
+    const selectedBoat = boats.find((boat) => boat.id === boatId);
+    if (!selectedBoat) return;
+
+    setBoatName(selectedBoat.boat_name);
+    const latestTemplate = findLatestBoatTemplate(boatId);
+    if (!boating) {
+      setBoatType(selectedBoat.boat_type);
+      setPositions(latestTemplate ? latestTemplate.positions : []);
+      return;
+    }
+
+    if (selectedBoat.boat_type !== boatType && positions.length === 0) {
+      setBoatType(selectedBoat.boat_type);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
+      boat_id: selectedBoatId || null,
       boat_name: boatName,
       boat_type: boatType,
       date,
@@ -1546,25 +1960,46 @@ function BoatingForm({
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-2xl my-8 sm:max-h-[calc(100vh-4rem)] max-h-[calc(100vh-2rem)] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">{boating ? 'Edit Lineup' : 'New Lineup'}</h2>
+          <h2 className="text-xl font-bold text-white">{boating ? 'Edit Crew Record' : 'New Crew Record'}</h2>
           <button onClick={onCancel} className="p-2 hover:bg-neutral-800 rounded-lg transition-colors" title="Close">
             <X className="w-5 h-5 text-neutral-400" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label htmlFor="existing-boat" className="block text-sm font-medium text-neutral-300 mb-2">Persistent Boat</label>
+              <select
+                id="existing-boat"
+                value={selectedBoatId}
+                onChange={(e) => handleBoatSelection(e.target.value)}
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              >
+                  <option value="">Create a new boat record from this crew record</option>
+                {boats.map((boat) => (
+                  <option key={boat.id} value={boat.id}>
+                    {boat.boat_name} · {boat.boat_type}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                Choose an existing shell, or leave blank to create a new persistent boat from this crew record.
+              </p>
+            </div>
             <div>
               <label htmlFor="boat-name" className="block text-sm font-medium text-neutral-300 mb-2">Boat Name</label>
               <input id="boat-name" type="text" value={boatName} onChange={(e) => setBoatName(e.target.value)}
+                disabled={!!selectedBoatId}
                 placeholder="e.g. Varsity 8+"
-                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none disabled:opacity-60" />
             </div>
             <div>
               <label htmlFor="boat-type" className="block text-sm font-medium text-neutral-300 mb-2">Boat Type</label>
               <select id="boat-type" value={boatType}
+                disabled={!!selectedBoatId}
                 onChange={(e) => { setBoatType(e.target.value as CoachingBoating['boat_type']); setPositions([]); }}
-                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none disabled:opacity-60">
                 <option value="8+">8+ (Eight with Cox)</option>
                 <option value="4+">4+ (Four with Cox)</option>
                 <option value="4-">4- (Coxless Four)</option>
@@ -1619,10 +2054,10 @@ function BoatingForm({
           </div>
 
           <div>
-            <label htmlFor="boating-notes" className="block text-sm font-medium text-neutral-300 mb-2">Notes (optional)</label>
+              <label htmlFor="boating-notes" className="block text-sm font-medium text-neutral-300 mb-2">Crew notes (optional)</label>
             <textarea id="boating-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none"
-              placeholder="Racing lineup, training notes..." />
+              placeholder="Crew-level narrative: how the row went, what changed, seat moves, feel, or shell-specific observations..." />
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -1632,7 +2067,7 @@ function BoatingForm({
             </button>
             <button type="submit"
               className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition-colors font-medium">
-              {boating ? 'Save Changes' : 'Save'}
+              {boating ? 'Save Changes' : 'Save Crew Record'}
             </button>
           </div>
         </form>

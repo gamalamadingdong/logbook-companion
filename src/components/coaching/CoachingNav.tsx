@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronDown, ChevronsRight, Building2, LayoutDashboard } from 'lucide-react';
-import { RowingShellIcon } from '../icons/RowingIcons';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { getTeamStats, getTeamAthleteCounts } from '../../services/coaching/coachingService';
 
@@ -10,13 +9,12 @@ const tabs = [
   { path: '/team-management/roster' as const, label: 'Roster', icon: Users, exact: false },
   { path: '/team-management/schedule' as const, label: 'Schedule', icon: Calendar, exact: false },
   { path: '/team-management/assignments' as const, label: 'Team Workouts', icon: ClipboardList, exact: false },
-  { path: '/team-management/boatings' as const, label: 'Boatings', icon: RowingShellIcon, exact: false },
   { path: '/team-management/analytics' as const, label: 'Analytics', icon: BarChart3, exact: false },
   { path: '/team-management/live' as const, label: 'Live', icon: Activity, exact: false },
   { path: '/team-management/settings' as const, label: 'Settings', icon: Settings, exact: false },
 ];
 
-export function CoachingNav() {
+function CoachingNav() {
   const { pathname } = useLocation();
   const {
     teamName, teamId, teamsByOrg, activeTeam,
@@ -30,9 +28,11 @@ export function CoachingNav() {
   const orgName = activeTeam?.org_name ?? null;
 
   // Teams in the current org (for the filter pills)
-  const orgTeams = orgId
-    ? teamsByOrg.find((g) => g.org_id === orgId)?.teams ?? []
-    : [];
+  const orgTeams = useMemo(() => (
+    orgId
+      ? teamsByOrg.find((g) => g.org_id === orgId)?.teams ?? []
+      : []
+  ), [orgId, teamsByOrg]);
   const showFilterPills = orgTeams.length > 1;
 
   // Does this coach belong to multiple orgs? If so, show the org switcher dropdown
@@ -40,36 +40,39 @@ export function CoachingNav() {
     || (teamsByOrg.some((g) => g.org_id !== null) && teamsByOrg.some((g) => g.org_id === null));
 
   useEffect(() => {
-    // Determine which team(s) to count based on the active filter
     const effectiveTeamId = filterTeamId ?? teamId;
-    if (!effectiveTeamId && !orgId) {
-      setRosterCount(null);
-      return;
-    }
+    const loadRosterCount = async () => {
+      if (!effectiveTeamId && !orgId) {
+        setRosterCount(null);
+        return;
+      }
 
-    // "All Teams" in an org — sum counts across all org teams
-    if (filterTeamId === null && orgId && orgTeams.length > 0) {
-      const ids = orgTeams.map((t) => t.team_id);
-      getTeamAthleteCounts(ids)
-        .then((counts) => setRosterCount(Object.values(counts).reduce((a, b) => a + b, 0)))
-        .catch(() => setRosterCount(null));
-      return;
-    }
+      if (filterTeamId === null && orgId && orgTeams.length > 0) {
+        try {
+          const counts = await getTeamAthleteCounts(orgTeams.map((team) => team.team_id));
+          setRosterCount(Object.values(counts).reduce((total, count) => total + count, 0));
+        } catch {
+          setRosterCount(null);
+        }
+        return;
+      }
 
-    // Single team selected (either via filter pill or active team)
-    if (effectiveTeamId) {
-      getTeamStats(effectiveTeamId)
-        .then((stats) => setRosterCount(stats.athleteCount))
-        .catch(() => setRosterCount(null));
-    }
+      if (effectiveTeamId) {
+        try {
+          const stats = await getTeamStats(effectiveTeamId);
+          setRosterCount(stats.athleteCount);
+        } catch {
+          setRosterCount(null);
+        }
+      }
+    };
+
+    void loadRosterCount();
   }, [teamId, filterTeamId, orgId, orgTeams]);
 
   useEffect(() => {
     const el = tabsRef.current;
-    if (!el) {
-      setShowScrollHint(false);
-      return;
-    }
+    if (!el) return;
 
     const updateHint = () => {
       const maxScrollLeft = el.scrollWidth - el.clientWidth;
@@ -220,3 +223,6 @@ export function CoachingNav() {
     </div>
   );
 }
+
+export { CoachingNav };
+export default CoachingNav;

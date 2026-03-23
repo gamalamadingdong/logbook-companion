@@ -655,10 +655,10 @@ export const CoachDashboard: React.FC = () => {
                   )}
                 </Link>
 
-                {/* Boatings summary card */}
-                <Link to="/team-management/boatings" className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors group">
+                {/* Lineups summary card */}
+                <Link to="/team-management/schedule?tab=lineups" className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors group">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Boatings</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Lineups</h3>
                     <RowingShellIcon className="w-4 h-4 text-neutral-600 group-hover:text-indigo-400 transition-colors" />
                   </div>
                   {orgDataLoading ? (
@@ -666,7 +666,7 @@ export const CoachDashboard: React.FC = () => {
                   ) : (
                     <>
                       <div className="text-2xl font-bold text-white">{[...groupedOrgBoatings.values()].reduce((n, r) => n + r.length, 0)}</div>
-                      <p className="text-xs text-neutral-500 mt-1">boatings · {groupedOrgBoatings.size} team{groupedOrgBoatings.size !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-neutral-500 mt-1">saved crews · {groupedOrgBoatings.size} team{groupedOrgBoatings.size !== 1 ? 's' : ''}</p>
                     </>
                   )}
                 </Link>

@@ -183,13 +183,29 @@ export interface CoachingErgScore {
   created_at: string;
 }
 
+export type BoatType = '8+' | '4+' | '4x' | '2x' | '1x' | '2-' | '4-';
+
+export interface CoachingBoat {
+  id: string;
+  coach_user_id: string;
+  team_id: string;
+  boat_name: string;
+  boat_type: BoatType;
+  notes?: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CoachingBoating {
   id: string;
   coach_user_id: string;
   team_id?: string;
+  boat_id?: string | null;
   date: string;
   boat_name: string;
-  boat_type: '8+' | '4+' | '4x' | '2x' | '1x' | '2-' | '4-';
+  boat_type: BoatType;
   positions: BoatPosition[];
   notes?: string;
   session_id?: string | null;
@@ -204,6 +220,33 @@ export interface BoatPosition {
   athlete_id: string;
   /** Snapshotted at creation time for historical accuracy across transfers */
   athlete_name?: string;
+}
+
+export interface CoachingSessionCrewPosition {
+  id: string;
+  session_crew_id: string;
+  team_id: string;
+  coach_user_id: string;
+  seat: number;
+  athlete_id?: string | null;
+  athlete_name: string;
+  created_at: string;
+}
+
+export interface CoachingSessionCrew {
+  id: string;
+  session_id: string;
+  team_id: string;
+  coach_user_id: string;
+  boat_id?: string | null;
+  source_boating_id?: string | null;
+  boat_name: string;
+  boat_type: BoatType;
+  notes?: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  positions: CoachingSessionCrewPosition[];
 }
 
 import type { WorkoutStructure } from '../../types/workoutStructure.types';

@@ -15,7 +15,11 @@ import type {
   CoachingAthleteNote,
   CoachingAthleteCoachNote,
   CoachingErgScore,
+  CoachingBoat,
   CoachingBoating,
+  CoachingSessionCrew,
+  CoachingSessionCrewPosition,
+  BoatType,
   BoatPosition,
   CoachingWeeklyPlan,
   WeeklyPlanInput,
@@ -44,7 +48,11 @@ export type {
   CoachingAthleteNote,
   CoachingAthleteCoachNote,
   CoachingErgScore,
+  CoachingBoat,
   CoachingBoating,
+  CoachingSessionCrew,
+  CoachingSessionCrewPosition,
+  BoatType,
   BoatPosition,
   CoachingWeeklyPlan,
   WeeklyPlanInput,
@@ -67,6 +75,10 @@ function throwOnError<T>(result: { data: T | null; error: PostgrestError | null 
 
 let resultWeightColumnAvailable: boolean | null = null;
 let performanceTierColumnAvailable: boolean | null = null;
+
+type SessionCrewRow = Omit<CoachingSessionCrew, 'positions'>;
+type SessionCrewPositionInput = Pick<CoachingSessionCrewPosition, 'seat' | 'athlete_name'> &
+  Partial<Pick<CoachingSessionCrewPosition, 'athlete_id'>>;
 
 function markResultWeightColumnAvailable(value: boolean): void {
   if (value) {
@@ -1447,6 +1459,14 @@ export async function getSessions(teamId: string): Promise<CoachingSession[]> {
   );
 }
 
+export async function getOrgSessions(orgId: string): Promise<CoachingSession[]> {
+  const teams = await getTeamsForOrg(orgId);
+  if (teams.length === 0) return [];
+
+  const perTeam = await Promise.all(teams.map((team) => getSessions(team.id)));
+  return perTeam.flat().sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export async function getSessionsByDateRange(
   teamId: string,
   start: string,
@@ -1495,6 +1515,197 @@ export async function deleteSession(id: string): Promise<void> {
   await supabase.from('coaching_athlete_notes').delete().eq('session_id', id);
   throwOnError(
     await supabase.from('coaching_sessions').delete().eq('id', id)
+  );
+}
+
+// ─── Session Crew Snapshots (team-scoped) ─────────────────────────────────────
+
+async function getSessionCrewPositionsByCrewIds(crewIds: string[]): Promise<CoachingSessionCrewPosition[]> {
+  if (crewIds.length === 0) return [];
+
+  return throwOnError(
+    await supabase
+      .from('coaching_session_crew_positions')
+      .select('*')
+      .in('session_crew_id', crewIds)
+      .order('seat', { ascending: false })
+  );
+}
+
+function attachPositionsToCrews(
+  crews: SessionCrewRow[],
+  positions: CoachingSessionCrewPosition[],
+): CoachingSessionCrew[] {
+  const positionsByCrewId = new Map<string, CoachingSessionCrewPosition[]>();
+
+  for (const position of positions) {
+    const existing = positionsByCrewId.get(position.session_crew_id) ?? [];
+    existing.push(position);
+    positionsByCrewId.set(position.session_crew_id, existing);
+  }
+
+  return crews.map((crew) => ({
+    ...crew,
+    positions: positionsByCrewId.get(crew.id) ?? [],
+  }));
+}
+
+export async function getSessionCrewsForSession(sessionId: string): Promise<CoachingSessionCrew[]> {
+  const crews = throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+  ) as SessionCrewRow[];
+
+  const positions = await getSessionCrewPositionsByCrewIds(crews.map((crew) => crew.id));
+  return attachPositionsToCrews(crews, positions);
+}
+
+export async function getSessionCrewsForSessions(
+  teamId: string,
+  sessionIds: string[],
+): Promise<CoachingSessionCrew[]> {
+  if (sessionIds.length === 0) return [];
+
+  const crews = throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .select('*')
+      .eq('team_id', teamId)
+      .in('session_id', sessionIds)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+  ) as SessionCrewRow[];
+
+  const positions = await getSessionCrewPositionsByCrewIds(crews.map((crew) => crew.id));
+  return attachPositionsToCrews(crews, positions);
+}
+
+export async function createSessionCrew(
+  teamId: string,
+  coachUserId: string,
+  crew: Pick<CoachingSessionCrew, 'session_id' | 'boat_name' | 'boat_type'> &
+    Partial<Pick<CoachingSessionCrew, 'boat_id' | 'notes' | 'sort_order' | 'source_boating_id'>> & {
+      positions: SessionCrewPositionInput[];
+    }
+): Promise<CoachingSessionCrew> {
+  const createdCrew = throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .insert({
+        session_id: crew.session_id,
+        team_id: teamId,
+        coach_user_id: coachUserId,
+        boat_id: crew.boat_id ?? null,
+        source_boating_id: crew.source_boating_id ?? null,
+        boat_name: crew.boat_name,
+        boat_type: crew.boat_type,
+        notes: crew.notes ?? null,
+        sort_order: crew.sort_order ?? 0,
+      })
+      .select()
+      .single()
+  ) as SessionCrewRow;
+
+  if (crew.positions.length > 0) {
+    throwOnError(
+      await supabase
+        .from('coaching_session_crew_positions')
+        .insert(
+          crew.positions.map((position) => ({
+            session_crew_id: createdCrew.id,
+            team_id: teamId,
+            coach_user_id: coachUserId,
+            seat: position.seat,
+            athlete_id: position.athlete_id ?? null,
+            athlete_name: position.athlete_name,
+          }))
+        )
+    );
+  }
+
+  return getSessionCrewsForSession(createdCrew.session_id).then((crews) => {
+    const savedCrew = crews.find((entry) => entry.id === createdCrew.id);
+    if (!savedCrew) {
+      throw new Error('Created crew snapshot could not be reloaded.');
+    }
+    return savedCrew;
+  });
+}
+
+export async function updateSessionCrew(
+  id: string,
+  updates: Partial<Pick<CoachingSessionCrew, 'boat_name' | 'boat_type' | 'boat_id' | 'notes' | 'sort_order' | 'source_boating_id'>> & {
+    positions?: SessionCrewPositionInput[];
+  }
+): Promise<CoachingSessionCrew> {
+  const existingCrew = throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .select('*')
+      .eq('id', id)
+      .single()
+  ) as SessionCrewRow;
+
+  throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .update({
+        boat_name: updates.boat_name,
+        boat_type: updates.boat_type,
+        boat_id: updates.boat_id === undefined ? undefined : updates.boat_id ?? null,
+        notes: updates.notes === undefined ? undefined : updates.notes ?? null,
+        sort_order: updates.sort_order,
+        source_boating_id: updates.source_boating_id === undefined ? undefined : updates.source_boating_id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+  );
+
+  if (updates.positions) {
+    throwOnError(
+      await supabase
+        .from('coaching_session_crew_positions')
+        .delete()
+        .eq('session_crew_id', id)
+    );
+
+    if (updates.positions.length > 0) {
+      throwOnError(
+        await supabase
+          .from('coaching_session_crew_positions')
+          .insert(
+            updates.positions.map((position) => ({
+              session_crew_id: id,
+              team_id: existingCrew.team_id,
+              coach_user_id: existingCrew.coach_user_id,
+              seat: position.seat,
+              athlete_id: position.athlete_id ?? null,
+              athlete_name: position.athlete_name,
+            }))
+          )
+      );
+    }
+  }
+
+  return getSessionCrewsForSession(existingCrew.session_id).then((crews) => {
+    const savedCrew = crews.find((entry) => entry.id === id);
+    if (!savedCrew) {
+      throw new Error('Updated crew snapshot could not be reloaded.');
+    }
+    return savedCrew;
+  });
+}
+
+export async function deleteSessionCrew(id: string): Promise<void> {
+  throwOnError(
+    await supabase
+      .from('coaching_session_crews')
+      .delete()
+      .eq('id', id)
   );
 }
 
@@ -1580,6 +1791,52 @@ export async function getBoatingsForSession(sessionId: string): Promise<Coaching
       .select('*')
       .eq('session_id', sessionId)
       .order('created_at')
+  );
+}
+
+// ─── Persistent Boats (team-scoped) ───────────────────────────────────────────
+
+export async function getBoats(teamId: string): Promise<CoachingBoat[]> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boats')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('sort_order', { ascending: true })
+      .order('boat_name', { ascending: true })
+  );
+}
+
+export async function getOrgBoats(orgId: string): Promise<CoachingBoat[]> {
+  const teams = await getTeamsForOrg(orgId);
+  if (teams.length === 0) return [];
+
+  const perTeam = await Promise.all(teams.map((team) => getBoats(team.id)));
+  return perTeam.flat().sort((a, b) =>
+    (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+    a.boat_name.localeCompare(b.boat_name)
+  );
+}
+
+export async function createBoat(
+  teamId: string,
+  coachUserId: string,
+  boat: Pick<CoachingBoat, 'boat_name' | 'boat_type'> & Partial<Pick<CoachingBoat, 'notes' | 'is_active' | 'sort_order'>>
+): Promise<CoachingBoat> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boats')
+      .insert({
+        team_id: teamId,
+        coach_user_id: coachUserId,
+        boat_name: boat.boat_name,
+        boat_type: boat.boat_type,
+        notes: boat.notes ?? null,
+        is_active: boat.is_active ?? true,
+        sort_order: boat.sort_order ?? 0,
+      })
+      .select()
+      .single()
   );
 }
 
@@ -1728,6 +1985,23 @@ export async function getBoatings(teamId: string): Promise<CoachingBoating[]> {
   return result.data as CoachingBoating[];
 }
 
+export async function getBoatingsByDateRange(
+  teamId: string,
+  start: string,
+  end: string
+): Promise<CoachingBoating[]> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boatings')
+      .select('*')
+      .eq('team_id', teamId)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date')
+      .order('sort_order', { ascending: true })
+  );
+}
+
 export async function getOrgBoatings(orgId: string): Promise<CoachingBoating[]> {
   const teams = await getTeamsForOrg(orgId);
   if (teams.length === 0) return [];
@@ -1743,12 +2017,23 @@ export async function getOrgBoatings(orgId: string): Promise<CoachingBoating[]> 
 export async function createBoating(
   teamId: string,
   coachUserId: string,
-  boating: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>
+  boating: Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions'> &
+    Partial<Pick<CoachingBoating, 'notes' | 'session_id' | 'boat_id'>>
 ): Promise<CoachingBoating> {
   return throwOnError(
     await supabase
       .from('coaching_boatings')
-      .insert({ team_id: teamId, coach_user_id: coachUserId, ...boating })
+      .insert({
+        team_id: teamId,
+        coach_user_id: coachUserId,
+        date: boating.date,
+        boat_name: boating.boat_name,
+        boat_type: boating.boat_type,
+        positions: boating.positions,
+        notes: boating.notes ?? null,
+        session_id: boating.session_id ?? null,
+        boat_id: boating.boat_id ?? null,
+      })
       .select()
       .single()
   );
@@ -1756,12 +2041,18 @@ export async function createBoating(
 
 export async function updateBoating(
   id: string,
-  updates: Partial<Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes'>>
+  updates: Partial<Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' | 'positions' | 'notes' | 'session_id' | 'boat_id'>>
 ): Promise<CoachingBoating> {
   return throwOnError(
     await supabase
       .from('coaching_boatings')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({
+        ...updates,
+        notes: updates.notes === undefined ? undefined : updates.notes ?? null,
+        session_id: updates.session_id === undefined ? undefined : updates.session_id ?? null,
+        boat_id: updates.boat_id === undefined ? undefined : updates.boat_id ?? null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .select()
       .single()
@@ -1809,6 +2100,7 @@ export async function duplicateBoating(
     boat_type: source.boat_type,
     positions: source.positions,
     notes: `Copied from ${source.date}`,
+    boat_id: source.boat_id ?? null,
   });
 }
 

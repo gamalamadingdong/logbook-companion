@@ -1,15 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import {
   getSessionsByDateRange,
+  getBoats,
+  getBoatings,
+  getOrgBoats,
+  getOrgBoatings,
   getAthletes,
   getNotesForSession,
   getGroupAssignments,
   createSession,
   updateSession,
   deleteSession,
+  createBoat,
+  getSessionCrewsForSessions,
+  createSessionCrew,
+  updateSessionCrew,
+  deleteSessionCrew,
   createNote,
   updateNote,
   deleteNote,
@@ -22,6 +31,10 @@ import {
   type CoachingSession,
   type CoachingAthlete,
   type CoachingAthleteNote,
+  type CoachingBoating,
+  type CoachingBoat,
+  type CoachingSessionCrew,
+  type CoachingSessionCrewPosition,
   type GroupAssignment,
   type CoachingScheduleEvent,
   type ScheduleEventType,
@@ -38,39 +51,67 @@ import {
   isSameMonth,
   addWeeks,
   subWeeks,
+  addDays,
   addMonths,
   subMonths,
+  subDays,
   isToday as isDateToday,
   parseISO,
   isWithinInterval,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays, ClipboardList, MapPin, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays, ClipboardList, MapPin, Flag, Link2 } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
 import { WeeklyFocusBanner } from '../../components/coaching/WeeklyFocusBanner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { LineupsWorkspace } from './CoachingBoatings';
 
-type ViewMode = 'week' | 'month';
+type ViewMode = 'day' | 'week' | 'month';
+type ScheduleTab = 'schedule' | 'lineups';
 
-export function CoachingSchedule() {
-  const { userId, teamId, orgId, isLoadingTeam, filterTeamId } = useCoachingContext();
+type SessionCrewFormPosition = Pick<CoachingSessionCrewPosition, 'seat' | 'athlete_name'> & {
+  athlete_id?: string | null;
+};
+
+type SessionCrewFormData = Pick<CoachingSessionCrew, 'boat_name' | 'boat_type'> & {
+  boat_id?: string | null;
+  source_boating_id?: string | null;
+  notes?: string;
+  positions: SessionCrewFormPosition[];
+};
+
+function CoachingSchedule() {
+  const { userId, teamId, orgId, isLoadingTeam, filterTeamId, setFilterTeamId } = useCoachingContext();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSessionId = searchParams.get('sessionId');
+  const requestedDate = searchParams.get('date');
+  const initialFocusDate = requestedDate ? parseLocalDate(requestedDate) : new Date();
   const effectiveTeamId = filterTeamId ?? teamId;
+  const activeTab: ScheduleTab = searchParams.get('tab') === 'lineups' ? 'lineups' : 'schedule';
+  const showLegacyLineupsPointer = searchParams.get('from') === 'boatings';
   const [viewMode, setViewMode] = useState<ViewMode>('week');
-  const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [currentWeek, setCurrentWeek] = useState(initialFocusDate);
+  const [currentMonth, setCurrentMonth] = useState(initialFocusDate);
+  const [currentDay, setCurrentDay] = useState(initialFocusDate);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(requestedDate ? initialFocusDate : null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingSession, setEditingSession] = useState<CoachingSession | null>(null);
   const [sessions, setSessions] = useState<CoachingSession[]>([]);
+  const [sessionCrews, setSessionCrews] = useState<CoachingSessionCrew[]>([]);
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
   const [assignments, setAssignments] = useState<GroupAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [expandedSession, setExpandedSession] = useState<string | null>(requestedSessionId);
   const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
   const [notesVersion, setNotesVersion] = useState(0);
   const [events, setEvents] = useState<CoachingScheduleEvent[]>([]);
+  const [crewFormBoats, setCrewFormBoats] = useState<CoachingBoat[]>([]);
+  const [crewFormTemplates, setCrewFormTemplates] = useState<CoachingBoating[]>([]);
+  const [crewFormSession, setCrewFormSession] = useState<CoachingSession | null>(null);
+  const [editingCrew, setEditingCrew] = useState<CoachingSessionCrew | null>(null);
+  const [isLoadingCrewForm, setIsLoadingCrewForm] = useState(false);
   const [orgTeams, setOrgTeams] = useState<Team[]>([]);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CoachingScheduleEvent | null>(null);
@@ -80,27 +121,83 @@ export function CoachingSchedule() {
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const activeDay = viewMode === 'day' ? currentDay : selectedDate;
 
-  useEffect(() => {
-    if (!teamId || isLoadingTeam) return;
-    let start: string, end: string;
+  const updateScheduleQuery = useCallback((updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    });
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const focusDay = useCallback((date: Date) => {
+    setCurrentDay(date);
+    setSelectedDate(date);
+    setCurrentWeek(date);
+    setCurrentMonth(date);
+  }, []);
+
+  const openAddSessionForDate = useCallback((date: Date) => {
+    focusDay(date);
+    setIsAdding(true);
+  }, [focusDay]);
+
+  const openAddEventForDate = useCallback((date: Date) => {
+    focusDay(date);
+    setIsAddingEvent(true);
+  }, [focusDay]);
+
+  const getVisibleRange = useCallback(() => {
+    if (viewMode === 'day') {
+      return {
+        start: format(currentDay, 'yyyy-MM-dd'),
+        end: format(currentDay, 'yyyy-MM-dd'),
+      };
+    }
+
     if (viewMode === 'week') {
       const ws = startOfWeek(currentWeek, { weekStartsOn: 1 });
       const we = endOfWeek(currentWeek, { weekStartsOn: 1 });
-      start = format(ws, 'yyyy-MM-dd');
-      end = format(we, 'yyyy-MM-dd');
-    } else {
-      start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-      end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+      return {
+        start: format(ws, 'yyyy-MM-dd'),
+        end: format(we, 'yyyy-MM-dd'),
+      };
     }
-    Promise.all([
+
+    return {
+      start: format(startOfMonth(currentMonth), 'yyyy-MM-dd'),
+      end: format(endOfMonth(currentMonth), 'yyyy-MM-dd'),
+    };
+  }, [viewMode, currentDay, currentWeek, currentMonth]);
+
+  const loadVisibleData = useCallback(async () => {
+    if (!effectiveTeamId) return;
+
+    const { start, end } = getVisibleRange();
+    const [s, a, ga, ev, teams] = await Promise.all([
       getSessionsByDateRange(effectiveTeamId, start, end),
       getAthletes(effectiveTeamId),
       getGroupAssignments(effectiveTeamId, { from: start, to: end, orgId: orgId ?? undefined }),
       orgId ? getScheduleEvents(orgId, start, end, filterTeamId ?? undefined) : Promise.resolve([]),
       orgId ? getTeamsForOrg(orgId) : Promise.resolve([]),
-    ])
-      .then(([s, a, ga, ev, teams]) => { setSessions(s); setAthletes(a); setAssignments(ga); setEvents(ev); if (teams.length) setOrgTeams(teams); })
+    ]);
+    const crews = await getSessionCrewsForSessions(effectiveTeamId, s.map((session) => session.id));
+
+    setSessions(s);
+    setSessionCrews(crews);
+    setAthletes(a);
+    setAssignments(ga);
+    setEvents(ev);
+    if (teams.length) {
+      setOrgTeams(teams);
+    }
+  }, [effectiveTeamId, filterTeamId, getVisibleRange, orgId]);
+
+  useEffect(() => {
+    if (!teamId || isLoadingTeam) return;
+    loadVisibleData()
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sessions'))
       .finally(() => setIsLoading(false));
 
@@ -108,7 +205,14 @@ export function CoachingSchedule() {
     const checkAdjacent = async () => {
       try {
         let prevStart: string, prevEnd: string, nextStart: string, nextEnd: string;
-        if (viewMode === 'week') {
+        if (viewMode === 'day') {
+          const prevDay = subDays(currentDay, 1);
+          prevStart = format(prevDay, 'yyyy-MM-dd');
+          prevEnd = format(prevDay, 'yyyy-MM-dd');
+          const nextDay = addDays(currentDay, 1);
+          nextStart = format(nextDay, 'yyyy-MM-dd');
+          nextEnd = format(nextDay, 'yyyy-MM-dd');
+        } else if (viewMode === 'week') {
           const pw = subWeeks(currentWeek, 1);
           prevStart = format(startOfWeek(pw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
           prevEnd = format(endOfWeek(pw, { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -133,29 +237,104 @@ export function CoachingSchedule() {
       }
     };
     checkAdjacent();
-  }, [teamId, effectiveTeamId, isLoadingTeam, viewMode, currentWeek, currentMonth]);
+  }, [teamId, isLoadingTeam, currentDay, currentWeek, currentMonth, effectiveTeamId, filterTeamId, loadVisibleData, orgId, viewMode]);
 
   const refreshSessions = async () => {
     if (!effectiveTeamId) return;
     try {
-      let start: string, end: string;
-      if (viewMode === 'week') {
-        const ws = startOfWeek(currentWeek, { weekStartsOn: 1 });
-        const we = endOfWeek(currentWeek, { weekStartsOn: 1 });
-        start = format(ws, 'yyyy-MM-dd');
-        end = format(we, 'yyyy-MM-dd');
-      } else {
-        start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-        end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-      }
-      const [s, ev] = await Promise.all([
-        getSessionsByDateRange(effectiveTeamId, start, end),
-        orgId ? getScheduleEvents(orgId, start, end, filterTeamId ?? undefined) : Promise.resolve([]),
-      ]);
-      setSessions(s);
-      setEvents(ev);
+      await loadVisibleData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh');
+    }
+  };
+
+  const openCrewForm = async (session: CoachingSession, crew?: CoachingSessionCrew) => {
+    if (!effectiveTeamId) return;
+    setIsLoadingCrewForm(true);
+    try {
+      const targetTeamId = session.team_id ?? effectiveTeamId;
+      const fetchBoats = orgId
+        ? () => getOrgBoats(orgId)
+        : () => getBoats(targetTeamId);
+      const fetchBoatings = orgId
+        ? () => getOrgBoatings(orgId)
+        : () => getBoatings(targetTeamId);
+
+      const [boats, templateBoatings] = await Promise.all([
+        fetchBoats(),
+        fetchBoatings(),
+      ]);
+
+      setCrewFormBoats(boats.filter((boat) => boat.team_id === targetTeamId));
+      setCrewFormTemplates(
+        templateBoatings.filter((entry) =>
+          entry.is_active !== false && (!orgId ? entry.team_id === targetTeamId : true)
+        )
+      );
+      setCrewFormSession(session);
+      setEditingCrew(crew ?? null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load crew form');
+    } finally {
+      setIsLoadingCrewForm(false);
+    }
+  };
+
+  const handleSaveCrewForSession = async (session: CoachingSession, data: SessionCrewFormData) => {
+    if (!effectiveTeamId) return;
+    try {
+      let boatId = data.boat_id ?? null;
+
+      if (!boatId && data.boat_name.trim()) {
+        const normalizedName = data.boat_name.trim().toLowerCase();
+        const existingBoat = crewFormBoats.find((boat) =>
+          boat.team_id === effectiveTeamId &&
+          boat.boat_type === data.boat_type &&
+          boat.boat_name.trim().toLowerCase() === normalizedName
+        );
+
+        if (existingBoat) {
+          boatId = existingBoat.id;
+        } else {
+          const createdBoat = await createBoat(effectiveTeamId, userId, {
+            boat_name: data.boat_name.trim(),
+            boat_type: data.boat_type,
+            sort_order: crewFormBoats.length,
+          });
+          boatId = createdBoat.id;
+          setCrewFormBoats((current) => [...current, createdBoat]);
+        }
+      }
+
+      const payload = {
+        boat_id: boatId,
+        source_boating_id: data.source_boating_id ?? null,
+        boat_name: data.boat_name.trim(),
+        boat_type: data.boat_type,
+        notes: data.notes?.trim() || undefined,
+        positions: data.positions,
+      };
+
+      if (editingCrew) {
+        await updateSessionCrew(editingCrew.id, payload);
+        toast.success('Crew snapshot updated.');
+      } else {
+        const existingCrews = sessionCrews.filter((crew) => crew.session_id === session.id);
+        await createSessionCrew(effectiveTeamId, userId, {
+          session_id: session.id,
+          sort_order: existingCrews.length,
+          ...payload,
+        });
+        toast.success('Crew snapshot added to session.');
+      }
+
+      setCrewFormSession(null);
+      setEditingCrew(null);
+      setSelectedDate(parseLocalDate(session.date));
+      setExpandedSession(session.id);
+      await refreshSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save crew snapshot');
     }
   };
 
@@ -171,8 +350,15 @@ export function CoachingSchedule() {
     events.filter((ev) => {
       const evStart = parseISO(ev.date);
       const evEnd = ev.end_date ? parseISO(ev.end_date) : evStart;
-      return isWithinInterval(date, { start: evStart, end: evEnd }) || isSameDay(date, evStart) || isSameDay(date, evEnd);
-    });
+        return isWithinInterval(date, { start: evStart, end: evEnd }) || isSameDay(date, evStart) || isSameDay(date, evEnd);
+      });
+  const crewCountsBySession = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const crew of sessionCrews) {
+      counts.set(crew.session_id, (counts.get(crew.session_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [sessionCrews]);
 
   const handleAddEvent = async (data: Pick<CoachingScheduleEvent, 'date' | 'title' | 'event_type'> & Partial<Pick<CoachingScheduleEvent, 'end_date' | 'location' | 'team_ids' | 'notes'>>) => {
     if (!orgId) return;
@@ -205,13 +391,25 @@ export function CoachingSchedule() {
     }
   };
 
-  const handleAddSession = async (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & { group_assignment_id?: string | null }) => {
-    if (!selectedDate || !effectiveTeamId) return;
+  const handleAddSession = async (
+    data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & {
+      group_assignment_id?: string | null;
+      team_id?: string;
+    }
+  ) => {
+    if (!activeDay || !effectiveTeamId) return;
     try {
-      await createSession(effectiveTeamId, userId, {
-        ...data,
-        date: format(selectedDate, 'yyyy-MM-dd'),
+      const targetTeamId = data.team_id ?? effectiveTeamId;
+      await createSession(targetTeamId, userId, {
+        date: format(activeDay, 'yyyy-MM-dd'),
+        type: data.type,
+        focus: data.focus,
+        general_notes: data.general_notes,
+        group_assignment_id: data.group_assignment_id ?? null,
       });
+      if (targetTeamId !== effectiveTeamId) {
+        setFilterTeamId(targetTeamId);
+      }
       setIsAdding(false);
       await refreshSessions();
     } catch (err) {
@@ -264,8 +462,8 @@ export function CoachingSchedule() {
     setNotesVersion((v) => v + 1);
   };
 
-  const selectedDaySessions = selectedDate
-    ? sessions.filter((s) => isSameDay(parseLocalDate(s.date), selectedDate))
+  const selectedDaySessions = activeDay
+    ? sessions.filter((s) => isSameDay(parseLocalDate(s.date), activeDay))
     : [];
 
   return (
@@ -273,75 +471,164 @@ export function CoachingSchedule() {
     <CoachingNav />
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-white">Schedule</h1>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* View mode toggle */}
-            <div className="flex items-center bg-neutral-800 rounded-lg p-1">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="space-y-3">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Schedule</h1>
+              <p className="mt-1 text-sm text-neutral-400">
+                Plan daily sessions, browse saved lineups, and keep event timing in one coaching workflow.
+              </p>
+            </div>
+            <div className="flex items-center bg-neutral-800 rounded-lg p-1 w-full sm:w-fit">
               <button
                 type="button"
-                onClick={() => setViewMode('week')}
+                onClick={() => updateScheduleQuery({ tab: 'schedule', from: null })}
                 className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'week'
+                  activeTab === 'schedule'
                     ? 'bg-indigo-600 text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
                 }`}
               >
                 <CalendarDays className="w-4 h-4" />
-                Week
+                Schedule
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('month')}
+                onClick={() => updateScheduleQuery({ tab: 'lineups', from: null })}
                 className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'month'
+                  activeTab === 'lineups'
                     ? 'bg-indigo-600 text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
                 }`}
               >
-                <Calendar className="w-4 h-4" />
-                Month
-              </button>
-            </div>
-
-            {/* Navigation */}
-            <div className="flex items-center gap-1 sm:gap-2">
-              <button type="button" onClick={() => {
-                setIsLoading(true);
-                if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
-                else setCurrentMonth(subMonths(currentMonth, 1));
-              }}
-                className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'} title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
-                <ChevronLeft className="w-5 h-5 text-neutral-400" />
-                {adjacentHasData.prev && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-              </button>
-              <span className="text-sm sm:text-lg font-semibold text-center flex-1 sm:flex-initial sm:min-w-[200px] px-2 sm:px-4 py-2 bg-neutral-800 rounded-lg text-white truncate">
-                {viewMode === 'week'
-                  ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
-                  : format(currentMonth, 'MMMM yyyy')
-                }
-              </span>
-              <button type="button" onClick={() => {
-                setIsLoading(true);
-                if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
-                else setCurrentMonth(addMonths(currentMonth, 1));
-              }}
-                className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0" aria-label={viewMode === 'week' ? 'Next week' : 'Next month'} title={viewMode === 'week' ? 'Next week' : 'Next month'}>
-                <ChevronRight className="w-5 h-5 text-neutral-400" />
-                {adjacentHasData.next && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-              </button>
-              <button type="button" onClick={() => {
-                setIsLoading(true);
-                setCurrentWeek(new Date());
-                setCurrentMonth(new Date());
-              }}
-                className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium shrink-0">
-                Today
+                <Link2 className="w-4 h-4" />
+                Lineups
               </button>
             </div>
           </div>
+
+          <div className="flex flex-col items-stretch gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openAddSessionForDate(activeDay ?? currentDay)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Session
+              </button>
+              {orgId && (
+                <button
+                  type="button"
+                  onClick={() => openAddEventForDate(activeDay ?? currentDay)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-400/30 bg-neutral-800 px-4 py-2 text-sm font-medium text-indigo-100 hover:bg-neutral-700 transition-colors"
+                >
+                  <Flag className="w-4 h-4" />
+                  Add Event
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex items-center bg-neutral-800 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('day')}
+                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'day'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Day
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('week')}
+                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'week'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  Week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('month')}
+                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'month'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Month
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLoading(true);
+                    if (viewMode === 'day') setCurrentDay(subDays(currentDay, 1));
+                    else if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
+                    else setCurrentMonth(subMonths(currentMonth, 1));
+                  }}
+                  className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0"
+                  aria-label={viewMode === 'day' ? 'Previous day' : viewMode === 'week' ? 'Previous week' : 'Previous month'}
+                  title={viewMode === 'day' ? 'Previous day' : viewMode === 'week' ? 'Previous week' : 'Previous month'}
+                >
+                  <ChevronLeft className="w-5 h-5 text-neutral-400" />
+                  {adjacentHasData.prev && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                </button>
+                <span className="text-sm sm:text-lg font-semibold text-center flex-1 sm:flex-initial sm:min-w-[220px] px-2 sm:px-4 py-2 bg-neutral-800 rounded-lg text-white truncate">
+                  {viewMode === 'day'
+                    ? format(currentDay, 'EEEE, MMM d, yyyy')
+                    : viewMode === 'week'
+                      ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
+                      : format(currentMonth, 'MMMM yyyy')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLoading(true);
+                    if (viewMode === 'day') setCurrentDay(addDays(currentDay, 1));
+                    else if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
+                    else setCurrentMonth(addMonths(currentMonth, 1));
+                  }}
+                  className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0"
+                  aria-label={viewMode === 'day' ? 'Next day' : viewMode === 'week' ? 'Next week' : 'Next month'}
+                  title={viewMode === 'day' ? 'Next day' : viewMode === 'week' ? 'Next week' : 'Next month'}
+                >
+                  <ChevronRight className="w-5 h-5 text-neutral-400" />
+                  {adjacentHasData.next && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLoading(true);
+                    const today = new Date();
+                    focusDay(today);
+                  }}
+                  className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium shrink-0"
+                >
+                  Today
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {showLegacyLineupsPointer && (
+          <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100">
+            Lineups now live inside Schedule. You can switch between `Schedule` and `Lineups` here without leaving the page.
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -359,6 +646,111 @@ export function CoachingSchedule() {
         </div>
       ) : (
         <>
+      {activeTab === 'lineups' ? (
+        <LineupsWorkspace embedded />
+      ) : (
+        <>
+      {viewMode === 'day' && (
+        <div className="space-y-4">
+          {effectiveTeamId && (
+            <WeeklyFocusBanner
+              teamId={effectiveTeamId}
+              weekStart={getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}
+              onEdit={() => navigate('/team-management')}
+            />
+          )}
+
+          <div className="bg-surface-card border border-border rounded-xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-content-primary">
+                  {format(currentDay, 'EEEE, MMMM d, yyyy')}
+                </h2>
+                <p className="mt-1 text-sm text-content-muted">
+                  Review the full day plan, crews, and event coverage in one place.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openAddSessionForDate(currentDay)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-accent-coaching px-4 py-2 text-sm font-medium text-white hover:bg-accent-coaching-hover transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Session
+                </button>
+                {orgId && (
+                  <button
+                    type="button"
+                    onClick={() => openAddEventForDate(currentDay)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors"
+                  >
+                    <Flag className="w-4 h-4" />
+                    Add Event
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {getEventsForDay(currentDay).length > 0 && (
+              <div className="space-y-2 mb-4">
+                {getEventsForDay(currentDay).map((ev) => (
+                  <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={() => setEditingEvent(ev)} onDelete={() => handleDeleteEvent(ev.id)} />
+                ))}
+              </div>
+            )}
+
+            {selectedDaySessions.length === 0 && getEventsForDay(currentDay).length === 0 ? (
+              <EmptyState
+                icon={<CalendarDays className="w-8 h-8" />}
+                title="No sessions or events"
+                description="Add a session or event for this day, or switch to Lineups to reuse saved crews."
+              />
+            ) : selectedDaySessions.length > 0 ? (
+              <div className="space-y-3">
+                {selectedDaySessions.map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    athletes={athletes}
+                    assignments={assignments}
+                    isExpanded={expandedSession === session.id}
+                    onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
+                    addingNoteFor={addingNoteFor}
+                    onStartAddNote={(athleteId) => setAddingNoteFor(athleteId)}
+                    onAddNote={(athleteId, note) => handleAddNote(session.id, athleteId, note)}
+                    onCancelNote={() => setAddingNoteFor(null)}
+                    onDeleteNote={handleDeleteNote}
+                    onEditNote={handleEditNote}
+                    onEdit={() => setEditingSession(session)}
+                    onDelete={() => handleDeleteSession(session.id)}
+                    notesVersion={notesVersion}
+                    crewCount={crewCountsBySession.get(session.id) ?? 0}
+                    crews={sessionCrews.filter((crew) => crew.session_id === session.id)}
+                    onAddCrew={session.type === 'water' ? () => openCrewForm(session) : undefined}
+                    isAddingCrew={isLoadingCrewForm && crewFormSession?.id === session.id && !editingCrew}
+                    onEditCrew={session.type === 'water' ? (crew) => openCrewForm(session, crew) : undefined}
+                    onDeleteCrew={session.type === 'water' ? async (crewId) => {
+                      try {
+                        await deleteSessionCrew(crewId);
+                        await refreshSessions();
+                        toast.success('Crew snapshot removed.');
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Failed to delete crew snapshot');
+                      }
+                    } : undefined}
+                    onManageTemplates={session.type === 'water' ? () => {
+                      focusDay(parseLocalDate(session.date));
+                      updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
+                    } : undefined}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* ── Weekly View ──────────────────────────────────────────────── */}
       {viewMode === 'week' && (
         <div className="space-y-3">
@@ -401,7 +793,10 @@ export function CoachingSchedule() {
                   className={`flex items-center justify-between px-5 py-3 cursor-pointer ${
                     today ? 'bg-accent-coaching/5' : 'hover:bg-surface-secondary/50'
                   }`}
-                  onClick={() => setSelectedDate(isSameDay(selectedDate ?? new Date(0), day) ? null : day)}
+                  onClick={() => {
+                    setCurrentDay(day);
+                    setSelectedDate(isSameDay(selectedDate ?? new Date(0), day) ? null : day);
+                  }}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`text-sm font-bold w-10 ${today ? 'text-accent-coaching' : 'text-content-muted'}`}>
@@ -420,9 +815,24 @@ export function CoachingSchedule() {
                         {daySessions.length} session{daySessions.length !== 1 ? 's' : ''}
                       </span>
                     )}
+                    {dayEvents.length > 0 && (
+                      <span className="text-xs text-content-muted font-medium">
+                        {dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {orgId && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openAddEventForDate(day); }}
+                        className="p-1.5 hover:bg-surface-secondary rounded-lg transition-colors"
+                        aria-label="Add event"
+                        title="Add event"
+                      >
+                        <Flag className="w-4 h-4 text-content-muted hover:text-accent-coaching" />
+                      </button>
+                    )}
                     {/* Add session button */}
                     <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedDate(day); setIsAdding(true); }}
+                      onClick={(e) => { e.stopPropagation(); openAddSessionForDate(day); }}
                       className="p-1.5 hover:bg-surface-secondary rounded-lg transition-colors"
                       aria-label="Add session"
                       title="Add session"
@@ -449,12 +859,30 @@ export function CoachingSchedule() {
                         onCancelNote={() => setAddingNoteFor(null)}
                         onDeleteNote={handleDeleteNote}
                         onEditNote={handleEditNote}
-                        onEdit={() => setEditingSession(session)}
-                        onDelete={() => handleDeleteSession(session.id)}
-                        notesVersion={notesVersion}
-                      />
-                    ))}
-                  </div>
+                         onEdit={() => setEditingSession(session)}
+                         onDelete={() => handleDeleteSession(session.id)}
+                         notesVersion={notesVersion}
+                         crewCount={crewCountsBySession.get(session.id) ?? 0}
+                         crews={sessionCrews.filter((crew) => crew.session_id === session.id)}
+                         onAddCrew={session.type === 'water' ? () => openCrewForm(session) : undefined}
+                         isAddingCrew={isLoadingCrewForm && crewFormSession?.id === session.id && !editingCrew}
+                         onEditCrew={session.type === 'water' ? (crew) => openCrewForm(session, crew) : undefined}
+                         onDeleteCrew={session.type === 'water' ? async (crewId) => {
+                           try {
+                             await deleteSessionCrew(crewId);
+                             await refreshSessions();
+                             toast.success('Crew snapshot removed.');
+                           } catch (err) {
+                             toast.error(err instanceof Error ? err.message : 'Failed to delete crew snapshot');
+                           }
+                         } : undefined}
+                          onManageTemplates={session.type === 'water' ? () => {
+                            focusDay(parseLocalDate(session.date));
+                            updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
+                          } : undefined}
+                        />
+                     ))}
+                   </div>
                 )}
 
                 {/* Empty day — show subtle prompt */}
@@ -501,7 +929,10 @@ export function CoachingSchedule() {
                 className={`p-2 min-h-[90px] border-r border-b border-border cursor-pointer hover:bg-accent-coaching/5 transition-all ${
                   isSelected ? 'bg-accent-coaching/10 ring-2 ring-accent-coaching ring-inset' : ''
                 } ${!isSameMonth(day, currentMonth) ? 'bg-surface-secondary/50' : ''}`}
-                onClick={() => setSelectedDate(day)}
+                onClick={() => {
+                  setCurrentDay(day);
+                  setSelectedDate(day);
+                }}
               >
                 <div
                   className={`text-sm font-medium mb-1 ${
@@ -555,11 +986,20 @@ export function CoachingSchedule() {
             <h2 className="text-lg font-semibold text-content-primary">
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </h2>
-            <button onClick={() => { setSelectedDate(selectedDate); setIsAdding(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-coaching text-white rounded-lg hover:bg-accent-coaching-hover transition-colors text-sm">
-              <Plus className="w-4 h-4" />
-              Add Session
-            </button>
+            <div className="flex items-center gap-2">
+              {orgId && (
+                <button onClick={() => openAddEventForDate(selectedDate)}
+                  className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-content-secondary hover:bg-surface-secondary transition-colors text-sm">
+                  <Flag className="w-4 h-4" />
+                  Add Event
+                </button>
+              )}
+              <button onClick={() => openAddSessionForDate(selectedDate)}
+                className="flex items-center gap-2 px-4 py-2 bg-accent-coaching text-white rounded-lg hover:bg-accent-coaching-hover transition-colors text-sm">
+                <Plus className="w-4 h-4" />
+                Add Session
+              </button>
+            </div>
           </div>
 
           {/* Events for selected day */}
@@ -593,23 +1033,46 @@ export function CoachingSchedule() {
                   onCancelNote={() => setAddingNoteFor(null)}
                   onDeleteNote={handleDeleteNote}
                   onEditNote={handleEditNote}
-                  onEdit={() => setEditingSession(session)}
-                  onDelete={() => handleDeleteSession(session.id)}
-                  notesVersion={notesVersion}
-                />
-              ))}
-            </div>
-          ) : null}
+                   onEdit={() => setEditingSession(session)}
+                   onDelete={() => handleDeleteSession(session.id)}
+                   notesVersion={notesVersion}
+                   crewCount={crewCountsBySession.get(session.id) ?? 0}
+                   crews={sessionCrews.filter((crew) => crew.session_id === session.id)}
+                   onAddCrew={session.type === 'water' ? () => openCrewForm(session) : undefined}
+                   isAddingCrew={isLoadingCrewForm && crewFormSession?.id === session.id && !editingCrew}
+                   onEditCrew={session.type === 'water' ? (crew) => openCrewForm(session, crew) : undefined}
+                   onDeleteCrew={session.type === 'water' ? async (crewId) => {
+                     try {
+                       await deleteSessionCrew(crewId);
+                       await refreshSessions();
+                       toast.success('Crew snapshot removed.');
+                     } catch (err) {
+                       toast.error(err instanceof Error ? err.message : 'Failed to delete crew snapshot');
+                     }
+                   } : undefined}
+                    onManageTemplates={session.type === 'water' ? () => {
+                      focusDay(parseLocalDate(session.date));
+                      updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
+                    } : undefined}
+                  />
+               ))}
+             </div>
+           ) : null}
         </div>
+      )}
+        </>
       )}
         </>
       )}
       {/* end viewMode === 'month' */}
 
       {/* Add Session Modal */}
-      {isAdding && selectedDate && (
+      {isAdding && activeDay && (
         <SessionForm
-          title={`Add Session — ${format(selectedDate, 'EEE, MMM d')}`}
+          title={`Add Session — ${format(activeDay, 'EEE, MMM d')}`}
+          teamId={effectiveTeamId}
+          teamName={orgTeams.find((team) => team.id === effectiveTeamId)?.name ?? null}
+          orgTeams={orgTeams}
           assignments={assignments}
           onSave={handleAddSession}
           onCancel={() => setIsAdding(false)}
@@ -621,17 +1084,37 @@ export function CoachingSchedule() {
         <SessionForm
           title="Edit Session"
           session={editingSession}
+          teamId={editingSession.team_id}
+          teamName={orgTeams.find((team) => team.id === editingSession.team_id)?.name ?? null}
+          orgTeams={orgTeams}
           assignments={assignments}
           onSave={handleEditSession}
           onCancel={() => setEditingSession(null)}
         />
       )}
 
+      {crewFormSession && (
+        <SessionCrewForm
+          session={crewFormSession}
+          crew={editingCrew ?? undefined}
+          athletes={athletes}
+          boats={crewFormBoats}
+          orgTeams={orgTeams}
+          existingCrews={sessionCrews.filter((crew) => crew.session_id === crewFormSession.id)}
+          templateBoatings={crewFormTemplates}
+          onSave={(data) => handleSaveCrewForSession(crewFormSession, data)}
+          onCancel={() => {
+            setCrewFormSession(null);
+            setEditingCrew(null);
+          }}
+        />
+      )}
+
       {/* Add Event Modal */}
-      {isAddingEvent && selectedDate && (
+      {isAddingEvent && activeDay && (
         <EventForm
-          title={`Add Event — ${format(selectedDate, 'EEE, MMM d')}`}
-          defaultDate={format(selectedDate, 'yyyy-MM-dd')}
+          title={`Add Event — ${format(activeDay, 'EEE, MMM d')}`}
+          defaultDate={format(activeDay, 'yyyy-MM-dd')}
           orgTeams={orgTeams}
           onSave={handleAddEvent}
           onCancel={() => setIsAddingEvent(false)}
@@ -656,25 +1139,38 @@ export function CoachingSchedule() {
   );
 }
 
+export { CoachingSchedule };
+export default CoachingSchedule;
+
 /* ─── Session Form ─────────────────────────────────────────────────────────── */
 
 function SessionForm({
   title,
   session,
+  teamId,
+  teamName,
+  orgTeams,
   assignments,
   onSave,
   onCancel,
 }: {
   title: string;
   session?: CoachingSession;
+  teamId?: string | null;
+  teamName?: string | null;
+  orgTeams?: Team[];
   assignments?: GroupAssignment[];
-  onSave: (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & { group_assignment_id?: string | null }) => void;
+  onSave: (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & {
+    group_assignment_id?: string | null;
+    team_id?: string;
+  }) => void;
   onCancel: () => void;
 }) {
   const [type, setType] = useState<CoachingSession['type']>(session?.type ?? 'water');
   const [focus, setFocus] = useState(session?.focus ?? '');
   const [generalNotes, setGeneralNotes] = useState(session?.general_notes ?? '');
   const [assignmentId, setAssignmentId] = useState(session?.group_assignment_id ?? '');
+  const [selectedTeamId, setSelectedTeamId] = useState(session?.team_id ?? teamId ?? '');
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -694,10 +1190,35 @@ function SessionForm({
               focus: focus || undefined,
               general_notes: generalNotes || undefined,
               group_assignment_id: assignmentId || null,
+              team_id: !session && selectedTeamId ? selectedTeamId : undefined,
             });
           }}
           className="space-y-4"
         >
+          {session ? (
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Team</label>
+              <div className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-neutral-300">
+                {teamName ?? 'Current team'}
+              </div>
+            </div>
+          ) : (orgTeams && orgTeams.length > 0) ? (
+            <div>
+              <label htmlFor="session-team" className="block text-sm font-medium text-neutral-300 mb-2">Team</label>
+              <select
+                id="session-team"
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                required
+              >
+                {orgTeams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div>
             <label htmlFor="session-type" className="block text-sm font-medium text-neutral-300 mb-2">Type</label>
             <select id="session-type" value={type} onChange={(e) => setType(e.target.value as CoachingSession['type'])}
@@ -774,6 +1295,13 @@ function SessionCard({
   onEdit,
   onDelete,
   notesVersion,
+  crewCount,
+  crews,
+  onAddCrew,
+  isAddingCrew = false,
+  onEditCrew,
+  onDeleteCrew,
+  onManageTemplates,
 }: {
   session: CoachingSession;
   athletes: CoachingAthlete[];
@@ -789,6 +1317,13 @@ function SessionCard({
   onEdit: () => void;
   onDelete: () => void;
   notesVersion: number;
+  crewCount: number;
+  crews: CoachingSessionCrew[];
+  onAddCrew?: () => void;
+  isAddingCrew?: boolean;
+  onEditCrew?: (crew: CoachingSessionCrew) => void;
+  onDeleteCrew?: (crewId: string) => void;
+  onManageTemplates?: () => void;
 }) {
   const [notes, setNotes] = useState<CoachingAthleteNote[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -829,6 +1364,12 @@ function SessionCard({
               </span>
             ) : null;
           })()}
+          {crewCount > 0 && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-surface-secondary border border-border/50 rounded-full text-xs text-content-secondary font-medium">
+              <Link2 className="w-3 h-3" />
+              {crewCount} crew snapshot{crewCount !== 1 ? 's' : ''}
+            </span>
+          )}
           {!isExpanded && session.general_notes && (
             <span className="text-sm text-neutral-500 truncate max-w-[200px]">{session.general_notes}</span>
           )}
@@ -869,6 +1410,58 @@ function SessionCard({
               <p className="text-sm bg-neutral-800 p-3 rounded-xl border border-neutral-700 text-neutral-300">
                 {session.general_notes}
               </p>
+            </div>
+          )}
+
+          {onManageTemplates && (
+            <div className="space-y-3 rounded-xl border border-indigo-500/10 bg-indigo-500/5 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Crew snapshots for this session</p>
+                  <p className="text-xs text-neutral-400">
+                    {crewCount > 0
+                      ? `${crewCount} crew snapshot${crewCount !== 1 ? 's' : ''} saved in this session report`
+                      : 'No crew snapshots saved yet'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {onAddCrew && (
+                    <button
+                      onClick={onAddCrew}
+                      disabled={isAddingCrew}
+                      className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-60"
+                    >
+                      {isAddingCrew ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      Add crew snapshot
+                    </button>
+                  )}
+                  <button
+                    onClick={onManageTemplates}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-400/30 bg-neutral-900/40 px-3 py-2 text-sm font-medium text-indigo-100 hover:bg-neutral-800 transition-colors"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    Lineups
+                  </button>
+                </div>
+              </div>
+
+              {crews.length > 0 ? (
+                <div className="space-y-3">
+                  {crews.map((crew) => (
+                    <SessionCrewSummary
+                      key={crew.id}
+                      crew={crew}
+                      getAthleteName={getAthleteName}
+                      onEdit={onEditCrew ? () => onEditCrew(crew) : undefined}
+                      onDelete={onDeleteCrew ? () => onDeleteCrew(crew.id) : undefined}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-400">
+                  Add the crews that went out today, or open lineups to start from a saved lineup.
+                </p>
+              )}
             </div>
           )}
 
@@ -942,6 +1535,460 @@ function SessionCard({
               <AddNoteForm athletes={athletes} onSave={onAddNote} onCancel={onCancelNote} />
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SessionCrewForm({
+  session,
+  crew,
+  athletes,
+  boats,
+  orgTeams,
+  existingCrews,
+  templateBoatings,
+  onSave,
+  onCancel,
+}: {
+  session: CoachingSession;
+  crew?: CoachingSessionCrew;
+  athletes: CoachingAthlete[];
+  boats: CoachingBoat[];
+  orgTeams: Team[];
+  existingCrews: CoachingSessionCrew[];
+  templateBoatings: CoachingBoating[];
+  onSave: (data: SessionCrewFormData) => void;
+  onCancel: () => void;
+}) {
+  const [selectedBoatId, setSelectedBoatId] = useState(crew?.boat_id ?? '');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(crew?.source_boating_id ?? '');
+  const [boatName, setBoatName] = useState(crew?.boat_name ?? '');
+  const [boatType, setBoatType] = useState<CoachingSessionCrew['boat_type']>(crew?.boat_type ?? '8+');
+  const [positions, setPositions] = useState<SessionCrewFormPosition[]>(
+    crew?.positions.map((position) => ({
+      seat: position.seat,
+      athlete_id: position.athlete_id ?? null,
+      athlete_name: position.athlete_name,
+    })) ?? []
+  );
+  const [notes, setNotes] = useState(crew?.notes ?? '');
+  const sessionTeamId = session.team_id ?? null;
+  const teamNamesById = useMemo(
+    () => new Map(orgTeams.map((team) => [team.id, team.name])),
+    [orgTeams]
+  );
+
+  const takenAthleteIds = new Set(
+    existingCrews
+      .filter((existingCrew) => existingCrew.id !== crew?.id)
+      .flatMap((existingCrew) => existingCrew.positions.map((position) => position.athlete_id))
+      .filter((athleteId): athleteId is string => Boolean(athleteId))
+  );
+
+  const seatCount =
+    boatType === '8+' ? 8 :
+    ['4+', '4x', '4-'].includes(boatType) ? 4 :
+    ['2x', '2-'].includes(boatType) ? 2 : 1;
+  const hasCox = boatType.includes('+');
+  const isSweep = !boatType.includes('x') && boatType !== '1x';
+
+  const getAthleteForSeat = (seat: number) =>
+    positions.find((position) => position.seat === seat)?.athlete_id ?? '';
+
+  const getPositionForSeat = (seat: number) =>
+    positions.find((position) => position.seat === seat);
+
+  const getSeatValue = (seat: number) => {
+    const position = getPositionForSeat(seat);
+    if (!position) return '';
+    return position.athlete_id ?? `snapshot:${seat}`;
+  };
+
+  const isAthleteVisibleForSeat = (seat: number) => {
+    const athleteId = getPositionForSeat(seat)?.athlete_id;
+    if (!athleteId) return false;
+    return athletes.some((athlete) => athlete.id === athleteId);
+  };
+
+  const getAvailableAthletes = (seat: number) => {
+    const currentId = getAthleteForSeat(seat);
+    const otherSeatIds = new Set(positions.filter((position) => position.seat !== seat).map((position) => position.athlete_id));
+    return athletes.filter(
+      (athlete) => athlete.id === currentId || (!takenAthleteIds.has(athlete.id) && !otherSeatIds.has(athlete.id))
+    );
+  };
+
+  const sortedAvailable = (seat: number) => {
+    const available = getAvailableAthletes(seat);
+    if (!isSweep || seat === 0) return available;
+    const preferredSide = seat % 2 === 0 ? 'port' : 'starboard';
+    return [...available].sort((a, b) => {
+      const aMatch = a.side === preferredSide || a.side === 'both' ? 0 : 1;
+      const bMatch = b.side === preferredSide || b.side === 'both' ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  };
+
+  const getSeatLabel = (seat: number) => {
+    if (seat === 0) return 'Coxswain';
+    if (seat === seatCount) return `${seat} (Stroke)`;
+    if (seat === 1) return '1 (Bow)';
+    return seat.toString();
+  };
+
+  const setPosition = (seat: number, athleteId: string) => {
+    if (!athleteId) {
+      setPositions(positions.filter((position) => position.seat !== seat));
+      return;
+    }
+
+      const athleteName = athletes.find((athlete) => athlete.id === athleteId)?.name ?? 'Unknown athlete';
+      const existing = positions.find((position) => position.seat === seat);
+      if (existing) {
+        setPositions(positions.map((position) => (
+          position.seat === seat ? { ...position, athlete_id: athleteId, athlete_name: athleteName } : position
+        )));
+      return;
+    }
+
+    setPositions([...positions, { seat, athlete_id: athleteId, athlete_name: athleteName }]);
+  };
+
+  const findLatestBoatTemplate = (boatId: string) => {
+    return [...templateBoatings]
+      .filter((entry) => entry.boat_id === boatId && entry.positions.length > 0)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+  };
+
+  const applyTemplate = (template?: CoachingBoating) => {
+    if (!template) return;
+    const matchingBoat = template.boat_id ? boats.find((boat) => boat.id === template.boat_id) : undefined;
+    setSelectedTemplateId(template.id);
+    setSelectedBoatId(template.team_id === sessionTeamId ? matchingBoat?.id ?? '' : '');
+    setBoatName(template.boat_name);
+    setBoatType(template.boat_type);
+    setPositions(template.positions.map((position) => ({
+      seat: position.seat,
+      athlete_id: position.athlete_id,
+      athlete_name: position.athlete_name ?? athletes.find((athlete) => athlete.id === position.athlete_id)?.name ?? 'Unknown athlete',
+    })));
+  };
+
+  const handleBoatSelection = (boatId: string) => {
+    setSelectedBoatId(boatId);
+    if (!boatId) {
+      setSelectedTemplateId('');
+      return;
+    }
+
+    const selectedBoat = boats.find((boat) => boat.id === boatId);
+    if (!selectedBoat) return;
+
+    setBoatName(selectedBoat.boat_name);
+    setBoatType(selectedBoat.boat_type);
+    const latestTemplate = findLatestBoatTemplate(boatId);
+    if (latestTemplate) {
+      applyTemplate(latestTemplate);
+    } else {
+      setSelectedTemplateId('');
+      setPositions([]);
+    }
+  };
+
+  const availableTemplates = [...templateBoatings]
+    .filter((template) => template.positions.length > 0)
+    .sort((a, b) => {
+      const aPriority = a.team_id === sessionTeamId ? 0 : 1;
+      const bPriority = b.team_id === sessionTeamId ? 0 : 1;
+      return aPriority - bPriority || b.date.localeCompare(a.date) || a.boat_name.localeCompare(b.boat_name);
+    });
+
+  const getTemplateLabel = (template: CoachingBoating) => {
+    const teamLabel =
+      template.team_id && template.team_id !== sessionTeamId
+        ? `${teamNamesById.get(template.team_id) ?? 'Other team'} · `
+        : '';
+    return `${teamLabel}${template.boat_name} · ${template.boat_type} · ${format(parseLocalDate(template.date), 'MMM d')}`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="my-8 w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900 p-6 sm:max-h-[calc(100vh-4rem)] max-h-[calc(100vh-2rem)]">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">{crew ? 'Edit crew snapshot' : 'Add crew snapshot'}</h2>
+            <p className="mt-1 text-sm text-neutral-400">
+              {format(parseLocalDate(session.date), 'EEE, MMM d')} · {session.focus || session.type.toUpperCase()}
+            </p>
+          </div>
+          <button onClick={onCancel} className="rounded-lg p-2 transition-colors hover:bg-neutral-800" title="Close">
+            <X className="h-5 w-5 text-neutral-400" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave({
+              boat_id: selectedBoatId || null,
+              source_boating_id: selectedTemplateId || null,
+              boat_name: boatName,
+              boat_type: boatType,
+              positions,
+              notes: notes || undefined,
+            });
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="session-existing-boat" className="mb-2 block text-sm font-medium text-neutral-300">Persistent Boat</label>
+              <select
+                id="session-existing-boat"
+                value={selectedBoatId}
+                onChange={(e) => handleBoatSelection(e.target.value)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Create a new boat record from this log</option>
+                {boats.map((boat) => (
+                  <option key={boat.id} value={boat.id}>
+                    {boat.boat_name} · {boat.boat_type}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                Choose an existing shell to start from its latest crew, or leave blank to enter a fresh session snapshot.
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="session-template" className="mb-2 block text-sm font-medium text-neutral-300">Start from saved lineup</label>
+              <select
+                id="session-template"
+                value={selectedTemplateId}
+                disabled={availableTemplates.length === 0}
+                onChange={(e) => {
+                  const templateId = e.target.value;
+                  setSelectedTemplateId(templateId);
+                  if (!templateId) return;
+                  applyTemplate(availableTemplates.find((template) => template.id === templateId));
+                }}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {availableTemplates.length === 0 ? (
+                  <option value="">No saved lineups available yet</option>
+                ) : (
+                  <>
+                    <option value="">None</option>
+                    {availableTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {getTemplateLabel(template)}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                Saved lineups come from active lineup history in this org and are copied into this session snapshot.
+              </p>
+              <p className="mt-1 text-xs text-neutral-500">
+                Team labels appear for lineups saved by another team. If a saved crew includes someone no longer on the current roster, their saved name stays visible until you reassign that seat.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="session-boat-name" className="mb-2 block text-sm font-medium text-neutral-300">Boat Name</label>
+              <input
+                id="session-boat-name"
+                type="text"
+                value={boatName}
+                onChange={(e) => setBoatName(e.target.value)}
+                disabled={!!selectedBoatId}
+                placeholder="e.g. Varsity 8+"
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+              />
+            </div>
+            <div>
+              <label htmlFor="session-boat-type" className="mb-2 block text-sm font-medium text-neutral-300">Boat Type</label>
+              <select
+                id="session-boat-type"
+                value={boatType}
+                disabled={!!selectedBoatId}
+                onChange={(e) => { setBoatType(e.target.value as CoachingBoating['boat_type']); setPositions([]); }}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+              >
+                <option value="8+">8+ (Eight with Cox)</option>
+                <option value="4+">4+ (Four with Cox)</option>
+                <option value="4-">4- (Coxless Four)</option>
+                <option value="4x">4x (Quad)</option>
+                <option value="2x">2x (Double)</option>
+                <option value="2-">2- (Pair)</option>
+                <option value="1x">1x (Single)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="mb-2 block text-sm font-medium text-neutral-300">Seats</label>
+
+            {hasCox && (
+              <div className="flex items-center gap-3 rounded-xl bg-amber-900/20 p-2">
+                <label htmlFor="session-seat-cox" className="w-20 shrink-0 text-sm font-medium text-amber-400">Coxswain</label>
+                <select
+                  id="session-seat-cox"
+                  value={getSeatValue(0)}
+                  onChange={(e) => setPosition(0, e.target.value)}
+                  className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">— Select —</option>
+                  {getPositionForSeat(0)?.athlete_name && !isAthleteVisibleForSeat(0) && (
+                    <option value={getSeatValue(0)} disabled>
+                      {getPositionForSeat(0)?.athlete_name} (saved snapshot)
+                    </option>
+                  )}
+                  {sortedAvailable(0).map((athlete) => (
+                    <option key={athlete.id} value={athlete.id}>{athlete.name}{athlete.side === 'coxswain' ? ' ⚓' : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {Array.from({ length: seatCount }, (_, i) => seatCount - i).map((seat) => (
+                <div
+                  key={seat}
+                  className={`flex items-center gap-3 rounded-xl p-2 ${
+                    seat === seatCount ? 'bg-indigo-500/5' : seat === 1 ? 'bg-teal-900/20' : ''
+                  }`}
+                >
+                  <label
+                    htmlFor={`session-seat-${seat}`}
+                    className={`w-20 shrink-0 text-sm font-medium ${
+                      seat === seatCount ? 'text-indigo-400' : seat === 1 ? 'text-teal-400' : 'text-neutral-400'
+                    }`}
+                  >
+                    {getSeatLabel(seat)}
+                  </label>
+                   <select
+                     id={`session-seat-${seat}`}
+                     value={getSeatValue(seat)}
+                     onChange={(e) => setPosition(seat, e.target.value)}
+                     className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="">— Select —</option>
+                     {getPositionForSeat(seat)?.athlete_name && !isAthleteVisibleForSeat(seat) && (
+                       <option value={getSeatValue(seat)} disabled>
+                         {getPositionForSeat(seat)?.athlete_name} (saved snapshot)
+                       </option>
+                     )}
+                     {sortedAvailable(seat).map((athlete) => (
+                       <option key={athlete.id} value={athlete.id}>
+                         {athlete.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="session-boating-notes" className="mb-2 block text-sm font-medium text-neutral-300">Crew Note</label>
+            <textarea
+              id="session-boating-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="What happened with this crew today?"
+              className="w-full resize-none rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 rounded-xl border border-neutral-700 px-4 py-3 font-medium text-neutral-300 transition-colors hover:bg-neutral-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              {crew ? 'Save crew snapshot' : 'Add crew snapshot'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SessionCrewSummary({
+  crew,
+  getAthleteName,
+  onEdit,
+  onDelete,
+}: {
+  crew: CoachingSessionCrew;
+  getAthleteName: (athleteId: string) => string;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const seatCount =
+    crew.boat_type === '8+' ? 8 :
+    ['4+', '4x', '4-'].includes(crew.boat_type) ? 4 :
+    ['2x', '2-'].includes(crew.boat_type) ? 2 : 1;
+  const hasCox = crew.boat_type.includes('+');
+  const seatOrder = [...(hasCox ? [0] : []), ...Array.from({ length: seatCount }, (_, i) => seatCount - i)];
+
+  const getSeatLabel = (seat: number) => {
+    if (seat === 0) return 'Cox';
+    if (seat === seatCount) return 'Stroke';
+    if (seat === 1) return 'Bow';
+    return seat.toString();
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-700/60 bg-neutral-900/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">{crew.boat_name}</p>
+          <p className="text-xs text-neutral-500">{crew.boat_type} · saved in session report</p>
+        </div>
+        <div className="flex items-center gap-1">
+          {onEdit && (
+            <button onClick={onEdit} className="p-1.5 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Edit crew snapshot" title="Edit crew snapshot">
+              <Edit2 className="w-3.5 h-3.5 text-neutral-500 hover:text-indigo-400" />
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={onDelete} className="p-1.5 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Delete crew snapshot" title="Delete crew snapshot">
+              <Trash2 className="w-3.5 h-3.5 text-neutral-500 hover:text-red-400" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {seatOrder.map((seat) => {
+          const position = crew.positions.find((entry) => entry.seat === seat);
+          return (
+            <div key={`${crew.id}-${seat}`} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 bg-neutral-800/60 px-3 py-2">
+              <span className="text-xs font-medium text-neutral-400">{getSeatLabel(seat)}</span>
+              <span className="truncate text-sm text-neutral-200">
+                {position ? (position.athlete_name || (position.athlete_id ? getAthleteName(position.athlete_id) : 'Unknown athlete')) : '—'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {crew.notes && (
+        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-800/40 px-3 py-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Crew note</p>
+          <p className="mt-1 text-sm text-neutral-300">{crew.notes}</p>
         </div>
       )}
     </div>
@@ -1026,6 +2073,7 @@ function EventBanner({
   const teamNames = event.team_ids
     ?.map((tid) => orgTeams.find((t) => t.id === tid)?.name)
     .filter(Boolean) ?? [];
+  const scopeLabel = teamNames.length > 0 ? teamNames.join(', ') : 'All teams';
 
   return (
     <div className={`flex items-center justify-between gap-2 px-5 py-2.5 ${style.bg} border-b border-border/50`}>
@@ -1035,15 +2083,13 @@ function EventBanner({
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${style.bg} ${style.text} border border-current/20`}>
           {style.label}
         </span>
+        <span className="inline-flex items-center rounded-full border border-current/15 bg-black/10 px-2 py-0.5 text-xs font-medium text-content-secondary">
+          {scopeLabel}
+        </span>
         {event.location && (
-          <span className="hidden sm:flex items-center gap-1 text-xs text-content-muted">
+          <span className="hidden lg:flex items-center gap-1 text-xs text-content-muted">
             <MapPin className="w-3 h-3" />
             {event.location}
-          </span>
-        )}
-        {teamNames.length > 0 && (
-          <span className="hidden sm:inline text-xs text-content-muted">
-            · {teamNames.join(', ')}
           </span>
         )}
         {event.end_date && event.end_date !== event.date && (
@@ -1170,6 +2216,19 @@ function EventForm({
               <label className="block text-sm font-medium text-content-secondary mb-2">
                 <span className="flex items-center gap-1.5"><Flag className="w-4 h-4 text-accent-coaching" /> Teams Attending</span>
               </label>
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTeamIds([])}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    selectedTeamIds.length === 0
+                      ? 'bg-accent-coaching/20 border-accent-coaching text-accent-coaching font-medium'
+                      : 'bg-surface-well border-border text-content-muted hover:border-content-muted'
+                  }`}
+                >
+                  All teams
+                </button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {orgTeams.map((team) => (
                   <button
