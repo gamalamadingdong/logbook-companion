@@ -9,6 +9,20 @@
 
 ## Recently Completed
 
+### Schedule header cleanup
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - rebuilt the top header into clearer lanes for page identity, `Schedule | Lineups` surface tabs, primary creation actions, and calendar controls
+  - replaced the header's raw action buttons with shared `Button`, `Card`, and `Badge` components so the top area now follows the coaching design system more closely
+  - made the date range the main focal point, with `Today` and previous/next navigation grouped together and the `Day | Week | Month` switch moved into a separate control row
+  - improved mobile stacking and touch target sizing so the top controls read as one organized control panel instead of several competing button strips
+  - follow-up polish tightened the `Schedule | Lineups` switch into a centered full-width workspace toggle, folded navigation + creation controls into one shared control panel, and boosted `Add Event` contrast so it reads properly in light mode
+  - latest refinement makes the calendar/navigation chrome render only for the `Schedule` tab; `Lineups` no longer shows irrelevant week/day/month controls, and the view switch now uses a softer tab-like treatment instead of another strong button group
+  - structural rework anchored the `Schedule | Lineups` switcher in one stable left-side position across both tabs, while the right-side column now changes independently so switching to `Lineups` hides schedule-only controls without moving the workspace nav
+  - full shell redesign now uses:
+    - a compact top workspace switcher for `Schedule | Lineups`
+    - a single contextual schedule toolbar for date navigation, `Day | Week | Month`, and session/event creation
+    - a lighter embedded Lineups header so the Lineups tab feels like part of the same page rather than a second nested page
+
 ### Schedule + Lineups merge pass
 - `src/pages/coaching/CoachingSchedule.tsx`
   - added a real `Day` view alongside `Week` and `Month`
@@ -136,6 +150,11 @@
   - `npx eslint src/pages/coaching/CoachingSchedule.tsx src/pages/coaching/CoachingBoatings.tsx src/components/coaching/CoachingNav.tsx src/pages/coaching/CoachDashboard.tsx`
   - `npm run build`
   - `npm run test:run`
+- The Schedule header cleanup passed:
+  - `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingSchedule.tsx`
+  - `npm run build`
+  - `npm run test:run`
+- `npm run lint` still fails on unrelated pre-existing repo issues outside the touched schedule work (scripts + `src/App.tsx` refs rule).
 - `npm run lint` still fails on unrelated pre-existing repo issues outside the touched coaching files.
 
 ## Important Files
@@ -149,6 +168,7 @@
 - `working-memory/decisionLog.md`
 
 ## Next Likely Steps
+- If the schedule surface still feels dense after this pass, consider giving the week/day list itself a second visual cleanup so the header and body share the same hierarchy.
 - Decide whether the embedded Lineups tab should become date-aware (for example, filter/highlight lineups for the currently focused day/week/month range).
 - Improve multi-team schedule scope if coaches should truly see or create sessions for `All teams` rather than a single active team filter.
 - Add richer template workflows if needed:

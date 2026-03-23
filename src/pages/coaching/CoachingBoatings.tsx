@@ -29,7 +29,7 @@ import {
 } from '../../services/coaching/coachingService';
 import { format } from 'date-fns';
 import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, ArrowUp, ArrowDown, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare } from 'lucide-react';
-import { Button, EmptyState } from '../../components/ui';
+import { Button, Card, EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
 import { Link, Navigate } from 'react-router-dom';
@@ -546,31 +546,33 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
     <>
     {!embedded && <CoachingNav />}
     <div className={embedded ? 'space-y-6' : 'px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6'}>
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <Card padding={embedded ? 'md' : 'lg'}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className={`${embedded ? 'text-xl' : 'text-2xl'} font-bold text-white`}>Lineups</h1>
-            <p className="text-neutral-400 mt-1">
+            <h1 className={`${embedded ? 'text-lg' : 'text-2xl'} font-bold text-content-primary`}>
+              {embedded ? 'Standing lineups' : 'Lineups'}
+            </h1>
+            <p className="mt-1 text-content-secondary">
               {embedded
-                ? 'Browse reusable org-wide lineups and recent shell history without leaving Schedule.'
+                ? 'Edit reusable crew records here, then switch back to Schedule when you need the day or week plan.'
                 : 'Use this page for reusable org-wide lineups, crew records, and shell history across the program.'}
             </p>
-            <p className="text-neutral-500 mt-1 text-sm">
+            <p className="mt-1 text-sm text-content-muted">
               {activeBoatings.length} saved crew record{activeBoatings.length !== 1 ? 's' : ''}
               {archivedBoatings.length > 0 && (
-                <span className="text-neutral-600"> · {archivedBoatings.length} in history</span>
+                <span className="text-content-faint"> · {archivedBoatings.length} in history</span>
               )}
             </p>
           </div>
-           <div className="flex items-center gap-3 flex-wrap">
-            {/* Squad filter: show inline on mobile, hidden on desktop when DnD panel is shown */}
+
+          <div className="flex flex-wrap items-center gap-3">
             {squads.length > 0 && (
               <div className={`flex items-center gap-2 ${showDndPanel ? 'md:hidden' : ''}`}>
-                <Filter className="w-4 h-4 text-neutral-500" />
+                <Filter className="w-4 h-4 text-content-muted" />
                 <select
                   value={selectedSquad}
                   onChange={(e) => setSelectedSquad(e.target.value)}
-                  className="px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  className="rounded-xl border border-border bg-surface-card px-4 py-2.5 text-content-primary outline-none transition-colors focus:ring-2 focus:ring-focus"
                   aria-label="Filter athletes by squad"
                 >
                   <option value="all">All Squads</option>
@@ -580,26 +582,29 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
                 </select>
               </div>
             )}
-             <button
-               onClick={() => setIsAdding(true)}
-                disabled={athletes.length === 0}
-                title={athletes.length === 0 ? 'Add athletes to the roster first' : 'Save a new crew record'}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="w-5 h-5" />
-                New Crew Record
-              </button>
-              {!embedded && (
-                <Link
-                  to="/team-management/schedule"
-                  className="flex items-center gap-2 px-4 py-2 border border-neutral-700 text-neutral-200 rounded-lg hover:bg-neutral-800 transition-colors"
-                >
+
+            <Button
+              type="button"
+              variant="coaching"
+              size="lg"
+              onClick={() => setIsAdding(true)}
+              disabled={athletes.length === 0}
+              title={athletes.length === 0 ? 'Add athletes to the roster first' : 'Save a new crew record'}
+            >
+              <Plus className="w-4 h-4" />
+              New Crew Record
+            </Button>
+
+            {!embedded && (
+              <Link to="/team-management/schedule">
+                <Button type="button" variant="secondary" size="lg">
                   Open Schedule
-                </Link>
-              )}
-            </div>
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Error */}
       {error && (

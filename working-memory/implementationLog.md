@@ -4,6 +4,50 @@
 
 ---
 
+## Phase 68: Schedule header UX cleanup (March 23, 2026)
+
+**Timeline**: March 23, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/CoachingSchedule.tsx`
+  - replaced the custom neutral-toned header wrapper with the shared `Card` surface
+  - moved the top controls into clearer groups:
+    - page title + coaching context badge
+    - `Schedule | Lineups` surface tabs
+    - `Add Session` / `Add Event` primary actions
+    - range navigation + `Today`
+    - `Day | Week | Month` view mode controls
+  - swapped the header's raw action buttons for shared `Button` usage and added a `Badge` for stronger page-state signaling
+  - increased mobile touch target sizing and reduced visual competition between the date picker row and the view toggle row
+  - follow-up polish turned the workspace tabs into a centered full-width switcher and reduced the top-of-page control clutter by folding navigation and creation actions into the same control panel
+  - strengthened the `Add Event` action styling with token-based elevated surface colors so it stays legible in light mode
+  - final refinement split the top chrome by mode so `Lineups` no longer inherits schedule-only controls, and softened `Day | Week | Month` into a lighter tab treatment rather than a third heavy button group
+  - structural follow-up anchored the workspace switcher in a consistent left-side position and reserved the right-side column for schedule-only controls, preventing the nav from jumping when switching to `Lineups`
+  - from-scratch shell pass replaced the oversized workspace toggle with a compact top switcher, consolidated schedule actions into one contextual toolbar, and reduced the embedded Lineups header so switching between the two feels like one workflow
+  - kept all routing/query-param behavior and schedule interactions intact while improving hierarchy only
+
+### Why This Shape Won
+
+- the previous header asked users to parse title, tabs, actions, view mode, and date navigation at the same visual weight
+- making the current range the focal item gives the page a clearer "where am I?" anchor before the user chooses actions
+- splitting surface selection from calendar mode selection reduces cognitive overlap between "which workspace am I in?" and "how am I viewing this workspace?"
+- using the shared UI components makes the coaching schedule feel more like the rest of the app and less like a one-off admin surface
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingSchedule.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing repo-wide issues in scripts and `src/App.tsx`
+
+### Outcome
+
+The top of the Schedule page now reads as a single organized control panel instead of a loose stack of mixed buttons. The page should feel cleaner on desktop and much less cramped on mobile without changing how coaches already use the Schedule/Lineups workflow.
+
+---
+
 ## Phase 55: Persistent boats + session-linked boating logs (March 20, 2026)
 
 **Timeline**: March 20, 2026  

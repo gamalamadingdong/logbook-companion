@@ -60,11 +60,13 @@ import {
   isWithinInterval,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, X, Edit2, Trash2, Loader2, ChevronDown, ChevronUp, MessageSquare, Calendar, CalendarDays, ClipboardList, MapPin, Flag, Link2 } from 'lucide-react';
-import { EmptyState } from '../../components/ui';
+import { Badge, Button, Card, EmptyState } from '../../components/ui';
 import { WeeklyFocusBanner } from '../../components/coaching/WeeklyFocusBanner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { LineupsWorkspace } from './CoachingBoatings';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 type ViewMode = 'day' | 'week' | 'month';
 type ScheduleTab = 'schedule' | 'lineups';
@@ -465,171 +467,241 @@ function CoachingSchedule() {
   const selectedDaySessions = activeDay
     ? sessions.filter((s) => isSameDay(parseLocalDate(s.date), activeDay))
     : [];
+  const currentRangeLabel = viewMode === 'day'
+    ? format(currentDay, 'EEEE, MMM d, yyyy')
+    : viewMode === 'week'
+      ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
+      : format(currentMonth, 'MMMM yyyy');
+  const currentRangeContextLabel = viewMode === 'day'
+    ? 'Focused day'
+    : viewMode === 'week'
+      ? 'Current week'
+      : 'Current month';
+  const previousRangeLabel = viewMode === 'day' ? 'Previous day' : viewMode === 'week' ? 'Previous week' : 'Previous month';
+  const nextRangeLabel = viewMode === 'day' ? 'Next day' : viewMode === 'week' ? 'Next week' : 'Next month';
+  const scheduleTabs: Array<{ id: ScheduleTab; label: string; description: string; icon: typeof CalendarDays }> = [
+    { id: 'schedule', label: 'Schedule', description: 'Plan sessions and events', icon: CalendarDays },
+    { id: 'lineups', label: 'Lineups', description: 'Browse saved crews', icon: Link2 },
+  ];
+  const activeWorkspaceBadgeLabel = activeTab === 'schedule' ? 'Daily planning' : 'Standing lineups';
+  const scheduleTabButtonClass = (isActive: boolean) => twMerge(clsx(
+    'h-11 justify-center rounded-xl px-4',
+    isActive
+      ? 'shadow-sm'
+      : 'bg-transparent text-content-secondary hover:bg-surface-card hover:text-content-primary'
+  ));
+  const calendarModeTabClass = (isActive: boolean) => twMerge(clsx(
+    'h-10 justify-center rounded-lg border px-3',
+    isActive
+      ? 'border-accent-coaching/30 bg-accent-coaching-surface text-accent-coaching shadow-sm'
+      : 'border-transparent bg-transparent text-content-muted hover:bg-surface-card hover:text-content-primary'
+  ));
+  const navIconButtonClass = 'relative h-11 w-11 shrink-0 rounded-xl px-0';
 
   return (
     <>
     <CoachingNav />
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-          <div className="space-y-3">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Schedule</h1>
-              <p className="mt-1 text-sm text-neutral-400">
-                Plan daily sessions, browse saved lineups, and keep event timing in one coaching workflow.
+      <Card padding="lg" className="space-y-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-2 xl:max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-content-primary">Schedule</h1>
+                <Badge variant="coaching">{activeWorkspaceBadgeLabel}</Badge>
+              </div>
+              <p className="max-w-2xl text-sm leading-6 text-content-secondary">
+                Plan sessions and events by date, then switch over to Lineups whenever you need to review or edit standing crews.
               </p>
             </div>
-            <div className="flex items-center bg-neutral-800 rounded-lg p-1 w-full sm:w-fit">
-              <button
-                type="button"
-                onClick={() => updateScheduleQuery({ tab: 'schedule', from: null })}
-                className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'schedule'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <CalendarDays className="w-4 h-4" />
-                Schedule
-              </button>
-              <button
-                type="button"
-                onClick={() => updateScheduleQuery({ tab: 'lineups', from: null })}
-                className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'lineups'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Link2 className="w-4 h-4" />
-                Lineups
-              </button>
+
+            <div
+              role="tablist"
+              aria-label="Schedule workspace sections"
+              className="inline-flex w-full items-center gap-1 rounded-2xl border border-border bg-surface-well p-1 sm:w-auto"
+            >
+              {scheduleTabs.map(({ id, label, icon: Icon }) => {
+                const isActive = activeTab === id;
+
+                return (
+                  <Button
+                    key={id}
+                    type="button"
+                    variant={isActive ? 'coaching' : 'ghost'}
+                    size="md"
+                    onClick={() => updateScheduleQuery({ tab: id, from: null })}
+                    className={twMerge(scheduleTabButtonClass(isActive), 'flex-1 sm:flex-initial')}
+                    aria-pressed={isActive}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex flex-col items-stretch gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => openAddSessionForDate(activeDay ?? currentDay)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Session
-              </button>
-              {orgId && (
-                <button
-                  type="button"
-                  onClick={() => openAddEventForDate(activeDay ?? currentDay)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-400/30 bg-neutral-800 px-4 py-2 text-sm font-medium text-indigo-100 hover:bg-neutral-700 transition-colors"
-                >
-                  <Flag className="w-4 h-4" />
-                  Add Event
-                </button>
-              )}
-            </div>
+          {activeTab === 'schedule' && (
+            <div className="rounded-2xl border border-border bg-surface-secondary/70 p-3 sm:p-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsLoading(true);
+                        if (viewMode === 'day') setCurrentDay(subDays(currentDay, 1));
+                        else if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
+                        else setCurrentMonth(subMonths(currentMonth, 1));
+                      }}
+                      className={navIconButtonClass}
+                      aria-label={previousRangeLabel}
+                      title={previousRangeLabel}
+                    >
+                      <span className="relative inline-flex">
+                        <ChevronLeft className="h-5 w-5" />
+                        {adjacentHasData.prev && (
+                          <>
+                            <span className="sr-only">{`Data available in ${previousRangeLabel.toLowerCase()}`}</span>
+                            <span aria-hidden="true" className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent-coaching" />
+                          </>
+                        )}
+                      </span>
+                    </Button>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <div className="flex items-center bg-neutral-800 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('day')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'day'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-neutral-400 hover:text-neutral-200'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Day
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('week')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'week'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-neutral-400 hover:text-neutral-200'
-                  }`}
-                >
-                  <CalendarDays className="w-4 h-4" />
-                  Week
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('month')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'month'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-neutral-400 hover:text-neutral-200'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Month
-                </button>
-              </div>
+                    <div className="min-w-[220px] rounded-xl border border-border bg-surface-card px-4 py-2 text-center sm:min-w-[260px]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-content-muted">
+                        {currentRangeContextLabel}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-content-primary sm:text-base">
+                        {currentRangeLabel}
+                      </p>
+                    </div>
 
-              <div className="flex items-center gap-1 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLoading(true);
-                    if (viewMode === 'day') setCurrentDay(subDays(currentDay, 1));
-                    else if (viewMode === 'week') setCurrentWeek(subWeeks(currentWeek, 1));
-                    else setCurrentMonth(subMonths(currentMonth, 1));
-                  }}
-                  className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0"
-                  aria-label={viewMode === 'day' ? 'Previous day' : viewMode === 'week' ? 'Previous week' : 'Previous month'}
-                  title={viewMode === 'day' ? 'Previous day' : viewMode === 'week' ? 'Previous week' : 'Previous month'}
-                >
-                  <ChevronLeft className="w-5 h-5 text-neutral-400" />
-                  {adjacentHasData.prev && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-                </button>
-                <span className="text-sm sm:text-lg font-semibold text-center flex-1 sm:flex-initial sm:min-w-[220px] px-2 sm:px-4 py-2 bg-neutral-800 rounded-lg text-white truncate">
-                  {viewMode === 'day'
-                    ? format(currentDay, 'EEEE, MMM d, yyyy')
-                    : viewMode === 'week'
-                      ? `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`
-                      : format(currentMonth, 'MMMM yyyy')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLoading(true);
-                    if (viewMode === 'day') setCurrentDay(addDays(currentDay, 1));
-                    else if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
-                    else setCurrentMonth(addMonths(currentMonth, 1));
-                  }}
-                  className="relative p-2 hover:bg-neutral-800 rounded-lg transition-colors shrink-0"
-                  aria-label={viewMode === 'day' ? 'Next day' : viewMode === 'week' ? 'Next week' : 'Next month'}
-                  title={viewMode === 'day' ? 'Next day' : viewMode === 'week' ? 'Next week' : 'Next month'}
-                >
-                  <ChevronRight className="w-5 h-5 text-neutral-400" />
-                  {adjacentHasData.next && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLoading(true);
-                    const today = new Date();
-                    focusDay(today);
-                  }}
-                  className="px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors font-medium shrink-0"
-                >
-                  Today
-                </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsLoading(true);
+                        if (viewMode === 'day') setCurrentDay(addDays(currentDay, 1));
+                        else if (viewMode === 'week') setCurrentWeek(addWeeks(currentWeek, 1));
+                        else setCurrentMonth(addMonths(currentMonth, 1));
+                      }}
+                      className={navIconButtonClass}
+                      aria-label={nextRangeLabel}
+                      title={nextRangeLabel}
+                    >
+                      <span className="relative inline-flex">
+                        <ChevronRight className="h-5 w-5" />
+                        {adjacentHasData.next && (
+                          <>
+                            <span className="sr-only">{`Data available in ${nextRangeLabel.toLowerCase()}`}</span>
+                            <span aria-hidden="true" className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-accent-coaching" />
+                          </>
+                        )}
+                      </span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      onClick={() => {
+                        setIsLoading(true);
+                        focusDay(new Date());
+                      }}
+                      className="bg-surface-elevated text-content-primary hover:bg-surface-card"
+                    >
+                      Today
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="lg"
+                      onClick={() => openAddEventForDate(activeDay ?? currentDay)}
+                      className={twMerge(clsx(
+                        'border-border bg-surface-elevated text-content-primary hover:bg-surface-card',
+                        !orgId && 'hidden'
+                      ))}
+                    >
+                      <Flag className="h-4 w-4" />
+                      Add Event
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="coaching"
+                      size="lg"
+                      onClick={() => openAddSessionForDate(activeDay ?? currentDay)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Session
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div
+                    role="tablist"
+                    aria-label="Schedule calendar view"
+                    className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-card p-1"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode('day')}
+                      className={calendarModeTabClass(viewMode === 'day')}
+                      aria-pressed={viewMode === 'day'}
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Day
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode('week')}
+                      className={calendarModeTabClass(viewMode === 'week')}
+                      aria-pressed={viewMode === 'week'}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Week
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode('month')}
+                      className={calendarModeTabClass(viewMode === 'month')}
+                      aria-pressed={viewMode === 'month'}
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Month
+                    </Button>
+                  </div>
+
+                  <p className="text-sm text-content-muted">
+                    Browse the calendar here, then switch to <span className="font-medium text-content-primary">Lineups</span> to update standing crews.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {showLegacyLineupsPointer && (
-          <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100">
+          <div className="rounded-xl border border-accent-coaching/25 bg-accent-coaching-surface px-4 py-3 text-sm text-content-primary">
             Lineups now live inside Schedule. You can switch between `Schedule` and `Lineups` here without leaving the page.
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Error */}
       {error && (
