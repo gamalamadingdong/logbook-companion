@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
@@ -18,6 +18,8 @@ import { About } from './pages/About';
 import { CoachSessions } from './pages/CoachSessions';
 import { TemplateLibrary } from './pages/TemplateLibrary';
 import { TemplateDetail } from './pages/TemplateDetail';
+import { TemplateProposalPage } from './pages/TemplateProposalPage';
+import { TemplateProposalReview } from './pages/TemplateProposalReview';
 import { Documentation } from './pages/Documentation';
 import DownloadC2Data from './pages/DownloadC2Data';
 import { ResetPassword } from './pages/ResetPassword';
@@ -55,6 +57,13 @@ import { Toaster } from 'sonner';
 function CoachingRedirect() {
   const location = useLocation();
   const newPath = location.pathname.replace('/coaching', '/team-management') + location.search + location.hash;
+  return <Navigate to={newPath} replace />;
+}
+
+/** Redirect old /templates/* routes to /library/* preserving sub-path */
+function TemplateRedirect() {
+  const location = useLocation();
+  const newPath = location.pathname.replace('/templates', '/library') + location.search + location.hash;
   return <Navigate to={newPath} replace />;
 }
 
@@ -101,12 +110,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, profileLoading, isCoach } = useAuth();
   const location = useLocation();
-  // Track whether we've ever successfully rendered the coach content.
-  // Once true, we never go back to the loading screen — this prevents
-  // token refreshes (e.g. tab switch) from unmounting modals/dialogs.
-  const hasRendered = useRef(false);
 
-  if (loading || (profileLoading && !hasRendered.current)) {
+  if (loading || (profileLoading && !isCoach)) {
     return <AuthLoadingScreen />;
   }
 
@@ -115,11 +120,10 @@ const CoachRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
-  if (!isCoach && !hasRendered.current) {
+  if (!isCoach) {
     return <Navigate to="/team-management/request-access" replace />;
   }
 
-  hasRendered.current = true;
   return <Layout>{children}</Layout>;
 };
 
@@ -318,29 +322,47 @@ const AppContent: React.FC = () => {
             element={<CoachingRedirect />}
           />
           <Route
-            path="/templates"
+            path="/library"
             element={
-              <ProtectedRoute>
+              <Layout>
                 <TemplateLibrary />
+              </Layout>
+            }
+          />
+          <Route
+            path="/library/:templateId"
+            element={
+              <Layout>
+                <TemplateDetail />
+              </Layout>
+            }
+          />
+          <Route
+            path="/library/propose"
+            element={
+              <Layout>
+                <TemplateProposalPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/library/review"
+            element={
+              <ProtectedRoute>
+                <TemplateProposalReview />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/templates/:templateId"
+            path="/library/:templateId/edit"
             element={
               <ProtectedRoute>
                 <TemplateDetail />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/templates/:templateId/edit"
-            element={
-              <ProtectedRoute>
-                <TemplateDetail />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/templates/*" element={<TemplateRedirect />} />
+          <Route path="/workout-library" element={<Navigate to="/library" replace />} />
           <Route
             path="/docs"
             element={

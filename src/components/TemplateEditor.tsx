@@ -466,7 +466,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templateId, onCl
                 <div className="flex items-center justify-between p-4 border-b border-neutral-800">
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold text-white">
-                            {templateId ? 'Edit Template' : 'New Template'}
+                            {templateId ? 'Edit Workout' : 'New Workout Draft'}
                         </h2>
                         {templateId && <SaveIndicator status={saveStatus} />}
                     </div>

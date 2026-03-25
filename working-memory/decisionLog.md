@@ -4,6 +4,70 @@
 
 ---
 
+## ADR-020: Public workout library with separate moderated proposal queue
+
+**Date**: March 25, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+The existing template system already had a global/shared library shape, RWN-backed authoring, and personal usage overlays. The open product question was how to evolve it into a community library without either:
+
+1. requiring login for all browsing,
+2. letting anonymous/unreviewed submissions pollute the canonical library,
+3. or splitting workout definition logic across multiple incompatible models.
+
+The user explicitly wanted a donation-funded, open-source, community-friendly direction where workout discovery should be public and contribution should be easy.
+
+### Decision
+
+Adopt a **three-layer workout library model**:
+
+1. **Draft** — personal/in-progress templates (`status = 'draft'`)
+2. **Community library** — public templates that are visible but not fully validated (`status = 'published'` and `validated = false`)
+3. **Standard library** — public curated templates that are validated (`status = 'published'` and `validated = true`)
+
+Raw submissions do **not** go directly into `workout_templates`. Instead, they enter a separate moderation queue in `workout_template_proposals`, where reviewers can:
+
+- mark a proposal under review
+- reject it
+- promote it into the community library
+- promote it into the standard library
+
+### Rationale
+
+1. **Supports public discovery** — the main library can be read without login
+2. **Protects quality** — moderation becomes the control point instead of access friction
+3. **Preserves canonical data hygiene** — unreviewed proposals stay out of the library table
+4. **Reuses existing schema semantics** — `status` + `validated` already expressed most of the tier model
+5. **Keeps RWN central** — proposals stay aligned with the existing RWN → structure → canonical-name pipeline
+
+### Consequences
+
+**Positive**:
+- the app can evolve into a real community workout library without abandoning the existing template architecture
+- public readers and anonymous contributors no longer require the same trust level
+- admins can promote community knowledge into higher-trust library tiers
+
+**Negative**:
+- proposal moderation now needs its own RLS and reviewer UI
+- public aggregate template stats may still require follow-up if related tables stay private under anon RLS
+- the current admin-review policy still depends on the project’s existing single-admin ID convention
+
+### Alternatives Considered
+
+1. **Keep the entire library behind login**
+   - Rejected because it weakens the open/community discovery goal
+
+2. **Allow direct public inserts into `workout_templates`**
+   - Rejected because it would mix unreviewed content with canonical library content immediately
+
+3. **Create a completely separate public-library system unrelated to templates**
+   - Rejected because it would duplicate workout-definition logic and drift away from the RWN-centered architecture already in place
+
+---
+
 ## ADR-018: Coaching boats vs boating logs vs sessions
 
 **Date**: March 20, 2026
@@ -335,7 +399,7 @@ We need to merge these streams without creating duplicate workout entries (e.g. 
 
 ---
 
-## ADR-013: Global Template Library with Personal Usage Tracking
+## ADR-013: Global Workout Library with Personal Usage Tracking
 
 **Date**: February 4, 2026  
 **Status**: Accepted  

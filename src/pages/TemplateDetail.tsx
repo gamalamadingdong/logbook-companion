@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Edit, Users, TrendingUp, Calendar, ChevronDown, ChevronUp, Clock, Target, Lightbulb, Compass, Trophy, ArrowRight } from 'lucide-react';
-import { fetchTemplateById, getTemplateHistory, getTemplatePersonalBest } from '../services/templateService';
+import { Edit, Users, TrendingUp, Calendar, ChevronDown, ChevronUp, Clock, Target, Lightbulb, Compass, Trophy, ArrowRight, Library, ShieldCheck, GitBranchPlus } from 'lucide-react';
+import { fetchTemplateById, getTemplateHistory, getTemplatePersonalBest, getTemplateReferenceStats } from '../services/templateService';
 import type { PersonalBest, TemplateHistoryItem } from '../services/templateService';
 import { supabase } from '../services/supabase';
-import type { WorkoutTemplate } from '../types/workoutStructure.types';
+import type { TemplateReferenceStats, WorkoutTemplate } from '../types/workoutStructure.types';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatDuration, estimateDuration } from '../utils/rwnParser';
@@ -18,7 +18,7 @@ export const TemplateDetail: React.FC = () => {
     const { templateId } = useParams<{ templateId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
 
     const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
     const [loading, setLoading] = useState(true);
@@ -28,6 +28,11 @@ export const TemplateDetail: React.FC = () => {
     const [personalizedPaces, setPersonalizedPaces] = useState<Record<string, { split: number; label: string; isRange?: boolean; splitMax?: number }>>({});
     const [history, setHistory] = useState<TemplateHistoryItem[]>([]);
     const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
+    const [referenceStats, setReferenceStats] = useState<TemplateReferenceStats>({
+        groupAssignmentCount: 0,
+        planWorkoutCount: 0,
+        dailyAssignmentCount: 0,
+    });
 
     // Check if we're on the edit route
     useEffect(() => {
@@ -42,6 +47,17 @@ export const TemplateDetail: React.FC = () => {
             try {
                 const data = await fetchTemplateById(templateId);
                 setTemplate(data);
+                try {
+                    const stats = await getTemplateReferenceStats(templateId);
+                    setReferenceStats(stats);
+                } catch (statsError) {
+                    console.error('Failed to load template reference stats:', statsError);
+                    setReferenceStats({
+                        groupAssignmentCount: 0,
+                        planWorkoutCount: 0,
+                        dailyAssignmentCount: 0,
+                    });
+                }
 
                 // Fetch user baseline if logged in
                 if (user?.id) {
@@ -79,7 +95,7 @@ export const TemplateDetail: React.FC = () => {
 
     const handleEditorClose = (saved: boolean) => {
         setShowEditor(false);
-        navigate(`/templates/${templateId}`);
+        navigate(`/library/${templateId}`);
         if (saved) {
             // Reload template to show updates
             if (templateId) {
@@ -141,13 +157,19 @@ export const TemplateDetail: React.FC = () => {
     const estimate = template.workout_structure
         ? estimateDuration(structureToRWN(template.workout_structure))
         : null;
+    const canEdit = !!user && (isAdmin || user.id === template.created_by);
+    const templateTier = template.status !== 'published'
+        ? { label: 'Draft', className: 'bg-neutral-700/60 text-neutral-200', icon: <Library size={14} /> }
+        : template.validated
+            ? { label: 'Standard Library', className: 'bg-emerald-500/10 text-emerald-300', icon: <ShieldCheck size={14} /> }
+            : { label: 'Community Library', className: 'bg-blue-500/10 text-blue-300', icon: <GitBranchPlus size={14} /> };
 
     return (
         <div className="p-6 max-w-5xl mx-auto">
             {/* Header */}
             <div className="mb-6">
                 <Breadcrumb items={[
-                    { label: 'Template Library', to: '/templates' },
+                    { label: 'Workout Library', to: '/library' },
                     { label: template.name },
                 ]} className="mb-4" />
 
@@ -157,6 +179,10 @@ export const TemplateDetail: React.FC = () => {
                         <p className="text-neutral-400 text-lg">{template.description}</p>
 
                         <div className="flex flex-wrap items-center gap-4 mt-4">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium ${templateTier.className}`}>
+                                {templateTier.icon}
+                                {templateTier.label}
+                            </span>
                             {template.training_zone && (
                                 <span className={`px-3 py-1 rounded-lg text-sm font-medium ${template.training_zone === 'UT2' ? 'bg-blue-900/50 text-blue-300' :
                                     template.training_zone === 'UT1' ? 'bg-cyan-900/50 text-cyan-300' :
@@ -181,13 +207,15 @@ export const TemplateDetail: React.FC = () => {
                     </div>
 
                     <div className="flex gap-3">
-                        <button
-                            onClick={() => navigate(`/templates/${template.id}/edit`)}
-                            className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
-                        >
-                            <Edit size={18} />
-                            Edit
-                        </button>
+                        {canEdit && (
+                            <button
+                                onClick={() => navigate(`/library/${template.id}/edit`)}
+                                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
+                            >
+                                <Edit size={18} />
+                                Edit
+                            </button>
+                        )}
                         {/* <button
                             onClick={handleStartWorkout}
                             disabled={starting}
@@ -201,7 +229,7 @@ export const TemplateDetail: React.FC = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="grid gap-4 mb-8 md:grid-cols-2 xl:grid-cols-3">
                 {/* Estimated Duration - Now More Prominent */}
                 {estimate && estimate.totalTime > 0 && (
                     <div className="bg-gradient-to-br from-emerald-900/50 to-emerald-800/30 border border-emerald-700/50 rounded-xl p-6">
@@ -227,10 +255,10 @@ export const TemplateDetail: React.FC = () => {
                 <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
                     <div className="flex items-center gap-3 text-neutral-400 mb-2">
                         <TrendingUp size={20} />
-                        <span className="text-sm">Completion Rate</span>
+                        <span className="text-sm">Plan Slots</span>
                     </div>
                     <div className="text-3xl font-bold text-white">
-                        {template.completion_rate ? `${Math.round(template.completion_rate * 100)}%` : '—'}
+                        {referenceStats.planWorkoutCount}
                     </div>
                 </div>
 
@@ -245,6 +273,22 @@ export const TemplateDetail: React.FC = () => {
                             : 'Never'
                         }
                     </div>
+                </div>
+
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+                    <div className="flex items-center gap-3 text-neutral-400 mb-2">
+                        <Library size={20} />
+                        <span className="text-sm">Team Assignments</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{referenceStats.groupAssignmentCount}</div>
+                </div>
+
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+                    <div className="flex items-center gap-3 text-neutral-400 mb-2">
+                        <Calendar size={20} />
+                        <span className="text-sm">Daily Assignments</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{referenceStats.dailyAssignmentCount}</div>
                 </div>
             </div>
 

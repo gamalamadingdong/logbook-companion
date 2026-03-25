@@ -1,15 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Check, X, Edit, Filter, Plus, Trash2, Play, Library } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Check, X, Edit, Filter, Plus, Trash2, Play, Library, ShieldCheck, Sparkles, FilePlus2 } from 'lucide-react';
 import { EmptyState } from '../components/ui';
 import { fetchTemplates, deleteTemplate } from '../services/templateService';
-import type { WorkoutTemplateListItem } from '../types/workoutStructure.types';
+import type { WorkoutTemplateListItem, WorkoutTemplateTier } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { toast } from 'sonner';
 
 const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
+
+const getTemplateTier = (template: WorkoutTemplateListItem): WorkoutTemplateTier => {
+    if (template.status !== 'published') return 'draft';
+    return template.validated ? 'standard' : 'community';
+};
+
+const getTierBadge = (tier: WorkoutTemplateTier) => {
+    switch (tier) {
+        case 'standard':
+            return {
+                label: 'Standard',
+                className: 'bg-emerald-500/10 text-emerald-300',
+                icon: <ShieldCheck size={14} />,
+            };
+        case 'community':
+            return {
+                label: 'Community',
+                className: 'bg-blue-500/10 text-blue-300',
+                icon: <Sparkles size={14} />,
+            };
+        default:
+            return {
+                label: 'Draft',
+                className: 'bg-neutral-700/60 text-neutral-200',
+                icon: <FilePlus2 size={14} />,
+            };
+    }
+};
 
 export const TemplateLibrary: React.FC = () => {
     const { user, isAdmin } = useAuth();
@@ -26,7 +54,7 @@ export const TemplateLibrary: React.FC = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
 
-    const loadTemplates = async () => {
+    const loadTemplates = useCallback(async () => {
         setLoading(true);
         try {
             const data = await fetchTemplates({
@@ -55,11 +83,11 @@ export const TemplateLibrary: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [search, zoneFilter, structureFilter, sortOrder, user?.id]);
 
     useEffect(() => {
         loadTemplates();
-    }, [zoneFilter, structureFilter, sortOrder]);
+    }, [loadTemplates]);
 
     // Debounced search
     useEffect(() => {
@@ -67,7 +95,7 @@ export const TemplateLibrary: React.FC = () => {
             loadTemplates();
         }, 300);
         return () => clearTimeout(timer);
-    }, [search]);
+    }, [search, loadTemplates]);
 
     const handleEditorClose = (saved: boolean) => {
         setEditingId(null);
@@ -140,9 +168,9 @@ export const TemplateLibrary: React.FC = () => {
         <div className="p-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Template Library</h1>
+                    <h1 className="text-2xl font-bold text-white">Workout Library</h1>
                     <p className="text-neutral-400 text-sm mt-1">
-                        Manage workout templates and add standardized structures
+                        Publicly browse the standard and community workout library, or propose a new workout for review.
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -156,13 +184,31 @@ export const TemplateLibrary: React.FC = () => {
                             Delete {selectedIds.size} Selected
                         </button>
                     )}
-                    <button
-                        onClick={() => setEditingId('new')}
+                    {isAdmin && (
+                        <Link
+                            to="/library/review"
+                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <ShieldCheck size={18} />
+                            Review Proposals
+                        </Link>
+                    )}
+                    {user && (
+                        <button
+                            onClick={() => setEditingId('new')}
+                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <Plus size={18} />
+                            New Draft
+                        </button>
+                    )}
+                    <Link
+                        to="/library/propose"
                         className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors"
                     >
-                        <Plus size={18} />
-                        New Template
-                    </button>
+                        <FilePlus2 size={18} />
+                        Propose Workout
+                    </Link>
                 </div>
             </div>
 
@@ -226,10 +272,13 @@ export const TemplateLibrary: React.FC = () => {
                     {templates.length} templates
                 </span>
                 <span className="text-emerald-400">
-                    {templates.filter(t => t.workout_structure).length} standardized
+                    {templates.filter(t => getTemplateTier(t) === 'standard').length} standard
                 </span>
                 <span className="text-indigo-400">
                     {totalWorkoutsLinked} workouts categorized
+                </span>
+                <span className="text-blue-400">
+                    {templates.filter(t => getTemplateTier(t) === 'community').length} community
                 </span>
                 <span className="text-amber-400">
                     {templates.filter(t => !t.workout_structure).length} need structure
@@ -244,15 +293,15 @@ export const TemplateLibrary: React.FC = () => {
                     <EmptyState
                         icon={<Library className="w-8 h-8" />}
                         title="No templates yet"
-                        description="Create your first workout template to get started."
+                        description="Browse published workouts or submit one to the community review queue."
                         action={
-                            <button
-                                onClick={() => navigate('/templates/new')}
+                            <Link
+                                to="/library/propose"
                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors text-sm"
                             >
-                                <Plus className="w-4 h-4 inline mr-1" />
-                                Create Template
-                            </button>
+                                <FilePlus2 className="w-4 h-4 inline mr-1" />
+                                Propose Workout
+                            </Link>
                         }
                     />
                 ) : (
@@ -270,7 +319,7 @@ export const TemplateLibrary: React.FC = () => {
                                         />
                                     </th>
                                 )}
-                                <th className="px-4 py-3 font-medium">Status</th>
+                                <th className="px-4 py-3 font-medium">Tier</th>
                                 <th className="px-4 py-3 font-medium">Name</th>
                                 <th className="px-4 py-3 font-medium">Zone</th>
                                 <th className="px-4 py-3 font-medium">Difficulty</th>
@@ -292,18 +341,29 @@ export const TemplateLibrary: React.FC = () => {
                                         </td>
                                     )}
                                     <td className="px-4 py-3">
-                                        {template.workout_structure ? (
-                                            <span className="flex items-center gap-1 text-emerald-400 text-sm">
-                                                <Check size={16} /> Standardized
-                                            </span>
-                                        ) : (
-                                            <span className="flex items-center gap-1 text-amber-400 text-sm">
-                                                <X size={16} /> Text Only
-                                            </span>
-                                        )}
+                                        {(() => {
+                                            const badge = getTierBadge(getTemplateTier(template));
+                                            return (
+                                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${badge.className}`}>
+                                                    {badge.icon}
+                                                    {badge.label}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className="text-white font-medium">{template.name}</span>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-white font-medium">{template.name}</span>
+                                            {template.workout_structure ? (
+                                                <span className="flex items-center gap-1 text-emerald-400 text-xs">
+                                                    <Check size={14} /> RWN standardized
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-1 text-amber-400 text-xs">
+                                                    <X size={14} /> Needs structure
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-3">
                                         {template.training_zone ? (
@@ -325,20 +385,22 @@ export const TemplateLibrary: React.FC = () => {
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => navigate(`/templates/${template.id}`)}
+                                                onClick={() => navigate(`/library/${template.id}`)}
                                                 className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-1.5"
                                                 title="View template details"
                                             >
                                                 <Play size={14} />
                                                 See Details
                                             </button>
-                                            <button
-                                                onClick={() => setEditingId(template.id)}
-                                                className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
-                                                title="Edit template"
-                                            >
-                                                <Edit size={18} />
-                                            </button>
+                                            {(isAdmin || (user?.id && user.id === template.created_by)) && (
+                                                <button
+                                                    onClick={() => setEditingId(template.id)}
+                                                    className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                                                    title="Edit template"
+                                                >
+                                                    <Edit size={18} />
+                                                </button>
+                                            )}
                                             {isAdmin && (
                                                 <button
                                                     onClick={() => handleDelete(template)}

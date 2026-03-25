@@ -4,6 +4,80 @@
 
 ---
 
+## Phase 69: Public workout library + moderated proposal pipeline (March 25, 2026)
+
+**Timeline**: March 25, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/App.tsx`
+  - opened `/library` and `/library/:templateId` to public browsing using the shared `Layout`
+  - added a public proposal route at `/library/propose`
+  - added a protected admin review route at `/library/review`
+  - added compatibility redirects from legacy `/templates/*` URLs and `/workout-library`
+
+- `src/pages/TemplateLibrary.tsx`
+  - reframed the page as a public workout library rather than an authenticated-only management page
+  - introduced visible library tiers:
+    - `Draft`
+    - `Community`
+    - `Standard`
+  - added proposal and review CTAs
+  - limited edit affordances to admins and template owners
+
+- `src/pages/TemplateDetail.tsx`
+  - added tier badging (`Community Library` vs `Standard Library`)
+  - added assignment/plan reference counts so templates expose more of their downstream usage
+  - kept personal history/PB as an authenticated enhancement
+
+- `src/pages/TemplateProposalPage.tsx`
+  - added a public RWN-first submission flow
+  - validates RWN before submit
+  - detects duplicate published templates before queueing a new proposal
+  - captures optional attribution/contact metadata
+
+- `src/pages/TemplateProposalReview.tsx`
+  - added a basic admin moderation queue
+  - reviewers can mark proposals under review, reject them, or promote them into:
+    - the public community library
+    - the validated standard library
+
+- `src/services/templateProposalService.ts`
+  - added proposal creation, review, and promotion helpers
+
+- `db/migrations/20260325_add_workout_template_proposals.sql`
+  - added `workout_template_proposals`
+  - added public insert policy
+  - added admin review/select/update policies
+
+- `src/services/templateService.ts`
+  - expanded template list metadata so ownership-aware UI decisions are possible
+  - added aggregate reference-count queries for template detail
+
+### Why This Shape Won
+
+- it matches the user’s preferred model: **public library first, moderation instead of login as the main quality gate**
+- it avoids polluting `workout_templates` with raw submissions by giving proposals their own queue table
+- it reuses existing template fields cleanly:
+  - `draft` for personal work
+  - `published + validated=false` for community library
+  - `published + validated=true` for curated standard library
+- it preserves the RWN-centered architecture instead of inventing a second workout definition format
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\pages\TemplateProposalPage.tsx src\pages\TemplateProposalReview.tsx src\services\templateService.ts src\services\templateProposalService.ts src\types\workoutStructure.types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` / linting around `src\App.tsx` remains noisy from unrelated pre-existing issues and was not solved in this slice
+
+### Outcome
+
+The workout library can now act like a real community surface: anyone can browse it, anyone can submit structured workouts into a moderation queue, and admins can promote strong submissions into either a community or curated standard tier without mixing unreviewed proposals directly into the canonical library.
+
+---
+
 ## Phase 68: Schedule header UX cleanup (March 23, 2026)
 
 **Timeline**: March 23, 2026  

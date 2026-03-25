@@ -78,7 +78,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
                             <PaletteItem icon={Home} label="Dashboard" onSelect={() => go('/')} />
                             <PaletteItem icon={TrendingUp} label="Analytics" onSelect={() => go('/analytics')} />
                             <PaletteItem icon={Database} label="Sync Data" onSelect={() => go('/sync')} />
-                            <PaletteItem icon={Library} label="Template Library" onSelect={() => go('/templates')} />
+                            <PaletteItem icon={Library} label="Workout Library" onSelect={() => go('/library')} />
                             <PaletteItem icon={Settings} label="Preferences" onSelect={() => go('/preferences')} />
                             <PaletteItem icon={BookOpen} label="Documentation" onSelect={() => go('/docs')} />
                             {isCoach && (
@@ -91,7 +91,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
                             heading="Actions"
                             className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-content-muted"
                         >
-                            <PaletteItem icon={FilePlus} label="New Template" onSelect={() => go('/templates/new/edit')} />
+                            <PaletteItem icon={FilePlus} label="Propose Workout" onSelect={() => go('/library/propose')} />
                             <PaletteItem icon={LinkIcon} label="Connect Concept2" onSelect={connectConcept2} />
                         </Command.Group>
                     </Command.List>

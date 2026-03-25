@@ -85,7 +85,7 @@ export const About: React.FC = () => {
                         <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl">
                             <h3 className="text-lg font-bold text-white mb-2">Assignments & Results</h3>
                             <p className="text-neutral-400 text-sm leading-relaxed">
-                                Assign workouts from your template library, set recurring schedules, enter results in bulk, and view sortable analytics with charts.
+                                Assign workouts from your workout library, set recurring schedules, enter results in bulk, and view sortable analytics with charts.
                             </p>
                         </div>
                         <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl">

@@ -1,5 +1,10 @@
 import { supabase } from './supabase';
-import type { WorkoutTemplate, WorkoutTemplateListItem, WorkoutStructure } from '../types/workoutStructure.types';
+import type {
+    TemplateReferenceStats,
+    WorkoutTemplate,
+    WorkoutTemplateListItem,
+    WorkoutStructure,
+} from '../types/workoutStructure.types';
 import { deriveCanonicalNameFromStructure } from '../utils/workoutCanonical';
 
 export interface TemplateFilters {
@@ -17,7 +22,7 @@ export interface TemplateFilters {
 export async function fetchTemplates(filters: TemplateFilters = {}): Promise<WorkoutTemplateListItem[]> {
     let query = supabase
         .from('workout_templates')
-        .select('id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at');
+        .select('id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at, created_by');
 
     // Apply sorting based on sortBy parameter
     if (filters.sortBy === 'recent') {
@@ -265,4 +270,48 @@ export async function getTemplatePersonalBest(templateId: string, userId: string
     }
 
     return data as PersonalBest;
+}
+
+export async function getTemplateReferenceStats(templateId: string): Promise<TemplateReferenceStats> {
+    const [
+        groupAssignmentsResult,
+        planWorkoutsResult,
+        originalAssignmentsResult,
+        substitutedAssignmentsResult,
+    ] = await Promise.all([
+        supabase
+            .from('group_assignments')
+            .select('id', { count: 'exact', head: true })
+            .eq('template_id', templateId),
+        supabase
+            .from('plan_workouts')
+            .select('id', { count: 'exact', head: true })
+            .eq('workout_template_id', templateId),
+        supabase
+            .from('daily_workout_assignments')
+            .select('id', { count: 'exact', head: true })
+            .eq('original_template_id', templateId),
+        supabase
+            .from('daily_workout_assignments')
+            .select('id', { count: 'exact', head: true })
+            .eq('substituted_template_id', templateId),
+    ]);
+
+    const errors = [
+        groupAssignmentsResult.error,
+        planWorkoutsResult.error,
+        originalAssignmentsResult.error,
+        substitutedAssignmentsResult.error,
+    ].filter(Boolean);
+
+    if (errors.length > 0) {
+        console.error('Error fetching template reference stats:', errors);
+        throw errors[0];
+    }
+
+    return {
+        groupAssignmentCount: groupAssignmentsResult.count ?? 0,
+        planWorkoutCount: planWorkoutsResult.count ?? 0,
+        dailyAssignmentCount: (originalAssignmentsResult.count ?? 0) + (substitutedAssignmentsResult.count ?? 0),
+    };
 }

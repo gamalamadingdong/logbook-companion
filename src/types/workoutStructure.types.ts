@@ -133,8 +133,47 @@ export interface WorkoutTemplate {
     updated_at: string;
 }
 
+export type WorkoutTemplateTier = 'draft' | 'community' | 'standard';
+
+export interface TemplateReferenceStats {
+    groupAssignmentCount: number;
+    planWorkoutCount: number;
+    dailyAssignmentCount: number;
+}
+
+export type WorkoutTemplateProposalStatus =
+    | 'pending'
+    | 'under_review'
+    | 'promoted_standard'
+    | 'promoted_community'
+    | 'rejected'
+    | 'duplicate';
+
+export interface WorkoutTemplateProposal {
+    id: string;
+    name: string;
+    description: string;
+    workout_type: string;
+    training_zone: 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN' | null;
+    difficulty_level: string;
+    rwn: string;
+    workout_structure: WorkoutStructure | null;
+    notes: string | null;
+    attribution_name: string | null;
+    attribution_contact: string | null;
+    submitted_by_user_id: string | null;
+    status: WorkoutTemplateProposalStatus;
+    review_notes: string | null;
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    promoted_template_id: string | null;
+    duplicate_template_id: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 // Subset of fields for list view
 export type WorkoutTemplateListItem = Pick<WorkoutTemplate,
     'id' | 'name' | 'workout_type' | 'training_zone' | 'workout_structure' |
-    'difficulty_level' | 'validated' | 'status' | 'usage_count' | 'canonical_name'
+    'difficulty_level' | 'validated' | 'status' | 'usage_count' | 'canonical_name' | 'created_by'
 >;

@@ -1,13 +1,51 @@
 # Active Context
 
-> Last updated: March 23, 2026
+> Last updated: March 25, 2026
 
 ## Current Focus
+- The workout library is now being repositioned as a **public community surface** rather than an authenticated-only internal tool.
+- The template model now effectively supports three layers:
+  - `status = draft` → personal draft
+  - `status = published` + `validated = false` → community library
+  - `status = published` + `validated = true` → curated standard library
+- New work has opened a separate `workout_template_proposals` moderation queue so public/community submission can grow without mixing raw proposals directly into the canonical library table.
 - The coaching IA has moved to **Schedule as the parent surface** with internal `Schedule | Lineups` tabs.
 - `CoachingSchedule.tsx` now owns day/week/month navigation, visible event/session CTAs, and the embedded org-wide Lineups surface.
 - The old `/team-management/boatings` route is now just a redirect into `Schedule?tab=lineups`, and top-level coaching nav no longer treats Lineups as a separate peer page.
 
 ## Recently Completed
+
+### Public workout library + proposal foundation
+- `src\App.tsx`
+  - made `/library` and `/library/:templateId` publicly viewable with the shared app chrome instead of `ProtectedRoute`
+  - added `/library/propose`
+  - added protected reviewer route `/library/review`
+  - added redirect compatibility from legacy `/templates/*` and `/workout-library`
+- `src\pages\TemplateLibrary.tsx`
+  - reframed the surface as a public workout library
+  - added clear `Standard | Community | Draft` tier semantics in the UI
+  - added proposal CTA and admin review CTA
+  - limited edit affordances to admins and template owners
+- `src\pages\TemplateDetail.tsx`
+  - added template-tier badging and permission-aware edit affordance
+  - added aggregate reference counts for assignments/plans to help users “see its uses”
+- `src\pages\TemplateProposalPage.tsx`
+  - added an RWN-first public proposal flow with validation, duplicate detection, and optional attribution/contact
+- `src\pages\TemplateProposalReview.tsx`
+  - added basic admin review tooling to mark submissions under review, reject them, or promote them into the community/standard library
+- `src\services\templateProposalService.ts`
+  - added proposal CRUD/review/promotion service functions
+- `db\migrations\20260325_add_workout_template_proposals.sql`
+  - added proposal queue table plus public insert and admin review RLS policies
+- `src\services\templateService.ts`
+  - expanded list queries to include ownership metadata
+  - added aggregate reference stats lookup for template detail
+
+### Validation
+- `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\pages\TemplateProposalPage.tsx src\pages\TemplateProposalReview.tsx src\services\templateService.ts src\services\templateProposalService.ts src\types\workoutStructure.types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` remains unreliable/noisy because of pre-existing repo issues and an existing `src\App.tsx` refs rule outside this feature slice
 
 ### Schedule header cleanup
 - `src/pages/coaching/CoachingSchedule.tsx`
@@ -168,6 +206,14 @@
 - `working-memory/decisionLog.md`
 
 ## Next Likely Steps
+- Apply the new `workout_template_proposals` migration to live Supabase and verify the resulting schema/RLS against production.
+- Decide whether community-promoted templates should support ratings/comments/remixes immediately or stay as a lighter launch.
+- Add richer reviewer tooling if the proposal queue grows:
+  - duplicate/merge into existing library template
+  - moderation filters by status/date
+  - side-by-side proposal vs published template comparison
+- Decide whether authenticated users also need a dedicated “My drafts” surface instead of seeing drafts only incidentally through current template ownership flows.
+- Plan the next slice of library-driven programming work so curated templates become the default building blocks for `plan_workouts` and related assignment tooling.
 - If the schedule surface still feels dense after this pass, consider giving the week/day list itself a second visual cleanup so the header and body share the same hierarchy.
 - Decide whether the embedded Lineups tab should become date-aware (for example, filter/highlight lineups for the currently focused day/week/month range).
 - Improve multi-team schedule scope if coaches should truly see or create sessions for `All teams` rather than a single active team filter.
@@ -178,6 +224,8 @@
 - Tackle repo-wide lint debt separately from this feature if a clean `npm run lint` becomes mandatory.
 
 ## Blockers
+- Live Supabase migration/schema verification has **not** yet been run for the new workout proposal table in this session. The Supabase CLI is linked to the remote project, but current repo migration tracking is not wired through the CLI's expected local migration directory, so production apply/verify still needs a deliberate manual migration step.
+- Public aggregate template reference counts may need follow-up if anon/public RLS on assignment/plan tables is stricter than expected; current UI safely falls back to zero with logging rather than breaking the page.
 - No technical blocker on the implemented session-first slice.
 - Live data currently contains duplicate same-name team rows in the org, with saved boating history attached to only one set of team IDs; org-wide lineup reuse now intentionally surfaces those records with explicit team labels, but data cleanup may still be needed later.
 - Live save failures when reusing a lineup template were caused by an incorrect unique constraint on `coaching_session_crews.source_boating_id`; that constraint has now been removed so the same lineup source can seed multiple session snapshots.
