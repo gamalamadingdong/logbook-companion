@@ -36,6 +36,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [])
 
+  const notifyFirstSignup = useCallback(async (userId: string) => {
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (currentSession?.user?.id !== userId) {
+        return
+      }
+
+      const { error } = await supabase.functions.invoke('notify-user-signup', {
+        body: { userId }
+      })
+
+      if (error) {
+        console.error('Error notifying about first signup:', error)
+      }
+    } catch (error) {
+      console.error('Exception notifying about first signup:', error)
+    }
+  }, [])
+
   const createBasicProfile = useCallback(async (userId: string, email: string, displayName?: string) => {
     try {
       const { data, error } = await supabase
@@ -57,12 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null)
       } else {
         setProfile(data)
+        void notifyFirstSignup(userId)
       }
     } catch (error) {
       console.error('Exception creating profile:', error)
       setProfile(null)
     }
-  }, [])
+  }, [notifyFirstSignup])
 
   const fetchProfile = useCallback(async (userId: string) => {
     setProfileLoading(true)
@@ -82,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setProfile(data)
+        if (!data.admin_signup_notified_at) {
+          void notifyFirstSignup(userId)
+        }
       }
 
       // Check if user has team-scoped coach/coxswain access, org-scoped coach access,
@@ -120,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setProfileLoading(false)
     }
-  }, [user?.email, createBasicProfile])
+  }, [user?.email, createBasicProfile, notifyFirstSignup])
 
   // Restore C2 tokens from database to localStorage
   const restoreC2Tokens = useCallback(async (userId: string) => {

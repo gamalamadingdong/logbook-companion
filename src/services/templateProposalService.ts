@@ -21,25 +21,31 @@ export interface CreateTemplateProposalInput {
     attribution_contact?: string;
 }
 
-export async function createTemplateProposal(input: CreateTemplateProposalInput): Promise<WorkoutTemplateProposal> {
+export async function createTemplateProposal(input: CreateTemplateProposalInput): Promise<string> {
     const { data: { user } } = await supabase.auth.getUser();
+    const proposalId = crypto.randomUUID();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
         .from('workout_template_proposals')
         .insert({
+            id: proposalId,
             ...input,
             submitted_by_user_id: user?.id ?? null,
             status: 'pending',
-        })
-        .select()
-        .single();
+        });
 
     if (error) {
         console.error('Error creating template proposal:', error);
         throw error;
     }
 
-    return data as WorkoutTemplateProposal;
+    supabase.functions.invoke('notify-template-proposal', {
+        body: { proposalId },
+    }).catch((notifyError) => {
+        console.error('Failed to trigger proposal notification:', notifyError);
+    });
+
+    return proposalId;
 }
 
 export async function fetchTemplateProposals(status?: WorkoutTemplateProposalStatus): Promise<WorkoutTemplateProposal[]> {

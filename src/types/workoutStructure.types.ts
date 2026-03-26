@@ -141,6 +141,37 @@ export interface TemplateReferenceStats {
     dailyAssignmentCount: number;
 }
 
+export interface PublicWorkoutTemplateDetail {
+    id: string;
+    name: string;
+    description: string;
+    workout_type: string;
+    training_zone: 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN' | null;
+    workout_category: string | null;
+    workout_structure: WorkoutStructure | null;
+    whiteboard_lines: string[];
+    technique_focus: string[] | null;
+    coaching_points: string[] | null;
+    pacing_guidance: string | null;
+    estimated_duration: number | null;
+    difficulty_level: string;
+    usage_count: number;
+    completion_rate: number;
+    average_rating: number;
+    rating_count: number;
+    last_used_at: string | null;
+    status: string;
+    validated: boolean;
+    tier: WorkoutTemplateTier;
+    rwn: string | null;
+    canonical_name: string | null;
+    tags: string[];
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+    reference_stats: TemplateReferenceStats;
+}
+
 export type WorkoutTemplateProposalStatus =
     | 'pending'
     | 'under_review'
@@ -163,6 +194,7 @@ export interface WorkoutTemplateProposal {
     attribution_contact: string | null;
     submitted_by_user_id: string | null;
     status: WorkoutTemplateProposalStatus;
+    admin_notified_at: string | null;
     review_notes: string | null;
     reviewed_by: string | null;
     reviewed_at: string | null;

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { createTemplateProposal } from '../services/templateProposalService';
@@ -54,6 +54,42 @@ export const TemplateProposalPage: React.FC = () => {
                 return;
             }
 
+            const trimmedName = name.trim();
+            const trimmedDescription = description.trim() || 'Community-submitted workout proposal';
+            const trimmedNotes = notes.trim();
+            const trimmedAttributionName = attributionName.trim() || (user?.email ?? '');
+            const trimmedAttributionContact = attributionContact.trim();
+
+            if (trimmedName.length > 160) {
+                toast.error('Workout name must be 160 characters or fewer.');
+                return;
+            }
+
+            if (trimmedDescription.length > 2000) {
+                toast.error('Description must be 2000 characters or fewer.');
+                return;
+            }
+
+            if (rwn.trim().length > 500) {
+                toast.error('RWN must be 500 characters or fewer.');
+                return;
+            }
+
+            if (trimmedNotes.length > 2000) {
+                toast.error('Reviewer notes must be 2000 characters or fewer.');
+                return;
+            }
+
+            if (trimmedAttributionName.length > 120) {
+                toast.error('Attribution name must be 120 characters or fewer.');
+                return;
+            }
+
+            if (trimmedAttributionContact.length > 200) {
+                toast.error('Contact must be 200 characters or fewer.');
+                return;
+            }
+
             const duplicate = await findDuplicateTemplate(structure);
 
             if (duplicate) {
@@ -63,16 +99,16 @@ export const TemplateProposalPage: React.FC = () => {
             }
 
             await createTemplateProposal({
-                name: name.trim() || rwn.trim(),
-                description: description.trim() || 'Community-submitted workout proposal',
+                name: trimmedName || rwn.trim(),
+                description: trimmedDescription,
                 workout_type: 'erg',
                 training_zone: trainingZone ? trainingZone as 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN' : null,
                 difficulty_level: difficultyLevel,
                 rwn: rwn.trim(),
                 workout_structure: structure,
-                notes: notes.trim() || undefined,
-                attribution_name: attributionName.trim() || (user?.email ?? undefined),
-                attribution_contact: attributionContact.trim() || undefined,
+                notes: trimmedNotes || undefined,
+                attribution_name: trimmedAttributionName || undefined,
+                attribution_contact: trimmedAttributionContact || undefined,
             });
 
             toast.success('Workout proposal submitted for review.');
@@ -144,7 +180,19 @@ export const TemplateProposalPage: React.FC = () => {
 
                     <div className="grid gap-4 md:grid-cols-[1fr,220px]">
                         <label className="block">
-                            <span className="text-sm font-medium text-neutral-300">RWN</span>
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-neutral-300">RWN</span>
+                                <a
+                                    href="/docs?tab=rwn&rwnSubTab=spec"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                                    title="Open the Rowing Workout Notation reference"
+                                >
+                                    <HelpCircle size={12} />
+                                    RWN reference
+                                </a>
+                            </div>
                             <textarea
                                 value={rwn}
                                 onChange={(e) => setRwn(e.target.value)}
@@ -173,6 +221,18 @@ export const TemplateProposalPage: React.FC = () => {
                         <div className={`rounded-xl border p-4 ${validation.valid ? 'border-emerald-700/50 bg-emerald-950/30' : 'border-red-700/50 bg-red-950/30'}`}>
                             <div className="text-sm font-medium text-white">
                                 {validation.valid ? 'RWN looks valid.' : 'Please fix the RWN before submitting.'}
+                            </div>
+                            <div className="mt-2 text-sm text-neutral-300">
+                                Need syntax help? Open the{' '}
+                                <a
+                                    href="/docs?tab=rwn&rwnSubTab=spec"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+                                >
+                                    RWN reference
+                                </a>
+                                {' '}or try examples in the playground.
                             </div>
                             {validation.valid && estimate && estimate.totalTime > 0 && (
                                 <div className="mt-2 text-sm text-emerald-300">

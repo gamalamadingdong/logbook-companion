@@ -1,6 +1,6 @@
 # Active Context
 
-> Last updated: March 25, 2026
+> Last updated: March 26, 2026
 
 ## Current Focus
 - The workout library is now being repositioned as a **public community surface** rather than an authenticated-only internal tool.
@@ -9,11 +9,38 @@
   - `status = published` + `validated = false` → community library
   - `status = published` + `validated = true` → curated standard library
 - New work has opened a separate `workout_template_proposals` moderation queue so public/community submission can grow without mixing raw proposals directly into the canonical library table.
+- The public workout detail page is now being reframed around **human-first understanding plus machine-ready structure**:
+  - whiteboard view first
+  - RWN second
+  - structured JSON/DTO third
+  - visualizer as a supporting explanation, not the primary public read
+- The library is moving toward a normalized public template DTO so the app UI and future AI/planning consumers can share one stable contract derived from `workout_templates`.
 - The coaching IA has moved to **Schedule as the parent surface** with internal `Schedule | Lineups` tabs.
 - `CoachingSchedule.tsx` now owns day/week/month navigation, visible event/session CTAs, and the embedded org-wide Lineups surface.
 - The old `/team-management/boatings` route is now just a redirect into `Schedule?tab=lineups`, and top-level coaching nav no longer treats Lineups as a separate peer page.
 
 ## Recently Completed
+
+### ReadyAll admin notifications + proposal hardening rollout
+- `db/migrations/20260326_add_admin_notification_fields_and_proposal_guards.sql`
+  - applied live to the `ReadyAll` Supabase project (`vmlhcbkyonemmlawnqqr`)
+  - added `workout_template_proposals.admin_notified_at`
+  - added `user_profiles.admin_signup_notified_at`
+  - added DB-level proposal guardrails for field lengths and `workout_structure` JSON shape
+- `src/services/templateProposalService.ts`
+  - now invokes the live proposal-notification edge function using the shorter verified slug `notify-template-proposal`
+- `supabase/functions/notify-template-proposal/index.ts`
+  - renamed from the longer local slug after Supabase returned a successful deploy response but would not resolve the function by slug
+  - now deployed live with `verify_jwt: false` so anonymous public proposal submits can trigger admin email alerts
+- `supabase/functions/notify-user-signup/index.ts`
+  - deployed live with `verify_jwt: true` so authenticated first-signup/profile creation can trigger admin email alerts
+- ReadyAll live verification now confirms:
+  - migration `20260326130249_add_admin_notification_fields_and_proposal_guards` exists
+  - both new notification columns exist
+  - proposal hardening CHECK constraints exist
+  - `notify-template-proposal` is retrievable and active
+  - `notify-user-signup` is retrievable and active
+  - older pending proposal rows that were created before the proposal function was fully reachable have now been backfilled through `notify-template-proposal`, and their `admin_notified_at` timestamps are set
 
 ### Public workout library + proposal foundation
 - `src\App.tsx`
@@ -41,11 +68,56 @@
   - expanded list queries to include ownership metadata
   - added aggregate reference stats lookup for template detail
 
+### Public workout detail IA + DTO pass
+- `src\pages\TemplateDetail.tsx`
+  - now foregrounds coach-style whiteboard output and canonical RWN instead of hiding them beneath the visualizer
+  - adds a structured-data card with machine-readable JSON copy affordance so the public library reads as both human- and AI-consumable
+  - keeps usage/reference signals visible while intentionally deferring ratings from the public headline surface
+  - now includes an admin-only `Make standard` action for promoting a community workout into the validated standard tier directly from the detail page
+  - now computes whiteboard lines defensively from `workout_structure` (and falls back to RWN when needed) so the coach whiteboard no longer appears blank when derived lines are missing from the DTO
+  - now uses shared UI components and token-based surfaces/text for far better light-mode readability
+- `src\services\templateService.ts`
+  - now exposes `fetchPublicTemplateDetail()` and a normalized library-tier helper so detail-page semantics are not rebuilt ad hoc in the component
+  - now exposes `promoteTemplateToStandard()` for admin promotion of published community workouts
+- `src\types\workoutStructure.types.ts`
+  - now includes `PublicWorkoutTemplateDetail` for the normalized public template DTO shape
+- `src\components\WorkoutVisualizer.tsx`
+  - now uses token-based neutral surfaces/text so the visual breakdown no longer drags the detail page back into dark-only styling in light mode
+
+### Public docs + anonymous proposal follow-up
+- `src\pages\Documentation.tsx`
+  - now tells public users where to browse the workout library and where to submit proposals
+  - now documents the `Standard | Community | Proposal` flow and explicitly links to `/library` and `/library/propose`
+- `src\pages\About.tsx`
+  - now points public visitors directly to the workout library from the marketing/about surface
+- `src\services\templateProposalService.ts`
+  - proposal creation no longer chains `.select().single()` after insert, which was causing anonymous submissions to fail under RLS because anon can insert proposals but cannot read them back
+
 ### Validation
 - `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\pages\TemplateProposalPage.tsx src\pages\TemplateProposalReview.tsx src\services\templateService.ts src\services\templateProposalService.ts src\types\workoutStructure.types.ts` ✅
+- `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateDetail.tsx src\services\templateService.ts src\types\workoutStructure.types.ts` ✅
+- `node .\node_modules\eslint\bin\eslint.js src\pages\Documentation.tsx src\pages\About.tsx` ✅
+- `node .\node_modules\eslint\bin\eslint.js src\services\templateProposalService.ts src\pages\TemplateProposalPage.tsx` ✅
 - `npm run build` ✅
 - `npm run test:run` ✅
 - `npm run lint` remains unreliable/noisy because of pre-existing repo issues and an existing `src\App.tsx` refs rule outside this feature slice
+- `npm run lint` still fails repo-wide on unrelated pre-existing scripts/analytics files outside this workout-library slice
+- post-rollout validation for admin notifications:
+  - `node .\node_modules\eslint\bin\eslint.js src\services\templateProposalService.ts` ✅
+  - `npm run build` ✅
+- detail-page follow-up validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateDetail.tsx src\components\WorkoutVisualizer.tsx src\services\templateService.ts src\utils\structureToWhiteboard.ts src\utils\structureToWhiteboard.test.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run -- src\utils\structureToWhiteboard.test.ts` ✅
+  - `npm run test:run` ✅
+  - `npm run lint` still fails repo-wide on unrelated pre-existing scripts/analytics debt; this detail-page slice did not introduce new lint errors
+
+## Next Steps
+- Run a fresh true end-to-end smoke test for:
+  - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay
+  - first signup/profile creation → one admin email
+  - feature request submission → confirm the existing `notify-feedback` path still lands as expected
+- Decide whether `ADMIN_NOTIFICATION_EMAIL` should remain on the current fallback or be added explicitly as a Supabase secret for ReadyAll
 
 ### Schedule header cleanup
 - `src/pages/coaching/CoachingSchedule.tsx`
@@ -206,14 +278,15 @@
 - `working-memory/decisionLog.md`
 
 ## Next Likely Steps
-- Apply the new `workout_template_proposals` migration to live Supabase and verify the resulting schema/RLS against production.
-- Decide whether community-promoted templates should support ratings/comments/remixes immediately or stay as a lighter launch.
+- Retest the public anonymous proposal flow in the live app now that the insert no longer attempts a follow-up select blocked by RLS.
+- Decide whether to expose the normalized public template DTO through a dedicated read-only endpoint / Edge Function for AI and external planning consumers, or keep it app-internal for one more slice.
+- Layer the normalized DTO into future plan-builder work so curated library workouts become the default programming building blocks.
+- Decide whether community-promoted templates should support ratings/comments/remixes later, with a real trust model, thresholds, and anti-gaming rules instead of headline metrics from day one.
 - Add richer reviewer tooling if the proposal queue grows:
   - duplicate/merge into existing library template
   - moderation filters by status/date
   - side-by-side proposal vs published template comparison
 - Decide whether authenticated users also need a dedicated “My drafts” surface instead of seeing drafts only incidentally through current template ownership flows.
-- Plan the next slice of library-driven programming work so curated templates become the default building blocks for `plan_workouts` and related assignment tooling.
 - If the schedule surface still feels dense after this pass, consider giving the week/day list itself a second visual cleanup so the header and body share the same hierarchy.
 - Decide whether the embedded Lineups tab should become date-aware (for example, filter/highlight lineups for the currently focused day/week/month range).
 - Improve multi-team schedule scope if coaches should truly see or create sessions for `All teams` rather than a single active team filter.
@@ -224,8 +297,8 @@
 - Tackle repo-wide lint debt separately from this feature if a clean `npm run lint` becomes mandatory.
 
 ## Blockers
-- Live Supabase migration/schema verification has **not** yet been run for the new workout proposal table in this session. The Supabase CLI is linked to the remote project, but current repo migration tracking is not wired through the CLI's expected local migration directory, so production apply/verify still needs a deliberate manual migration step.
 - Public aggregate template reference counts may need follow-up if anon/public RLS on assignment/plan tables is stricter than expected; current UI safely falls back to zero with logging rather than breaking the page.
+- The proposal queue’s SELECT policy remains intentionally restricted; anonymous submitters can insert successfully but cannot read proposal rows back directly, so future anon UX should continue avoiding insert-returning-row patterns.
 - No technical blocker on the implemented session-first slice.
 - Live data currently contains duplicate same-name team rows in the org, with saved boating history attached to only one set of team IDs; org-wide lineup reuse now intentionally surfaces those records with explicit team labels, but data cleanup may still be needed later.
 - Live save failures when reusing a lineup template were caused by an incorrect unique constraint on `coaching_session_crews.source_boating_id`; that constraint has now been removed so the same lineup source can seed multiple session snapshots.

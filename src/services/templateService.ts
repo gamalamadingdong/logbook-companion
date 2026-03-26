@@ -1,11 +1,13 @@
 import { supabase } from './supabase';
 import type {
+    PublicWorkoutTemplateDetail,
     TemplateReferenceStats,
     WorkoutTemplate,
     WorkoutTemplateListItem,
     WorkoutStructure,
 } from '../types/workoutStructure.types';
 import { deriveCanonicalNameFromStructure } from '../utils/workoutCanonical';
+import { structureToWhiteboard } from '../utils/structureToWhiteboard';
 
 export interface TemplateFilters {
     workoutType?: string;
@@ -87,12 +89,45 @@ export async function fetchTemplateById(id: string): Promise<WorkoutTemplate | n
     return data as WorkoutTemplate;
 }
 
+export function getWorkoutTemplateTier(template: Pick<WorkoutTemplate, 'status' | 'validated'>): 'draft' | 'community' | 'standard' {
+    if (template.status !== 'published') {
+        return 'draft';
+    }
+
+    return template.validated ? 'standard' : 'community';
+}
+
+export async function fetchPublicTemplateDetail(id: string): Promise<PublicWorkoutTemplateDetail | null> {
+    const [template, referenceStats] = await Promise.all([
+        fetchTemplateById(id),
+        getTemplateReferenceStats(id).catch(error => {
+            console.error('Failed to load template reference stats:', error);
+            return {
+                groupAssignmentCount: 0,
+                planWorkoutCount: 0,
+                dailyAssignmentCount: 0,
+            } satisfies TemplateReferenceStats;
+        }),
+    ]);
+
+    if (!template) {
+        return null;
+    }
+
+    return {
+        ...template,
+        tier: getWorkoutTemplateTier(template),
+        whiteboard_lines: template.workout_structure ? structureToWhiteboard(template.workout_structure) : [],
+        reference_stats: referenceStats,
+    };
+}
+
 /**
  * Update a template's structure and metadata
  */
 export async function updateTemplate(
     id: string,
-    updates: Partial<Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type' | 'training_zone' | 'workout_structure' | 'is_test'>>
+    updates: Partial<Pick<WorkoutTemplate, 'name' | 'description' | 'workout_type' | 'training_zone' | 'workout_structure' | 'is_test' | 'validated' | 'status'>>
 ): Promise<WorkoutTemplate | null> {
     // Compute canonical_name from structure if provided
     const canonical_name = updates.workout_structure
@@ -116,6 +151,13 @@ export async function updateTemplate(
     }
 
     return data as WorkoutTemplate;
+}
+
+export async function promoteTemplateToStandard(id: string): Promise<WorkoutTemplate | null> {
+    return updateTemplate(id, {
+        status: 'published',
+        validated: true,
+    });
 }
 
 /**

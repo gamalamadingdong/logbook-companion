@@ -23,6 +23,9 @@ export const About: React.FC = () => {
                         A dedicated analysis layer for the Concept2 Logbook.
                     </p>
                     <div className="pt-8 flex flex-col sm:flex-row justify-center gap-4">
+                        <Link to="/library" className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-full hover:bg-emerald-500 transition-all transform hover:scale-105">
+                            Explore Workout Library
+                        </Link>
                         <Link to="/login" className="px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-all transform hover:scale-105">
                             Get Started
                         </Link>
@@ -55,6 +58,12 @@ export const About: React.FC = () => {
                         color="emerald"
                         title="Benchmark Trends"
                         description="Track your performance over time on standard ranked pieces (2k, 5k, 30:00). See your progress visually with trend lines and historical averages."
+                    />
+                    <FeatureCard
+                        icon={BookOpen}
+                        color="blue"
+                        title="Public Workout Library"
+                        description="Browse public standard and community workouts at /library, view the whiteboard and RWN versions, and propose new workouts for review."
                     />
                     <FeatureCard
                         icon={SplitSquareHorizontal}

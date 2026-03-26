@@ -4,6 +4,149 @@
 
 ---
 
+## Phase 72: ReadyAll admin notifications + proposal hardening rollout (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `db/migrations/20260326_add_admin_notification_fields_and_proposal_guards.sql`
+  - applied live to ReadyAll
+  - added notification idempotency columns:
+    - `workout_template_proposals.admin_notified_at`
+    - `user_profiles.admin_signup_notified_at`
+  - added DB-level guardrails for public proposal inputs:
+    - name length
+    - description length
+    - RWN length
+    - notes length
+    - attribution name/contact length
+    - `workout_structure` must be a JSON object when present
+
+- `supabase/functions/notify-user-signup/index.ts`
+  - deployed live with `verify_jwt: true`
+  - authenticates the caller, marks `admin_signup_notified_at`, and sends one admin email per profile
+
+- `supabase/functions/notify-template-proposal/index.ts`
+  - renamed locally from `notify-workout-template-proposal`
+  - deployed live as `notify-template-proposal` with `verify_jwt: false`
+  - accepts only `proposalId`, marks `admin_notified_at`, and sends one admin email per pending proposal
+
+- `src/services/templateProposalService.ts`
+  - updated to invoke the verified live slug `notify-template-proposal`
+
+### Why This Shape Won
+
+- public proposal submission needs anonymous reach, so the proposal function must intentionally disable JWT verification while still constraining its input to a UUID and doing all privileged work server-side
+- first-signup notifications should stay tied to authenticated profile creation, so the signup function keeps `verify_jwt: true`
+- idempotency belongs in the database fields (`admin_notified_at`, `admin_signup_notified_at`) so retries and repeated client invocations do not create duplicate emails
+- DB-level constraints are the right backstop for a public form because client validation alone is not a security boundary
+- the original long proposal-function slug returned a successful deploy response but was not actually addressable via Supabase MCP, so the shorter slug was adopted and verified directly
+
+### Validation
+
+- Supabase MCP:
+  - migration `20260326130249_add_admin_notification_fields_and_proposal_guards` present ✅
+  - `workout_template_proposals.admin_notified_at` present ✅
+  - `user_profiles.admin_signup_notified_at` present ✅
+  - proposal hardening CHECK constraints present ✅
+  - `notify-template-proposal` active and retrievable ✅
+  - `notify-user-signup` active and retrievable ✅
+- `node .\node_modules\eslint\bin\eslint.js src\services\templateProposalService.ts` ✅
+- `npm run build` ✅
+
+### Outcome
+
+ReadyAll now has the backend pieces for admin notification coverage across public workout proposals and first signups, plus stronger DB-level protection on the public proposal surface. The remaining follow-up is operational smoke testing of actual email delivery rather than schema or deployment work.
+
+---
+
+## Phase 70: Workout library detail IA + normalized public DTO (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/TemplateDetail.tsx`
+  - reworked the public detail hierarchy so the workout is understood in this order:
+    - coach whiteboard view
+    - canonical RWN
+    - machine-readable JSON/structured-data surface
+    - visualizer as supporting context
+  - added copy affordances for whiteboard, RWN, and JSON
+  - kept usage/reference metrics prominent while deliberately not surfacing ratings as a headline signal yet
+
+- `src/services/templateService.ts`
+  - added `getWorkoutTemplateTier()` so tier semantics are derived consistently
+  - added `fetchPublicTemplateDetail()` to return a normalized public template DTO including:
+    - tier
+    - whiteboard lines
+    - aggregate reference stats
+
+- `src/types/workoutStructure.types.ts`
+  - added `PublicWorkoutTemplateDetail` so the public library read model has an explicit TypeScript contract
+
+### Why This Shape Won
+
+- public library pages need to answer “what is this workout?” faster than an internal template-management page does
+- whiteboard text is the fastest human interpretation, while RWN remains the canonical portable notation and JSON remains the machine contract
+- a normalized DTO is a better foundation for future AI/planning use than having each consumer infer tiering and derived fields from raw DB rows
+- usage/reference counts provide immediate social proof with less trust risk than ratings
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\TemplateDetail.tsx src\services\templateService.ts src\types\workoutStructure.types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing scripts/analytics lint debt outside this library slice
+
+### Outcome
+
+The workout library detail page now reads like a real public knowledge artifact instead of an internal template record, and the app now has the beginnings of a stable, AI-friendly public template contract without creating a second source of truth outside `workout_templates`.
+
+---
+
+## Phase 71: Public library docs + anonymous proposal RLS fix (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/Documentation.tsx`
+  - added public-facing guidance on where the workout library lives
+  - documented the `Standard | Community | Proposal` flow
+  - added direct links to `/library` and `/library/propose`
+
+- `src/pages/About.tsx`
+  - added a direct CTA to the workout library from the public/about surface
+  - added the workout library as a first-class feature in the public product description
+
+- `src/services/templateProposalService.ts`
+  - fixed anonymous proposal submission by removing the post-insert `.select().single()` call
+  - preserved the existing RLS model where anon users can insert proposals but not select proposal rows
+
+### Why This Shape Won
+
+- the public library needs discoverability from outside the authenticated app chrome, not just from users who already know where to click
+- public docs should explain both how to use templates and how to contribute them
+- the RLS failure was caused by client behavior, not by missing insert permission, so the correct fix was to stop requiring a read-after-write for anonymous users
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\Documentation.tsx src\pages\About.tsx` ✅
+- `node .\node_modules\eslint\bin\eslint.js src\services\templateProposalService.ts src\pages\TemplateProposalPage.tsx` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+Public users now have clearer guidance on where to browse and propose workouts, and anonymous proposal submission should work with the live RLS policy instead of failing on a blocked readback step.
+
+---
+
 ## Phase 69: Public workout library + moderated proposal pipeline (March 25, 2026)
 
 **Timeline**: March 25, 2026  

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, Database, ArrowRight, Code, Users, ClipboardList, BarChart3, CalendarDays, Ship, UserPlus, Shield } from 'lucide-react';
 import { RWNPlayground } from '../components/RWNPlayground';
 
@@ -16,21 +16,8 @@ export const Documentation: React.FC = () => {
         return 'spec';
     };
 
-    const [activeTab, setActiveTab] = useState<'concepts' | 'rwn' | 'analytics' | 'coaching'>(() => parseTab(searchParams.get('tab')));
-    const [rwnSubTab, setRwnSubTab] = useState<'spec' | 'playground'>(() => parseRwnSubTab(searchParams.get('rwnSubTab')));
-
-    useEffect(() => {
-        const nextTab = parseTab(searchParams.get('tab'));
-        const nextSubTab = parseRwnSubTab(searchParams.get('rwnSubTab'));
-
-        if (nextTab !== activeTab) {
-            setActiveTab(nextTab);
-        }
-
-        if (nextSubTab !== rwnSubTab) {
-            setRwnSubTab(nextSubTab);
-        }
-    }, [searchParams, activeTab, rwnSubTab]);
+    const activeTab = parseTab(searchParams.get('tab'));
+    const rwnSubTab = parseRwnSubTab(searchParams.get('rwnSubTab'));
 
     const updateQuery = (
         nextTab: 'concepts' | 'rwn' | 'analytics' | 'coaching',
@@ -49,12 +36,10 @@ export const Documentation: React.FC = () => {
     };
 
     const handleActiveTabChange = (tab: 'concepts' | 'rwn' | 'analytics' | 'coaching') => {
-        setActiveTab(tab);
         updateQuery(tab, tab === 'rwn' ? rwnSubTab : undefined);
     };
 
     const handleRwnSubTabChange = (subTab: 'spec' | 'playground') => {
-        setRwnSubTab(subTab);
         updateQuery('rwn', subTab);
     };
 
@@ -162,7 +147,7 @@ export const Documentation: React.FC = () => {
                                     <div>
                                         <h3 className="text-xl font-bold text-white mb-2">The Workout Library</h3>
                                         <p className="text-neutral-400 leading-relaxed">
-                                            The Library is where you define your training intent. Instead of just logging "what happened", you define "what is supposed to happen".
+                                            The Library is where you define and share training intent. Public readers can browse proven workouts, see the whiteboard version and canonical RWN, and understand how often a workout is used before they ever start it.
                                         </p>
                                     </div>
 
@@ -183,6 +168,57 @@ export const Documentation: React.FC = () => {
                                             </p>
                                             <div className="text-xs text-emerald-400 font-mono bg-emerald-900/10 px-2 py-1 rounded w-fit">
                                                 Proof of progress
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Standard Library</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Curated public workouts that have been validated and are ready to reuse in plans, assignments, and personal training.
+                                            </p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Community Library</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                Public workouts that are visible and usable, but still marked as community-contributed rather than fully curated.
+                                            </p>
+                                        </div>
+                                        <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
+                                            <strong className="block text-white mb-1">Proposals</strong>
+                                            <p className="text-sm text-neutral-400">
+                                                New workouts enter through the proposal flow first, so the public library stays useful without mixing in unreviewed submissions.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-neutral-950 rounded-lg p-6 border border-neutral-800">
+                                        <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Where to go</h4>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <div className="text-sm font-semibold text-white">Browse the library</div>
+                                                <p className="text-sm text-neutral-400">
+                                                    Go to <code className="bg-neutral-900 px-1 py-0.5 rounded text-emerald-400">/library</code> to explore public workouts, open a detail page, and compare the whiteboard, RWN, and structured workout views.
+                                                </p>
+                                                <Link
+                                                    to="/library"
+                                                    className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
+                                                >
+                                                    Open Workout Library <ArrowRight size={14} />
+                                                </Link>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="text-sm font-semibold text-white">Propose a workout</div>
+                                                <p className="text-sm text-neutral-400">
+                                                    Go to <code className="bg-neutral-900 px-1 py-0.5 rounded text-emerald-400">/library/propose</code> to submit a workout in RWN so it can be reviewed and promoted into the public library.
+                                                </p>
+                                                <Link
+                                                    to="/library/propose"
+                                                    className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
+                                                >
+                                                    Open Proposal Form <ArrowRight size={14} />
+                                                </Link>
                                             </div>
                                         </div>
                                     </div>

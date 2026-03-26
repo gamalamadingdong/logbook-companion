@@ -4,6 +4,68 @@
 
 ---
 
+## ADR-021: Public workout detail should lead with whiteboard + RWN, backed by a normalized DTO
+
+**Date**: March 26, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+The public workout library and moderated proposal flow were already in place, but the detail page still reflected an internal template-management mindset:
+
+1. the visualizer was the primary explanation surface,
+2. RWN was present but secondary,
+3. whiteboard format was not shown,
+4. and raw JSON existed only as a developer-facing collapse block.
+
+At the same time, the user wanted the library to be useful not only for humans browsing workouts, but also for AI-assisted workout-plan generation.
+
+### Decision
+
+Adopt a **three-layer public detail model**:
+
+1. **Whiteboard view first** — the fastest human-readable explanation
+2. **RWN second** — the canonical portable notation
+3. **Structured data third** — a stable machine-readable contract
+
+Back the detail page with a normalized public template DTO derived from `workout_templates` rather than letting each UI or future AI consumer reconstruct tier, whiteboard lines, and aggregate usage semantics independently.
+
+Ratings are intentionally **not** a headline public signal in this slice; usage and reference counts are the primary trust signals until a proper rating model exists.
+
+### Rationale
+
+1. **Faster human understanding** — coaches and athletes can recognize the workout from the whiteboard view immediately
+2. **Preserves RWN centrality** — RWN stays the canonical workout “DNA”
+3. **Supports AI/planning reuse** — a normalized DTO is a better external contract than raw database rows
+4. **Reduces drift** — derived semantics like tier and whiteboard lines are computed once in the service layer
+5. **Avoids false authority** — ratings without trust thresholds or anti-gaming rules can mislead more than they help
+
+### Consequences
+
+**Positive**:
+- the public library feels more like a knowledge base and less like an admin surface
+- future AI/planning features can consume a stable template shape
+- tiering and derived public fields are centralized
+
+**Negative**:
+- the app now maintains one more explicit read-model type
+- a future public endpoint / Edge Function should reuse the DTO rather than bypass it
+- ratings remain deferred work rather than immediate visible social proof
+
+### Alternatives Considered
+
+1. **Keep the visualizer as the dominant public explanation**
+   - Rejected because it is useful but slower to parse than whiteboard text for most humans
+
+2. **Expose raw `workout_templates` rows directly as the public AI contract**
+   - Rejected because it would couple consumers to DB details and force duplicated tier/whiteboard derivation
+
+3. **Prominently show ratings immediately**
+   - Rejected because the current product does not yet have a trustworthy rating workflow or sampling policy
+
+---
+
 ## ADR-020: Public workout library with separate moderated proposal queue
 
 **Date**: March 25, 2026

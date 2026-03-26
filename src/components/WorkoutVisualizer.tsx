@@ -35,7 +35,7 @@ const getTagColor = (tag: string): string => {
         case 'warmup': return 'border-yellow-600/30 bg-yellow-900/20';
         case 'cooldown': return 'border-blue-600/30 bg-blue-900/20';
         case 'test': return 'border-red-600/30 bg-red-900/20';
-        default: return 'border-neutral-700 bg-neutral-800/30';
+        default: return 'border-border bg-surface-well';
     }
 };
 
@@ -64,11 +64,11 @@ const WorkStep: React.FC<{
     return (
         <div className={`relative flex items-center gap-3 p-3 rounded-lg border ${
             tag ? getTagColor(tag) : 
-            isWork ? 'border-emerald-700/50 bg-emerald-900/20' : 'border-neutral-700 bg-neutral-800/30'
+            isWork ? 'border-emerald-700/50 bg-emerald-900/20' : 'border-border bg-surface-well'
         }`}>
             {/* Step Number (only for work steps in non-repeating context) */}
             {isWork && !isRepeating && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-neutral-900 border border-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-400">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-surface-page border border-border flex items-center justify-center text-xs font-bold text-content-muted">
                     {index + 1}
                 </div>
             )}
@@ -80,14 +80,14 @@ const WorkStep: React.FC<{
                 ) : isWork ? (
                     <Activity size={16} className="text-emerald-400" />
                 ) : (
-                    <Timer size={16} className="text-neutral-500" />
+                    <Timer size={16} className="text-content-muted" />
                 )}
             </div>
             
             {/* Content */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
-                    <span className={`font-bold ${isWork ? 'text-white' : 'text-neutral-400'}`}>
+                    <span className={`font-bold ${isWork ? 'text-content-primary' : 'text-content-secondary'}`}>
                         {valueDisplay}
                     </span>
                     {tag && (
@@ -100,10 +100,10 @@ const WorkStep: React.FC<{
                         </span>
                     )}
                     {isWork && step.duration_type === 'time' && (
-                        <span className="text-xs text-neutral-500">work</span>
+                        <span className="text-xs text-content-muted">work</span>
                     )}
                     {!isWork && (
-                        <span className="text-xs text-neutral-500">rest</span>
+                        <span className="text-xs text-content-muted">rest</span>
                     )}
                 </div>
                 
@@ -156,11 +156,11 @@ export const WorkoutVisualizer: React.FC<WorkoutVisualizerProps> = ({ structure 
             }`}>
                 <div className="flex items-center gap-3 mb-2">
                     {tag ? getTagIcon(tag) : <Activity size={20} className="text-emerald-400" />}
-                    <h3 className="text-lg font-bold text-white">
+                    <h3 className="text-lg font-bold text-content-primary">
                         {tag ? tag.charAt(0).toUpperCase() + tag.slice(1) : 'Steady State'}
                     </h3>
                 </div>
-                <div className="text-3xl font-bold text-white mb-2">{valueDisplay}</div>
+                <div className="text-3xl font-bold text-content-primary mb-2">{valueDisplay}</div>
                 {hasTarget && (
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                         <Target size={14} className="text-emerald-400" />
@@ -204,26 +204,26 @@ export const WorkoutVisualizer: React.FC<WorkoutVisualizerProps> = ({ structure 
             <div className="p-6 rounded-xl border border-emerald-700/50 bg-emerald-900/10">
                 <div className="flex items-center gap-3 mb-4">
                     <Activity size={20} className="text-emerald-400" />
-                    <h3 className="text-lg font-bold text-white">
+                    <h3 className="text-lg font-bold text-content-primary">
                         Intervals: {repeats} × ({workDisplay} / {restDisplay} rest)
                     </h3>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-emerald-900/30 rounded-lg">
-                        <div className="text-neutral-400 text-sm mb-1">Work</div>
-                        <div className="text-2xl font-bold text-white">{workDisplay}</div>
+                        <div className="text-content-secondary text-sm mb-1">Work</div>
+                        <div className="text-2xl font-bold text-content-primary">{workDisplay}</div>
                     </div>
-                    <div className="p-4 bg-neutral-800/50 rounded-lg">
-                        <div className="text-neutral-400 text-sm mb-1">Rest</div>
-                        <div className="text-2xl font-bold text-neutral-300">{restDisplay}</div>
+                    <div className="p-4 bg-surface-well rounded-lg">
+                        <div className="text-content-secondary text-sm mb-1">Rest</div>
+                        <div className="text-2xl font-bold text-content-primary">{restDisplay}</div>
                     </div>
                 </div>
 
                 {hasTarget && (
-                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-neutral-800">
+                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border">
                         <Target size={14} className="text-emerald-400" />
-                        <span className="text-xs font-medium text-neutral-300">Targets:</span>
+                        <span className="text-xs font-medium text-content-secondary">Targets:</span>
                         {work.target_pace && (
                             <span className="px-3 py-1 bg-emerald-900/30 border border-emerald-700/50 rounded text-emerald-300 text-xs font-medium">
                                 {work.target_pace_max 
@@ -241,7 +241,7 @@ export const WorkoutVisualizer: React.FC<WorkoutVisualizerProps> = ({ structure 
                     </div>
                 )}
 
-                <div className="mt-4 pt-4 border-t border-neutral-800 text-xs text-neutral-500">
+                <div className="mt-4 pt-4 border-t border-border text-xs text-content-muted">
                     This interval repeats {repeats} times
                 </div>
             </div>
@@ -358,7 +358,7 @@ export const WorkoutVisualizer: React.FC<WorkoutVisualizerProps> = ({ structure 
                                     {section.repeats > 1 ? (
                                         <div className="border border-emerald-700/30 bg-emerald-900/20 rounded-lg p-3">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <div className="px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded">
+                                                <div className="px-2 py-1 bg-accent-primary text-white text-xs font-bold rounded">
                                                     {section.repeats}×
                                                 </div>
                                                 <span className="text-xs text-emerald-300 font-medium">Repeat {section.repeats} times</span>

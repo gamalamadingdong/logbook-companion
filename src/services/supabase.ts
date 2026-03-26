@@ -68,6 +68,7 @@ export interface UserProfile {
     benchmark_preferences?: Record<string, { is_tracked: boolean; working_baseline?: string; goal?: number }>;
     preferences?: Record<string, unknown>;
     roles?: string[];
+    admin_signup_notified_at?: string | null;
     created_at?: string;
     updated_at?: string;
 }
