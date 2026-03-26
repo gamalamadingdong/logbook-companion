@@ -331,7 +331,7 @@ export function PublicTeamLeaderboardShare() {
                     : ` keeps scored assignments from the selected ${selectedRange.label.toLowerCase()} in play so you can spot athletes who hold quality over time, not just on one big piece.`}
                 </p>
                 <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
-                  Speed Index is an equal 50/50 blend of normalized speed and W/lb, averaged across the selected time range. Higher is better.
+                  Speed Index is an equal 50/50 blend of normalized speed and relative power, averaged across the selected time range. On this view the relative-power side is shown as W/lb. We intentionally keep that extra power voice in the formula so speed leads, but watts-for-size still matters.
                 </p>
               </div>
             </details>
@@ -442,7 +442,7 @@ export function PublicTeamLeaderboardShare() {
                                 <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Speed Index basis</div>
                                   <div className="mt-1 text-sm font-medium text-neutral-950 dark:text-white">{selectedRange.label}</div>
-                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% W/lb</div>
+                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% relative power (W/lb here)</div>
                                 </div>
                               </div>
                               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>

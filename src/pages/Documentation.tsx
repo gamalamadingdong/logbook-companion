@@ -147,7 +147,7 @@ export const Documentation: React.FC = () => {
                                     <div>
                                         <h3 className="text-xl font-bold text-white mb-2">The Workout Library</h3>
                                         <p className="text-neutral-400 leading-relaxed">
-                                            The Library is where you define and share training intent. Public readers can browse proven workouts, see the whiteboard version and canonical RWN, and understand how often a workout is used before they ever start it.
+                                            The Library is where you define and share training intent. Anyone can browse public workouts, see the whiteboard version and canonical RWN, understand how often a workout is used, and propose additions without needing private team access.
                                         </p>
                                     </div>
 
@@ -176,19 +176,19 @@ export const Documentation: React.FC = () => {
                                         <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
                                             <strong className="block text-white mb-1">Standard Library</strong>
                                             <p className="text-sm text-neutral-400">
-                                                Curated public workouts that have been validated and are ready to reuse in plans, assignments, and personal training.
+                                                Curated public workouts that have been validated and promoted into the canonical library for plans, assignments, and personal training.
                                             </p>
                                         </div>
                                         <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
                                             <strong className="block text-white mb-1">Community Library</strong>
                                             <p className="text-sm text-neutral-400">
-                                                Public workouts that are visible and usable, but still marked as community-contributed rather than fully curated.
+                                                Public workouts that are visible and usable right away, but still clearly marked as community-contributed until they are curator-approved.
                                             </p>
                                         </div>
                                         <div className="bg-neutral-950 p-5 rounded-lg border border-neutral-800">
                                             <strong className="block text-white mb-1">Proposals</strong>
                                             <p className="text-sm text-neutral-400">
-                                                New workouts enter through the proposal flow first, so the public library stays useful without mixing in unreviewed submissions.
+                                                New workouts enter through the proposal flow first, so anyone can suggest additions while the public library stays useful and free of unreviewed submissions.
                                             </p>
                                         </div>
                                     </div>
@@ -365,9 +365,38 @@ export const Documentation: React.FC = () => {
                                         <strong className="text-white text-sm block">Weekly Volume</strong>
                                         <span className="text-xs text-neutral-400">Total distance or time tracked per week. Monitor this to avoid overtraining spikes.</span>
                                     </li>
+                                    <li className="bg-neutral-950 p-3 rounded border border-neutral-800">
+                                        <strong className="text-white text-sm block">Speed Index</strong>
+                                        <span className="text-xs text-neutral-400">
+                                            Coaching leaderboards use Speed Index as a blended ranking signal. It normalizes speed and relative power, then combines them 50/50 so coaches can compare athletes on one readable scale.
+                                        </span>
+                                    </li>
+                                    <li className="bg-neutral-950 p-3 rounded border border-neutral-800">
+                                        <strong className="text-white text-sm block">Relative Power (W/kg or W/lb)</strong>
+                                        <span className="text-xs text-neutral-400">
+                                            ReadyAll acknowledges both metric and imperial relative-power views. Some surfaces emphasize <code>W/lb</code>, while assignment results expose <code>W/kg</code> and <code>W/lb</code> together when athlete weight is known.
+                                        </span>
+                                    </li>
                                 </ul>
                             </div>
                             <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white mb-3">How Speed Index is intended to work</h3>
+                                    <div className="bg-neutral-950 p-4 rounded border border-neutral-800 h-full space-y-3">
+                                        <p className="text-sm text-neutral-400">
+                                            Speed Index is a <strong>50/50 blend of normalized speed and normalized relative power</strong>. In current leaderboard views that relative-power side is shown as <code>W/lb</code>, while other surfaces may also show <code>W/kg</code>.
+                                        </p>
+                                        <p className="text-sm text-neutral-400">
+                                            We are intentionally aware that this is not a perfectly “clean” separation. Split already reflects boat-moving output, and the relative-power side introduces power again through a bodyweight lens. In other words, the formula does give raw power more voice than a pure efficiency-only blend would.
+                                        </p>
+                                        <p className="text-sm text-neutral-400">
+                                            That is deliberate. We want actual speed to stay primary, but we also want athletes who can generate more watts for their size to receive explicit credit instead of treating bodyweight-normalized power as a minor side note.
+                                        </p>
+                                        <p className="text-xs text-neutral-500">
+                                            The normalization step still matters: split and relative power live on different numeric scales, so each signal is standardized inside the scored group before blending. That keeps the index readable while making the weighting choice explicit rather than accidental.
+                                        </p>
+                                    </div>
+                                </div>
                                 <div>
                                     <h3 className="text-lg font-semibold text-white mb-3">Workout Comparison</h3>
                                     <div className="bg-neutral-950 p-4 rounded border border-neutral-800 h-full">

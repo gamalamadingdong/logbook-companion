@@ -128,6 +128,30 @@
   - `npm run test:run` ✅
   - `npm run lint` still fails repo-wide on unrelated pre-existing files (`scripts/*`, analytics components, `src/api/*`, etc.); this parser slice did not add new repo-wide lint debt
 
+### ReadyAll docs + Speed Index explanation alignment
+- `src\pages\Documentation.tsx`
+  - tightened the public library docs so they now explicitly reflect the intended public model:
+    - anyone can browse the library
+    - community workouts are publicly usable but still marked as community
+    - proposals are the intake path before review/promotion
+  - expanded the analytics docs with an explicit Speed Index explanation:
+    - 50/50 normalized speed + normalized relative power
+    - the team/public leaderboard surfaces currently show the relative-power side as `W/lb`
+    - other result surfaces may show both `W/kg` and `W/lb`
+    - the docs now explicitly acknowledge that this weighting intentionally gives raw power extra voice because split already reflects output
+- `src\pages\coaching\CoachingSettings.tsx`
+  - aligned the in-app formula explanation with the public docs so the rationale no longer claims the blend avoids extra bias
+- `src\pages\coaching\AssignmentResults.tsx`
+  - clarified that the power-to-weight columns intentionally surface both `W/kg` and `W/lb`
+  - updated Speed Index help text to match the intentional weighting rationale
+- `src\pages\PublicTeamLeaderboardShare.tsx`
+  - updated public explanatory copy to describe the 50/50 blend as normalized speed + relative power, with the current leaderboard surface using `W/lb`
+- `src\pages\coaching\TeamAnalytics.tsx`
+  - updated the quick basis label so it reads as relative power rather than implying the metric is universally only `W/lb`
+- validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\pages\Documentation.tsx src\pages\coaching\CoachingSettings.tsx src\pages\coaching\AssignmentResults.tsx src\pages\PublicTeamLeaderboardShare.tsx src\pages\coaching\TeamAnalytics.tsx` ✅
+  - `npm run build` ✅
+
 ## Next Steps
 - Run a fresh true end-to-end smoke test for:
   - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay

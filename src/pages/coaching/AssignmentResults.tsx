@@ -1532,11 +1532,11 @@ function SummaryTable({
               <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-center">Status</th>
               <SortTh label="Split /500m" field="split" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Watts" field="watts" sortField={sortField} onSort={toggleSort} />
-              {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} helpText="Power-to-weight shows how much power an athlete produces relative to body weight. It is useful context, but Speed Index still anchors ranking to actual boat-moving speed." />}
+              {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} helpText="Power-to-weight shows how much power an athlete produces relative to body weight. We surface both W/kg and W/lb here so coaches can read relative power in either unit system." />}
               <SortTh label="Distance" field="distance" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Time" field="time" sortField={sortField} onSort={toggleSort} />
               <SortTh label="SR" field="stroke_rate" sortField={sortField} onSort={toggleSort} />
-              {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized split and W/lb into a 0 to 100 score with equal weighting. That keeps speed and efficiency on the same standardized scale without adding extra explicit bias toward either input." />}
+              {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized speed and relative power into a 0 to 100 score with equal weighting. We know that still gives raw power extra voice because split already reflects output; that is intentional, so actual speed stays primary while power-for-size still gets explicit credit." />}
               {isInterval && <SortTh label={bestRepLabel} field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <SortTh label="Best Split" field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} helpText="Efficiency is the best completed rep expressed as W/lb. It rewards athletes who generate more power per pound, but it is meant to complement split rather than replace it." />}

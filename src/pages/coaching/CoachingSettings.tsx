@@ -816,10 +816,13 @@ export function CoachingSettings() {
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Speed Index Formula</label>
             <p className="text-xs text-neutral-500 mb-3">
-              Speed Index exists because raw speed and W/lb both represent something real, but watts already sits downstream of split. The index now treats the two standardized signals as a 50/50 blend so efficiency stays visible without adding a second explicit speed bias on top of the physics already embedded in the power calculation.
+              Speed Index exists because raw speed and relative power both represent something real. We intentionally blend the two standardized signals 50/50, even though watts already sits downstream of split, because we want the ranking to keep actual speed primary while still giving explicit credit to athletes who produce more power for their size.
             </p>
             <p className="text-xs text-neutral-500 mb-3">
-              The normalization step matters because split and W/lb are different kinds of numbers. Using a z-score puts both signals into the same relative language for that workout: how far above or below the group average an athlete performed. Once both are on the same scale, blending them into one readable index is defensible instead of arbitrary.
+              We are aware that this choice gives raw power more voice than a perfectly “clean” efficiency-only blend would. The relative-power side is currently shown as W/lb on leaderboard surfaces, while other tables may also expose W/kg. That overlap is intentional rather than accidental.
+            </p>
+            <p className="text-xs text-neutral-500 mb-3">
+              The normalization step matters because split and relative power are different kinds of numbers. Using a z-score puts both signals into the same relative language for that workout: how far above or below the group average an athlete performed. Once both are on the same scale, blending them into one readable index is defensible instead of arbitrary.
             </p>
 
           </div>
@@ -828,7 +831,7 @@ export function CoachingSettings() {
           <div className="border-t border-neutral-800 pt-3">
             <label className="block text-sm font-medium text-neutral-300 mb-1">Recompute Speed Index</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Recalculate Speed Index for historical workouts using the same equal-weight standardized speed-plus-efficiency formula. This is safe to run multiple times.
+              Recalculate Speed Index for historical workouts using the same equal-weight standardized speed-plus-relative-power formula. This is safe to run multiple times.
             </p>
             <div className="flex items-center gap-3">
               <button

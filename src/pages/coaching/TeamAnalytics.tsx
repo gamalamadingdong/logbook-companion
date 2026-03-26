@@ -688,7 +688,7 @@ export function TeamAnalytics() {
                                 <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 dark:border-neutral-700/50 dark:bg-neutral-900/60">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">Speed Index basis</div>
                                   <div className="mt-1 text-sm font-medium text-neutral-950 dark:text-white">{selectedRange.label}</div>
-                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% W/lb</div>
+                                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-500">50% speed · 50% relative power (W/lb here)</div>
                                 </div>
                               </div>
                               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-500">Recent scored workouts (newest first)</div>
