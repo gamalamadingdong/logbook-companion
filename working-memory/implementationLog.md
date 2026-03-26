@@ -4,6 +4,69 @@
 
 ---
 
+## Phase 75: Proposal abuse hardening + notification idempotency fix (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete (repo) / ⏭ rollout pending env + deploy order
+
+### What Was Built
+
+- `src/pages/TemplateProposalPage.tsx`
+  - now requires a Cloudflare Turnstile challenge before a public proposal can be submitted
+
+- `src/components/TurnstileWidget.tsx`
+  - added a lightweight explicit-render Turnstile wrapper so the public form can collect a token without adding a heavy dependency
+
+- `src/services/templateProposalService.ts`
+  - proposal submission now goes through a dedicated edge function instead of direct anonymous table insert from the browser
+
+- `supabase/functions/submit-template-proposal/index.ts`
+  - new public edge function with `verify_jwt: false`
+  - verifies the Turnstile token server-side
+  - validates the proposal payload shape/lengths
+  - optionally associates `submitted_by_user_id` when a logged-in bearer token is present
+  - inserts the proposal via service role and triggers the existing admin-notification function
+
+- `supabase/functions/notify-template-proposal/index.ts`
+- `supabase/functions/notify-user-signup/index.ts`
+  - both functions now fetch first, send email second, and only then set `admin_notified_at` / `admin_signup_notified_at`
+  - this fixes the previous lost-alert mode where a Resend failure could mark the row as already notified
+
+- `db/migrations/20260326_lock_down_public_template_proposal_inserts.sql`
+  - drops the old `Anyone can submit workout template proposals` policy so anonymous browsers can no longer bypass Turnstile by inserting straight into the table
+
+### Why This Shape Won
+
+- adding CAPTCHA only on the client would still leave the old anonymous insert policy as a bypass path
+- moving submission behind a dedicated edge function lets the app verify Turnstile server-side and keep direct table writes out of the public browser flow
+- separating the migration that removes direct inserts from the client/app changes gives a safe rollout path: deploy function + frontend first, then lock down the old policy
+- marking notification state after email success is a better trade-off for admin alerts than silently losing emails on provider failure
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\env.d.ts src\components\TurnstileWidget.tsx src\pages\TemplateProposalPage.tsx src\services\templateProposalService.ts supabase\functions\submit-template-proposal\index.ts supabase\functions\notify-template-proposal\index.ts supabase\functions\notify-user-signup\index.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing files in `scripts/*`, `src/api/*`, and analytics components
+
+### Rollout Notes
+
+- Required secrets/config:
+  - frontend: `VITE_TURNSTILE_SITE_KEY`
+  - Supabase Edge Functions: `TURNSTILE_SECRET_KEY`
+- Safe production order:
+  1. deploy `submit-template-proposal`
+  2. deploy updated `notify-template-proposal` and `notify-user-signup`
+  3. deploy frontend with `VITE_TURNSTILE_SITE_KEY`
+  4. verify end-to-end proposal submit
+  5. apply `20260326_lock_down_public_template_proposal_inserts.sql`
+
+### Outcome
+
+The repo now has a real abuse-resistant proposal intake path and fixes the notification lost-alert bug. The remaining work is operational rollout: set Turnstile secrets, deploy the new function/frontend path, then remove the old public insert policy.
+
+---
+
 ## Phase 74: Public template ownership hardening (March 26, 2026)
 
 **Timeline**: March 26, 2026  

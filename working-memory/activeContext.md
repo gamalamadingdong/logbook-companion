@@ -118,6 +118,11 @@
   - `node .\node_modules\eslint\bin\eslint.js src\services\templateService.ts src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\types\workoutStructure.types.ts` ✅
   - `npm run build` ✅
   - `npm run test:run` ✅
+- proposal abuse-hardening validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\env.d.ts src\components\TurnstileWidget.tsx src\pages\TemplateProposalPage.tsx src\services\templateProposalService.ts supabase\functions\submit-template-proposal\index.ts supabase\functions\notify-template-proposal\index.ts supabase\functions\notify-user-signup\index.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
+  - `npm run lint` still fails repo-wide on unrelated pre-existing scripts/api/analytics debt; this hardening slice passed targeted lint and did not add the repo-wide failures
 
 ### RWN parser parity fix for PR #31 follow-up
 - `src\utils\rwnParser.ts`
@@ -160,9 +165,17 @@
   - `npm run build` ✅
 
 ## Next Steps
-- Abuse-harden the anonymous proposal path before treating it as high-confidence public intake:
-  - add rate limiting and/or CAPTCHA on `/library/propose`
-  - move proposal-notification idempotency to "mark notified after successful send" so email provider failures do not silently drop alerts
+- Abuse-hardening implementation is now in the repo:
+  - `src\pages\TemplateProposalPage.tsx` now requires a Cloudflare Turnstile check before submit
+  - `src\services\templateProposalService.ts` now posts to a new edge function instead of inserting directly from the browser
+  - `supabase\functions\submit-template-proposal\index.ts` now verifies Turnstile server-side, optionally associates the logged-in user, inserts via service role, and triggers admin notification
+  - `supabase\functions\notify-template-proposal\index.ts` and `supabase\functions\notify-user-signup\index.ts` now set `*_notified_at` only after successful email delivery
+  - `db\migrations\20260326_lock_down_public_template_proposal_inserts.sql` removes the old public insert policy once the new frontend + function path is live
+  - rollout caveat: do **not** apply the new insert-lockdown migration in production until:
+    - `submit-template-proposal` is deployed
+    - `TURNSTILE_SECRET_KEY` is set in Supabase Edge Function secrets
+    - `VITE_TURNSTILE_SITE_KEY` is set in the frontend environment
+    - and the updated frontend is deployed
 - Document `/share/assignment-results/:shareToken` and `/share/team-leaderboard/:shareToken` explicitly as private-by-link share surfaces, not broad public/community pages
 - Run a fresh true end-to-end smoke test for:
   - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay

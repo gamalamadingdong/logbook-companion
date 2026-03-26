@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, HelpCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { TurnstileWidget } from '../components/TurnstileWidget';
 import { useAuth } from '../hooks/useAuth';
 import { createTemplateProposal } from '../services/templateProposalService';
 import { findDuplicateTemplate } from '../services/templateService';
@@ -12,6 +13,7 @@ const TRAINING_ZONES = ['UT2', 'UT1', 'AT', 'TR', 'AN'] as const;
 export const TemplateProposalPage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
     const [submitting, setSubmitting] = useState(false);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -21,6 +23,8 @@ export const TemplateProposalPage: React.FC = () => {
     const [notes, setNotes] = useState('');
     const [attributionName, setAttributionName] = useState('');
     const [attributionContact, setAttributionContact] = useState('');
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+    const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
     const validation = useMemo(() => {
         if (!rwn.trim()) return null;
@@ -42,6 +46,16 @@ export const TemplateProposalPage: React.FC = () => {
 
         if (!validation?.valid) {
             toast.error(validation?.errors?.join('; ') || 'Please fix the RWN before submitting.');
+            return;
+        }
+
+        if (!turnstileSiteKey) {
+            toast.error('Bot protection is not configured for workout proposals yet.');
+            return;
+        }
+
+        if (!turnstileToken) {
+            toast.error('Please complete the bot check before submitting.');
             return;
         }
 
@@ -109,6 +123,7 @@ export const TemplateProposalPage: React.FC = () => {
                 notes: trimmedNotes || undefined,
                 attribution_name: trimmedAttributionName || undefined,
                 attribution_contact: trimmedAttributionContact || undefined,
+                turnstileToken,
             });
 
             toast.success('Workout proposal submitted for review.');
@@ -116,6 +131,8 @@ export const TemplateProposalPage: React.FC = () => {
         } catch (error) {
             console.error('Failed to submit workout proposal:', error);
             toast.error('Failed to submit workout proposal. Please try again.');
+            setTurnstileToken(null);
+            setTurnstileResetKey((current) => current + 1);
         } finally {
             setSubmitting(false);
         }
@@ -283,12 +300,29 @@ export const TemplateProposalPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 pt-6">
-                        <p className="text-sm text-neutral-500">
-                            Submissions start in a moderation queue before they enter the public library.
-                        </p>
+                        <div className="space-y-3">
+                            <p className="text-sm text-neutral-500">
+                                Submissions start in a moderation queue before they enter the public library.
+                            </p>
+                            {turnstileSiteKey ? (
+                                <div
+                                    key={turnstileResetKey}
+                                    className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3"
+                                >
+                                    <TurnstileWidget
+                                        siteKey={turnstileSiteKey}
+                                        onTokenChange={setTurnstileToken}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-200">
+                                    Proposal bot protection is not configured yet. Add `VITE_TURNSTILE_SITE_KEY` before using this public form.
+                                </div>
+                            )}
+                        </div>
                         <button
                             type="submit"
-                            disabled={submitting}
+                            disabled={submitting || !turnstileSiteKey || !turnstileToken}
                             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
                         >
                             <Send size={16} />

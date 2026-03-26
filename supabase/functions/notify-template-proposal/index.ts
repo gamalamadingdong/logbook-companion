@@ -54,26 +54,22 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(400, { error: 'proposalId must be a valid UUID.' });
     }
 
-    const nowIso = new Date().toISOString();
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
     const { data: proposal, error: proposalError } = await supabase
       .from('workout_template_proposals')
-      .update({ admin_notified_at: nowIso })
+      .select('id, name, description, rwn, training_zone, attribution_name, attribution_contact, created_at, admin_notified_at, status')
       .eq('id', proposalId)
-      .is('admin_notified_at', null)
-      .eq('status', 'pending')
-      .select('name, description, rwn, training_zone, attribution_name, attribution_contact, created_at')
       .maybeSingle();
 
     if (proposalError) {
-      console.error('[notify-workout-template-proposal] Update/select error:', proposalError);
+      console.error('[notify-workout-template-proposal] Select error:', proposalError);
       return jsonResponse(500, { error: 'Failed to load workout proposal.' });
     }
 
-    if (!proposal) {
+    if (!proposal || proposal.status !== 'pending' || proposal.admin_notified_at) {
       return jsonResponse(200, { ok: true, skipped: true });
     }
 
@@ -124,6 +120,20 @@ Deno.serve(async (req: Request) => {
     if (!resendResponse.ok) {
       const errText = await resendResponse.text();
       console.error('[notify-workout-template-proposal] Resend error:', { status: resendResponse.status, body: errText });
+      return jsonResponse(502, { error: 'Failed to send proposal notification email.' });
+    }
+
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('workout_template_proposals')
+      .update({ admin_notified_at: nowIso })
+      .eq('id', proposalId)
+      .is('admin_notified_at', null)
+      .eq('status', 'pending');
+
+    if (updateError) {
+      console.error('[notify-workout-template-proposal] Post-send update error:', updateError);
+      return jsonResponse(500, { error: 'Notification email sent, but proposal state update failed.' });
     }
 
     return jsonResponse(200, { ok: true });

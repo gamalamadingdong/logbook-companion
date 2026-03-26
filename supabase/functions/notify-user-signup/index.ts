@@ -62,21 +62,18 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(401, { error: 'Invalid auth token.' });
     }
 
-    const nowIso = new Date().toISOString();
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .update({ admin_signup_notified_at: nowIso })
       .eq('user_id', user.id)
-      .is('admin_signup_notified_at', null)
-      .select('display_name, email, created_at')
+      .select('display_name, email, created_at, admin_signup_notified_at')
       .maybeSingle();
 
     if (profileError) {
-      console.error('[notify-user-signup] Update/select error:', profileError);
+      console.error('[notify-user-signup] Select error:', profileError);
       return jsonResponse(500, { error: 'Failed to load user profile.' });
     }
 
-    if (!profile) {
+    if (!profile || profile.admin_signup_notified_at) {
       return jsonResponse(200, { ok: true, skipped: true });
     }
 
@@ -115,6 +112,19 @@ Deno.serve(async (req: Request) => {
     if (!resendResponse.ok) {
       const errText = await resendResponse.text();
       console.error('[notify-user-signup] Resend error:', { status: resendResponse.status, body: errText });
+      return jsonResponse(502, { error: 'Failed to send signup notification email.' });
+    }
+
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({ admin_signup_notified_at: nowIso })
+      .eq('user_id', user.id)
+      .is('admin_signup_notified_at', null);
+
+    if (updateError) {
+      console.error('[notify-user-signup] Post-send update error:', updateError);
+      return jsonResponse(500, { error: 'Notification email sent, but profile state update failed.' });
     }
 
     return jsonResponse(200, { ok: true });

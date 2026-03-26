@@ -19,33 +19,28 @@ export interface CreateTemplateProposalInput {
     notes?: string;
     attribution_name?: string;
     attribution_contact?: string;
+    turnstileToken: string;
 }
 
 export async function createTemplateProposal(input: CreateTemplateProposalInput): Promise<string> {
-    const { data: { user } } = await supabase.auth.getUser();
-    const proposalId = crypto.randomUUID();
-
-    const { error } = await supabase
-        .from('workout_template_proposals')
-        .insert({
-            id: proposalId,
-            ...input,
-            submitted_by_user_id: user?.id ?? null,
-            status: 'pending',
-        });
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke('submit-template-proposal', {
+        body: input,
+        headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+    });
 
     if (error) {
         console.error('Error creating template proposal:', error);
         throw error;
     }
 
-    supabase.functions.invoke('notify-template-proposal', {
-        body: { proposalId },
-    }).catch((notifyError) => {
-        console.error('Failed to trigger proposal notification:', notifyError);
-    });
+    if (!data || typeof data.proposalId !== 'string') {
+        throw new Error('Proposal submission did not return an ID.');
+    }
 
-    return proposalId;
+    return data.proposalId;
 }
 
 export async function fetchTemplateProposals(status?: WorkoutTemplateProposalStatus): Promise<WorkoutTemplateProposal[]> {
