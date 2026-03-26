@@ -76,11 +76,14 @@
   - now includes an admin-only `Make standard` action for promoting a community workout into the validated standard tier directly from the detail page
   - now computes whiteboard lines defensively from `workout_structure` (and falls back to RWN when needed) so the coach whiteboard no longer appears blank when derived lines are missing from the DTO
   - now uses shared UI components and token-based surfaces/text for far better light-mode readability
+  - owner edit affordances now use explicit ownership checks instead of relying on `created_by` coming back in the public detail DTO
 - `src\services\templateService.ts`
   - now exposes `fetchPublicTemplateDetail()` and a normalized library-tier helper so detail-page semantics are not rebuilt ad hoc in the component
   - now exposes `promoteTemplateToStandard()` for admin promotion of published community workouts
+  - public library list/detail queries now select only safe library fields instead of returning raw ownership metadata to anonymous/public clients
+  - now exposes `fetchOwnedTemplateIds()` so authenticated owner affordances can still work without widening the public DTO
 - `src\types\workoutStructure.types.ts`
-  - now includes `PublicWorkoutTemplateDetail` for the normalized public template DTO shape
+  - now includes `PublicWorkoutTemplateDetail` for the normalized public template DTO shape without public `created_by`
 - `src\components\WorkoutVisualizer.tsx`
   - now uses token-based neutral surfaces/text so the visual breakdown no longer drags the detail page back into dark-only styling in light mode
 
@@ -111,6 +114,10 @@
   - `npm run test:run -- src\utils\structureToWhiteboard.test.ts` ✅
   - `npm run test:run` ✅
   - `npm run lint` still fails repo-wide on unrelated pre-existing scripts/analytics debt; this detail-page slice did not introduce new lint errors
+- public library ownership hardening validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\services\templateService.ts src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\types\workoutStructure.types.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
 
 ### RWN parser parity fix for PR #31 follow-up
 - `src\utils\rwnParser.ts`
@@ -153,6 +160,10 @@
   - `npm run build` ✅
 
 ## Next Steps
+- Abuse-harden the anonymous proposal path before treating it as high-confidence public intake:
+  - add rate limiting and/or CAPTCHA on `/library/propose`
+  - move proposal-notification idempotency to "mark notified after successful send" so email provider failures do not silently drop alerts
+- Document `/share/assignment-results/:shareToken` and `/share/team-leaderboard/:shareToken` explicitly as private-by-link share surfaces, not broad public/community pages
 - Run a fresh true end-to-end smoke test for:
   - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay
   - first signup/profile creation → one admin email

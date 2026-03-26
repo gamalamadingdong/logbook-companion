@@ -4,6 +4,45 @@
 
 ---
 
+## Phase 74: Public template ownership hardening (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/services/templateService.ts`
+  - narrowed public library list/detail selects to safe fields instead of returning full ownership metadata
+  - added `fetchPublicTemplateById()` for the public detail DTO path
+  - added `fetchOwnedTemplateIds()` so the UI can determine owner affordances without embedding `created_by` in public responses
+
+- `src/pages/TemplateLibrary.tsx`
+  - now computes editable rows from `fetchOwnedTemplateIds()` rather than from public `created_by` values
+
+- `src/pages/TemplateDetail.tsx`
+  - now computes owner edit affordance from a scoped ownership check rather than from a public `created_by` field on the detail DTO
+
+- `src/types/workoutStructure.types.ts`
+  - removed `created_by` from the public library DTO/list contracts
+
+### Why This Shape Won
+
+- the library should expose only the fields the public/community experience actually needs
+- owner affordances still matter for authenticated creators, but raw ownership UUIDs do not need to be part of the public read model
+- a separate ownership check preserves the current UX while reducing unnecessary metadata exposure in browsers
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\services\templateService.ts src\pages\TemplateLibrary.tsx src\pages\TemplateDetail.tsx src\types\workoutStructure.types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The in-app public workout library no longer returns ownership metadata as part of its public DTO/list fetches, while admins and owners still retain their edit affordances through explicit ownership checks.
+
+---
+
 ## Phase 72: ReadyAll admin notifications + proposal hardening rollout (March 26, 2026)
 
 **Timeline**: March 26, 2026  
@@ -59,6 +98,83 @@
 ### Outcome
 
 ReadyAll now has the backend pieces for admin notification coverage across public workout proposals and first signups, plus stronger DB-level protection on the public proposal surface. The remaining follow-up is operational smoke testing of actual email delivery rather than schema or deployment work.
+
+---
+
+## Phase 73: PR #31 integration + Speed Index docs alignment (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/utils/rwnParser.ts`
+  - cherry-picked the PR #31 rest-token guidance feature onto `main`
+  - followed it with a hardening refactor so work-token guidance parsing and rest-token guidance parsing now share the same parser path instead of drifting
+
+- `src/utils/rwnParser.test.ts`
+  - kept the original rest-token guidance coverage from PR #31
+  - added parity regression coverage for:
+    - `8x500m/1:00r@2k`
+    - `8x500m/1:00r@2k@32spm`
+    - `8x500m/1:00r@UT2`
+
+- Git history on `main`
+  - `8e2100b` — `RWN parser fix: extract guidance from rest token and apply to work interval`
+  - `a4e37f6` — `Harden RWN rest-token guidance parsing`
+  - preserved author credit in the integrated history with co-author attribution for the contributor
+
+- `src/pages/Documentation.tsx`
+  - aligned public library docs with the current public model:
+    - anyone can browse the library
+    - community workouts are public and usable but not yet curated
+    - proposals are the intake path before review and promotion
+  - added a clearer public Speed Index explanation covering:
+    - 50/50 normalized speed + normalized relative power
+    - current leaderboard use of `W/lb`
+    - acknowledgment that some surfaces show `W/kg` as well
+    - explicit note that the overlap with split is intentional because the product wants raw power to keep a real vote
+
+- `src/pages/coaching/CoachingSettings.tsx`
+  - updated the in-app Speed Index formula explanation so it no longer claims the equal blend avoids extra bias
+
+- `src/pages/coaching/AssignmentResults.tsx`
+  - updated metric help copy to explicitly acknowledge both `W/kg` and `W/lb`
+  - aligned Speed Index help text with the intentional weighting rationale
+
+- `src/pages/PublicTeamLeaderboardShare.tsx`
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - aligned quick explanatory copy so public and internal leaderboard surfaces describe the metric consistently
+
+- `readyall/src/app/docs/speed-index/page.tsx`
+  - updated the separate ReadyAll site docs page to match the current product rationale instead of the older “no double counting / no extra bias” wording
+  - added explicit acknowledgment that:
+    - the 50/50 blend is intentional rather than neutral
+    - current leaderboard implementation uses `W/lb`
+    - some coaches think in `W/kg`, and other product surfaces may expose both unit systems
+
+### Why This Shape Won
+
+- PR #31’s core idea was useful, but the original implementation duplicated guidance parsing and missed parity for valid guidance forms like bare reference pace
+- extracting a shared parser path removes a future drift vector and keeps rest-token guidance behavior aligned with normal RWN guidance behavior
+- the Speed Index docs needed a product-truth correction, not just a wording polish: the system is intentionally aware that the 50/50 blend still gives raw power extra voice
+- aligning copy across LC and ReadyAll reduces the risk that coaches read contradictory explanations on internal settings pages, public leaderboard shares, and the marketing/docs site
+
+### Validation
+
+- Logbook Companion:
+  - `node .\node_modules\eslint\bin\eslint.js src\utils\rwnParser.ts src\utils\rwnParser.test.ts` ✅
+  - `npm run test:run -- src\utils\rwnParser.test.ts` ✅
+  - `npm run test:run` ✅
+  - `npm run build` ✅
+  - repo-wide `npm run lint` still fails on unrelated pre-existing files (`scripts/*`, analytics debt, `src/api/*`) and was not caused by this work
+- ReadyAll:
+  - `npm run build` ✅
+  - local lint command is not currently a reliable gate in this repo because the `next lint` script misresolves in the current setup
+
+### Outcome
+
+The parser improvement from PR #31 is safely integrated on `main`, contributor credit is preserved in commit history, and the Speed Index explanation is now consistent across Logbook Companion docs/help text and the public ReadyAll site.
 
 ---
 

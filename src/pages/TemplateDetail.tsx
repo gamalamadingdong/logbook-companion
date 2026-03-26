@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Edit, Users, TrendingUp, Calendar, ChevronDown, ChevronUp, Clock, Target, Lightbulb, Compass, Trophy, ArrowRight, Library, ShieldCheck, GitBranchPlus, Copy, Check, Code2 } from 'lucide-react';
-import { fetchPublicTemplateDetail, getTemplateHistory, getTemplatePersonalBest, promoteTemplateToStandard } from '../services/templateService';
+import { fetchOwnedTemplateIds, fetchPublicTemplateDetail, getTemplateHistory, getTemplatePersonalBest, promoteTemplateToStandard } from '../services/templateService';
 import type { PersonalBest, TemplateHistoryItem } from '../services/templateService';
 import { supabase } from '../services/supabase';
 import type { PublicWorkoutTemplateDetail } from '../types/workoutStructure.types';
@@ -29,6 +29,7 @@ export const TemplateDetail: React.FC = () => {
     const [showEditor, setShowEditor] = useState(false);
     const [copiedField, setCopiedField] = useState<'whiteboard' | 'rwn' | 'json' | null>(null);
     const [promoting, setPromoting] = useState(false);
+    const [isOwner, setIsOwner] = useState(false);
     const [personalizedPaces, setPersonalizedPaces] = useState<Record<string, { split: number; label: string; isRange?: boolean; splitMax?: number }>>({});
     const [history, setHistory] = useState<TemplateHistoryItem[]>([]);
     const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
@@ -46,6 +47,13 @@ export const TemplateDetail: React.FC = () => {
             try {
                 const data = await fetchPublicTemplateDetail(templateId);
                 setTemplate(data);
+
+                if (user?.id && data && !isAdmin) {
+                    const ownedIds = await fetchOwnedTemplateIds([templateId], user.id);
+                    setIsOwner(ownedIds.includes(templateId));
+                } else {
+                    setIsOwner(false);
+                }
 
                 // Fetch user baseline if logged in
                 if (user?.id) {
@@ -79,7 +87,7 @@ export const TemplateDetail: React.FC = () => {
         };
 
         loadTemplate();
-    }, [templateId, user?.id]);
+    }, [templateId, user?.id, isAdmin]);
 
     const handleEditorClose = (saved: boolean) => {
         setShowEditor(false);
@@ -153,7 +161,7 @@ export const TemplateDetail: React.FC = () => {
     const estimate = template.workout_structure
         ? estimateDuration(structureToRWN(template.workout_structure))
         : null;
-    const canEdit = !!user && (isAdmin || user.id === template.created_by);
+    const canEdit = !!user && (isAdmin || isOwner);
     const templateTier = template.tier === 'draft'
         ? { label: 'Draft', variant: 'muted' as const, icon: <Library size={14} /> }
         : template.tier === 'standard'

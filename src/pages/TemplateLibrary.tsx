@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Check, X, Edit, Filter, Plus, Trash2, Play, Library, ShieldCheck, Sparkles, FilePlus2 } from 'lucide-react';
 import { EmptyState } from '../components/ui';
-import { fetchTemplates, deleteTemplate } from '../services/templateService';
+import { fetchOwnedTemplateIds, fetchTemplates, deleteTemplate } from '../services/templateService';
 import type { WorkoutTemplateListItem, WorkoutTemplateTier } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { useAuth } from '../hooks/useAuth';
@@ -52,6 +52,7 @@ export const TemplateLibrary: React.FC = () => {
     const [sortOrder, setSortOrder] = useState<'popular' | 'recent'>('popular');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [ownedTemplateIds, setOwnedTemplateIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
 
     const loadTemplates = useCallback(async () => {
@@ -65,6 +66,16 @@ export const TemplateLibrary: React.FC = () => {
                 sortBy: sortOrder
             });
             setTemplates(data);
+
+            if (user?.id) {
+                const ownedIds = await fetchOwnedTemplateIds(
+                    data.map(template => template.id),
+                    user.id,
+                );
+                setOwnedTemplateIds(new Set(ownedIds));
+            } else {
+                setOwnedTemplateIds(new Set());
+            }
             
             // Calculate total of YOUR workouts linked to templates
             if (user?.id) {
@@ -392,7 +403,7 @@ export const TemplateLibrary: React.FC = () => {
                                                 <Play size={14} />
                                                 See Details
                                             </button>
-                                            {(isAdmin || (user?.id && user.id === template.created_by)) && (
+                                            {(isAdmin || ownedTemplateIds.has(template.id)) && (
                                                 <button
                                                     onClick={() => setEditingId(template.id)}
                                                     className="p-2 text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"

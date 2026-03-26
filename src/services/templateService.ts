@@ -18,13 +18,16 @@ export interface TemplateFilters {
     sortBy?: 'popular' | 'recent';
 }
 
+const PUBLIC_TEMPLATE_LIST_COLUMNS = 'id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at';
+const PUBLIC_TEMPLATE_DETAIL_COLUMNS = 'id, name, description, workout_type, training_zone, workout_category, workout_structure, technique_focus, coaching_points, pacing_guidance, estimated_duration, difficulty_level, usage_count, completion_rate, average_rating, rating_count, last_used_at, status, validated, rwn, canonical_name, tags, created_at, updated_at';
+
 /**
  * Fetch workout templates with optional filters
  */
 export async function fetchTemplates(filters: TemplateFilters = {}): Promise<WorkoutTemplateListItem[]> {
     let query = supabase
         .from('workout_templates')
-        .select('id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at, created_by');
+        .select(PUBLIC_TEMPLATE_LIST_COLUMNS);
 
     // Apply sorting based on sortBy parameter
     if (filters.sortBy === 'recent') {
@@ -89,6 +92,40 @@ export async function fetchTemplateById(id: string): Promise<WorkoutTemplate | n
     return data as WorkoutTemplate;
 }
 
+export async function fetchPublicTemplateById(id: string): Promise<PublicWorkoutTemplateDetail | null> {
+    const { data, error } = await supabase
+        .from('workout_templates')
+        .select(PUBLIC_TEMPLATE_DETAIL_COLUMNS)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching public template:', error);
+        return null;
+    }
+
+    return data as PublicWorkoutTemplateDetail;
+}
+
+export async function fetchOwnedTemplateIds(templateIds: string[], userId: string): Promise<string[]> {
+    if (templateIds.length === 0 || !userId) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from('workout_templates')
+        .select('id')
+        .in('id', templateIds)
+        .eq('created_by', userId);
+
+    if (error) {
+        console.error('Error fetching owned templates:', error);
+        return [];
+    }
+
+    return (data ?? []).map(template => template.id);
+}
+
 export function getWorkoutTemplateTier(template: Pick<WorkoutTemplate, 'status' | 'validated'>): 'draft' | 'community' | 'standard' {
     if (template.status !== 'published') {
         return 'draft';
@@ -99,7 +136,7 @@ export function getWorkoutTemplateTier(template: Pick<WorkoutTemplate, 'status' 
 
 export async function fetchPublicTemplateDetail(id: string): Promise<PublicWorkoutTemplateDetail | null> {
     const [template, referenceStats] = await Promise.all([
-        fetchTemplateById(id),
+        fetchPublicTemplateById(id),
         getTemplateReferenceStats(id).catch(error => {
             console.error('Failed to load template reference stats:', error);
             return {

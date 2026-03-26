@@ -166,7 +166,6 @@ export interface PublicWorkoutTemplateDetail {
     rwn: string | null;
     canonical_name: string | null;
     tags: string[];
-    created_by: string | null;
     created_at: string;
     updated_at: string;
     reference_stats: TemplateReferenceStats;
@@ -207,5 +206,5 @@ export interface WorkoutTemplateProposal {
 // Subset of fields for list view
 export type WorkoutTemplateListItem = Pick<WorkoutTemplate,
     'id' | 'name' | 'workout_type' | 'training_zone' | 'workout_structure' |
-    'difficulty_level' | 'validated' | 'status' | 'usage_count' | 'canonical_name' | 'created_by'
+    'difficulty_level' | 'validated' | 'status' | 'usage_count' | 'canonical_name'
 >;
