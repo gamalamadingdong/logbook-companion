@@ -921,3 +921,39 @@ describe('RWN Parser - Session Orchestration Extensions (Additive)', () => {
         });
     });
 });
+
+describe('RWN Parser - Guidance on Rest Token (should apply to work)', () => {
+    test('8x500m/1:00r@r32 parses identically to 8x500m@r32/1:00r', () => {
+        const withGuidanceOnRest = parseRWN('8x500m/1:00r@r32');
+        const withGuidanceOnWork = parseRWN('8x500m@r32/1:00r');
+
+        expect(withGuidanceOnRest).not.toBeNull();
+        expect(withGuidanceOnWork).not.toBeNull();
+
+        // Both should be interval type
+        expect(withGuidanceOnRest?.type).toBe('interval');
+        expect(withGuidanceOnWork?.type).toBe('interval');
+
+        if (withGuidanceOnRest?.type === 'interval' && withGuidanceOnWork?.type === 'interval') {
+            // Work guidance should match
+            expect(withGuidanceOnRest.work.target_rate).toBe(withGuidanceOnWork.work.target_rate);
+            expect(withGuidanceOnRest.work.target_rate).toBe(32);
+
+            // Rest value should match
+            expect(withGuidanceOnRest.rest.value).toBe(withGuidanceOnWork.rest.value);
+            expect(withGuidanceOnRest.rest.value).toBe(60);
+        }
+    });
+
+    test('4x2000m/3:00r@1:48 applies pace guidance to work', () => {
+        const result = parseRWN('4x2000m/3:00r@1:48');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('interval');
+
+        if (result?.type === 'interval') {
+            expect(result.work.target_pace).toBe('1:48');
+            expect(result.rest.value).toBe(180);
+        }
+    });
+});

@@ -247,6 +247,89 @@ function parseComponent(str: string): ParsedComponent | null {
     return null;
 }
 
+// Helper: Extract guidance from rest token (e.g., "1:00r@r32" -> guidance applies to work)
+// Coaches sometimes attach guidance after rest: "8x500m/1:00r@r32" means rate 32 on the work piece.
+function extractGuidanceFromRest(restStr: string): { cleanRest: string; guidance: ParsedComponent['guidance'] } {
+    const atIndex = restStr.indexOf('@');
+    if (atIndex === -1) return { cleanRest: restStr, guidance: {} };
+
+    const cleanRest = restStr.substring(0, atIndex).trim();
+    const guidanceText = restStr.substring(atIndex + 1).trim();
+    const guidance: ParsedComponent['guidance'] = {};
+    const guidanceParts = guidanceText.split('@').map(p => p.trim());
+
+    for (const part of guidanceParts) {
+        if (!guidance.target_rate) {
+            const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
+            if (rateRangeMatch) {
+                guidance.target_rate = parseInt(rateRangeMatch[1]);
+                guidance.target_rate_max = parseInt(rateRangeMatch[2]);
+                continue;
+            }
+        }
+        if (!guidance.target_rate) {
+            const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
+            if (rateMatch) {
+                guidance.target_rate = parseInt(rateMatch[1]);
+                continue;
+            }
+        }
+        if (!guidance.target_pace) {
+            const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
+            if (paceRangeMatch) {
+                guidance.target_pace = paceRangeMatch[1];
+                guidance.target_pace_max = paceRangeMatch[2];
+                continue;
+            }
+        }
+        if (!guidance.target_pace) {
+            const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceRangeMatch) {
+                guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
+                guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
+                continue;
+            }
+        }
+        if (!guidance.target_pace) {
+            const relPaceMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceMatch) {
+                guidance.target_pace = relPaceMatch[1].replace(/\s+/g, '');
+                continue;
+            }
+        }
+        if (!guidance.target_pace) {
+            const zoneMatch = part.match(/^(UT2|UT1|AT|TR|AN|open)$/i);
+            if (zoneMatch) {
+                guidance.target_pace = zoneMatch[1].toLowerCase() === 'open' ? 'open' : zoneMatch[1].toUpperCase();
+                continue;
+            }
+        }
+        if (!guidance.target_pace && !guidance.target_rate) {
+            const paceMatch = part.match(/^(\d+:\d+(?:\.\d+)?)$/);
+            if (paceMatch) {
+                guidance.target_pace = paceMatch[1];
+                continue;
+            }
+        }
+    }
+
+    return { cleanRest, guidance };
+}
+
+// Helper: Merge rest-extracted guidance into work guidance (work's own guidance takes precedence)
+function mergeGuidance(
+    workGuidance: ParsedComponent['guidance'],
+    restGuidance: ParsedComponent['guidance']
+): ParsedComponent['guidance'] {
+    if (!restGuidance) return workGuidance;
+    return {
+        target_rate: workGuidance?.target_rate ?? restGuidance.target_rate,
+        target_rate_max: workGuidance?.target_rate_max ?? restGuidance.target_rate_max,
+        target_pace: workGuidance?.target_pace ?? restGuidance.target_pace,
+        target_pace_max: workGuidance?.target_pace_max ?? restGuidance.target_pace_max,
+    };
+}
+
 // Helper: Parse Rest ("2:00r", "90s", "1:00")
 function parseRest(str: string): number {
     const clean = str.toLowerCase().replace(/r$/, '').replace(/s$/, '').trim(); // Remove trailing 'r' or 's'
@@ -916,12 +999,14 @@ function parseRWNCore(text: string, modality: WorkoutStructure['modality']): Wor
 
         if (parts.length >= 1) {
             const workStr = parts[0].trim();
-            const restStr = parts.length > 1 ? parts[1].trim() : '0r';
+            const rawRestStr = parts.length > 1 ? parts[1].trim() : '0r';
 
             const workComp = parseComponent(workStr);
             if (workComp) {
-                // Determine if strict Interval or standard Rest logic
-                const restVal = parseRest(restStr);
+                // Extract any guidance attached to rest (e.g., "1:00r@r32") and apply to work
+                const { cleanRest, guidance: restGuidance } = extractGuidanceFromRest(rawRestStr);
+                const merged = mergeGuidance(workComp.guidance, restGuidance);
+                const restVal = parseRest(cleanRest);
 
                 return {
                     type: 'interval',
@@ -930,10 +1015,10 @@ function parseRWNCore(text: string, modality: WorkoutStructure['modality']): Wor
                     work: {
                         type: workComp.type,
                         value: workComp.value,
-                        target_rate: workComp.guidance?.target_rate,
-                        target_rate_max: workComp.guidance?.target_rate_max,
-                        target_pace: workComp.guidance?.target_pace,
-                        target_pace_max: workComp.guidance?.target_pace_max,
+                        target_rate: merged?.target_rate,
+                        target_rate_max: merged?.target_rate_max,
+                        target_pace: merged?.target_pace,
+                        target_pace_max: merged?.target_pace_max,
                         blockType: workComp.blockType,
                         tags: intervalTags.length > 0 ? intervalTags : workComp.tags
                     },
@@ -953,11 +1038,13 @@ function parseRWNCore(text: string, modality: WorkoutStructure['modality']): Wor
         const parts = text.split('/');
         if (parts.length === 2) {
             const workStr = parts[0].trim();
-            const restStr = parts[1].trim();
+            const rawRestStr = parts[1].trim();
 
             const workComp = parseComponent(workStr);
             if (workComp) {
-                const restVal = parseRest(restStr);
+                const { cleanRest, guidance: restGuidance } = extractGuidanceFromRest(rawRestStr);
+                const merged = mergeGuidance(workComp.guidance, restGuidance);
+                const restVal = parseRest(cleanRest);
 
                 return {
                     type: 'interval',
@@ -966,10 +1053,10 @@ function parseRWNCore(text: string, modality: WorkoutStructure['modality']): Wor
                     work: {
                         type: workComp.type,
                         value: workComp.value,
-                        target_rate: workComp.guidance?.target_rate,
-                        target_rate_max: workComp.guidance?.target_rate_max,
-                        target_pace: workComp.guidance?.target_pace,
-                        target_pace_max: workComp.guidance?.target_pace_max,
+                        target_rate: merged?.target_rate,
+                        target_rate_max: merged?.target_rate_max,
+                        target_pace: merged?.target_pace,
+                        target_pace_max: merged?.target_pace_max,
                         blockType: workComp.blockType,
                         tags: workComp.tags
                     },
