@@ -123,6 +123,9 @@
   - `npm run build` ✅
   - `npm run test:run` ✅
   - `npm run lint` still fails repo-wide on unrelated pre-existing scripts/api/analytics debt; this hardening slice passed targeted lint and did not add the repo-wide failures
+- private-by-link share copy validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\services\coaching\coachingService.ts src\pages\coaching\AssignmentResults.tsx src\pages\coaching\TeamAnalytics.tsx src\pages\PublicAssignmentResultsShare.tsx src\pages\PublicTeamLeaderboardShare.tsx` ✅
+  - `npm run build` ✅
 
 ### RWN parser parity fix for PR #31 follow-up
 - `src\utils\rwnParser.ts`
@@ -171,12 +174,11 @@
   - `supabase\functions\submit-template-proposal\index.ts` now verifies Turnstile server-side, optionally associates the logged-in user, inserts via service role, and triggers admin notification
   - `supabase\functions\notify-template-proposal\index.ts` and `supabase\functions\notify-user-signup\index.ts` now set `*_notified_at` only after successful email delivery
   - `db\migrations\20260326_lock_down_public_template_proposal_inserts.sql` removes the old public insert policy once the new frontend + function path is live
-  - rollout caveat: do **not** apply the new insert-lockdown migration in production until:
-    - `submit-template-proposal` is deployed
-    - `TURNSTILE_SECRET_KEY` is set in Supabase Edge Function secrets
-    - `VITE_TURNSTILE_SITE_KEY` is set in the frontend environment
-    - and the updated frontend is deployed
-- Document `/share/assignment-results/:shareToken` and `/share/team-leaderboard/:shareToken` explicitly as private-by-link share surfaces, not broad public/community pages
+  - rollout note: the function deploy + migration are now live on ReadyAll
+- `/share/assignment-results/:shareToken` and `/share/team-leaderboard/:shareToken` are now explicitly documented in-product as **private-by-link** surfaces:
+  - coach actions now say `Private Link` / `Copy Private Link`
+  - public share pages explain that anyone with the exact URL can view until expiry
+  - expired-link copy now refers to private share links rather than general public pages
 - Run a fresh true end-to-end smoke test for:
   - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay
   - first signup/profile creation → one admin email

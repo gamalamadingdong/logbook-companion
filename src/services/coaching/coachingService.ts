@@ -2650,7 +2650,7 @@ export async function createAssignmentResultsShare(
   const token = payload?.token?.trim();
   const expiresAt = payload?.expires_at?.trim();
   if (!token || !expiresAt) {
-    throw new Error('Failed to create share link');
+    throw new Error('Failed to create private share link');
   }
   return { token, expiresAt };
 }
@@ -2744,7 +2744,7 @@ export async function createTeamLeaderboardShare(
   const token = payload?.token?.trim();
   const expiresAt = payload?.expires_at?.trim();
   if (!token || !expiresAt) {
-    throw new Error('Failed to create share link');
+    throw new Error('Failed to create private share link');
   }
   return { token, expiresAt };
 }

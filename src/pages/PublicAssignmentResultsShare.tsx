@@ -1181,8 +1181,8 @@ export function PublicAssignmentResultsShare() {
     return (
       <div className="min-h-screen bg-neutral-900 text-neutral-100 flex items-center justify-center p-6">
         <div className="max-w-lg w-full rounded-xl border border-neutral-700 bg-neutral-800 p-6 space-y-3 text-center">
-          <h1 className="text-xl font-semibold">This shared link is invalid or expired</h1>
-          <p className="text-sm text-neutral-300">Ask the coach to generate a fresh assignment results share link.</p>
+          <h1 className="text-xl font-semibold">This private share link is invalid or expired</h1>
+          <p className="text-sm text-neutral-300">Ask the coach to generate a fresh assignment results private link.</p>
         </div>
       </div>
     );
@@ -1274,6 +1274,9 @@ export function PublicAssignmentResultsShare() {
           <div className="text-sm text-neutral-300">{dateLabel}</div>
           {assignment.canonical_name && <div className="text-xs text-neutral-400 font-mono">{assignment.canonical_name}</div>}
           {assignment.instructions && <p className="text-sm text-neutral-200 pt-1">{assignment.instructions}</p>}
+          <p className="text-xs text-neutral-400 pt-1">
+            Private-by-link view. Anyone with this exact link can view these results until it expires, so share it like an unlisted link.
+          </p>
           <div className="text-xs text-neutral-400 pt-1">{completed} of {scopedRows.length} completed • {finished} finished • {dnf} DNF • Link expires {expiresLabel}</div>
           {teamOptions.length > 1 && (
             <div className="pt-3">

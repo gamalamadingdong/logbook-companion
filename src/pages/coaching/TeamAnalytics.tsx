@@ -574,7 +574,7 @@ export function TeamAnalytics() {
                   className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 transition-colors disabled:opacity-50"
                 >
                   {shareStatus === 'copied' ? <Check className="w-3 h-3 text-emerald-400" /> : <Share2 className="w-3 h-3" />}
-                  {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'loading' ? '…' : 'Share'}
+                  {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'loading' ? '…' : 'Private Link'}
                 </button>
               </div>
             )}

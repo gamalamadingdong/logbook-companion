@@ -206,7 +206,7 @@ export function PublicTeamLeaderboardShare() {
         <div className="text-center">
           <Trophy className="w-12 h-12 text-neutral-700 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-neutral-200 mb-2">Link expired or invalid</h1>
-          <p className="text-sm text-neutral-500">This share link may have expired. Ask the coach for a new one.</p>
+          <p className="text-sm text-neutral-500">This private share link may have expired. Ask the coach for a new one.</p>
         </div>
       </div>
     );
@@ -220,7 +220,10 @@ export function PublicTeamLeaderboardShare() {
             <Trophy className="w-4 h-4" /> Season Leaderboard
           </div>
           <h1 className="text-2xl font-bold text-white">{heading}</h1>
-          <p className="text-sm text-neutral-400 mt-1">Shared coaching analytics view</p>
+          <p className="text-sm text-neutral-400 mt-1">Private-by-link coaching analytics view</p>
+          <p className="text-xs text-neutral-500 mt-2">
+            Anyone with this exact link can view this leaderboard until it expires. Treat it like an unlisted link, not a broadly public page.
+          </p>
         </div>
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3">

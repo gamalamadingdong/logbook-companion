@@ -4,6 +4,49 @@
 
 ---
 
+## Phase 76: Private-by-link share policy copy pass (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src/pages/coaching/AssignmentResults.tsx`
+  - assignment-result sharing now says `Copy Private Link`
+  - success toast now confirms a private share link was copied
+
+- `src/pages/coaching/TeamAnalytics.tsx`
+  - leaderboard sharing button now says `Private Link`
+
+- `src/pages/PublicAssignmentResultsShare.tsx`
+  - invalid-link state now refers to a private share link
+  - header copy now explicitly says the page is private-by-link and that anyone with the exact URL can view it until expiry
+
+- `src/pages/PublicTeamLeaderboardShare.tsx`
+  - subtitle now says `Private-by-link coaching analytics view`
+  - added explicit unlisted-link warning copy near the header
+  - invalid-link state now refers to a private share link
+
+- `src/services/coaching/coachingService.ts`
+  - share-creation failures now say `Failed to create private share link`
+
+### Why This Shape Won
+
+- the share routes are intentionally not broad public/community surfaces; they are secret-link pages for coaches to distribute deliberately
+- making that explicit at link creation time and on the destination pages reduces the chance that coaches treat them like indexed/public pages
+- small wording changes were enough here; the underlying token-based share model already matched the intended privacy posture
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\services\coaching\coachingService.ts src\pages\coaching\AssignmentResults.tsx src\pages\coaching\TeamAnalytics.tsx src\pages\PublicAssignmentResultsShare.tsx src\pages\PublicTeamLeaderboardShare.tsx` ✅
+- `npm run build` ✅
+
+### Outcome
+
+The product now consistently frames assignment-result and leaderboard shares as private-by-link, unlisted pages rather than general public/community pages.
+
+---
+
 ## Phase 75: Proposal abuse hardening + notification idempotency fix (March 26, 2026)
 
 **Timeline**: March 26, 2026  

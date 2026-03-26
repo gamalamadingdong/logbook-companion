@@ -1720,7 +1720,7 @@ export function AssignmentResults() {
           return expiresAt;
         }
       })();
-      toast.success(`Share link copied (expires ${expiresLabel})`);
+      toast.success(`Private share link copied (expires ${expiresLabel})`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create share link');
     } finally {
@@ -1968,7 +1968,7 @@ export function AssignmentResults() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   {isCreatingShare ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                  Copy Share Link
+                  Copy Private Link
                 </button>
                 <button
                   onClick={() => {
