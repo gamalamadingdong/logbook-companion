@@ -4,6 +4,63 @@
 
 ---
 
+## Phase 77: Authenticated AI surface v1 (March 26, 2026)
+
+**Timeline**: March 26, 2026  
+**Status**: ✅ Complete and deployed
+
+### What Was Built
+
+- `src\lib\libraryTemplateDto.ts`
+  - extracted a pure DTO helper layer for:
+    - library tier derivation
+    - whiteboard line derivation
+    - normalized public detail shaping
+    - normalized AI search summary shaping
+
+- `src\types\workoutStructure.types.ts`
+  - added explicit authenticated AI contract types:
+    - `LibraryAiSearchParams`
+    - `LibraryAiTemplateSummary`
+    - `LibraryAiSearchResponse`
+
+- `src\services\templateService.ts`
+  - now reuses the shared DTO builder for `fetchPublicTemplateDetail()`
+  - now exposes `fetchLibraryAiTemplateSearch()` so app-side code can reuse the same published-template filtering and DTO semantics as the new edge surface
+
+- `supabase\functions\library-search\index.ts`
+  - added an authenticated read-only edge function for internal AI/planning retrieval
+  - supports safe filters for free-text search, workout type, training zone, difficulty, community vs standard tier, duration min/max, popularity vs recency sort, and limit/offset pagination
+  - validates auth and query params explicitly before querying
+
+- `supabase\functions\library-template-detail\index.ts`
+  - added an authenticated read-only edge function for one published template
+  - returns the normalized detail payload with derived whiteboard lines and aggregate reference stats
+
+### Why This Shape Won
+
+- the app already had the beginnings of a public-safe template DTO, but there was no stable machine-facing retrieval boundary
+- extracting a pure DTO helper prevents the app UI and future AI consumers from drifting on tier logic or whiteboard derivation
+- using authenticated edge functions keeps auth explicit, preserves the option to add rate limiting or API keys later, and avoids exposing a public scraping surface before the product is ready
+- keeping the search contract summary-focused reduces payload weight while the detail endpoint provides the richer full-template view when needed
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\lib\libraryTemplateDto.ts src\services\templateService.ts src\types\workoutStructure.types.ts supabase\functions\library-search\index.ts supabase\functions\library-template-detail\index.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing files in `scripts/*`, `src/api/*`, and analytics components
+- ReadyAll deployment:
+  - `library-search` deployed live with `verify_jwt: true` ✅
+  - `library-template-detail` deployed live with `verify_jwt: true` ✅
+  - unauthenticated route probes now return `401` for both functions ✅
+
+### Outcome
+
+The repo now has the first internal AI-ready retrieval contract for the workout library: authenticated-only, published-template-only, read-only, normalized around a stable DTO rather than raw table rows, and live on ReadyAll. The next step shifts from deployment to consumption: wire the first internal planning/AI caller, then decide the later `library-rating-policy`.
+
+---
+
 ## Phase 76: Private-by-link share policy copy pass (March 26, 2026)
 
 **Timeline**: March 26, 2026  

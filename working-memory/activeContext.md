@@ -15,11 +15,45 @@
   - structured JSON/DTO third
   - visualizer as a supporting explanation, not the primary public read
 - The library is moving toward a normalized public template DTO so the app UI and future AI/planning consumers can share one stable contract derived from `workout_templates`.
+- The first AI retrieval layer is now implemented as an **authenticated internal edge-function surface**:
+  - `supabase/functions/library-search`
+  - `supabase/functions/library-template-detail`
+  - both are now deployed live to ReadyAll with `verify_jwt: true`
+  - unauthenticated probes now return `401`, confirming the auth boundary is active
+  - both return normalized published-template DTOs only
 - The coaching IA has moved to **Schedule as the parent surface** with internal `Schedule | Lineups` tabs.
 - `CoachingSchedule.tsx` now owns day/week/month navigation, visible event/session CTAs, and the embedded org-wide Lineups surface.
 - The old `/team-management/boatings` route is now just a redirect into `Schedule?tab=lineups`, and top-level coaching nav no longer treats Lineups as a separate peer page.
 
 ## Recently Completed
+
+### Authenticated AI surface v1
+- `src\lib\libraryTemplateDto.ts`
+  - added pure reusable DTO builders for template tiering, whiteboard derivation, public detail shaping, and AI search summaries
+- `src\types\workoutStructure.types.ts`
+  - added explicit authenticated AI contract types:
+    - `LibraryAiSearchParams`
+    - `LibraryAiTemplateSummary`
+    - `LibraryAiSearchResponse`
+- `src\services\templateService.ts`
+  - now reuses the shared DTO builder for public detail responses
+  - now exposes `fetchLibraryAiTemplateSearch()` for normalized published-template search semantics inside the app codebase
+- `supabase\functions\library-search\index.ts`
+  - added authenticated read-only search for published library templates
+  - supports `search`, `workout_type`, `training_zone`, `difficulty_level`, `tier`, `duration_min`, `duration_max`, `sort`, `limit`, and `offset`
+  - validates query params and returns stable JSON errors for auth, validation, and query failures
+- `supabase\functions\library-template-detail\index.ts`
+  - added authenticated read-only detail retrieval for one published template
+  - returns the normalized detail payload plus derived whiteboard lines and aggregate reference stats
+- live deploy:
+  - `library-search` deployed to ReadyAll with `verify_jwt: true`
+  - `library-template-detail` deployed to ReadyAll with `verify_jwt: true`
+  - post-deploy unauthenticated probes now return `401` for both routes
+- validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\lib\libraryTemplateDto.ts src\services\templateService.ts src\types\workoutStructure.types.ts supabase\functions\library-search\index.ts supabase\functions\library-template-detail\index.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
+  - `npm run lint` ❌ still fails repo-wide on unrelated pre-existing `scripts/*`, `src/api/*`, and analytics debt
 
 ### ReadyAll admin notifications + proposal hardening rollout
 - `db/migrations/20260326_add_admin_notification_fields_and_proposal_guards.sql`
@@ -168,6 +202,9 @@
   - `npm run build` ✅
 
 ## Next Steps
+- Add a thin app-side caller for the new authenticated library functions when the first planning/AI workflow is ready to consume them.
+- Keep the AI surface internal-only for now; public machine access still waits on explicit rate limiting / external-consumer policy.
+- Next product decision after AI retrieval remains `library-rating-policy`.
 - Abuse-hardening implementation is now in the repo:
   - `src\pages\TemplateProposalPage.tsx` now requires a Cloudflare Turnstile check before submit
   - `src\services\templateProposalService.ts` now posts to a new edge function instead of inserting directly from the browser

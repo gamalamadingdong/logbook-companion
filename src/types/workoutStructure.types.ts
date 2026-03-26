@@ -171,6 +171,52 @@ export interface PublicWorkoutTemplateDetail {
     reference_stats: TemplateReferenceStats;
 }
 
+export interface LibraryAiTemplateSummary {
+    id: string;
+    name: string;
+    description: string;
+    workout_type: string;
+    training_zone: 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN' | null;
+    difficulty_level: string;
+    estimated_duration: number | null;
+    validated: boolean;
+    tier: Exclude<WorkoutTemplateTier, 'draft'>;
+    rwn: string | null;
+    canonical_name: string | null;
+    whiteboard_preview: string[];
+    usage_count: number;
+    last_used_at: string | null;
+    reference_stats: TemplateReferenceStats;
+    tags: string[];
+}
+
+/**
+ * Internal authenticated retrieval contract for AI and plan-building surfaces.
+ * This stays intentionally narrower than raw `workout_templates` rows.
+ */
+export interface LibraryAiSearchParams {
+    search?: string;
+    workout_type?: string;
+    training_zone?: 'UT2' | 'UT1' | 'AT' | 'TR' | 'AN';
+    difficulty_level?: string;
+    tier?: Exclude<WorkoutTemplateTier, 'draft'>;
+    duration_min?: number;
+    duration_max?: number;
+    sort?: 'popular' | 'recent';
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * Search payload returned by the authenticated library-search edge function.
+ */
+export interface LibraryAiSearchResponse {
+    items: LibraryAiTemplateSummary[];
+    total: number;
+    limit: number;
+    offset: number;
+}
+
 export type WorkoutTemplateProposalStatus =
     | 'pending'
     | 'under_review'

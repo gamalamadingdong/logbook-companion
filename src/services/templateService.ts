@@ -1,13 +1,20 @@
 import { supabase } from './supabase';
 import type {
+    LibraryAiSearchParams,
+    LibraryAiSearchResponse,
     PublicWorkoutTemplateDetail,
     TemplateReferenceStats,
     WorkoutTemplate,
     WorkoutTemplateListItem,
     WorkoutStructure,
 } from '../types/workoutStructure.types';
+import {
+    buildLibraryAiTemplateSummary,
+    buildPublicWorkoutTemplateDetail,
+    getLibraryTemplateTier,
+    type LibraryTemplateSourceRecord,
+} from '../lib/libraryTemplateDto';
 import { deriveCanonicalNameFromStructure } from '../utils/workoutCanonical';
-import { structureToWhiteboard } from '../utils/structureToWhiteboard';
 
 export interface TemplateFilters {
     workoutType?: string;
@@ -20,6 +27,17 @@ export interface TemplateFilters {
 
 const PUBLIC_TEMPLATE_LIST_COLUMNS = 'id, name, canonical_name, workout_type, training_zone, workout_structure, difficulty_level, validated, status, usage_count, last_used_at';
 const PUBLIC_TEMPLATE_DETAIL_COLUMNS = 'id, name, description, workout_type, training_zone, workout_category, workout_structure, technique_focus, coaching_points, pacing_guidance, estimated_duration, difficulty_level, usage_count, completion_rate, average_rating, rating_count, last_used_at, status, validated, rwn, canonical_name, tags, created_at, updated_at';
+const AI_TEMPLATE_SEARCH_COLUMNS = 'id, name, description, workout_type, training_zone, workout_category, workout_structure, technique_focus, coaching_points, pacing_guidance, estimated_duration, difficulty_level, usage_count, completion_rate, average_rating, rating_count, last_used_at, status, validated, rwn, canonical_name, tags, created_at, updated_at';
+
+function clampLimit(limit?: number): number {
+    if (!Number.isFinite(limit)) return 25;
+    return Math.min(Math.max(Math.trunc(limit ?? 25), 1), 50);
+}
+
+function normalizeOffset(offset?: number): number {
+    if (!Number.isFinite(offset)) return 0;
+    return Math.max(Math.trunc(offset ?? 0), 0);
+}
 
 /**
  * Fetch workout templates with optional filters
@@ -92,7 +110,7 @@ export async function fetchTemplateById(id: string): Promise<WorkoutTemplate | n
     return data as WorkoutTemplate;
 }
 
-export async function fetchPublicTemplateById(id: string): Promise<PublicWorkoutTemplateDetail | null> {
+export async function fetchPublicTemplateById(id: string): Promise<LibraryTemplateSourceRecord | null> {
     const { data, error } = await supabase
         .from('workout_templates')
         .select(PUBLIC_TEMPLATE_DETAIL_COLUMNS)
@@ -104,7 +122,7 @@ export async function fetchPublicTemplateById(id: string): Promise<PublicWorkout
         return null;
     }
 
-    return data as PublicWorkoutTemplateDetail;
+    return data as LibraryTemplateSourceRecord;
 }
 
 export async function fetchOwnedTemplateIds(templateIds: string[], userId: string): Promise<string[]> {
@@ -127,11 +145,7 @@ export async function fetchOwnedTemplateIds(templateIds: string[], userId: strin
 }
 
 export function getWorkoutTemplateTier(template: Pick<WorkoutTemplate, 'status' | 'validated'>): 'draft' | 'community' | 'standard' {
-    if (template.status !== 'published') {
-        return 'draft';
-    }
-
-    return template.validated ? 'standard' : 'community';
+    return getLibraryTemplateTier(template as Pick<LibraryTemplateSourceRecord, 'status' | 'validated'>);
 }
 
 export async function fetchPublicTemplateDetail(id: string): Promise<PublicWorkoutTemplateDetail | null> {
@@ -152,10 +166,84 @@ export async function fetchPublicTemplateDetail(id: string): Promise<PublicWorko
     }
 
     return {
-        ...template,
-        tier: getWorkoutTemplateTier(template),
-        whiteboard_lines: template.workout_structure ? structureToWhiteboard(template.workout_structure) : [],
-        reference_stats: referenceStats,
+        ...buildPublicWorkoutTemplateDetail(template as LibraryTemplateSourceRecord, referenceStats),
+    };
+}
+
+export async function fetchLibraryAiTemplateSearch(
+    filters: LibraryAiSearchParams = {},
+): Promise<LibraryAiSearchResponse> {
+    const limit = clampLimit(filters.limit);
+    const offset = normalizeOffset(filters.offset);
+
+    let query = supabase
+        .from('workout_templates')
+        .select(AI_TEMPLATE_SEARCH_COLUMNS, { count: 'exact' })
+        .eq('status', 'published');
+
+    if (filters.workout_type) {
+        query = query.eq('workout_type', filters.workout_type);
+    }
+
+    if (filters.training_zone) {
+        query = query.eq('training_zone', filters.training_zone);
+    }
+
+    if (filters.difficulty_level) {
+        query = query.eq('difficulty_level', filters.difficulty_level);
+    }
+
+    if (filters.tier === 'standard') {
+        query = query.eq('validated', true);
+    } else if (filters.tier === 'community') {
+        query = query.eq('validated', false);
+    }
+
+    if (Number.isFinite(filters.duration_min)) {
+        query = query.gte('estimated_duration', filters.duration_min ?? 0);
+    }
+
+    if (Number.isFinite(filters.duration_max)) {
+        query = query.lte('estimated_duration', filters.duration_max ?? 0);
+    }
+
+    if (filters.search?.trim()) {
+        const escaped = filters.search.trim().replaceAll(',', '\\,');
+        query = query.or(`name.ilike.%${escaped}%,description.ilike.%${escaped}%,canonical_name.ilike.%${escaped}%`);
+    }
+
+    query = filters.sort === 'recent'
+        ? query.order('last_used_at', { ascending: false, nullsFirst: false }).order('name', { ascending: true })
+        : query.order('usage_count', { ascending: false }).order('name', { ascending: true });
+
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
+
+    if (error) {
+        console.error('Error fetching AI template search results:', error);
+        throw error;
+    }
+
+    const templates = (data ?? []) as LibraryTemplateSourceRecord[];
+    const items = await Promise.all(
+        templates.map(async (template) => {
+            const referenceStats = await getTemplateReferenceStats(template.id).catch(searchError => {
+                console.error('Failed to load AI template reference stats:', searchError);
+                return {
+                    groupAssignmentCount: 0,
+                    planWorkoutCount: 0,
+                    dailyAssignmentCount: 0,
+                } satisfies TemplateReferenceStats;
+            });
+
+            return buildLibraryAiTemplateSummary(template, referenceStats);
+        }),
+    );
+
+    return {
+        items,
+        total: count ?? 0,
+        limit,
+        offset,
     };
 }
 
