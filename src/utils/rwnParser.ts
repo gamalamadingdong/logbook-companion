@@ -52,6 +52,84 @@ interface ParsedComponent {
     tags?: string[];        // Legacy inline tags (#warmup, #cooldown, #test)
 }
 
+function parseGuidanceText(guidanceText: string): ParsedComponent['guidance'] {
+    const guidance: ParsedComponent['guidance'] = {};
+    const guidanceParts = guidanceText.split('@').map(p => p.trim()).filter(Boolean);
+
+    for (const part of guidanceParts) {
+        if (!guidance.target_rate) {
+            const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
+            if (rateRangeMatch) {
+                guidance.target_rate = parseInt(rateRangeMatch[1]);
+                guidance.target_rate_max = parseInt(rateRangeMatch[2]);
+                continue;
+            }
+        }
+
+        if (!guidance.target_rate) {
+            const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
+            if (rateMatch) {
+                guidance.target_rate = parseInt(rateMatch[1]);
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
+            if (paceRangeMatch) {
+                guidance.target_pace = paceRangeMatch[1];
+                guidance.target_pace_max = paceRangeMatch[2];
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceRangeMatch) {
+                guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
+                guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const relPaceMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceMatch) {
+                guidance.target_pace = relPaceMatch[1].replace(/\s+/g, '');
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const barePaceMatch = part.match(/^(2k|5k|6k|30m|60m)$/i);
+            if (barePaceMatch) {
+                guidance.target_pace = barePaceMatch[1].toLowerCase();
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const zoneMatch = part.match(/^(UT2|UT1|AT|TR|AN|open)$/i);
+            if (zoneMatch) {
+                guidance.target_pace = zoneMatch[1].toLowerCase() === 'open'
+                    ? 'open'
+                    : zoneMatch[1].toUpperCase();
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace && !guidance.target_rate) {
+            const paceMatch = part.match(/^(\d+:\d+(?:\.\d+)?)$/);
+            if (paceMatch) {
+                guidance.target_pace = paceMatch[1];
+                continue;
+            }
+        }
+    }
+
+    return guidance;
+}
+
 function parseComponent(str: string): ParsedComponent | null {
     let rawClean = str.trim();
 
@@ -120,93 +198,7 @@ function parseComponent(str: string): ParsedComponent | null {
         coreText = beforeAt;
     }
 
-    // Parse Guidance - split by @ to handle multiple chained parameters
-    const guidance: ParsedComponent['guidance'] = {};
-    if (guidanceText) {
-        // Split guidance by @ to handle chained parameters like "2k@32spm"
-        const guidanceParts = guidanceText.split('@').map(p => p.trim());
-
-        for (const part of guidanceParts) {
-            // Regex for Rate Range: r20-24 or r20..24 or 20-24spm or 20..24spm
-            if (!guidance.target_rate) {
-                const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
-                if (rateRangeMatch) {
-                    guidance.target_rate = parseInt(rateRangeMatch[1]);
-                    guidance.target_rate_max = parseInt(rateRangeMatch[2]);
-                    continue;
-                }
-            }
-
-            // Regex for Rate (single value): r(\d+) or (\d+)spm
-            if (!guidance.target_rate) {
-                const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
-                if (rateMatch) {
-                    guidance.target_rate = parseInt(rateMatch[1]);
-                    continue;
-                }
-            }
-
-            // Regex for Absolute Pace Range: 1:48-1:52 or 1:48..1:52
-            if (!guidance.target_pace) {
-                const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
-                if (paceRangeMatch) {
-                    guidance.target_pace = paceRangeMatch[1];
-                    guidance.target_pace_max = paceRangeMatch[2];
-                    continue;
-                }
-            }
-
-            // Regex for Relative Pace Range: 2k+5-2k+10 or 2k+5..2k+10 or 2k-1..2k-5
-            if (!guidance.target_pace) {
-                const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
-                if (relPaceRangeMatch) {
-                    guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
-                    guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
-                    continue;
-                }
-            }
-
-            // Regex for Relative Pace: 2k+10, 6k-5, 2k + 18
-            if (!guidance.target_pace) {
-                const relPaceMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
-                if (relPaceMatch) {
-                    guidance.target_pace = relPaceMatch[1].replace(/\s+/g, ''); // Normalize to "2k+18"
-                    continue;
-                }
-            }
-
-            // Regex for Bare Reference Pace: 2k, 5k, 6k (without offset)
-            if (!guidance.target_pace) {
-                const barePaceMatch = part.match(/^(2k|5k|6k|30m|60m)$/i);
-                if (barePaceMatch) {
-                    guidance.target_pace = barePaceMatch[1].toLowerCase();
-                    continue;
-                }
-            }
-
-            // Regex for Training Zone Abbreviations: UT2, UT1, AT, TR, AN
-            // Also recognize 'open' as intentional no-restriction guidance
-            if (!guidance.target_pace) {
-                const zoneMatch = part.match(/^(UT2|UT1|AT|TR|AN|open)$/i);
-                if (zoneMatch) {
-                    // Keep 'open' lowercase, uppercase for standard zones
-                    guidance.target_pace = zoneMatch[1].toLowerCase() === 'open'
-                        ? 'open'
-                        : zoneMatch[1].toUpperCase();
-                    continue;
-                }
-            }
-
-            // Regex for Time Pace: (\d+:\d+)
-            if (!guidance.target_pace && !guidance.target_rate) {
-                const paceMatch = part.match(/^(\d+:\d+(?:\.\d+)?)$/);
-                if (paceMatch) {
-                    guidance.target_pace = paceMatch[1];
-                    continue;
-                }
-            }
-        }
-    }
+    const guidance = guidanceText ? parseGuidanceText(guidanceText) : {};
 
     // Parse Modality/Unit
     // Distance: 2000m, 5k, 5km
@@ -255,65 +247,7 @@ function extractGuidanceFromRest(restStr: string): { cleanRest: string; guidance
 
     const cleanRest = restStr.substring(0, atIndex).trim();
     const guidanceText = restStr.substring(atIndex + 1).trim();
-    const guidance: ParsedComponent['guidance'] = {};
-    const guidanceParts = guidanceText.split('@').map(p => p.trim());
-
-    for (const part of guidanceParts) {
-        if (!guidance.target_rate) {
-            const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
-            if (rateRangeMatch) {
-                guidance.target_rate = parseInt(rateRangeMatch[1]);
-                guidance.target_rate_max = parseInt(rateRangeMatch[2]);
-                continue;
-            }
-        }
-        if (!guidance.target_rate) {
-            const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
-            if (rateMatch) {
-                guidance.target_rate = parseInt(rateMatch[1]);
-                continue;
-            }
-        }
-        if (!guidance.target_pace) {
-            const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
-            if (paceRangeMatch) {
-                guidance.target_pace = paceRangeMatch[1];
-                guidance.target_pace_max = paceRangeMatch[2];
-                continue;
-            }
-        }
-        if (!guidance.target_pace) {
-            const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
-            if (relPaceRangeMatch) {
-                guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
-                guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
-                continue;
-            }
-        }
-        if (!guidance.target_pace) {
-            const relPaceMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
-            if (relPaceMatch) {
-                guidance.target_pace = relPaceMatch[1].replace(/\s+/g, '');
-                continue;
-            }
-        }
-        if (!guidance.target_pace) {
-            const zoneMatch = part.match(/^(UT2|UT1|AT|TR|AN|open)$/i);
-            if (zoneMatch) {
-                guidance.target_pace = zoneMatch[1].toLowerCase() === 'open' ? 'open' : zoneMatch[1].toUpperCase();
-                continue;
-            }
-        }
-        if (!guidance.target_pace && !guidance.target_rate) {
-            const paceMatch = part.match(/^(\d+:\d+(?:\.\d+)?)$/);
-            if (paceMatch) {
-                guidance.target_pace = paceMatch[1];
-                continue;
-            }
-        }
-    }
-
-    return { cleanRest, guidance };
+    return { cleanRest, guidance: parseGuidanceText(guidanceText) };
 }
 
 // Helper: Merge rest-extracted guidance into work guidance (work's own guidance takes precedence)

@@ -956,4 +956,31 @@ describe('RWN Parser - Guidance on Rest Token (should apply to work)', () => {
             expect(result.rest.value).toBe(180);
         }
     });
+
+    test('8x500m/1:00r@2k parses identically to 8x500m@2k/1:00r', () => {
+        const withGuidanceOnRest = parseRWN('8x500m/1:00r@2k');
+        const withGuidanceOnWork = parseRWN('8x500m@2k/1:00r');
+
+        expect(withGuidanceOnRest).not.toBeNull();
+        expect(withGuidanceOnWork).not.toBeNull();
+        expect(withGuidanceOnRest).toEqual(withGuidanceOnWork);
+    });
+
+    test('8x500m/1:00r@2k@32spm parses identically to 8x500m@2k@32spm/1:00r', () => {
+        const withGuidanceOnRest = parseRWN('8x500m/1:00r@2k@32spm');
+        const withGuidanceOnWork = parseRWN('8x500m@2k@32spm/1:00r');
+
+        expect(withGuidanceOnRest).not.toBeNull();
+        expect(withGuidanceOnWork).not.toBeNull();
+        expect(withGuidanceOnRest).toEqual(withGuidanceOnWork);
+    });
+
+    test('8x500m/1:00r@UT2 parses identically to 8x500m@UT2/1:00r', () => {
+        const withGuidanceOnRest = parseRWN('8x500m/1:00r@UT2');
+        const withGuidanceOnWork = parseRWN('8x500m@UT2/1:00r');
+
+        expect(withGuidanceOnRest).not.toBeNull();
+        expect(withGuidanceOnWork).not.toBeNull();
+        expect(withGuidanceOnRest).toEqual(withGuidanceOnWork);
+    });
 });

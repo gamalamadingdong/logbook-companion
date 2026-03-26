@@ -112,6 +112,22 @@
   - `npm run test:run` ✅
   - `npm run lint` still fails repo-wide on unrelated pre-existing scripts/analytics debt; this detail-page slice did not introduce new lint errors
 
+### RWN parser parity fix for PR #31 follow-up
+- `src\utils\rwnParser.ts`
+  - extracted the shared guidance parser into a reusable helper so work-token guidance and rest-token guidance now use the same parsing rules
+  - this closes the parity gap found during PR #31 review, where rest-attached guidance could have drifted from work-attached guidance for valid forms like bare reference pace
+- `src\utils\rwnParser.test.ts`
+  - added parity tests for rest-token guidance covering:
+    - `@2k`
+    - `@2k@32spm`
+    - `@UT2`
+- validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\utils\rwnParser.ts src\utils\rwnParser.test.ts` ✅
+  - `npm run test:run -- src\utils\rwnParser.test.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
+  - `npm run lint` still fails repo-wide on unrelated pre-existing files (`scripts/*`, analytics components, `src/api/*`, etc.); this parser slice did not add new repo-wide lint debt
+
 ## Next Steps
 - Run a fresh true end-to-end smoke test for:
   - a brand-new anonymous workout proposal submitted after rollout → one admin email without manual replay
