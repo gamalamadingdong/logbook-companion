@@ -64,7 +64,7 @@ import { Badge, Button, Card, EmptyState } from '../../components/ui';
 import { WeeklyFocusBanner } from '../../components/coaching/WeeklyFocusBanner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { LineupsWorkspace } from './CoachingBoatings';
+import { LineupsWorkspace, type LineupsFocusContext } from './CoachingBoatings';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -497,6 +497,13 @@ function CoachingSchedule() {
       : 'border-transparent bg-transparent text-content-muted hover:bg-surface-card hover:text-content-primary'
   ));
   const navIconButtonClass = 'relative h-11 w-11 shrink-0 rounded-xl px-0';
+  const lineupsFocusContext: LineupsFocusContext = {
+    rangeStart: getVisibleRange().start,
+    rangeEnd: getVisibleRange().end,
+    rangeLabel: currentRangeLabel,
+    rangeContextLabel: currentRangeContextLabel,
+    rangeKey: `${viewMode}:${getVisibleRange().start}:${getVisibleRange().end}`,
+  };
 
   return (
     <>
@@ -719,7 +726,7 @@ function CoachingSchedule() {
       ) : (
         <>
       {activeTab === 'lineups' ? (
-        <LineupsWorkspace embedded />
+        <LineupsWorkspace embedded embeddedContext={lineupsFocusContext} />
       ) : (
         <>
       {viewMode === 'day' && (

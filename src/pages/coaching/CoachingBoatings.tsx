@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
@@ -8,27 +8,34 @@ import {
   getOrgBoats,
   getOrgBoatings,
   getOrgAthletesWithTeam,
+  getTeamErgComparison,
+  getOrgErgComparison,
   createBoating,
   createBoat,
   updateBoating,
   deleteBoating,
   duplicateBoating,
   setBoatingActive,
-  updateBoatingSortOrders,
   getCoachNotesForAthlete,
   getNotesForSession,
-  createNote,
-  updateNote,
-  deleteNote,
+  getScheduleEvents,
+  getBoatingRaceResults,
+  createBoatingRaceResult,
+  updateBoatingRaceResult,
+  deleteBoatingRaceResult,
   type CoachingBoating,
+  type CoachingBoatingRaceResult,
   type CoachingBoat,
   type CoachingAthlete,
   type CoachingAthleteCoachNote,
   type CoachingAthleteNote,
   type BoatPosition,
+  type TeamErgComparison,
+  type CoachingScheduleEvent,
+  type ScheduleEventType,
 } from '../../services/coaching/coachingService';
-import { format } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, ArrowUp, ArrowDown, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare } from 'lucide-react';
+import { format, addDays, subDays } from 'date-fns';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare, Gauge, CalendarDays, Info, Trophy, Pencil } from 'lucide-react';
 import { Button, Card, EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
@@ -52,6 +59,12 @@ import {
 import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
+import {
+  buildLineupPredictions,
+  type LineupScorePrediction,
+} from '../../services/coaching/lineupPredictor';
+import { parsePaceToSeconds } from '../../utils/paceCalculator';
+import { formatTime } from '../../utils/prCalculator';
 
 type PendingBoatingAction = {
   kind: 'delete' | 'archive';
@@ -63,7 +76,54 @@ type BoatingFormData = Pick<CoachingBoating, 'date' | 'boat_name' | 'boat_type' 
   boat_id?: string | null;
 };
 
-export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
+type SeatNoteSummary = {
+  totalCount: number;
+  sessionNotes: CoachingAthleteNote[];
+  coachNotes: CoachingAthleteCoachNote[];
+};
+
+type BoatingRaceResultFormData = {
+  schedule_event_id?: string | null;
+  race_date: string;
+  event_name: string;
+  distance_meters: number;
+  time_seconds: number;
+  notes?: string;
+};
+
+export type LineupsFocusContext = {
+  rangeStart: string;
+  rangeEnd: string;
+  rangeLabel: string;
+  rangeContextLabel: string;
+  rangeKey: string;
+};
+
+const RACE_EVENT_TYPES: ScheduleEventType[] = ['regatta', 'scrimmage', 'head_race'];
+
+function normalizeLineupPositions(positions: BoatPosition[]): BoatPosition[] {
+  return [...positions]
+    .map((position) => ({
+      seat: position.seat,
+      athlete_id: position.athlete_id,
+      athlete_name: position.athlete_name,
+    }))
+    .sort((left, right) => left.seat - right.seat);
+}
+
+function buildLineupSignature(positions: BoatPosition[]): string {
+  return normalizeLineupPositions(positions)
+    .map((position) => `${position.seat}:${position.athlete_id}`)
+    .join('|');
+}
+
+export function LineupsWorkspace({
+  embedded = false,
+  embeddedContext,
+}: {
+  embedded?: boolean;
+  embeddedContext?: LineupsFocusContext;
+}) {
   const { userId, teamId, filterTeamId, orgId, isLoadingTeam } = useCoachingContext();
   const effectiveTeamId = filterTeamId ?? teamId;
   const hasOrg = !!orgId;
@@ -83,6 +143,8 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingBoatingAction>(null);
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+  const [ergComparisons, setErgComparisons] = useState<TeamErgComparison[]>([]);
+  const [dateScope, setDateScope] = useState<'focus' | 'all'>('all');
   const preExpandRef = useRef<string | null>(null);
   const expandedBoatingRef = useRef<string | null>(null);
 
@@ -108,12 +170,16 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
     const fetchBoatings = hasOrg
       ? () => getOrgBoatings(orgId!)
       : () => getBoatings(effectiveTeamId);
+    const fetchErgComparisons = hasOrg
+      ? () => getOrgErgComparison(orgId!)
+      : () => getTeamErgComparison(effectiveTeamId);
 
-    Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings()])
-      .then(([a, allBoats, b]) => {
+    Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings(), fetchErgComparisons()])
+      .then(([a, allBoats, b, ergData]) => {
         setAthletes(a);
         setBoats(allBoats);
         setBoatings(b);
+        setErgComparisons(ergData);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setIsLoading(false));
@@ -131,11 +197,15 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
       const fetchBoatings = hasOrg
         ? () => getOrgBoatings(orgId!)
         : () => getBoatings(effectiveTeamId);
+      const fetchErgComparisons = hasOrg
+        ? () => getOrgErgComparison(orgId!)
+        : () => getTeamErgComparison(effectiveTeamId);
 
-      const [a, allBoats, b] = await Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings()]);
+      const [a, allBoats, b, ergData] = await Promise.all([fetchAthletes(), fetchBoats(), fetchBoatings(), fetchErgComparisons()]);
       setAthletes(a);
       setBoats(allBoats);
       setBoatings(b);
+      setErgComparisons(ergData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh');
     }
@@ -268,31 +338,6 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
     athletes.find((a) => a.id === athleteId)?.name ?? ''
   , [athletes]);
 
-  const moveBoating = useCallback((boatingId: string, direction: 'up' | 'down') => {
-    setBoatings((prev) => {
-      const activeIds = prev.filter((b) => b.is_active !== false).map((b) => b.id);
-      const idx = activeIds.indexOf(boatingId);
-      if (idx < 0) return prev;
-      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= activeIds.length) return prev;
-      const swapId = activeIds[swapIdx];
-      const arr = [...prev];
-      const posA = arr.findIndex((b) => b.id === boatingId);
-      const posB = arr.findIndex((b) => b.id === swapId);
-      [arr[posA], arr[posB]] = [arr[posB], arr[posA]];
-
-      // Persist: assign sort_order based on new active order
-      const newActive = arr.filter((b) => b.is_active !== false);
-      const orders = newActive.map((b, i) => ({ id: b.id, sort_order: i }));
-      updateBoatingSortOrders(orders).catch(() => toast.error('Failed to save order'));
-      // Update sort_order in local state too
-      return arr.map((b) => {
-        const o = orders.find((o) => o.id === b.id);
-        return o ? { ...b, sort_order: o.sort_order } : b;
-      });
-    });
-  }, []);
-
   // Derived: squads and filtered athletes for form
   const squads = [...new Set(athletes.map((a) => a.squad).filter((s): s is string => !!s))].sort();
   const formAthletes = selectedSquad === 'all' ? athletes : athletes.filter((a) => a.squad === selectedSquad);
@@ -300,21 +345,67 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
   // Split active vs archived
   const activeBoatings = useMemo(() => boatings.filter((b) => b.is_active !== false), [boatings]);
   const archivedBoatings = useMemo(() => boatings.filter((b) => b.is_active === false), [boatings]);
-  const boatsById = useMemo(
-    () => new Map(boats.map((boat) => [boat.id, boat])),
-    [boats]
+  const isBoatingInFocusRange = useCallback((boating: CoachingBoating) => {
+    if (!embeddedContext) return true;
+    return boating.date >= embeddedContext.rangeStart && boating.date <= embeddedContext.rangeEnd;
+  }, [embeddedContext]);
+  const lineupPredictions = useMemo(
+    () => buildLineupPredictions({
+      boatings,
+      athletes,
+      ergComparisons,
+    }),
+    [athletes, boatings, ergComparisons]
   );
+  const focusedActiveBoatings = useMemo(
+    () => activeBoatings.filter(isBoatingInFocusRange),
+    [activeBoatings, isBoatingInFocusRange]
+  );
+  const focusedArchivedBoatings = useMemo(
+    () => archivedBoatings.filter(isBoatingInFocusRange),
+    [archivedBoatings, isBoatingInFocusRange]
+  );
+  const showingFocusedRange = embedded && !!embeddedContext && dateScope === 'focus';
+  const visibleActiveBoatings = useMemo(() => {
+    const candidates = showingFocusedRange ? focusedActiveBoatings : activeBoatings;
+
+    return [...candidates].sort((left, right) => {
+      const leftPrediction = lineupPredictions.get(left.id);
+      const rightPrediction = lineupPredictions.get(right.id);
+
+      const leftAdjusted = leftPrediction?.lineupScoreSeconds ?? Number.POSITIVE_INFINITY;
+      const rightAdjusted = rightPrediction?.lineupScoreSeconds ?? Number.POSITIVE_INFINITY;
+      if (leftAdjusted !== rightAdjusted) return leftAdjusted - rightAdjusted;
+
+      const leftRaw = leftPrediction?.averageRaw2kSeconds ?? Number.POSITIVE_INFINITY;
+      const rightRaw = rightPrediction?.averageRaw2kSeconds ?? Number.POSITIVE_INFINITY;
+      if (leftRaw !== rightRaw) return leftRaw - rightRaw;
+
+      if (left.sort_order !== right.sort_order) return left.sort_order - right.sort_order;
+      return left.boat_name.localeCompare(right.boat_name);
+    });
+  }, [activeBoatings, focusedActiveBoatings, lineupPredictions, showingFocusedRange]);
+  const visibleArchivedBoatings = showingFocusedRange ? focusedArchivedBoatings : archivedBoatings;
+
+  useEffect(() => {
+    if (!embedded || !embeddedContext) {
+      setDateScope('all');
+      return;
+    }
+
+    setDateScope(focusedActiveBoatings.length > 0 ? 'focus' : 'all');
+  }, [embedded, embeddedContext, focusedActiveBoatings.length, embeddedContext?.rangeKey]);
 
   // Map athlete ID → which active boat they're assigned to
   const athleteBoatMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const b of activeBoatings) {
+    for (const b of visibleActiveBoatings) {
       for (const p of b.positions) {
         map.set(p.athlete_id, b.boat_name);
       }
     }
     return map;
-  }, [activeBoatings]);
+  }, [visibleActiveBoatings]);
 
   // Derive team list for roster filter
   const teams = useMemo(() => {
@@ -535,13 +626,12 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
   const showDndPanel = activeBoatings.length > 0 && !isAdding && !editingBoating && !isLoading && athletes.length > 0;
 
   // Group archived by date for history view
-  const archivedByDate = useMemo(() => archivedBoatings.reduce((acc, boating) => {
+  const archivedByDate = useMemo(() => visibleArchivedBoatings.reduce((acc, boating) => {
     const dateKey = boating.date.slice(0, 10);
     if (!acc[dateKey]) acc[dateKey] = [];
     acc[dateKey].push(boating);
     return acc;
-  }, {} as Record<string, CoachingBoating[]>), [archivedBoatings]);
-
+  }, {} as Record<string, CoachingBoating[]>), [visibleArchivedBoatings]);
   return (
     <>
     {!embedded && <CoachingNav />}
@@ -606,6 +696,53 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
         </div>
       </Card>
 
+      {embedded && embeddedContext && (
+        <Card padding="md">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-content-muted">
+                {embeddedContext.rangeContextLabel}
+              </p>
+              <p className="text-sm font-semibold text-content-primary">
+                {embeddedContext.rangeLabel}
+              </p>
+              <p className="text-sm text-content-secondary">
+                {focusedActiveBoatings.length > 0
+                  ? `${focusedActiveBoatings.length} saved crew record${focusedActiveBoatings.length === 1 ? '' : 's'} from this range ready to reuse in the current schedule view.`
+                  : `No saved crew records fall inside this ${embeddedContext.rangeContextLabel.toLowerCase()}. You can still browse the full lineup archive.`}
+              </p>
+            </div>
+
+            <div
+              role="tablist"
+              aria-label="Lineup date scope"
+              className="inline-flex w-full items-center gap-1 rounded-2xl border border-border bg-surface-well p-1 lg:w-auto"
+            >
+              <Button
+                type="button"
+                variant={showingFocusedRange ? 'coaching' : 'ghost'}
+                size="md"
+                onClick={() => setDateScope('focus')}
+                className="flex-1 rounded-xl lg:flex-initial"
+                aria-pressed={showingFocusedRange}
+              >
+                In Focus
+              </Button>
+              <Button
+                type="button"
+                variant={!showingFocusedRange ? 'secondary' : 'ghost'}
+                size="md"
+                onClick={() => setDateScope('all')}
+                className="flex-1 rounded-xl lg:flex-initial"
+                aria-pressed={!showingFocusedRange}
+              >
+                All Saved
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Error */}
       {error && (
         <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-4 text-red-400 text-sm">
@@ -657,6 +794,17 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
                 </div>
               }
             />
+      ) : visibleActiveBoatings.length === 0 && visibleArchivedBoatings.length === 0 && showingFocusedRange ? (
+        <EmptyState
+          icon={<CalendarDays className="w-8 h-8" />}
+          title="No lineups in this schedule range"
+          description={`There are no saved crew records dated within ${embeddedContext?.rangeLabel}. Switch to All Saved to reuse a lineup from another day.`}
+          action={(
+            <Button type="button" variant="secondary" size="lg" onClick={() => setDateScope('all')}>
+              Show all saved lineups
+            </Button>
+          )}
+        />
       ) : (
         <DndContext
           sensors={sensors}
@@ -682,36 +830,36 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
 
           <div className={`space-y-6 ${showDndPanel ? 'md:flex-1 md:min-w-0' : ''}`}>
           {/* ── Saved Crew Records ── */}
-          {activeBoatings.length > 0 ? (
+          {visibleActiveBoatings.length > 0 ? (
             <div className="space-y-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">Saved crew records</h2>
                 <p className="mt-1 text-sm text-neutral-500">
-                  Reusable org-wide lineups and recent shell records you can reference from session reports.
+                  {showingFocusedRange
+                    ? 'Saved crew records from the current schedule range, sorted fastest first by adjusted lineup 2k.'
+                    : 'Reusable org-wide lineups and recent shell records, sorted fastest first by adjusted lineup 2k.'}
                 </p>
               </div>
-              {activeBoatings.map((boating, idx) => (
+              {visibleActiveBoatings.map((boating) => (
                 <BoatingCard
                   key={boating.id}
                   boating={boating}
                   athletes={athletes}
-                  allBoatings={activeBoatings}
+                  allBoatings={visibleActiveBoatings}
                   expanded={expandedBoating === boating.id}
                   onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
                   onEdit={() => setEditingBoating(boating)}
                    onDelete={() => setPendingAction({ kind: 'delete', boating })}
-                   onDuplicate={() => handleDuplicate(boating)}
-                   onArchive={() => setPendingAction({ kind: 'archive', boating })}
+                  onDuplicate={() => handleDuplicate(boating)}
+                  onArchive={() => setPendingAction({ kind: 'archive', boating })}
                   onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
                   getAthleteName={getAthleteName}
                   isDragging={activeDragId !== null}
                   dndEnabled={showDndPanel}
-                  onMoveUp={idx > 0 ? () => moveBoating(boating.id, 'up') : undefined}
-                  onMoveDown={idx < activeBoatings.length - 1 ? () => moveBoating(boating.id, 'down') : undefined}
-                  boat={boating.boat_id ? boatsById.get(boating.boat_id) ?? null : null}
-                  teamId={boating.team_id ?? null}
-                  teamName={teams.find(([id]) => id === boating.team_id)?.[1] ?? null}
                   userId={userId}
+                  orgId={orgId}
+                  fallbackTeamId={effectiveTeamId}
+                  prediction={lineupPredictions.get(boating.id) ?? null}
                 />
               ))}
             </div>
@@ -722,14 +870,14 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
           )}
 
           {/* ── History ── */}
-          {archivedBoatings.length > 0 && (
+          {visibleArchivedBoatings.length > 0 && (
             <div>
               <button
                 onClick={() => setShowHistory(!showHistory)}
                 className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-300 transition-colors mb-3"
               >
                 <History className="w-4 h-4" />
-                Crew history archive ({archivedBoatings.length})
+                {showingFocusedRange ? 'Crew history in focus' : 'Crew history archive'} ({visibleArchivedBoatings.length})
                 {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {showHistory && (
@@ -753,17 +901,17 @@ export function LineupsWorkspace({ embedded = false }: { embedded?: boolean }) {
                             onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
                             onEdit={() => setEditingBoating(boating)}
                              onDelete={() => setPendingAction({ kind: 'delete', boating })}
-                             onReactivate={() => handleToggleActive(boating.id, true)}
-                             onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
-                             getAthleteName={getAthleteName}
-                            archived
-                            boat={boating.boat_id ? boatsById.get(boating.boat_id) ?? null : null}
-                             teamId={boating.team_id ?? null}
-                             teamName={teams.find(([id]) => id === boating.team_id)?.[1] ?? null}
-                             userId={userId}
-                           />
-                         ))}
-                      </div>
+                              onReactivate={() => handleToggleActive(boating.id, true)}
+                              onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
+                              getAthleteName={getAthleteName}
+                              archived
+                              userId={userId}
+                              orgId={orgId}
+                              fallbackTeamId={effectiveTeamId}
+                              prediction={lineupPredictions.get(boating.id) ?? null}
+                            />
+                          ))}
+                       </div>
                     </div>
                   ))}
                 </div>
@@ -842,12 +990,10 @@ function BoatingCard({
   archived,
   isDragging,
   dndEnabled,
-  onMoveUp,
-  onMoveDown,
-  boat,
-  teamId,
-  teamName,
   userId,
+  orgId,
+  fallbackTeamId,
+  prediction,
 }: {
   boating: CoachingBoating;
   athletes: CoachingAthlete[];
@@ -864,13 +1010,163 @@ function BoatingCard({
   archived?: boolean;
   isDragging?: boolean;
   dndEnabled?: boolean;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  boat?: CoachingBoat | null;
-  teamId?: string | null;
-  teamName?: string | null;
   userId: string;
+  orgId?: string | null;
+  fallbackTeamId?: string | null;
+  prediction?: LineupScorePrediction | null;
 }) {
+  const sessionId = boating.session_id ?? null;
+  const [sessionNotes, setSessionNotes] = useState<CoachingAthleteNote[]>([]);
+  const [coachNotesByAthlete, setCoachNotesByAthlete] = useState<Record<string, CoachingAthleteCoachNote[]>>({});
+  const [raceResults, setRaceResults] = useState<CoachingBoatingRaceResult[]>([]);
+  const [isRaceResultFormOpen, setIsRaceResultFormOpen] = useState(false);
+  const [editingRaceResult, setEditingRaceResult] = useState<CoachingBoatingRaceResult | null>(null);
+  const [isSavingRaceResult, setIsSavingRaceResult] = useState(false);
+  const [deletingRaceResultId, setDeletingRaceResultId] = useState<string | null>(null);
+  const [scheduleRaceEvents, setScheduleRaceEvents] = useState<CoachingScheduleEvent[]>([]);
+  const [isLoadingRaceEvents, setIsLoadingRaceEvents] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    const athleteIds = [...new Set(boating.positions.map((position) => position.athlete_id))];
+    if (athleteIds.length === 0) return;
+
+    Promise.all([
+      sessionId ? getNotesForSession(sessionId) : Promise.resolve([]),
+      Promise.all(
+        athleteIds.map(async (athleteId) => [athleteId, await getCoachNotesForAthlete(athleteId, 3)] as const)
+      ),
+    ])
+      .then(([sessionRows, coachNoteRows]) => {
+        setSessionNotes(sessionRows);
+        setCoachNotesByAthlete(Object.fromEntries(coachNoteRows));
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error(err instanceof Error ? err.message : 'Failed to load rower notes');
+      });
+  }, [boating.positions, expanded, sessionId]);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    getBoatingRaceResults(boating.id)
+      .then((rows) => setRaceResults(rows))
+      .catch((err) => {
+        console.error(err);
+        toast.error(err instanceof Error ? err.message : 'Failed to load race results');
+      });
+  }, [boating.id, expanded]);
+
+  useEffect(() => {
+    if (!isRaceResultFormOpen || !orgId) return;
+
+    const teamScope = boating.team_id ?? fallbackTeamId ?? undefined;
+    if (!teamScope) return;
+
+    setIsLoadingRaceEvents(true);
+    getScheduleEvents(
+      orgId,
+      format(subDays(parseLocalDate(boating.date), 365), 'yyyy-MM-dd'),
+      format(addDays(parseLocalDate(boating.date), 365), 'yyyy-MM-dd'),
+      teamScope
+    )
+      .then((rows) => setScheduleRaceEvents(rows.filter((event) => RACE_EVENT_TYPES.includes(event.event_type))))
+      .catch((err) => {
+        console.error(err);
+        toast.error(err instanceof Error ? err.message : 'Failed to load race events');
+      })
+      .finally(() => setIsLoadingRaceEvents(false));
+  }, [boating.date, boating.team_id, fallbackTeamId, isRaceResultFormOpen, orgId]);
+
+  const seatNotesByAthlete = useMemo<Record<string, SeatNoteSummary>>(() => {
+    const map: Record<string, SeatNoteSummary> = {};
+
+    for (const position of boating.positions) {
+      const athleteId = position.athlete_id;
+      const athleteSessionNotes = sessionNotes.filter((note) => note.athlete_id === athleteId);
+      const athleteCoachNotes = coachNotesByAthlete[athleteId] ?? [];
+      const totalCount = athleteSessionNotes.length + athleteCoachNotes.length;
+
+      if (totalCount > 0) {
+        map[athleteId] = {
+          totalCount,
+          sessionNotes: athleteSessionNotes,
+          coachNotes: athleteCoachNotes,
+        };
+      }
+    }
+
+    return map;
+  }, [boating.positions, coachNotesByAthlete, sessionNotes]);
+
+  const currentLineupSignature = useMemo(
+    () => buildLineupSignature(boating.positions),
+    [boating.positions]
+  );
+  const currentLineupSnapshot = useMemo(
+    () => normalizeLineupPositions(boating.positions),
+    [boating.positions]
+  );
+  const currentVersionRaceResults = useMemo(
+    () => raceResults.filter((result) => result.lineup_signature === currentLineupSignature),
+    [currentLineupSignature, raceResults]
+  );
+  const olderVersionRaceResults = useMemo(
+    () => raceResults.filter((result) => result.lineup_signature !== currentLineupSignature),
+    [currentLineupSignature, raceResults]
+  );
+  const canSaveRaceResult = Boolean((boating.team_id ?? fallbackTeamId) && userId);
+
+  const handleSaveRaceResult = useCallback(async (data: BoatingRaceResultFormData) => {
+    const targetTeamId = boating.team_id ?? fallbackTeamId;
+    if (!targetTeamId) {
+      toast.error('This crew record is missing a team, so race results cannot be saved yet.');
+      return;
+    }
+
+    const payload = {
+      ...data,
+      boating_id: boating.id,
+      lineup_signature: editingRaceResult?.lineup_signature ?? currentLineupSignature,
+      lineup_positions: editingRaceResult?.lineup_positions ?? currentLineupSnapshot,
+    };
+
+    setIsSavingRaceResult(true);
+    try {
+      const saved = editingRaceResult
+        ? await updateBoatingRaceResult(editingRaceResult.id, payload)
+        : await createBoatingRaceResult(targetTeamId, userId, payload);
+      setRaceResults((prev) => {
+        const next = editingRaceResult
+          ? prev.map((entry) => (entry.id === saved.id ? saved : entry))
+          : [saved, ...prev];
+        return next.sort((left, right) => right.race_date.localeCompare(left.race_date) || right.created_at.localeCompare(left.created_at));
+      });
+      setEditingRaceResult(null);
+      setIsRaceResultFormOpen(false);
+      toast.success(editingRaceResult ? 'Race result updated.' : 'Race result saved.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save race result');
+    } finally {
+      setIsSavingRaceResult(false);
+    }
+  }, [boating.id, boating.team_id, currentLineupSignature, currentLineupSnapshot, editingRaceResult, fallbackTeamId, userId]);
+
+  const handleDeleteRaceResult = useCallback(async (result: CoachingBoatingRaceResult) => {
+    setDeletingRaceResultId(result.id);
+    try {
+      await deleteBoatingRaceResult(result.id);
+      setRaceResults((prev) => prev.filter((entry) => entry.id !== result.id));
+      toast.success('Race result deleted.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete race result');
+    } finally {
+      setDeletingRaceResultId(null);
+    }
+  }, []);
+
   return (
     <div className={`bg-neutral-900 border rounded-xl overflow-hidden ${archived ? 'border-neutral-800/60 opacity-75' : 'border-neutral-800'}`}>
       <div
@@ -883,29 +1179,30 @@ function BoatingCard({
         <div className="min-w-0 flex-1">
           <p className="font-medium text-white text-sm truncate">{boating.boat_name}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1">
-            {teamName && (
-              <span className="inline-flex items-center rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-200">
-                {teamName}
-              </span>
+            {boating.notes && (
+              <InlinePopover
+                triggerLabel="Crew note"
+                triggerIcon={<MessageSquare className="h-3.5 w-3.5" />}
+              >
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Crew note</div>
+                  <p className="text-sm text-neutral-800">{boating.notes}</p>
+                </div>
+              </InlinePopover>
             )}
-            {boat && (
-              <span className="text-[11px] text-neutral-500 truncate">
-                Boat record: {boat.boat_name}
-              </span>
+            {!expanded && prediction && !archived && (
+              <>
+                <span className="inline-flex items-center rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-200">
+                  Adj {prediction.lineupScoreFormatted ?? '—'}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-neutral-700 bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-neutral-300">
+                  Raw {prediction.averageRaw2kFormatted ?? '—'}
+                </span>
+              </>
             )}
           </div>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          {onMoveUp && (
-            <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move up" aria-label={`Move ${boating.boat_name} up`}>
-              <ArrowUp className="w-3.5 h-3.5 text-neutral-500" />
-            </button>
-          )}
-          {onMoveDown && (
-            <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Move down" aria-label={`Move ${boating.boat_name} down`}>
-              <ArrowDown className="w-3.5 h-3.5 text-neutral-500" />
-            </button>
-          )}
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-neutral-700 rounded-md transition-colors" title="Edit crew record" aria-label={`Edit ${boating.boat_name}`}>
             <Edit2 className="w-3.5 h-3.5 text-neutral-500" />
           </button>
@@ -945,11 +1242,31 @@ function BoatingCard({
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
             <span>{format(parseLocalDate(boating.date), 'EEEE, MMM d, yyyy')}</span>
           </div>
+          {prediction && !archived && (
+            <LineupPredictorPanel prediction={prediction} />
+          )}
+          <BoatingRaceResultsPanel
+            results={raceResults}
+            currentVersionResults={currentVersionRaceResults}
+            olderVersionResults={olderVersionRaceResults}
+            onAdd={() => {
+              setEditingRaceResult(null);
+              setIsRaceResultFormOpen(true);
+            }}
+            onEdit={(result) => {
+              setEditingRaceResult(result);
+              setIsRaceResultFormOpen(true);
+            }}
+            onDelete={handleDeleteRaceResult}
+            canSave={canSaveRaceResult}
+            deletingResultId={deletingRaceResultId}
+          />
           <BoatDiagram
             boatType={boating.boat_type}
             positions={boating.positions}
             getAthleteName={getAthleteName}
             athletes={athletes}
+            seatNotesByAthlete={seatNotesByAthlete}
             boatingId={boating.id}
             onPositionsChange={archived ? undefined : onPositionsChange}
             allBoatings={allBoatings}
@@ -957,267 +1274,468 @@ function BoatingCard({
             isDragging={isDragging}
             dndEnabled={dndEnabled}
           />
-          {boating.notes && (
-            <p className="mt-4 text-sm text-neutral-400 bg-neutral-800 p-3 rounded-xl">
-              {boating.notes}
+        </div>
+      )}
+      {isRaceResultFormOpen && (
+        <RaceResultForm
+          boating={boating}
+          existing={editingRaceResult ?? undefined}
+          scheduleEvents={scheduleRaceEvents}
+          isLoadingEvents={isLoadingRaceEvents}
+          onSave={handleSaveRaceResult}
+          onCancel={() => {
+            if (isSavingRaceResult) return;
+            setIsRaceResultFormOpen(false);
+            setEditingRaceResult(null);
+          }}
+          saving={isSavingRaceResult}
+        />
+      )}
+    </div>
+  );
+}
+
+function LineupPredictorPanel({ prediction }: { prediction: LineupScorePrediction }) {
+  const format2k = (value: string | null) => value ?? 'Not enough evidence';
+
+  return (
+    <div className="mb-4 rounded-xl border border-indigo-200 bg-white/95 p-4 shadow-sm dark:border-indigo-500/20 dark:bg-indigo-500/5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200">
+              <Gauge className="h-3.5 w-3.5" />
+              Crew 2k profile
+            </span>
+            <InlinePopover
+              triggerLabel="Model details"
+              triggerIcon={<Info className="h-3.5 w-3.5" />}
+            >
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Evidence</div>
+                  <div className="mt-1 text-sm text-neutral-800">
+                    {prediction.totalEvidenceCount} point{prediction.totalEvidenceCount === 1 ? '' : 's'} across {prediction.modeledRowerSeats} modeled seat{prediction.modeledRowerSeats === 1 ? '' : 's'}.
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-600">
+                    Latest: {prediction.latestEvidenceDate ? format(parseLocalDate(prediction.latestEvidenceDate), 'MMM d, yyyy') : 'No erg evidence yet'}
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-600">
+                    Coverage: {prediction.modeledRowerSeats} of {prediction.expectedRowerSeats} rower seats modeled
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Assumptions</div>
+                  <ul className="mt-1 space-y-1 text-xs text-neutral-700">
+                    {prediction.assumptions.map((assumption) => (
+                      <li key={assumption}>{assumption}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {prediction.warnings.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Warnings</div>
+                    <ul className="mt-1 space-y-1 text-xs text-amber-800">
+                      {prediction.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </InlinePopover>
+          </div>
+          <p className="text-sm text-neutral-900 dark:text-white">
+            Weight-adjusted lineup 2k profile for this {prediction.boatType}, built for lineup comparison rather than literal race-time prediction.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+            Adjusted 2k score
+          </div>
+          <div className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">{format2k(prediction.lineupScoreFormatted)}</div>
+          <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            Average weight-adjusted 2k across modeled rower seats
+          </div>
+        </div>
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+            Raw 2k average
+          </div>
+          <div className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">{format2k(prediction.averageRaw2kFormatted)}</div>
+          <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            Before the body-weight correction lens
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BoatingRaceResultsPanel({
+  results,
+  currentVersionResults,
+  olderVersionResults,
+  onAdd,
+  onEdit,
+  onDelete,
+  canSave,
+  deletingResultId,
+}: {
+  results: CoachingBoatingRaceResult[];
+  currentVersionResults: CoachingBoatingRaceResult[];
+  olderVersionResults: CoachingBoatingRaceResult[];
+  onAdd: () => void;
+  onEdit: (result: CoachingBoatingRaceResult) => void;
+  onDelete: (result: CoachingBoatingRaceResult) => void;
+  canSave: boolean;
+  deletingResultId: string | null;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-neutral-200 bg-white/95 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+              <Trophy className="h-3.5 w-3.5" />
+              Race results
+            </span>
+            {currentVersionResults.length > 0 && (
+              <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                {currentVersionResults.length} exact-lineup result{currentVersionResults.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            Record actual water times against this saved lineup. If the seats change later, old results stay historical and no longer count as direct lineup matches.
+          </p>
+          {olderVersionResults.length > 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {olderVersionResults.length} older result{olderVersionResults.length === 1 ? '' : 's'} belong to earlier versions of this crew record.
             </p>
           )}
-          <BoatingRowerNotesPanel
-            boating={boating}
-            teamId={teamId}
-            userId={userId}
-            athletes={athletes}
-            getAthleteName={getAthleteName}
-          />
+        </div>
+        <Button type="button" onClick={onAdd} disabled={!canSave}>
+          Add race result
+        </Button>
+      </div>
+
+      {results.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+          No race results yet. Add one manually, or pick a real event from the calendar and fill in the boat time.
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {results.map((result) => {
+            const isCurrentVersion = currentVersionResults.some((entry) => entry.id === result.id);
+            return (
+              <div key={result.id} className="rounded-lg border border-neutral-200 bg-neutral-50/80 px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950/60">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-neutral-900 dark:text-white">{result.event_name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        isCurrentVersion
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
+                      }`}>
+                        {isCurrentVersion ? 'Current lineup' : 'Earlier lineup version'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 dark:text-neutral-400">
+                      <span>{format(parseLocalDate(result.race_date), 'MMM d, yyyy')}</span>
+                      <span>{result.distance_meters}m</span>
+                      <span className="font-mono text-neutral-900 dark:text-white">{formatTime(result.time_seconds)}</span>
+                    </div>
+                    {result.notes && (
+                      <p className="text-xs text-neutral-600 dark:text-neutral-400">{result.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 self-end sm:self-start">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(result)}
+                      className="rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+                      aria-label={`Edit ${result.event_name} race result`}
+                      title="Edit race result"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(result)}
+                      disabled={deletingResultId === result.id}
+                      className="rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-200 hover:text-rose-700 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-rose-300"
+                      aria-label={`Delete ${result.event_name} race result`}
+                      title="Delete race result"
+                    >
+                      {deletingResultId === result.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function BoatingRowerNotesPanel({
+function RaceResultForm({
   boating,
-  teamId,
-  userId,
-  athletes,
-  getAthleteName,
+  existing,
+  scheduleEvents,
+  isLoadingEvents,
+  onSave,
+  onCancel,
+  saving,
 }: {
   boating: CoachingBoating;
-  teamId?: string | null;
-  userId: string;
-  athletes: CoachingAthlete[];
-  getAthleteName: (id: string) => string;
+  existing?: CoachingBoatingRaceResult;
+  scheduleEvents: CoachingScheduleEvent[];
+  isLoadingEvents: boolean;
+  onSave: (data: BoatingRaceResultFormData) => void;
+  onCancel: () => void;
+  saving: boolean;
 }) {
-  const sessionId = boating.session_id ?? null;
-  const [sessionNotes, setSessionNotes] = useState<CoachingAthleteNote[]>([]);
-  const [coachNotesByAthlete, setCoachNotesByAthlete] = useState<Record<string, CoachingAthleteCoachNote[]>>({});
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState(existing?.schedule_event_id ?? '');
+  const [raceDate, setRaceDate] = useState(existing?.race_date ?? boating.date);
+  const [eventName, setEventName] = useState(existing?.event_name ?? '');
+  const [distanceMeters, setDistanceMeters] = useState(existing?.distance_meters ? String(existing.distance_meters) : '2000');
+  const [timeInput, setTimeInput] = useState(existing ? formatTime(existing.time_seconds) : '');
+  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const raceEventOptions = useMemo(
+    () => [...scheduleEvents].sort((left, right) => right.date.localeCompare(left.date)),
+    [scheduleEvents]
+  );
 
-  useEffect(() => {
-    const athleteIds = [...new Set(boating.positions.map((position) => position.athlete_id))];
-    Promise.all([
-      sessionId ? getNotesForSession(sessionId) : Promise.resolve([]),
-      Promise.all(
-        athleteIds.map(async (athleteId) => [athleteId, await getCoachNotesForAthlete(athleteId, 3)] as const)
-      ),
-    ])
-      .then(([sessionRows, coachNoteRows]) => {
-        setSessionNotes(sessionRows);
-        setCoachNotesByAthlete(Object.fromEntries(coachNoteRows));
-      })
-      .catch((err) => {
-        console.error(err);
-        toast.error(err instanceof Error ? err.message : 'Failed to load rower notes');
-      });
-  }, [boating.positions, sessionId]);
-
-  const reloadNotes = async () => {
-    const athleteIds = [...new Set(boating.positions.map((position) => position.athlete_id))];
-    const [sessionRows, coachNoteRows] = await Promise.all([
-      sessionId ? getNotesForSession(sessionId) : Promise.resolve([]),
-      Promise.all(
-        athleteIds.map(async (athleteId) => [athleteId, await getCoachNotesForAthlete(athleteId, 3)] as const)
-      ),
-    ]);
-    setSessionNotes(sessionRows);
-    setCoachNotesByAthlete(Object.fromEntries(coachNoteRows));
+  const handleEventSelection = (eventId: string) => {
+    setSelectedEventId(eventId);
+    if (!eventId) return;
+    const selected = raceEventOptions.find((event) => event.id === eventId);
+    if (!selected) return;
+    setRaceDate(selected.date);
+    setEventName(selected.title);
   };
 
-  const handleSaveDraft = async (athleteId: string) => {
-    if (!teamId || !sessionId) return;
-    const value = drafts[athleteId]?.trim();
-    if (!value) return;
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
 
-    try {
-      await createNote(teamId, userId, {
-        session_id: sessionId,
-        athlete_id: athleteId,
-        note: value,
-      });
-      setDrafts((prev) => ({ ...prev, [athleteId]: '' }));
-      await reloadNotes();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save rower note');
+    const parsedTime = parsePaceToSeconds(timeInput);
+    const parsedDistance = Number.parseInt(distanceMeters, 10);
+
+    if (!eventName.trim()) {
+      toast.error('Enter an event name.');
+      return;
     }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingNoteId || !editingText.trim()) return;
-    try {
-      await updateNote(editingNoteId, { note: editingText.trim() });
-      setEditingNoteId(null);
-      setEditingText('');
-      await reloadNotes();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update rower note');
+    if (!raceDate) {
+      toast.error('Choose a race date.');
+      return;
     }
-  };
-
-  const handleDeleteExisting = async (noteId: string) => {
-    try {
-      await deleteNote(noteId);
-      await reloadNotes();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete rower note');
+    if (!Number.isFinite(parsedDistance) || parsedDistance < 250) {
+      toast.error('Enter a valid race distance.');
+      return;
     }
+    if (parsedTime == null || parsedTime <= 0) {
+      toast.error('Enter the actual boat time in MM:SS.t format.');
+      return;
+    }
+
+    onSave({
+      schedule_event_id: selectedEventId || null,
+      race_date: raceDate,
+      event_name: eventName.trim(),
+      distance_meters: parsedDistance,
+      time_seconds: parsedTime,
+      notes: notes.trim() || undefined,
+    });
   };
-
-  const seatedAthletes = boating.positions
-    .slice()
-    .sort((a, b) => a.seat - b.seat)
-    .map((position) => ({
-      ...position,
-      athlete: athletes.find((athlete) => athlete.id === position.athlete_id),
-      displayName: position.athlete_name || getAthleteName(position.athlete_id),
-      sessionNotes: sessionNotes.filter((note) => note.athlete_id === position.athlete_id),
-      coachNotes: coachNotesByAthlete[position.athlete_id] ?? [],
-    }));
-
-  if (seatedAthletes.length === 0) return null;
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Crew note context</h4>
-          <p className="text-xs text-neutral-500 mt-1">
-            Session notes stay tied to the linked practice. Coach notes provide longer-term rower context.
-          </p>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
+      <div className="my-8 w-full max-w-lg rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">{existing ? 'Edit Race Result' : 'Add Race Result'}</h2>
+            <p className="mt-1 text-sm text-neutral-400">{boating.boat_name}</p>
+          </div>
+          <button onClick={onCancel} className="rounded-lg p-2 transition-colors hover:bg-neutral-800" title="Close">
+            <X className="h-5 w-5 text-neutral-400" />
+          </button>
         </div>
-        {!sessionId && (
-          <span className="text-xs text-amber-400">
-            Practice-specific rower notes only appear for crew records that already have a linked session.
-          </span>
-        )}
-      </div>
 
-      {seatedAthletes.map((position) => (
-        <div key={`${boating.id}-${position.seat}`} className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
-              <p className="text-sm font-semibold text-white">
-                Seat {position.seat === 0 ? 'Cox' : position.seat} · {position.displayName}
-              </p>
-              <p className="text-xs text-neutral-500">
-                {position.athlete?.side ? `Side: ${position.athlete.side}` : 'Crew context'}
-              </p>
-            </div>
-            {position.coachNotes.length > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-1 text-[11px] text-neutral-400">
-                <MessageSquare className="w-3 h-3" />
-                {position.coachNotes.length} coach note{position.coachNotes.length !== 1 ? 's' : ''}
-              </span>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="race-event-link" className="mb-2 block text-sm font-medium text-neutral-300">Calendar event (optional)</label>
+            <select
+              id="race-event-link"
+              value={selectedEventId}
+              onChange={(event) => handleEventSelection(event.target.value)}
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">{isLoadingEvents ? 'Loading race events…' : 'Enter manually'}</option>
+              {raceEventOptions.map((raceEvent) => (
+                <option key={raceEvent.id} value={raceEvent.id}>
+                  {format(parseLocalDate(raceEvent.date), 'MMM d')} · {raceEvent.title}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-neutral-500">
+              Pull from your real calendar event when possible, or leave it manual.
+            </p>
           </div>
 
-          {position.coachNotes.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {position.coachNotes.map((note) => (
-                <div key={note.id} className="rounded-lg border border-neutral-800 bg-neutral-800/70 p-3">
-                  <p className="text-xs text-neutral-500">
-                    Coach context · {note.author_display_name ?? 'Coach'} · {format(new Date(note.created_at), 'MMM d')}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-300">{note.note}</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="race-event-name" className="mb-2 block text-sm font-medium text-neutral-300">Event name</label>
+              <input
+                id="race-event-name"
+                type="text"
+                value={eventName}
+                onChange={(event) => setEventName(event.target.value)}
+                placeholder="e.g. State Finals"
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="race-date" className="mb-2 block text-sm font-medium text-neutral-300">Race date</label>
+              <input
+                id="race-date"
+                type="date"
+                value={raceDate}
+                onChange={(event) => setRaceDate(event.target.value)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="race-distance" className="mb-2 block text-sm font-medium text-neutral-300">Distance (m)</label>
+              <input
+                id="race-distance"
+                type="number"
+                min={250}
+                step={1}
+                value={distanceMeters}
+                onChange={(event) => setDistanceMeters(event.target.value)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="race-time" className="mb-2 block text-sm font-medium text-neutral-300">Actual boat time</label>
+              <input
+                id="race-time"
+                type="text"
+                value={timeInput}
+                onChange={(event) => setTimeInput(event.target.value)}
+                placeholder="e.g. 5:58.4"
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 font-mono text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="race-notes" className="mb-2 block text-sm font-medium text-neutral-300">Notes (optional)</label>
+            <textarea
+              id="race-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              className="w-full resize-none rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-white outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              placeholder="Lane, conditions, margin, or anything worth remembering."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={saving} className="flex-1">
+              {existing ? 'Save race result' : 'Add race result'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function InlinePopover({
+  triggerLabel,
+  triggerIcon,
+  children,
+}: {
+  triggerLabel: string;
+  triggerIcon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <details className="relative" onClick={(event) => event.stopPropagation()}>
+      <summary className="flex list-none cursor-pointer items-center gap-1 rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800">
+        {triggerIcon}
+        {triggerLabel}
+      </summary>
+      <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-neutral-950">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function SeatNotesPopover({
+  athleteName,
+  summary,
+}: {
+  athleteName: string;
+  summary: SeatNoteSummary;
+}) {
+  return (
+    <InlinePopover
+      triggerLabel={`${summary.totalCount}`}
+      triggerIcon={<MessageSquare className="h-3.5 w-3.5" />}
+    >
+      <div className="space-y-3">
+        <div>
+          <div className="text-sm font-semibold text-neutral-900">{athleteName}</div>
+          <div className="text-xs text-neutral-600">
+            {summary.totalCount} note{summary.totalCount === 1 ? '' : 's'} on this seat
+          </div>
+        </div>
+
+        {summary.sessionNotes.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-700">Session notes</div>
+            <div className="mt-1 space-y-2">
+              {summary.sessionNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-2 text-xs text-neutral-800">
+                  {note.note}
                 </div>
               ))}
             </div>
-          )}
-
-          <div className="space-y-2">
-            {position.sessionNotes.length > 0 ? (
-              position.sessionNotes.map((note) => (
-                <div key={note.id} className="rounded-lg border border-indigo-500/10 bg-indigo-500/5 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-indigo-300">Session note</p>
-                      {editingNoteId === note.id ? (
-                        <div className="mt-2 space-y-2">
-                          <textarea
-                            value={editingText}
-                            onChange={(event) => setEditingText(event.target.value)}
-                            rows={2}
-                            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleSaveEdit}
-                              disabled={!editingText.trim()}
-                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingNoteId(null);
-                                setEditingText('');
-                              }}
-                              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-1 text-sm text-neutral-300">{note.note}</p>
-                      )}
-                    </div>
-                    {editingNoteId !== note.id && (
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingNoteId(note.id);
-                            setEditingText(note.note);
-                          }}
-                          className="rounded-md p-1.5 hover:bg-neutral-800"
-                          title="Edit session note"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-neutral-400" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteExisting(note.id)}
-                          className="rounded-md p-1.5 hover:bg-neutral-800"
-                          title="Delete session note"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-neutral-400" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-neutral-500">No linked session notes for this rower yet.</p>
-            )}
-
-            {sessionId && teamId && (
-              <div className="rounded-lg border border-neutral-800 bg-neutral-800/40 p-3">
-                <label className="block text-xs font-medium text-neutral-400 mb-2">
-                  Add session note for {position.displayName}
-                </label>
-                <textarea
-                  value={drafts[position.athlete_id] ?? ''}
-                  onChange={(event) => setDrafts((prev) => ({ ...prev, [position.athlete_id]: event.target.value }))}
-                  rows={2}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Technical cue, lineup context, or seat-specific observation..."
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    onClick={() => handleSaveDraft(position.athlete_id)}
-                    disabled={!drafts[position.athlete_id]?.trim()}
-                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                  >
-                    Save session note
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      ))}
-    </div>
+        )}
+
+        {summary.coachNotes.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Coach notes</div>
+            <div className="mt-1 space-y-2">
+              {summary.coachNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-2 text-xs text-neutral-800">
+                  <div className="mb-1 text-[10px] text-neutral-500">
+                    {note.author_display_name ?? 'Coach'} · {format(new Date(note.created_at), 'MMM d')}
+                  </div>
+                  {note.note}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </InlinePopover>
   );
 }
 
@@ -1317,6 +1835,7 @@ function BoatDiagram({
   positions,
   getAthleteName,
   athletes,
+  seatNotesByAthlete,
   boatingId,
   onPositionsChange,
   allBoatings,
@@ -1328,6 +1847,7 @@ function BoatDiagram({
   positions: BoatPosition[];
   getAthleteName: (id: string) => string;
   athletes?: CoachingAthlete[];
+  seatNotesByAthlete?: Record<string, SeatNoteSummary>;
   boatingId?: string;
   onPositionsChange?: (positions: BoatPosition[]) => void;
   allBoatings?: CoachingBoating[];
@@ -1499,6 +2019,7 @@ function BoatDiagram({
               isDndActive={dndEnabled && !!athleteId}
               boatingId={boatingId}
               seat={seat}
+              noteSummary={athleteId ? seatNotesByAthlete?.[athleteId] : undefined}
             />
           )}
         </div>
@@ -1539,6 +2060,7 @@ function DraggableSeatedAthlete({
   isDndActive,
   boatingId,
   seat,
+  noteSummary,
 }: {
   athleteId: string;
   name: string;
@@ -1546,6 +2068,7 @@ function DraggableSeatedAthlete({
   isDndActive?: boolean;
   boatingId?: string;
   seat?: number;
+  noteSummary?: SeatNoteSummary;
 }) {
   // Prefix to avoid ID collision with roster DraggableAthleteCard
   const draggableId = `seated-${athleteId}`;
@@ -1557,26 +2080,36 @@ function DraggableSeatedAthlete({
 
   if (!isDndActive) {
     return (
-      <span className={`text-sm font-medium flex-1 ${isSwapSource ? 'text-amber-300' : 'text-neutral-300'}`}>
-        {name}
-        {isSwapSource && <span className="ml-2 text-xs text-amber-500">(pick swap target)</span>}
-      </span>
+      <div className="flex flex-1 items-center justify-between gap-2">
+        <span className={`text-sm font-medium ${isSwapSource ? 'text-amber-300' : 'text-neutral-300'}`}>
+          {name}
+          {isSwapSource && <span className="ml-2 text-xs text-amber-500">(pick swap target)</span>}
+        </span>
+        {noteSummary && noteSummary.totalCount > 0 && (
+          <SeatNotesPopover athleteName={name} summary={noteSummary} />
+        )}
+      </div>
     );
   }
 
   return (
-    <span
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={`text-sm font-medium flex-1 cursor-grab active:cursor-grabbing ${
-        isSwapSource ? 'text-amber-300' : 'text-neutral-300'
-      } ${selfDragging ? 'opacity-30' : ''}`}
-    >
-      <GripVertical size={12} className="inline mr-1 text-neutral-600" />
-      {name}
-      {isSwapSource && <span className="ml-2 text-xs text-amber-500">(pick swap target)</span>}
-    </span>
+    <div className="flex flex-1 items-center justify-between gap-2">
+      <span
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className={`text-sm font-medium flex-1 cursor-grab active:cursor-grabbing ${
+          isSwapSource ? 'text-amber-300' : 'text-neutral-300'
+        } ${selfDragging ? 'opacity-30' : ''}`}
+      >
+        <GripVertical size={12} className="inline mr-1 text-neutral-600" />
+        {name}
+        {isSwapSource && <span className="ml-2 text-xs text-amber-500">(pick swap target)</span>}
+      </span>
+      {noteSummary && noteSummary.totalCount > 0 && (
+        <SeatNotesPopover athleteName={name} summary={noteSummary} />
+      )}
+    </div>
   );
 }
 

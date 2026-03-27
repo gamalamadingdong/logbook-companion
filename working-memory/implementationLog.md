@@ -4,6 +4,305 @@
 
 ---
 
+## Phase 78: Virtual Lineup Predictor + date-aware embedded Lineups (March 27, 2026)
+
+**Timeline**: March 27, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src\pages\coaching\CoachingSchedule.tsx`
+  - now passes the current visible day/week/month range into the embedded `Lineups` workspace
+
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - embedded Lineups now supports `In Focus` vs `All Saved` date scoping tied to the active Schedule range
+  - added a new **Virtual Lineup Predictor** panel to expanded crew records
+  - predictor output includes:
+    - virtual `1500m`
+    - virtual `2000m`
+    - virtual `5000m`
+    - confidence label
+    - athlete evidence summary
+    - assumptions and modeling warnings
+
+- `src\services\coaching\lineupPredictor.ts`
+  - added a pure predictor module that:
+    - reuses existing erg comparison evidence
+    - normalizes athlete evidence into a 2k-equivalent power anchor
+    - projects per-athlete performance across target distances
+    - applies a Concept2-style body-weight correction lens when weight is known
+    - aggregates seated athletes into a shell-level virtual prediction with explicit confidence scoring
+
+- `src\services\coaching\lineupPredictor.test.ts`
+  - added focused tests for:
+    - lighter vs heavier athlete weight adjustment behavior
+    - incomplete / missing-evidence confidence degradation
+    - simultaneous `1500m` / `2000m` / `5000m` projection
+    - shell-class factor behavior
+
+### Why This Shape Won
+
+- the user clarified that athlete ranking and boat prediction are different jobs, so the new predictor intentionally does **not** replace Speed Index
+- the coaching module already had the needed building blocks:
+  - saved lineups
+  - athlete body weight
+  - manual erg scores
+  - assignment/test result evidence
+- embedding the predictor directly in `Schedule -> Lineups` lets coaches tinker with real saved crews rather than sending them to a detached analytics page
+- explicit confidence / assumptions / warnings keep the feature honest while still making it useful for comparison and planning
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingBoatings.tsx src\services\coaching\lineupPredictor.ts src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run test:run -- src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run test:run` ✅
+- `npm run build` ✅
+
+### Outcome
+
+The merged coaching workflow now goes beyond managing saved crews: Lineups can also act as a coach-facing virtual seat-race / boat-speed planning surface, while staying explicit that the current numbers are heuristic lineup predictions rather than validated on-water truth.
+
+---
+
+## Phase 82: Lineup race-result capture + schedule-event prefill (March 27, 2026)
+
+**Timeline**: March 27, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `db\migrations\20260327_add_boating_race_results.sql`
+  - added `public.coaching_boating_race_results`
+  - each result stores:
+    - `boating_id`
+    - `team_id`
+    - optional `schedule_event_id`
+    - `race_date`
+    - `event_name`
+    - `distance_meters`
+    - `time_seconds`
+    - `lineup_signature`
+    - `lineup_positions`
+  - added indexes for boating/date, team/date, and linked schedule event
+  - added team-scoped RLS aligned with existing coaching table patterns
+
+- `src\services\coaching\types.ts`
+  - added `CoachingBoatingRaceResult`
+
+- `src\services\coaching\coachingService.ts`
+  - added CRUD helpers for boating race results
+
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - expanded lineup cards now include a `Race results` panel
+  - coaches can add, edit, and delete actual race results
+  - the race-result modal can optionally prefill from existing schedule events of type:
+    - `regatta`
+    - `scrimmage`
+    - `head_race`
+  - results are tagged as:
+    - `Current lineup`
+    - `Earlier lineup version`
+  - editing a saved crew later no longer causes old results to pretend they belong to the new seat order, because the result keeps its original lineup snapshot/signature
+
+### Why This Shape Won
+
+- the user wanted a simple path toward real race prediction without pretending erg math alone can predict boat speed
+- capturing actual water results against saved lineups is the smallest honest step: it creates the calibration data first, before trying to sell a projection
+- using optional schedule-event prefill keeps the data entry lightweight because coaches can reuse real calendar events instead of retyping meet info
+- storing exact lineup snapshots solves the key integrity problem: if one athlete is swapped in or out later, the historical result remains attached to the older lineup version instead of contaminating the new one
+
+### Migration / RLS Checks Applied
+
+- checked live related schema first:
+  - `coaching_boatings`
+  - `coaching_schedule_events`
+  - `coaching_sessions`
+  - `coaching_session_crews`
+- applied live migration:
+  - `add_boating_race_results` on Supabase project `vmlhcbkyonemmlawnqqr` ✅
+- verified post-migration:
+  - live columns for `coaching_boating_race_results` ✅
+  - live RLS policies for `coaching_boating_race_results` ✅
+- security advisors showed no new lint entry specific to the new table
+
+### Rollout Notes
+
+- this rollout is backward-compatible because it only adds a new table and new UI surfaces; existing lineup workflows continue to function without race-result data
+- actual `Water projection` / `Realization` math is intentionally **not** part of this phase yet; this phase only captures the water evidence needed for later calibration
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingBoatings.tsx src\services\coaching\coachingService.ts src\services\coaching\types.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+
+### Outcome
+
+The coaching lineups surface can now collect real race results in a way coaches can actually trust: linked to saved crews, optionally tied to real calendar events, and protected against later seat edits by storing the exact lineup version that raced. This gives the app the minimal honest foundation for later water-calibrated prediction.
+
+---
+
+## Phase 81: Lineup card compaction + ranking polish (March 27, 2026)
+
+**Timeline**: March 27, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - active saved lineups now auto-sort fastest first using:
+    - adjusted lineup 2k score
+    - raw lineup 2k fallback
+    - existing order/name fallback when predictions tie or are missing
+  - collapsed cards now expose the comparison metrics immediately:
+    - adjusted 2k
+    - raw 2k
+    - confidence
+  - the expanded predictor section was shortened:
+    - evidence details moved into a compact popover
+    - average crew weight removed from the visible metric set
+  - the standalone rower-notes panel was removed
+  - rower notes now surface inline as seat-level popovers
+  - boating-level notes now live in a compact header affordance instead of a long body section
+
+### Why This Shape Won
+
+- the user wanted the lineup surface to work more like a quick coach comparison board and less like a long analytics report
+- the biggest gain came from making collapsed cards useful on their own; coaches can now compare saved crews without opening each one
+- moving evidence and notes into contextual affordances preserves detail without letting secondary information dominate the vertical layout
+- keeping score-based ordering only for active lineups preserves the usefulness of archived history views while making the live decision surface much more scan-friendly
+
+### UX Checks Applied
+
+- preserved the embedded `Schedule -> Lineups` focus-range behavior so compact cards still work cleanly inside the merged coaching workflow
+- kept collapsed-card metrics stacked and badge-based so mobile layouts stay single-column without horizontal overflow
+- ensured note affordances remain icon-labeled/contextual rather than relying on color alone
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingBoatings.tsx src\services\coaching\lineupPredictor.ts src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run test:run -- src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing files in `reproduce_rwn.ts`, `scripts\*`, `src\api\*`, and analytics components such as `src\components\analytics\WkgProgressChart.tsx`
+
+### Outcome
+
+The lineup predictor now behaves like a tighter coach workflow tool: saved crews rank themselves, the most important 2k comparison metrics are visible even when collapsed, and notes/evidence are available without turning each lineup card into a long scroll.
+
+---
+
+## Phase 79: Lineup score reframe + light-mode cleanup (March 27, 2026)
+
+**Timeline**: March 27, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src\services\coaching\lineupPredictor.ts`
+  - retooled the predictor away from headline virtual `1500m` / `2000m` / `5000m` outputs
+  - now computes a combined **lineup score** as average weight-adjusted 2k-equivalent watts across modeled rower seats
+  - now returns crew summary data that is more defensible for comparison:
+    - lineup score
+    - raw erg average
+    - adjusted average
+    - total adjusted modeled watts
+    - average rower weight
+  - keeps confidence, assumptions, and warnings
+  - removes shell-factor race-time presentation from the main product surface
+
+- `src\services\coaching\lineupPredictor.test.ts`
+  - updated the tests to match the new product framing:
+    - lighter vs heavier rower score advantage
+    - incomplete lineup confidence degradation
+    - lineup-score aggregation
+    - raw-power fallback when body weight is missing
+
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - reworked the predictor panel into a **Lineup score** card instead of a virtual race-time card
+  - now surfaces:
+    - crew score
+    - raw erg average
+    - average crew weight
+    - athlete-level adjusted/raw power contribution summaries
+  - replaced the previous dark-biased styling with light/dark-safe token-style surfaces and higher-contrast text
+
+### Why This Shape Won
+
+- the user correctly challenged the implied certainty of unrealistically fast virtual times
+- a weight-adjusted crew score is useful immediately for lineup tinkering without pretending to be a validated on-water physics engine
+- race-time prediction remains a legitimate future feature, but only after real race results are available to calibrate a water-conversion layer
+- fixing the panel styling in the same pass was necessary because the previous light-mode contrast made the feature harder to trust and use
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\services\coaching\lineupPredictor.ts src\services\coaching\lineupPredictor.test.ts src\pages\coaching\CoachingBoatings.tsx` ✅
+- `npm run test:run -- src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing files in `reproduce_rwn.ts`, `scripts\*`, `src\api\*`, and analytics components such as `src\components\analytics\WkgProgressChart.tsx`
+
+### Outcome
+
+The coaching predictor is now more honest and more usable: it helps compare lineups using weight-adjusted erg evidence, avoids misleading headline race-time claims, and reads cleanly in light mode. This also sets up a cleaner future path for a separate water-calibrated prediction layer once real race-result data exists.
+
+---
+
+## Phase 80: Adjusted 2k score cleanup + panel simplification (March 27, 2026)
+
+**Timeline**: March 27, 2026  
+**Status**: ✅ Complete
+
+### What Was Built
+
+- `src\services\coaching\lineupPredictor.ts`
+  - kept the existing erg/weight-adjustment math, but changed the coach-facing output from watt values to actual **2k score** values
+  - lineup headline output now exposes:
+    - adjusted lineup 2k score
+    - raw average 2k score
+    - average crew weight
+  - added compact lineup-level evidence summary fields:
+    - total evidence count
+    - latest evidence date
+
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - replaced watt-based headline cards with time-based 2k score cards
+  - removed the large athlete-by-athlete score breakdown
+  - replaced it with a much smaller lineup-level evidence summary so the predictor stays readable inside an expanded lineup card
+
+- `src\services\coaching\lineupPredictor.test.ts`
+  - updated tests to assert adjusted/raw 2k score outputs rather than watt-only headline behavior
+
+### Why This Shape Won
+
+- the user correctly pointed out that coaches think in **2k scores**, not abstract adjusted watts, when evaluating erg-derived lineup quality
+- converting the lineup result into an actual corrected 2k score preserves the underlying math while making the output legible and immediately interpretable
+- dropping the detailed athlete contribution cards keeps the predictor focused on the lineup decision rather than turning it into a second dense analytics module inside the lineup UI
+
+### Domain Checks Applied
+
+- units remain internally consistent:
+  - erg evidence is normalized via the repository's 2k-relative power-duration anchors
+  - weight adjustment is still applied through corrected split/time rather than mislabeled watt output
+  - coach-facing output now returns actual 2k scores, which is more consistent with rowing practice
+- references used:
+  - `kb\physiology\power-duration-curve.md` for the 2k-anchor and Concept2 pace/watts relationship
+  - `kb\physiology\rowing-training-physiology.md` for the central role of 2k as the practical rowing anchor
+
+### Validation
+
+- `node .\node_modules\eslint\bin\eslint.js src\services\coaching\lineupPredictor.ts src\services\coaching\lineupPredictor.test.ts src\pages\coaching\CoachingBoatings.tsx` ✅
+- `npm run test:run -- src\services\coaching\lineupPredictor.test.ts` ✅
+- `npm run build` ✅
+- `npm run test:run` ✅
+- `npm run lint` ❌ — still fails on unrelated pre-existing files in `reproduce_rwn.ts`, `scripts\*`, `src\api\*`, and analytics components
+
+### Outcome
+
+The lineup predictor now reads like a coach tool rather than a power-lab readout: the headline metric is an adjusted 2k score, the comparison remains lineup-level, and the panel is much easier to scan quickly during lineup tinkering.
+
+---
+
 ## Phase 77: Authenticated AI surface v1 (March 26, 2026)
 
 **Timeline**: March 26, 2026  

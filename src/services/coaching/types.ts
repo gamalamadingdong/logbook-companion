@@ -215,6 +215,23 @@ export interface CoachingBoating {
   updated_at: string;
 }
 
+export interface CoachingBoatingRaceResult {
+  id: string;
+  boating_id: string;
+  team_id: string;
+  coach_user_id: string;
+  schedule_event_id?: string | null;
+  race_date: string;
+  event_name: string;
+  distance_meters: number;
+  time_seconds: number;
+  lineup_signature: string;
+  lineup_positions: BoatPosition[];
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BoatPosition {
   seat: number; // 0 = cox, 1 = bow, N = stroke
   athlete_id: string;

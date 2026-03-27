@@ -1,8 +1,36 @@
 # Active Context
 
-> Last updated: March 26, 2026
+> Last updated: March 27, 2026
 
 ## Current Focus
+- The coaching `Schedule -> Lineups` surface now includes:
+  - a date-aware embedded Lineups scope toggle (`In Focus` vs `All Saved`)
+  - a new **Lineup Score** panel on saved crew records
+- The lineup comparison UX has now been compacted so saved crews behave more like a fast coach-scanning tool:
+  - active lineups auto-sort fastest first by adjusted lineup 2k, with raw 2k fallback
+  - collapsed cards now surface `Adjusted 2k` and `Raw 2k` immediately, without extra metadata chips
+  - evidence details live behind a compact popover instead of a full-width block
+  - the standalone rower-notes section is gone in favor of seat-level note popovers
+  - general crew notes now stay tucked into a small header affordance instead of lengthening the card
+- Saved lineups can now capture real on-water race results:
+  - results attach to a saved crew record
+  - each result stores an exact lineup snapshot/signature so later seat edits do not inherit old race history
+  - coaches can optionally prefill the result from a real `Schedule` calendar event (`regatta`, `scrimmage`, `head_race`) and then enter the boat time
+  - exact-lineup vs earlier-lineup-version results are distinguished in the UI
+  - follow-up scoping note: coaches with org visibility should be able to browse/select across all teams in the org; current race-result event prefill still narrows by lineup team and needs a later org-wide audit
+  - bug fix applied: schedule event queries with a `teamId` now still include `All teams` events (`team_ids = []`) so org-wide regattas appear in the race-result picker even for legacy team-tagged lineups
+- The predictor is now implemented as:
+  - embedded in the merged `Schedule | Lineups` surface
+  - available across all supported boat classes
+  - showing a combined weight-adjusted lineup **2k score** instead of headline virtual race times or watt-only outputs
+  - explicitly framed as a coach-facing **lineup comparison heuristic**, not literal seat-race truth
+- modeling direction now live in the repo:
+  - existing Speed Index / Titan-style views remain the athlete-ranking lens
+  - lineup scoring uses erg-derived power, athlete body weight, and weight-adjusted 2k-equivalent evidence
+  - assumptions / warnings stay available in model details rather than noisy visible header chips
+  - light-mode contrast in the predictor panel has been rebuilt with token-safe light/dark styling
+  - the predictor panel now stays lineup-level, using compact evidence summary instead of a large athlete-by-athlete score breakdown
+  - water-side data capture now exists, but calibrated race projection is still a separate next phase rather than something inferred immediately from erg-only evidence
 - The workout library is now being repositioned as a **public community surface** rather than an authenticated-only internal tool.
 - The template model now effectively supports three layers:
   - `status = draft` → personal draft
@@ -26,6 +54,52 @@
 - The old `/team-management/boatings` route is now just a redirect into `Schedule?tab=lineups`, and top-level coaching nav no longer treats Lineups as a separate peer page.
 
 ## Recently Completed
+
+### Lineup card compaction + ranking polish
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - active saved lineups now sort automatically by predicted adjusted lineup 2k, then raw 2k, then existing fallback order
+  - collapsed lineup cards now show adjusted 2k and raw 2k only, after removing low-value chips like team labels, boat record, and visible confidence labels
+  - the predictor detail block now keeps evidence in a compact popover instead of a full-width section
+  - crew notes no longer render as a standalone body panel; rower notes are now surfaced as compact seat-level popovers and boating notes live in a small header affordance
+  - embedded Schedule mode now keeps the focus-range toggle while still ranking the visible saved lineups by lineup score
+- validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingBoatings.tsx src\services\coaching\lineupPredictor.ts src\services\coaching\lineupPredictor.test.ts` ✅
+  - `npm run test:run -- src\services\coaching\lineupPredictor.test.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
+  - `npm run lint` ❌ still fails repo-wide on unrelated pre-existing `reproduce_rwn.ts`, `scripts\*`, `src\api\*`, and analytics debt
+
+### Lineup race-result capture v1
+- `db\migrations\20260327_add_boating_race_results.sql`
+  - added `public.coaching_boating_race_results`
+  - stores:
+    - linked saved lineup (`boating_id`)
+    - optional linked calendar event (`schedule_event_id`)
+    - race date / event name / distance / actual boat time
+    - exact lineup snapshot + lineup signature at result time
+  - added team-scoped RLS aligned with other coaching tables
+- `src\services\coaching\types.ts`
+  - added `CoachingBoatingRaceResult`
+- `src\services\coaching\coachingService.ts`
+  - added CRUD helpers for boating race results
+- `src\pages\coaching\CoachingBoatings.tsx`
+  - expanded lineup cards now show a `Race results` section
+  - coaches can add/edit/delete results
+  - the add/edit modal can optionally prefill from real schedule race events
+  - existing results are labeled as either `Current lineup` or `Earlier lineup version`
+- live schema verification:
+  - migration `add_boating_race_results` applied successfully to `ReadyAll`
+  - live columns and RLS policies for `coaching_boating_race_results` verified via Supabase MCP
+- validation:
+  - `node .\node_modules\eslint\bin\eslint.js src\pages\coaching\CoachingBoatings.tsx src\services\coaching\coachingService.ts src\services\coaching\types.ts` ✅
+  - `npm run build` ✅
+  - `npm run test:run` ✅
+
+### Predictor framing cleanup
+- `src\services\coaching\lineupPredictor.ts`
+  - coach-facing lineup output now remains centered on adjusted/raw 2k values rather than watts or uncalibrated virtual race times
+- `src\services\coaching\lineupPredictor.test.ts`
+  - focused tests continue to cover lighter-vs-heavier correction behavior, missing-evidence confidence degradation, and adjusted/raw 2k outputs
 
 ### Authenticated AI surface v1
 - `src\lib\libraryTemplateDto.ts`
@@ -202,6 +276,16 @@
   - `npm run build` ✅
 
 ## Next Steps
+- Build the next simple calibration layer on top of captured race results:
+  - `Erg profile` stays as the baseline
+  - `Water projection` should appear only when enough exact-lineup race evidence exists
+  - `Realization` should compare actual result vs erg expectation
+- Decide whether near-identical lineups (for example 7 of 8 matching seats) should remain display-only context or contribute to later blended projection logic.
+- Decide whether the next coaching predictor phase should introduce a **water-calibrated projection** layer using real lineup/race results, or stay score-only for now.
+- If water calibration proceeds, define how coaches should view the gap between:
+  - adjusted erg-based lineup score
+  - actual race result
+  - calibrated future projection / realization
 - Add a thin app-side caller for the new authenticated library functions when the first planning/AI workflow is ready to consume them.
 - Keep the AI surface internal-only for now; public machine access still waits on explicit rate limiting / external-consumer policy.
 - Next product decision after AI retrieval remains `library-rating-policy`.
@@ -381,6 +465,15 @@
 - `working-memory/decisionLog.md`
 
 ## Next Likely Steps
+- Add a later **water-calibration** layer if real race results become available:
+  - compare lineup score / erg-derived profile vs actual race result
+  - learn a crew realization factor or observed boat factor
+  - only then reintroduce water-calibrated projected times
+- Decide whether the predictor should eventually support:
+  - direct lineup-vs-lineup comparison
+  - coxswain weight / coxing effect inputs
+  - athlete-specific evidence drilldown links into erg history
+- If coaches respond well to the predictor, consider surfacing a lighter summary in schedule session detail or analytics.
 - Retest the public anonymous proposal flow in the live app now that the insert no longer attempts a follow-up select blocked by RLS.
 - Decide whether to expose the normalized public template DTO through a dedicated read-only endpoint / Edge Function for AI and external planning consumers, or keep it app-internal for one more slice.
 - Layer the normalized DTO into future plan-builder work so curated library workouts become the default programming building blocks.
@@ -406,6 +499,7 @@
 - Live data currently contains duplicate same-name team rows in the org, with saved boating history attached to only one set of team IDs; org-wide lineup reuse now intentionally surfaces those records with explicit team labels, but data cleanup may still be needed later.
 - Live save failures when reusing a lineup template were caused by an incorrect unique constraint on `coaching_session_crews.source_boating_id`; that constraint has now been removed so the same lineup source can seed multiple session snapshots.
 - The main remaining product work is feature depth rather than wording: the new merged surface still needs refinement around multi-team scheduling and date-aware lineup browsing if the coaching workflow expands further.
+- The current lineup score is intentionally uncalibrated against real water results; headline race-time outputs were removed until a real water-calibration layer exists.
 - Repo-wide lint remains noisy because of unrelated pre-existing issues.
 
 

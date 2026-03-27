@@ -4,6 +4,133 @@
 
 ---
 
+## ADR-023: Lineup predictor should lead with a weight-adjusted crew score, not headline race times
+
+**Date**: March 27, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+ADR-022 established that athlete ranking and lineup modeling should be separate surfaces. The first shipped lineup predictor followed that direction, but it still presented headline virtual `1500m`, `2000m`, and `5000m` times.
+
+That created a product honesty problem:
+
+1. the displayed times looked unrealistically fast for real high-school crews,
+2. the UI visually implied calibration that did not exist,
+3. and the most useful immediate coaching need was comparison between lineups, not a supposedly exact boat-time prediction.
+
+The user explicitly pushed back on the idea that the current model should be interpreted as the maximum speed a lineup can row, and instead favored a combined weight-adjusted lineup score.
+
+### Decision
+
+Retool the predictor so the headline surface is a **combined weight-adjusted lineup score** rather than displayed race times.
+
+Specifically:
+
+1. compute athlete-level 2k-equivalent power from available erg evidence,
+2. apply the Concept2-style body-weight correction lens where weight is known,
+3. aggregate to a crew-level score using average adjusted 2k watts across modeled rower seats,
+4. keep confidence, assumptions, and warnings,
+5. remove displayed `1500m` / `2000m` / `5000m` outputs until real water-result calibration exists.
+
+If race results become available later, future predicted times should return only as a **water-calibrated** layer (for example via a crew realization factor / observed boat factor), not as raw extrapolation from land-only erg data.
+
+### Rationale
+
+1. **More honest UX** — the surface no longer over-claims certainty it does not have
+2. **Better coach fit** — comparing lineups is the immediate planning job-to-be-done
+3. **Clearer upgrade path** — water-calibrated predictions can be added later without rewriting the score model
+4. **Simpler mental model** — coaches can separate land-based lineup strength from observed on-water execution
+
+### Consequences
+
+**Positive**:
+- the lineup tool becomes more defensible immediately
+- light-mode contrast and copy can reinforce a cleaner, lower-ambiguity message
+- real race results now have a clear future role as calibration data rather than just more evidence points
+
+**Negative**:
+- the product gives up an eye-catching race-time output in the short term
+- coaches who want literal projected times must wait for a later calibration slice
+- score semantics require a short explanation because `adjusted 2k watts` is less instantly familiar than a time
+
+### Alternatives Considered
+
+1. **Keep virtual race times as the headline**
+   - Rejected because the outputs visually overstated certainty and were not yet calibrated to water reality
+
+2. **Show both lineup score and race times together**
+   - Rejected for now because the headline time values would still dominate interpretation even if labeled experimental
+
+3. **Remove the feature entirely until race-result calibration exists**
+   - Rejected because the score-first version is still useful for lineup tinkering today
+
+---
+
+## ADR-022: Separate athlete ranking from lineup race prediction
+
+**Date**: March 27, 2026
+**Status**: Accepted
+**Author**: User + AI Assistant
+
+### Context
+
+The coaching analytics stack already had a Speed Index / Titan-style view that blends normalized speed and relative power for athlete ranking. A new product request introduced a different need: estimate how fast a saved lineup should be over `1500m`, `2000m`, and `5000m` while tinkering with seats and crew composition inside `Schedule -> Lineups`.
+
+These are related, but they are not the same question:
+
+1. **Who is the strongest athlete pound-for-pound?**
+2. **How fast should this boat move if we seat these athletes together?**
+
+Using one score for both would blur talent evaluation with boat-speed estimation and create misleading coach signals.
+
+### Decision
+
+Keep two distinct modeling surfaces:
+
+1. **Speed Index / Titan-style rankings** remain the athlete-ranking lens.
+2. Add a separate **Virtual Lineup Predictor** as a coach-facing boat-speed heuristic inside `Schedule -> Lineups`.
+
+The predictor should:
+
+- use erg-derived power plus athlete body weight and distance-specific evidence
+- show simultaneous `1500m`, `2000m`, and `5000m` virtual predictions
+- include explicit confidence, assumptions, and warnings
+- avoid claiming literal seat-race or on-water truth
+
+### Rationale
+
+1. **Different jobs-to-be-done** — athlete ranking and crew prediction answer different coaching questions
+2. **Cleaner mental model** — coaches can trust that leaderboard logic is not secretly being repurposed as boat physics
+3. **Better UX honesty** — a lineup predictor is necessarily heuristic until calibrated against real water results
+4. **Better extensibility** — each model can evolve independently without destabilizing the other
+
+### Consequences
+
+**Positive**:
+- analytics language stays clearer and more defensible
+- lineup planning can expand without rewriting existing leaderboard semantics
+- the app can later calibrate crew prediction against race results without touching Speed Index
+
+**Negative**:
+- the product now maintains two adjacent performance models instead of one
+- coaches must learn the distinction between athlete quality and virtual crew speed
+- v1 shell factors remain heuristic until real-water calibration exists
+
+### Alternatives Considered
+
+1. **Reuse Speed Index directly as the lineup predictor**
+   - Rejected because it answers a different question and would mix ranking semantics with boat-speed semantics
+
+2. **Use only Concept2 weight-adjusted scores without a separate lineup model**
+   - Rejected because coaches want multi-athlete, multi-distance lineup estimates rather than just corrected individual pieces
+
+3. **Delay any lineup prediction until full race-result calibration exists**
+   - Rejected because the heuristic version is still useful now, provided the UI is explicit about confidence and limitations
+
+---
+
 ## ADR-021: Public workout detail should lead with whiteboard + RWN, backed by a normalized DTO
 
 **Date**: March 26, 2026

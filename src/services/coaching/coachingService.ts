@@ -17,6 +17,7 @@ import type {
   CoachingErgScore,
   CoachingBoat,
   CoachingBoating,
+  CoachingBoatingRaceResult,
   CoachingSessionCrew,
   CoachingSessionCrewPosition,
   BoatType,
@@ -50,6 +51,7 @@ export type {
   CoachingErgScore,
   CoachingBoat,
   CoachingBoating,
+  CoachingBoatingRaceResult,
   CoachingSessionCrew,
   CoachingSessionCrewPosition,
   BoatType,
@@ -1721,7 +1723,7 @@ export async function getScheduleEvents(
   teamId?: string
 ): Promise<CoachingScheduleEvent[]> {
   // Events where: date <= end AND (end_date >= start OR (end_date IS NULL AND date >= start))
-  let query = supabase
+  const query = supabase
     .from('coaching_schedule_events')
     .select('*')
     .eq('org_id', orgId)
@@ -1729,11 +1731,13 @@ export async function getScheduleEvents(
     .or(`end_date.gte.${start},and(end_date.is.null,date.gte.${start})`)
     .order('date');
 
-  if (teamId) {
-    query = query.contains('team_ids', [teamId]);
+  const rows = throwOnError(await query) as CoachingScheduleEvent[];
+
+  if (!teamId) {
+    return rows;
   }
 
-  return throwOnError(await query) as CoachingScheduleEvent[];
+  return rows.filter((event) => event.team_ids.length === 0 || event.team_ids.includes(teamId));
 }
 
 export async function createScheduleEvent(
@@ -1778,6 +1782,76 @@ export async function updateScheduleEvent(
 export async function deleteScheduleEvent(id: string): Promise<void> {
   throwOnError(
     await supabase.from('coaching_schedule_events').delete().eq('id', id)
+  );
+}
+
+// ─── Boating Race Results ─────────────────────────────────────────────────────
+
+export async function getBoatingRaceResults(boatingId: string): Promise<CoachingBoatingRaceResult[]> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boating_race_results')
+      .select('*')
+      .eq('boating_id', boatingId)
+      .order('race_date', { ascending: false })
+      .order('created_at', { ascending: false })
+  ) as CoachingBoatingRaceResult[];
+}
+
+export async function createBoatingRaceResult(
+  teamId: string,
+  coachUserId: string,
+  payload: Pick<CoachingBoatingRaceResult, 'boating_id' | 'race_date' | 'event_name' | 'distance_meters' | 'time_seconds' | 'lineup_signature' | 'lineup_positions'> &
+    Partial<Pick<CoachingBoatingRaceResult, 'schedule_event_id' | 'notes'>>
+): Promise<CoachingBoatingRaceResult> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boating_race_results')
+      .insert({
+        boating_id: payload.boating_id,
+        team_id: teamId,
+        coach_user_id: coachUserId,
+        schedule_event_id: payload.schedule_event_id ?? null,
+        race_date: payload.race_date,
+        event_name: payload.event_name,
+        distance_meters: payload.distance_meters,
+        time_seconds: payload.time_seconds,
+        lineup_signature: payload.lineup_signature,
+        lineup_positions: payload.lineup_positions,
+        notes: payload.notes ?? null,
+      })
+      .select('*')
+      .single()
+  ) as CoachingBoatingRaceResult;
+}
+
+export async function updateBoatingRaceResult(
+  id: string,
+  updates: Partial<Pick<CoachingBoatingRaceResult, 'schedule_event_id' | 'race_date' | 'event_name' | 'distance_meters' | 'time_seconds' | 'lineup_signature' | 'lineup_positions' | 'notes'>>
+): Promise<CoachingBoatingRaceResult> {
+  return throwOnError(
+    await supabase
+      .from('coaching_boating_race_results')
+      .update({
+        schedule_event_id: updates.schedule_event_id === undefined ? undefined : updates.schedule_event_id ?? null,
+        race_date: updates.race_date,
+        event_name: updates.event_name,
+        distance_meters: updates.distance_meters,
+        time_seconds: updates.time_seconds,
+        lineup_signature: updates.lineup_signature,
+        lineup_positions: updates.lineup_positions,
+        notes: updates.notes === undefined ? undefined : updates.notes ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single()
+  ) as CoachingBoatingRaceResult;
+}
+
+export async function deleteBoatingRaceResult(id: string): Promise<void> {
+  throwOnError(
+    await supabase.from('coaching_boating_race_results').delete().eq('id', id)
   );
 }
 
