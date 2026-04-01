@@ -485,6 +485,7 @@ export function TeamAnalytics() {
                     Min {qualifyMinCount}/{totalAssignments} workouts
                   </label>
                 )}
+
               </div>
             </div>
 

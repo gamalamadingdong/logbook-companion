@@ -62,6 +62,8 @@ import {
 import {
   buildLineupPredictions,
   type LineupScorePrediction,
+  type SyncMatch,
+  getSPILabel,
 } from '../../services/coaching/lineupPredictor';
 import { parsePaceToSeconds } from '../../utils/paceCalculator';
 import { formatTime } from '../../utils/prCalculator';
@@ -1198,6 +1200,16 @@ function BoatingCard({
                 <span className="inline-flex items-center rounded-full border border-neutral-700 bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-neutral-300">
                   Raw {prediction.averageRaw2kFormatted ?? '—'}
                 </span>
+                {prediction.averageSPI != null && (
+                  <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-200">
+                    SPI {prediction.averageSPI.toFixed(2)}
+                  </span>
+                )}
+                {prediction.negativeMatchCount > 0 && (
+                  <span className="inline-flex items-center rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-300">
+                    {prediction.negativeMatchCount} brake{prediction.negativeMatchCount === 1 ? '' : 's'}
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -1298,6 +1310,18 @@ function BoatingCard({
 function LineupPredictorPanel({ prediction }: { prediction: LineupScorePrediction }) {
   const format2k = (value: string | null) => value ?? 'Not enough evidence';
 
+  const syncMatchColor = (match: SyncMatch): string => {
+    if (match === 'optimal') return 'text-emerald-600 dark:text-emerald-400';
+    if (match === 'stress') return 'text-amber-600 dark:text-amber-400';
+    return 'text-red-600 dark:text-red-400';
+  };
+
+  const syncMatchLabel = (match: SyncMatch, gapSeconds: number | null): string => {
+    if (match === 'optimal') return 'Optimal';
+    if (match === 'stress') return gapSeconds != null && gapSeconds < 0 ? 'Mismatch' : 'Stress';
+    return gapSeconds != null && gapSeconds < 0 ? 'Mismatch' : 'Brake';
+  };
+
   return (
     <div className="mb-4 rounded-xl border border-indigo-200 bg-white/95 p-4 shadow-sm dark:border-indigo-500/20 dark:bg-indigo-500/5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1324,6 +1348,30 @@ function LineupPredictorPanel({ prediction }: { prediction: LineupScorePredictio
                     Coverage: {prediction.modeledRowerSeats} of {prediction.expectedRowerSeats} rower seats modeled
                   </div>
                 </div>
+
+                {prediction.athletes.some((a) => a.spiValue != null || a.syncMatch != null) && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Per-seat breakdown</div>
+                    <div className="mt-2 space-y-1.5">
+                      {prediction.athletes.map((athlete) => (
+                        <div key={athlete.athleteId} className="flex items-center justify-between text-xs">
+                          <span className="text-neutral-800 truncate max-w-[140px]">{athlete.athleteName}</span>
+                          <div className="flex items-center gap-2">
+                            {athlete.spiValue != null && (
+                              <span className="text-neutral-600">SPI {athlete.spiValue.toFixed(2)}</span>
+                            )}
+                            {athlete.syncMatch != null && (
+                              <span className={syncMatchColor(athlete.syncMatch)}>
+                                {athlete.syncGapSeconds != null ? `${athlete.syncGapSeconds > 0 ? '+' : ''}${athlete.syncGapSeconds.toFixed(1)}s` : '—'}
+                                {' '}({syncMatchLabel(athlete.syncMatch, athlete.syncGapSeconds ?? null)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Assumptions</div>
@@ -1353,7 +1401,7 @@ function LineupPredictorPanel({ prediction }: { prediction: LineupScorePredictio
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
             Adjusted 2k score
@@ -1370,6 +1418,44 @@ function LineupPredictorPanel({ prediction }: { prediction: LineupScorePredictio
           <div className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">{format2k(prediction.averageRaw2kFormatted)}</div>
           <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
             Before the body-weight correction lens
+          </div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
+            Crew SPI
+          </div>
+          <div className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">
+            {prediction.averageSPI != null ? prediction.averageSPI.toFixed(2) : 'N/A'}
+          </div>
+          <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            {prediction.averageSPI != null
+              ? `${getSPILabel(prediction.averageSPI)} · Range ${prediction.spiRange ? `${prediction.spiRange.min.toFixed(2)}–${prediction.spiRange.max.toFixed(2)}` : '—'}`
+              : 'Needs athlete weight + erg evidence'}
+          </div>
+        </div>
+        <div className={`rounded-xl border p-3 ${
+          prediction.negativeMatchCount > 0
+            ? 'border-red-200 bg-red-50/50 dark:border-red-500/20 dark:bg-red-500/5'
+            : 'border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/70'
+        }`}>
+          <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${
+            prediction.negativeMatchCount > 0
+              ? 'text-red-700 dark:text-red-400'
+              : 'text-neutral-500 dark:text-neutral-500'
+          }`}>
+            Sync gap
+          </div>
+          <div className="mt-2 text-lg font-semibold text-neutral-950 dark:text-white">
+            {prediction.boatAverageSplitSeconds != null
+              ? prediction.negativeMatchCount > 0
+                ? `${prediction.negativeMatchCount} brake${prediction.negativeMatchCount === 1 ? '' : 's'}`
+                : 'All clear'
+              : 'N/A'}
+          </div>
+          <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            {prediction.boatAverageSplitSeconds != null
+              ? `Athletes >7s off crew avg flagged as mechanical brakes`
+              : 'Needs erg evidence to evaluate'}
           </div>
         </div>
       </div>

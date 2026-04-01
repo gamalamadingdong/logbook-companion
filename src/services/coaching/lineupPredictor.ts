@@ -17,6 +17,43 @@ const POWER_DURATION_ANCHORS: DistanceAnchor[] = [
   { distance: 10000, relativeTo2kWatts: 0.725 },
 ];
 
+// ─── System Power Index (SPI) ───────────────────────────────────────────────
+// SPI = W / (m_a + m_b)  where W = raw 2k watts, m_a = athlete lbs, m_b = boat tax lbs
+// Measures net propulsive contribution to the shell as a single mechanical system.
+
+export const BOAT_TAX_LBS: Record<BoatType, number> = {
+  '8+': 45,  // 125 lb cox + 210 lb shell + oars, divided by 8
+  '4+': 55,  // higher per-seat tax due to cox-to-rower ratio
+  '4x': 45,  // quad without cox shares similar shell weight class
+  '4-': 35,  // coxless four
+  '2-': 35,  // pair — no coxswain
+  '2x': 35,  // double — no coxswain
+  '1x': 32,  // single — pure athlete + shell mass
+};
+
+export type SyncMatch = 'optimal' | 'stress' | 'negative';
+
+export function calculateSPI(watts: number, weightKg: number, boatType: BoatType): number {
+  const athleteLbs = weightKg * 2.20462;
+  const boatTaxLbs = BOAT_TAX_LBS[boatType];
+  return watts / (athleteLbs + boatTaxLbs);
+}
+
+export function classifySyncGap(athleteSplitSeconds: number, boatAverageSplitSeconds: number): { gapSeconds: number; match: SyncMatch } {
+  const gapSeconds = athleteSplitSeconds - boatAverageSplitSeconds;
+  const absGap = Math.abs(gapSeconds);
+  if (absGap <= 4) return { gapSeconds, match: 'optimal' };
+  if (absGap <= 7) return { gapSeconds, match: 'stress' };
+  return { gapSeconds, match: 'negative' };
+}
+
+export function getSPILabel(spi: number): string {
+  if (spi >= 1.55) return 'Engine';
+  if (spi >= 1.40) return 'Contributor';
+  if (spi >= 1.20) return 'Passenger';
+  return 'Below threshold';
+}
+
 export interface AthleteLineupPrediction {
   athleteId: string;
   athleteName: string;
@@ -25,8 +62,13 @@ export interface AthleteLineupPrediction {
   evidenceCount: number;
   latestEvidenceDate: string | null;
   predicted2kWatts: number | null;
+  predicted2kSplitSeconds: number | null;
   adjusted2kWatts: number | null;
   scoreContribution: number | null;
+  spiValue: number | null;
+  spiLabel: string | null;
+  syncGapSeconds: number | null;
+  syncMatch: SyncMatch | null;
   warnings: string[];
 }
 
@@ -53,6 +95,10 @@ export interface LineupScorePrediction {
   averageWeightKg: number | null;
   totalEvidenceCount: number;
   latestEvidenceDate: string | null;
+  averageSPI: number | null;
+  spiRange: { min: number; max: number } | null;
+  negativeMatchCount: number;
+  boatAverageSplitSeconds: number | null;
 }
 
 function getExpectedRowerSeats(boatType: BoatType): number {
@@ -128,14 +174,14 @@ function buildAthletePrediction(
   const weightAdjustmentFactor = getWeightAdjustmentFactor(weightKg);
 
   if (usableEvidence.length === 0) {
-    warnings.push('No erg evidence yet.');
+    warnings.push('No test results yet — only test workouts are used for lineup predictions.');
   }
   if (weightAdjustmentFactor == null) {
     warnings.push('Missing body weight; score falls back to raw erg power.');
   }
 
   const normalizedSamples = usableEvidence.map((entry) => {
-    const baseWeight = getRecencyWeight(entry.date) * (entry.is_test ? 1.1 : 1);
+    const baseWeight = getRecencyWeight(entry.date);
     return {
       value: entry.bestWatts / getDistanceRatio(entry.distance),
       weight: baseWeight,
@@ -157,6 +203,10 @@ function buildAthletePrediction(
       })()
     : null;
 
+  const predicted2kSplitSeconds = predicted2kWatts != null
+    ? calculateSplitFromWatts(predicted2kWatts)
+    : null;
+
   return {
     athleteId,
     athleteName,
@@ -165,8 +215,13 @@ function buildAthletePrediction(
     evidenceCount: usableEvidence.length,
     latestEvidenceDate: usableEvidence[0]?.date ?? null,
     predicted2kWatts,
+    predicted2kSplitSeconds,
     adjusted2kWatts,
     scoreContribution: null,
+    spiValue: null,     // computed at lineup level (needs boatType)
+    spiLabel: null,
+    syncGapSeconds: null, // computed at lineup level (needs boat average)
+    syncMatch: null,
     warnings,
   };
 }
@@ -197,7 +252,11 @@ export function buildLineupPredictions(params: {
   const athleteMap = new Map(params.athletes.map((athlete) => [athlete.id, athlete]));
   const evidenceByAthlete = new Map<string, TeamErgComparison[]>();
 
-  for (const entry of params.ergComparisons) {
+  // Only use test results for lineup predictions — practice/steady-state data
+  // would dilute the signal with sub-maximal efforts
+  const testEvidence = params.ergComparisons.filter((entry) => entry.is_test);
+
+  for (const entry of testEvidence) {
     const current = evidenceByAthlete.get(entry.athleteId) ?? [];
     current.push(entry);
     current.sort((left, right) => right.date.localeCompare(left.date));
@@ -236,26 +295,61 @@ export function buildLineupPredictions(params: {
         : null,
     }));
 
+    // ── Boat average raw 2k split (for sync gap) ──
+    const rawSplits = athletesWithContribution
+      .map((entry) => entry.predicted2kSplitSeconds)
+      .filter((value): value is number => value != null && value > 0);
+    const boatAverageSplitSeconds = average(rawSplits);
+
+    // ── SPI + Sync Gap per athlete ──
+    const athletesWithSPI = athletesWithContribution.map((entry) => {
+      const spiValue = entry.predicted2kWatts != null && entry.weightKg != null && entry.weightKg > 0
+        ? calculateSPI(entry.predicted2kWatts, entry.weightKg, boating.boat_type)
+        : null;
+      const syncResult = entry.predicted2kSplitSeconds != null && boatAverageSplitSeconds != null
+        ? classifySyncGap(entry.predicted2kSplitSeconds, boatAverageSplitSeconds)
+        : null;
+      return {
+        ...entry,
+        spiValue,
+        spiLabel: spiValue != null ? getSPILabel(spiValue) : null,
+        syncGapSeconds: syncResult?.gapSeconds ?? null,
+        syncMatch: syncResult?.match ?? null,
+      };
+    });
+
+    // ── SPI aggregation ──
+    const spiValues = athletesWithSPI
+      .map((entry) => entry.spiValue)
+      .filter((value): value is number => value != null);
+    const averageSPI = average(spiValues);
+    const spiRange = spiValues.length > 0
+      ? { min: Math.min(...spiValues), max: Math.max(...spiValues) }
+      : null;
+    const negativeMatchCount = athletesWithSPI
+      .filter((entry) => entry.syncMatch === 'negative')
+      .length;
+
     const lineupScore = average(
-      athletesWithContribution
+      athletesWithSPI
         .map((entry) => entry.adjusted2kWatts)
         .filter((value): value is number => value != null && value > 0),
     );
 
     const averageRaw2kWatts = average(
-      athletesWithContribution
+      athletesWithSPI
         .map((entry) => entry.predicted2kWatts)
         .filter((value): value is number => value != null && value > 0),
     );
 
     const averageAdjusted2kWatts = average(
-      athletesWithContribution
+      athletesWithSPI
         .map((entry) => entry.adjusted2kWatts)
         .filter((value): value is number => value != null && value > 0),
     );
 
     const averageWeightKg = average(
-      athletesWithContribution
+      athletesWithSPI
         .map((entry) => entry.weightKg)
         .filter((value): value is number => value != null && value > 0),
     );
@@ -296,7 +390,7 @@ export function buildLineupPredictions(params: {
       warnings.push(`${missingSeats} rower seat${missingSeats === 1 ? '' : 's'} still empty.`);
     }
     if (missingEvidenceAthletes.length > 0) {
-      warnings.push(`No erg evidence for ${missingEvidenceAthletes.map((entry) => entry.athleteName).join(', ')}.`);
+      warnings.push(`No test results for ${missingEvidenceAthletes.map((entry) => entry.athleteName).join(', ')}.`);
     }
     if (missingWeightAthletes.length > 0) {
       warnings.push(`Missing body weight for ${missingWeightAthletes.map((entry) => entry.athleteName).join(', ')}.`);
@@ -306,8 +400,11 @@ export function buildLineupPredictions(params: {
     }
 
     const assumptions = [
-      'Erg evidence is normalized into a 2k-equivalent anchor, then weight-adjusted where body weight is known.',
+      'Only test workouts are used — practice/steady-state data is excluded to avoid diluting max-effort signal.',
+      'Test results are normalized into a 2k-equivalent anchor, then weight-adjusted where body weight is known.',
       'Adjusted 2k score is the lineup-level average corrected 2k result across modeled rower seats, so it works best for comparing similar lineups.',
+      'SPI (System Power Index) = Watts / (Athlete lbs + Boat Tax lbs). Measures net propulsive contribution to the shell.',
+      'Sync Gap flags athletes whose raw 2k split deviates from the crew average by >7 seconds in either direction — slower athletes as potential brakes, faster athletes as mismatched to the crew.',
       'Use this as a crew-comparison heuristic, not as a literal on-water race-time prediction.',
     ];
 
@@ -322,7 +419,7 @@ export function buildLineupPredictions(params: {
       confidenceLabel: getConfidenceLabel(confidenceScore),
       warnings,
       assumptions,
-      athletes: athletesWithContribution,
+      athletes: athletesWithSPI,
       lineupScore,
       lineupScoreSeconds: lineupScore2k.seconds,
       lineupScoreFormatted: lineupScore2k.formatted,
@@ -334,6 +431,10 @@ export function buildLineupPredictions(params: {
       averageWeightKg,
       totalEvidenceCount,
       latestEvidenceDate,
+      averageSPI,
+      spiRange,
+      negativeMatchCount,
+      boatAverageSplitSeconds,
     });
   }
 

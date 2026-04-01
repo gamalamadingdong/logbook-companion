@@ -41,6 +41,8 @@ import {
   Upload,
   Flag,
   Info,
+  Table2,
+  Grid3X3,
 } from 'lucide-react';
 import {
   BarChart,
@@ -1288,7 +1290,7 @@ function SortTh({
 }) {
   return (
     <th
-      className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-right cursor-pointer hover:text-neutral-200 transition-colors whitespace-nowrap"
+      className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-right cursor-pointer hover:text-neutral-200 transition-colors whitespace-nowrap"
       onClick={() => onSort(field)}
     >
       <span className="inline-flex items-center justify-end gap-1">
@@ -1522,14 +1524,14 @@ function SummaryTable({
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-neutral-700/50">
-              <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-left">#</th>
+              <th className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-left">#</th>
               <th
-                className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-left cursor-pointer hover:text-neutral-200"
+                className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-left cursor-pointer hover:text-neutral-200"
                 onClick={() => toggleSort('name')}
               >
                 Athlete <SortIcon field="name" sortField={sortField} />
               </th>
-              <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-center">Status</th>
+              <th className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-center">Status</th>
               <SortTh label="Split /500m" field="split" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Watts" field="watts" sortField={sortField} onSort={toggleSort} />
               {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} helpText="Power-to-weight shows how much power an athlete produces relative to body weight. We surface both W/kg and W/lb here so coaches can read relative power in either unit system." />}
@@ -1541,7 +1543,7 @@ function SummaryTable({
               {isInterval && <SortTh label="Best Split" field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} helpText="Efficiency is the best completed rep expressed as W/lb. It rewards athletes who generate more power per pound, but it is meant to complement split rather than replace it." />}
               {isInterval && <SortTh label="Worst" field="worst" sortField={sortField} onSort={toggleSort} />}
-              {isInterval && <th className="px-3 py-2 text-xs font-medium text-neutral-400 uppercase text-right">Spread</th>}
+              {isInterval && <th className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-right">Spread</th>}
             </tr>
           </thead>
           <tbody>
@@ -1592,10 +1594,10 @@ function SummaryTable({
                       row.dnf ? 'opacity-60' : row.partialDnf ? 'opacity-75' : row.completeNoData ? 'opacity-50' : !row.completed ? 'opacity-40' : ''
                     }`}
                   >
-                  <td className="px-3 py-2 text-neutral-500 text-xs">
+                  <td className="px-1.5 py-1.5 text-neutral-500 text-xs">
                     <span className="font-semibold text-neutral-500">{displayIndex}</span>
                   </td>
-                  <td className="px-3 py-2 text-neutral-200 whitespace-nowrap">
+                  <td className="px-1.5 py-1.5 text-neutral-200 whitespace-nowrap">
                     <div>{row.athlete_name}</div>
                     {(row.team_name || row.squad) && (
                       <div className="text-[10px] text-neutral-500">
@@ -1605,7 +1607,7 @@ function SummaryTable({
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-1.5 py-1.5 text-center">
                     {row.dnf ? (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/40 text-red-400 uppercase tracking-wider">DNF</span>
                     ) : row.partialDnf ? (
@@ -1618,39 +1620,39 @@ function SummaryTable({
                       <XCircle className="w-4 h-4 text-neutral-600 mx-auto" />
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-neutral-200">{fmtSplit(row.avg_split_seconds)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-neutral-200">{fmtWatts(row.watts)}</td>
-                  {hasWpkg && <td className="px-3 py-2 text-right font-mono text-neutral-200">{fmtPowerToWeight(row.wpkg, row.wplb)}</td>}
-                  <td className="px-3 py-2 text-right font-mono text-neutral-200">{fmtDist(row.result_distance_meters ?? row.total_interval_distance_meters)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-neutral-200">{fmtTime(row.result_time_seconds ?? row.total_interval_time_seconds)}</td>
-                  <td className="px-3 py-2 text-right text-neutral-200">{row.result_stroke_rate ?? '—'}</td>
+                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtSplit(row.avg_split_seconds)}</td>
+                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtWatts(row.watts)}</td>
+                  {hasWpkg && <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtPowerToWeight(row.wpkg, row.wplb)}</td>}
+                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtDist(row.result_distance_meters ?? row.total_interval_distance_meters)}</td>
+                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtTime(row.result_time_seconds ?? row.total_interval_time_seconds)}</td>
+                  <td className="px-1.5 py-1.5 text-right text-neutral-200">{row.result_stroke_rate ?? '—'}</td>
                   {hasTitan && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-200 font-semibold">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200 font-semibold">
                       {titanMap.get(row.athlete_id) != null ? titanMap.get(row.athlete_id)!.toFixed(1) : '—'}
                     </td>
                   )}
                   {isInterval && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-300 text-xs">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {fmtBestRep(row)}
                     </td>
                   )}
                   {isInterval && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-300 text-xs">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {row.rep_best_split_seconds != null ? fmtSplit(row.rep_best_split_seconds) : '—'}
                     </td>
                   )}
                   {isInterval && hasWpkg && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-300 text-xs">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {row.best_interval_wplb != null ? `${row.best_interval_wplb.toFixed(2)}` : '—'}
                     </td>
                   )}
                   {isInterval && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-300 text-xs">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {row.rep_worst_split_seconds != null ? fmtSplit(row.rep_worst_split_seconds) : '—'}
                     </td>
                   )}
                   {isInterval && (
-                    <td className="px-3 py-2 text-right font-mono text-neutral-300 text-xs">
+                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {row.rep_split_spread_seconds != null ? fmtSplit(row.rep_split_spread_seconds) : '—'}
                     </td>
                   )}
@@ -1705,6 +1707,7 @@ export function AssignmentResults() {
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [squadFilter, setSquadFilter] = useState<string>('all');
+  const [viewTab, setViewTab] = useState<'table' | 'heatmap' | 'charts'>('table');
 
   const handleCreateShareLink = useCallback(async () => {
     if (!assignmentId) return;
@@ -2310,41 +2313,73 @@ export function AssignmentResults() {
             );
           })()}
 
-          {/* ── Summary Table ── */}
-          <SummaryTable
-            rows={rows}
-            isInterval={isInterval}
-            bestRepLabel={bestRepLabel}
-            fmtBestRep={fmtBestRep}
-            onEdit={() => setShowEntryModal(true)}
-          />
-
-          {/* ── Charts ── */}
+          {/* ── View Tabs ── */}
           {completedCount > 0 && (
-            <div className="space-y-5">
-              <h2 className="text-base font-semibold text-neutral-300 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-indigo-400" />
-                Charts
-              </h2>
-
-              {/* Interval-specific charts (prioritized) */}
+            <div className="flex items-center gap-1 border-b border-neutral-800">
+              <button
+                onClick={() => setViewTab('table')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  viewTab === 'table'
+                    ? 'border-indigo-500 text-indigo-300'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <Table2 className="w-3.5 h-3.5" />
+                Table
+              </button>
               {isInterval && repLabels.length > 0 && (
-                <div className="space-y-5">
-                  <RepHeatmap rows={rows} repLabels={repLabels} isImperial={isImperial} />
-                  <PercentileDotPlot rows={rows} isImperial={isImperial} />
-                  <RepProgressionChart rows={rows} repLabels={repLabels} />
-                </div>
+                <button
+                  onClick={() => setViewTab('heatmap')}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    viewTab === 'heatmap'
+                      ? 'border-indigo-500 text-indigo-300'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  <Grid3X3 className="w-3.5 h-3.5" />
+                  Rep Heatmap
+                </button>
               )}
+              <button
+                onClick={() => setViewTab('charts')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  viewTab === 'charts'
+                    ? 'border-indigo-500 text-indigo-300'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Charts
+              </button>
+            </div>
+          )}
 
-              {/* Race finish visualization (full-width, single-distance tests) */}
+          {/* ── Tab Content ── */}
+          {completedCount > 0 && viewTab === 'table' && (
+            <SummaryTable
+              rows={rows}
+              isInterval={isInterval}
+              bestRepLabel={bestRepLabel}
+              fmtBestRep={fmtBestRep}
+              onEdit={() => setShowEntryModal(true)}
+            />
+          )}
+
+          {completedCount > 0 && viewTab === 'heatmap' && isInterval && repLabels.length > 0 && (
+            <div className="space-y-5">
+              <RepHeatmap rows={rows} repLabels={repLabels} isImperial={isImperial} />
+              <RepProgressionChart rows={rows} repLabels={repLabels} />
+            </div>
+          )}
+
+          {completedCount > 0 && viewTab === 'charts' && (
+            <div className="space-y-5">
+              <PercentileDotPlot rows={rows} isImperial={isImperial} />
               {!isInterval && <RaceFinishChart rows={rows} />}
-
-              {/* Bar charts (1-2 per row on wider screens) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <SplitBarChart rows={rows} />
                 <WattsBarChart rows={rows} />
                 <WpkgBarChart rows={rows} />
-                {!isInterval && <PercentileDotPlot rows={rows} isImperial={isImperial} />}
               </div>
             </div>
           )}

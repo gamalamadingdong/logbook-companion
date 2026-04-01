@@ -1,6 +1,6 @@
 # Active Context
 
-> Last updated: March 27, 2026
+> Last updated: July 22, 2025
 
 ## Current Focus
 - The coaching `Schedule -> Lineups` surface now includes:
@@ -54,6 +54,30 @@
 - The old `/team-management/boatings` route is now just a redirect into `Schedule?tab=lineups`, and top-level coaching nav no longer treats Lineups as a separate peer page.
 
 ## Recently Completed
+
+### System Power Index (SPI) + Synchronicity Gap (7-Split Rule)
+- `src/services/coaching/lineupPredictor.ts`
+  - added `BOAT_TAX_LBS` constants per boat class (8+→45, 4+→55, 4x→45, 4-→35, 2-→35, 2x→35, 1x→32)
+  - added `calculateSPI(watts, weightKg, boatType)` — pure function: `W / (m_a_lbs + m_b_lbs)`
+  - added `classifySyncGap(athleteSplit, boatAvgSplit)` — returns `{ gapSeconds, match }` with optimal/stress/negative classification
+  - added `getSPILabel(spi)` — returns Engine (≥1.55), Contributor (≥1.40), Passenger (≥1.20), Below threshold (<1.20)
+  - extended `AthleteLineupPrediction` with `predicted2kSplitSeconds`, `spiValue`, `spiLabel`, `syncGapSeconds`, `syncMatch`
+  - extended `LineupScorePrediction` with `averageSPI`, `spiRange`, `negativeMatchCount`, `boatAverageSplitSeconds`
+  - `buildLineupPredictions()` now computes boat avg split, per-athlete SPI + sync gap, and lineup-level aggregates
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - collapsed lineup cards: green SPI badge + red brake count badge
+  - expanded predictor panel: "Crew SPI" card (emerald) + "Sync Gap" card with brake count
+  - model details popover: per-seat SPI value and sync gap with color-coded labels
+- `src/pages/coaching/AssignmentResults.tsx`
+  - boat class selector for SPI computation context
+  - SPI column with color-coded values: emerald (Engine), indigo (Contributor), neutral (Passenger), red (Below threshold)
+- `src/services/coaching/lineupPredictor.test.ts`
+  - 16 new tests: calculateSPI (4), classifySyncGap (5), getSPILabel (4), lineup integration (3)
+  - all 20 tests passing
+- validation:
+  - `npm run test:run -- src/services/coaching/lineupPredictor.test.ts` ✅ (20/20)
+  - `tsc -b` ✅
+  - `npm run build` ✅ (vite build clean)
 
 ### Lineup card compaction + ranking polish
 - `src\pages\coaching\CoachingBoatings.tsx`
