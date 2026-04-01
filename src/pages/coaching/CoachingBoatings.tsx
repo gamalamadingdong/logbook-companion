@@ -35,7 +35,7 @@ import {
   type ScheduleEventType,
 } from '../../services/coaching/coachingService';
 import { format, addDays, subDays } from 'date-fns';
-import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare, Gauge, CalendarDays, Info, Trophy, Pencil } from 'lucide-react';
+import { Plus, X, Copy, ChevronDown, ChevronUp, Edit2, Trash2, Loader2, Filter, ArrowRightLeft, Ship, Archive, RotateCcw, History, GripVertical, Search, MessageSquare, Gauge, CalendarDays, Info, Trophy, Pencil, Save, Undo2 } from 'lucide-react';
 import { Button, Card, EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { toast } from 'sonner';
@@ -147,6 +147,8 @@ export function LineupsWorkspace({
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const [ergComparisons, setErgComparisons] = useState<TeamErgComparison[]>([]);
   const [dateScope, setDateScope] = useState<'focus' | 'all'>('all');
+  const [draftEditId, setDraftEditId] = useState<string | null>(null);
+  const [draftPositions, setDraftPositions] = useState<BoatPosition[]>([]);
   const preExpandRef = useRef<string | null>(null);
   const expandedBoatingRef = useRef<string | null>(null);
 
@@ -290,6 +292,11 @@ export function LineupsWorkspace({
 
   /** Inline update: save new positions for a boating (from diagram seat editing / swap) */
   const handleInlinePositionUpdate = useCallback(async (boatingId: string, newPositions: BoatPosition[]) => {
+    // If this boating is in draft edit mode, update draft instead of writing to DB
+    if (boatingId === draftEditId) {
+      setDraftPositions(newPositions);
+      return;
+    }
     const boating = boatings.find((b) => b.id === boatingId);
     if (!boating) return;
     // Optimistic update
@@ -302,7 +309,7 @@ export function LineupsWorkspace({
       // Revert on error
       await refreshData();
     }
-  }, [boatings, refreshData]);
+  }, [boatings, refreshData, draftEditId]);
 
   const handleToggleActive = useCallback(async (boatingId: string, isActive: boolean) => {
     // Optimistic update
@@ -318,6 +325,29 @@ export function LineupsWorkspace({
       throw new Error(`Failed to ${isActive ? 'restore' : 'move'} crew record`);
     }
   }, [refreshData]);
+
+  /* ─── Draft edit mode: sandbox lineup changes without writing to DB ─────── */
+  const handleEnterEditMode = useCallback((boatingId: string) => {
+    const boating = boatings.find((b) => b.id === boatingId);
+    if (!boating) return;
+    setDraftEditId(boatingId);
+    setDraftPositions([...boating.positions]);
+    // Auto-expand the card being edited
+    setExpandedBoating(boatingId);
+  }, [boatings]);
+
+  const handleSaveDraft = useCallback(async () => {
+    if (!draftEditId) return;
+    await handleInlinePositionUpdate(draftEditId, draftPositions);
+    setDraftEditId(null);
+    setDraftPositions([]);
+    toast.success('Lineup saved.');
+  }, [draftEditId, draftPositions, handleInlinePositionUpdate]);
+
+  const handleDiscardDraft = useCallback(() => {
+    setDraftEditId(null);
+    setDraftPositions([]);
+  }, []);
 
   const handleConfirmPendingAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -352,12 +382,18 @@ export function LineupsWorkspace({
     return boating.date >= embeddedContext.rangeStart && boating.date <= embeddedContext.rangeEnd;
   }, [embeddedContext]);
   const lineupPredictions = useMemo(
-    () => buildLineupPredictions({
-      boatings,
-      athletes,
-      ergComparisons,
-    }),
-    [athletes, boatings, ergComparisons]
+    () => {
+      // When a boating is in edit mode, compute predictions with draft positions
+      const effectiveBoatings = draftEditId
+        ? boatings.map((b) => b.id === draftEditId ? { ...b, positions: draftPositions } : b)
+        : boatings;
+      return buildLineupPredictions({
+        boatings: effectiveBoatings,
+        athletes,
+        ergComparisons,
+      });
+    },
+    [athletes, boatings, ergComparisons, draftEditId, draftPositions]
   );
   const focusedActiveBoatings = useMemo(
     () => activeBoatings.filter(isBoatingInFocusRange),
@@ -849,9 +885,12 @@ export function LineupsWorkspace({
                   athletes={athletes}
                   allBoatings={visibleActiveBoatings}
                   expanded={expandedBoating === boating.id}
-                  onToggleExpand={() => setExpandedBoating(expandedBoating === boating.id ? null : boating.id)}
+                  onToggleExpand={() => {
+                    if (draftEditId === boating.id) return; // prevent collapse while editing
+                    setExpandedBoating(expandedBoating === boating.id ? null : boating.id);
+                  }}
                   onEdit={() => setEditingBoating(boating)}
-                   onDelete={() => setPendingAction({ kind: 'delete', boating })}
+                  onDelete={() => setPendingAction({ kind: 'delete', boating })}
                   onDuplicate={() => handleDuplicate(boating)}
                   onArchive={() => setPendingAction({ kind: 'archive', boating })}
                   onPositionsChange={(newPos) => handleInlinePositionUpdate(boating.id, newPos)}
@@ -862,6 +901,11 @@ export function LineupsWorkspace({
                   orgId={orgId}
                   fallbackTeamId={effectiveTeamId}
                   prediction={lineupPredictions.get(boating.id) ?? null}
+                  isEditingLineup={draftEditId === boating.id}
+                  draftPositions={draftEditId === boating.id ? draftPositions : undefined}
+                  onEnterEditMode={() => handleEnterEditMode(boating.id)}
+                  onSaveDraft={handleSaveDraft}
+                  onDiscardDraft={handleDiscardDraft}
                 />
               ))}
             </div>
@@ -996,6 +1040,11 @@ function BoatingCard({
   orgId,
   fallbackTeamId,
   prediction,
+  isEditingLineup,
+  draftPositions,
+  onEnterEditMode,
+  onSaveDraft,
+  onDiscardDraft,
 }: {
   boating: CoachingBoating;
   athletes: CoachingAthlete[];
@@ -1016,6 +1065,11 @@ function BoatingCard({
   orgId?: string | null;
   fallbackTeamId?: string | null;
   prediction?: LineupScorePrediction | null;
+  isEditingLineup?: boolean;
+  draftPositions?: BoatPosition[];
+  onEnterEditMode?: () => void;
+  onSaveDraft?: () => void;
+  onDiscardDraft?: () => void;
 }) {
   const sessionId = boating.session_id ?? null;
   const [sessionNotes, setSessionNotes] = useState<CoachingAthleteNote[]>([]);
@@ -1169,8 +1223,37 @@ function BoatingCard({
     }
   }, []);
 
+  // Effective positions: draft when editing, boating.positions otherwise
+  const effectivePositions = isEditingLineup && draftPositions ? draftPositions : boating.positions;
+
   return (
-    <div className={`bg-neutral-900 border rounded-xl overflow-hidden ${archived ? 'border-neutral-800/60 opacity-75' : 'border-neutral-800'}`}>
+    <div className={`bg-neutral-900 border rounded-xl overflow-hidden ${isEditingLineup ? 'border-amber-500/60 ring-1 ring-amber-500/20' : archived ? 'border-neutral-800/60 opacity-75' : 'border-neutral-800'}`}>
+      {/* ── Edit mode toolbar ── */}
+      {isEditingLineup && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-900/20 border-b border-amber-800/40">
+          <div className="flex items-center gap-2 text-xs text-amber-300">
+            <Pencil className="w-3.5 h-3.5" />
+            <span className="font-medium">Editing lineup</span>
+            <span className="text-amber-400/60">— changes are unsaved</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onDiscardDraft}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-600 text-neutral-300 hover:bg-neutral-700 text-xs font-medium transition-colors"
+            >
+              <Undo2 className="w-3 h-3" />
+              Discard
+            </button>
+            <button
+              onClick={onSaveDraft}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-xs font-medium transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              Save Lineup
+            </button>
+          </div>
+        </div>
+      )}
       <div
         className="px-3 py-2 flex items-center gap-3 cursor-pointer hover:bg-neutral-800/50 transition-colors"
         onClick={onToggleExpand}
@@ -1246,36 +1329,47 @@ function BoatingCard({
 
       {/* Compact seat strip — always visible as default view */}
       {!expanded && !archived && (
-        <CompactSeatStrip boating={boating} getAthleteName={getAthleteName} dndEnabled={dndEnabled} />
+        <CompactSeatStrip boating={boating} positions={effectivePositions} getAthleteName={getAthleteName} dndEnabled={dndEnabled} />
       )}
 
       {expanded && (
-        <div className="border-t border-neutral-800 p-4 bg-neutral-800/30">
-          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
+        <div className={`border-t p-4 ${isEditingLineup ? 'border-amber-800/40 bg-amber-900/5' : 'border-neutral-800 bg-neutral-800/30'}`}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400">
             <span>{format(parseLocalDate(boating.date), 'EEEE, MMM d, yyyy')}</span>
+            {!archived && !isEditingLineup && onEnterEditMode && (
+              <button
+                onClick={onEnterEditMode}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-700 text-xs font-medium transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit Lineup
+              </button>
+            )}
           </div>
           {prediction && !archived && (
             <LineupPredictorPanel prediction={prediction} />
           )}
-          <BoatingRaceResultsPanel
-            results={raceResults}
-            currentVersionResults={currentVersionRaceResults}
-            olderVersionResults={olderVersionRaceResults}
-            onAdd={() => {
-              setEditingRaceResult(null);
-              setIsRaceResultFormOpen(true);
-            }}
-            onEdit={(result) => {
-              setEditingRaceResult(result);
-              setIsRaceResultFormOpen(true);
-            }}
-            onDelete={handleDeleteRaceResult}
-            canSave={canSaveRaceResult}
-            deletingResultId={deletingRaceResultId}
-          />
+          {!isEditingLineup && (
+            <BoatingRaceResultsPanel
+              results={raceResults}
+              currentVersionResults={currentVersionRaceResults}
+              olderVersionResults={olderVersionRaceResults}
+              onAdd={() => {
+                setEditingRaceResult(null);
+                setIsRaceResultFormOpen(true);
+              }}
+              onEdit={(result) => {
+                setEditingRaceResult(result);
+                setIsRaceResultFormOpen(true);
+              }}
+              onDelete={handleDeleteRaceResult}
+              canSave={canSaveRaceResult}
+              deletingResultId={deletingRaceResultId}
+            />
+          )}
           <BoatDiagram
             boatType={boating.boat_type}
-            positions={boating.positions}
+            positions={effectivePositions}
             getAthleteName={getAthleteName}
             athletes={athletes}
             seatNotesByAthlete={seatNotesByAthlete}
@@ -1833,10 +1927,12 @@ function getInitials(name: string): string {
 
 function CompactSeatStrip({
   boating,
+  positions,
   getAthleteName,
   dndEnabled,
 }: {
   boating: CoachingBoating;
+  positions: CoachingBoating['positions'];
   getAthleteName: (id: string) => string;
   dndEnabled?: boolean;
 }) {
@@ -1857,7 +1953,7 @@ function CompactSeatStrip({
   return (
     <div className="border-t border-neutral-800 px-4 py-2 bg-neutral-800/20 flex items-center gap-1.5 overflow-x-auto">
       {seats.map((seat) => {
-        const pos = boating.positions.find((p) => p.seat === seat);
+        const pos = positions.find((p) => p.seat === seat);
         const name = pos ? (pos.athlete_name || getAthleteName(pos.athlete_id)) : null;
         return (
           <CompactSeatBadge

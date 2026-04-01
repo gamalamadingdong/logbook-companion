@@ -90,7 +90,7 @@ import { supabase } from '../../services/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SortField = 'name' | 'split' | 'watts' | 'wpkg' | 'distance' | 'time' | 'stroke_rate' | 'best' | 'best_eff' | 'worst' | 'titan';
+type SortField = 'name' | 'split' | 'watts' | 'wpkg' | 'distance' | 'time' | 'best' | 'titan';
 type SortDir = 'asc' | 'desc';
 
 interface EnrichedRow extends AssignmentResultRow {
@@ -1329,14 +1329,10 @@ function MetricHelp({ label, description }: { label: string; description: string
 function SummaryTable({
   rows,
   isInterval,
-  bestRepLabel,
-  fmtBestRep,
   onEdit,
 }: {
   rows: EnrichedRow[];
   isInterval: boolean;
-  bestRepLabel: string;
-  fmtBestRep: (r: EnrichedRow) => string;
   onEdit: () => void;
 }){
   const [sortField, setSortField] = useState<SortField>('split');
@@ -1438,10 +1434,7 @@ function SummaryTable({
         case 'wpkg': av = a.wpkg; bv = b.wpkg; break;
         case 'distance': av = a.result_distance_meters ?? a.total_interval_distance_meters ?? null; bv = b.result_distance_meters ?? b.total_interval_distance_meters ?? null; break;
         case 'time': av = a.result_time_seconds ?? a.total_interval_time_seconds ?? null; bv = b.result_time_seconds ?? b.total_interval_time_seconds ?? null; break;
-        case 'stroke_rate': av = a.result_stroke_rate ?? null; bv = b.result_stroke_rate ?? null; break;
         case 'best': av = a.rep_best_split_seconds; bv = b.rep_best_split_seconds; break;
-        case 'best_eff': av = a.best_interval_wplb; bv = b.best_interval_wplb; break;
-        case 'worst': av = a.rep_worst_split_seconds; bv = b.rep_worst_split_seconds; break;
         case 'titan': av = titanMap.get(a.athlete_id) ?? null; bv = titanMap.get(b.athlete_id) ?? null; break;
       }
       if (av == null && bv == null) return 0;
@@ -1467,6 +1460,23 @@ function SummaryTable({
 
   const hasWpkg = visibleRows.some((r) => r.wpkg != null);
   const hasTitan = titanMap.size > 0;
+
+  // Hide distance/time column when the value is identical for all finishers (fixed by workout design)
+  const hideDistance = useMemo(() => {
+    const finishers = visibleRows.filter(r => r.completed && !r.dnf && !r.partialDnf && !r.completeNoData);
+    if (finishers.length < 2) return false;
+    const dists = finishers.map(r => r.result_distance_meters ?? r.total_interval_distance_meters).filter((v): v is number => v != null);
+    if (dists.length < 2) return false;
+    return dists.every(d => d === dists[0]);
+  }, [visibleRows]);
+
+  const hideTime = useMemo(() => {
+    const finishers = visibleRows.filter(r => r.completed && !r.dnf && !r.partialDnf && !r.completeNoData);
+    if (finishers.length < 2) return false;
+    const times = finishers.map(r => r.result_time_seconds ?? r.total_interval_time_seconds).filter((v): v is number => v != null);
+    if (times.length < 2) return false;
+    return times.every(t => t === times[0]);
+  }, [visibleRows]);
 
   return (
     <div className="bg-neutral-800/50 rounded-xl overflow-hidden">
@@ -1535,14 +1545,10 @@ function SummaryTable({
               <SortTh label="Split /500m" field="split" sortField={sortField} onSort={toggleSort} />
               <SortTh label="Watts" field="watts" sortField={sortField} onSort={toggleSort} />
               {hasWpkg && <SortTh label="W/kg · W/lb" field="wpkg" sortField={sortField} onSort={toggleSort} helpText="Power-to-weight shows how much power an athlete produces relative to body weight. We surface both W/kg and W/lb here so coaches can read relative power in either unit system." />}
-              <SortTh label="Distance" field="distance" sortField={sortField} onSort={toggleSort} />
-              <SortTh label="Time" field="time" sortField={sortField} onSort={toggleSort} />
-              <SortTh label="SR" field="stroke_rate" sortField={sortField} onSort={toggleSort} />
+              {!hideDistance && <SortTh label="Distance" field="distance" sortField={sortField} onSort={toggleSort} />}
+              {!hideTime && <SortTh label="Time" field="time" sortField={sortField} onSort={toggleSort} />}
               {hasTitan && <SortTh label="Speed Index" field="titan" sortField={sortField} onSort={toggleSort} helpText="Speed Index blends normalized speed and relative power into a 0 to 100 score with equal weighting. We know that still gives raw power extra voice because split already reflects output; that is intentional, so actual speed stays primary while power-for-size still gets explicit credit." />}
-              {isInterval && <SortTh label={bestRepLabel} field="best" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <SortTh label="Best Split" field="best" sortField={sortField} onSort={toggleSort} />}
-              {isInterval && hasWpkg && <SortTh label="Efficiency" field="best_eff" sortField={sortField} onSort={toggleSort} helpText="Efficiency is the best completed rep expressed as W/lb. It rewards athletes who generate more power per pound, but it is meant to complement split rather than replace it." />}
-              {isInterval && <SortTh label="Worst" field="worst" sortField={sortField} onSort={toggleSort} />}
               {isInterval && <th className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-right">Spread</th>}
             </tr>
           </thead>
@@ -1623,9 +1629,8 @@ function SummaryTable({
                   <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtSplit(row.avg_split_seconds)}</td>
                   <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtWatts(row.watts)}</td>
                   {hasWpkg && <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtPowerToWeight(row.wpkg, row.wplb)}</td>}
-                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtDist(row.result_distance_meters ?? row.total_interval_distance_meters)}</td>
-                  <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtTime(row.result_time_seconds ?? row.total_interval_time_seconds)}</td>
-                  <td className="px-1.5 py-1.5 text-right text-neutral-200">{row.result_stroke_rate ?? '—'}</td>
+                  {!hideDistance && <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtDist(row.result_distance_meters ?? row.total_interval_distance_meters)}</td>}
+                  {!hideTime && <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200">{fmtTime(row.result_time_seconds ?? row.total_interval_time_seconds)}</td>}
                   {hasTitan && (
                     <td className="px-1.5 py-1.5 text-right font-mono text-neutral-200 font-semibold">
                       {titanMap.get(row.athlete_id) != null ? titanMap.get(row.athlete_id)!.toFixed(1) : '—'}
@@ -1633,22 +1638,7 @@ function SummaryTable({
                   )}
                   {isInterval && (
                     <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
-                      {fmtBestRep(row)}
-                    </td>
-                  )}
-                  {isInterval && (
-                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
                       {row.rep_best_split_seconds != null ? fmtSplit(row.rep_best_split_seconds) : '—'}
-                    </td>
-                  )}
-                  {isInterval && hasWpkg && (
-                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
-                      {row.best_interval_wplb != null ? `${row.best_interval_wplb.toFixed(2)}` : '—'}
-                    </td>
-                  )}
-                  {isInterval && (
-                    <td className="px-1.5 py-1.5 text-right font-mono text-neutral-300 text-xs">
-                      {row.rep_worst_split_seconds != null ? fmtSplit(row.rep_worst_split_seconds) : '—'}
                     </td>
                   )}
                   {isInterval && (
@@ -1927,7 +1917,7 @@ export function AssignmentResults() {
     <>
       <CoachingNav />
       <div className="min-h-screen bg-neutral-900 text-neutral-100">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
           {/* ── Header ── */}
           <div className="space-y-1">
@@ -2359,8 +2349,6 @@ export function AssignmentResults() {
             <SummaryTable
               rows={rows}
               isInterval={isInterval}
-              bestRepLabel={bestRepLabel}
-              fmtBestRep={fmtBestRep}
               onEdit={() => setShowEntryModal(true)}
             />
           )}

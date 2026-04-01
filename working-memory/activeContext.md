@@ -55,7 +55,27 @@
 
 ## Recently Completed
 
-### System Power Index (SPI) + Synchronicity Gap (7-Split Rule)
+### Lineup Edit Mode (Draft / Save / Discard Sandbox)
+- `src/pages/coaching/CoachingBoatings.tsx`
+  - added `draftEditId` and `draftPositions` state at the LineupsWorkspace level
+  - `handleEnterEditMode`: copies current positions to draft, auto-expands the card
+  - `handleInlinePositionUpdate`: routes to draft state (no DB write) when the card being edited matches `draftEditId`; DnD and BoatDiagram position changes are intercepted automatically
+  - `handleSaveDraft`: writes draft positions to DB via `handleInlinePositionUpdate`, clears draft state, shows toast
+  - `handleDiscardDraft`: clears draft state, restores original positions
+  - `lineupPredictions` useMemo: substitutes draft positions for the editing boating so the predictor updates live as seats change
+  - `BoatingCard`: receives `isEditingLineup`, `draftPositions`, `onEnterEditMode`, `onSaveDraft`, `onDiscardDraft` props
+  - `effectivePositions` in BoatingCard: derived from `draftPositions` when editing, else `boating.positions`; passed to BoatDiagram and CompactSeatStrip
+  - edit mode toolbar: amber border + ring, Pencil icon + "Editing lineup — changes are unsaved" text, Discard (Undo2) and Save buttons
+  - "Edit Lineup" button in expanded header when not already editing (hidden for archived)
+  - race results panel hidden while in edit mode (positions are unsaved)
+  - collapse prevention: `onToggleExpand` is a no-op while editing to prevent accidental loss
+  - `CompactSeatStrip` updated to accept a `positions` prop for draft-aware rendering
+- validation:
+  - `tsc --noEmit` ✅
+  - `npm run build` ✅
+  - `npx vitest run src/services/coaching/lineupPredictor.test.ts` ✅ (21/21)
+
+### SPI Scoping Refinement
 - `src/services/coaching/lineupPredictor.ts`
   - added `BOAT_TAX_LBS` constants per boat class (8+→45, 4+→55, 4x→45, 4-→35, 2-→35, 2x→35, 1x→32)
   - added `calculateSPI(watts, weightKg, boatType)` — pure function: `W / (m_a_lbs + m_b_lbs)`
