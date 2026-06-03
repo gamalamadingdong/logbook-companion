@@ -4,7 +4,7 @@ import type { UserGoal } from '../services/supabase';
 import { BaselineInput } from '../components/analytics/BaselineInput';
 import { ZonePaceTrendChart } from '../components/analytics/ZonePaceTrendChart';
 import { PRList } from '../components/analytics/PRList';
-import { classifyWorkout, ZONES, aggregateBucketsByZone } from '../utils/zones';
+import { classifyWorkout, ZONES, aggregateBucketsByZone, calculateZoneDistribution } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Line } from 'recharts';
 import { Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -26,6 +26,35 @@ import { SplitVarianceChart } from '../components/analytics/SplitVarianceChart';
 import { WkgProgressChart } from '../components/analytics/WkgProgressChart';
 
 type TimeRangePreset = 'thisMonth' | 'lastMonth' | 'ytd' | '3m' | '6m' | '1y' | 'all' | 'custom';
+
+const REST_COLOR = '#737373';
+
+const getWorkoutElapsedSeconds = (workout: any) => workout.duration_seconds || (workout.duration_minutes ? workout.duration_minutes * 60 : 0);
+
+const getEffectiveZoneDistribution = (workout: any, baselineWatts: number): Record<TrainingZone, number> | null => {
+    if (workout.zone_distribution && Object.keys(workout.zone_distribution).length > 0) {
+        return workout.zone_distribution as Record<TrainingZone, number>;
+    }
+
+    if (workout.raw_data && baselineWatts > 0) {
+        const computed = calculateZoneDistribution(workout.raw_data, baselineWatts);
+        const total = Object.values(computed).reduce((sum, seconds) => sum + seconds, 0);
+        if (total > 0) {
+            return computed;
+        }
+    }
+
+    return null;
+};
+
+const getWorkoutWorkSeconds = (workout: any, baselineWatts: number) => {
+    const distribution = getEffectiveZoneDistribution(workout, baselineWatts);
+    if (distribution) {
+        return (Object.values(distribution) as number[]).reduce((sum, seconds) => sum + seconds, 0);
+    }
+
+    return getWorkoutElapsedSeconds(workout);
+};
 
 const AnalyticsSkeleton: React.FC = () => (
     <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24" aria-busy="true" role="status">
@@ -243,65 +272,65 @@ export const Analytics: React.FC = () => {
             if (!weeks[key]) {
                 weeks[key] = {
                     date: key,
-                    // Hours
-                    UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0, total: 0,
-                    // Distance (Meters)
-                    dist_UT2: 0, dist_UT1: 0, dist_AT: 0, dist_TR: 0, dist_AN: 0, totalDist: 0
+                    UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0, REST: 0, total: 0, workTotal: 0,
+                    dist_UT2: 0, dist_UT1: 0, dist_AT: 0, dist_TR: 0, dist_AN: 0, dist_REST: 0, totalDist: 0, workTotalDist: 0,
                 };
             }
 
+            const elapsedSeconds = getWorkoutElapsedSeconds(w);
+            const workDistance = w.distance_meters || 0;
+            const restDistance = w.rest_distance_meters || 0;
             let usedDistribution = false;
 
-            // Logic: Add TIME (Hours) and DISTANCE to the week
-            if (w.zone_distribution && Object.keys(w.zone_distribution).length > 0) {
-                const dist = w.zone_distribution;
-                const totalDistSeconds = (Object.values(dist) as number[]).reduce((a, b) => a + b, 0);
+            const effectiveDistribution = getEffectiveZoneDistribution(w, baselineWatts);
+            if (effectiveDistribution) {
+                const dist = effectiveDistribution;
+                const totalWorkSeconds = (Object.values(dist) as number[]).reduce((a, b) => a + b, 0);
 
-                if (totalDistSeconds > 10) {
+                if (totalWorkSeconds > 10) {
                     (Object.keys(dist) as TrainingZone[]).forEach(z => {
-                        const ratio = dist[z] / totalDistSeconds;
+                        const ratio = dist[z] / totalWorkSeconds;
 
-                        // Hours
                         const hours = dist[z] / 3600;
                         weeks[key][z] += hours;
-                        weeks[key].total += hours;
+                        weeks[key].workTotal += hours;
 
-                        // Distance (allocate proportional to time for now) - Include Rest Distance
-                        const totalWorkoutDistance = (w.distance_meters || 0) + (w.rest_distance_meters || 0);
-                        const distance = totalWorkoutDistance * ratio;
+                        const distance = workDistance * ratio;
                         weeks[key][`dist_${z}`] += distance;
-                        weeks[key].totalDist += distance;
+                        weeks[key].workTotalDist += distance;
                     });
+
+                    const restSeconds = Math.max(elapsedSeconds - totalWorkSeconds, 0);
+                    weeks[key].REST += restSeconds / 3600;
+                    weeks[key].dist_REST += restDistance;
+                    weeks[key].total += (elapsedSeconds > 0 ? elapsedSeconds : totalWorkSeconds) / 3600;
+                    weeks[key].totalDist += workDistance + restDistance;
                     usedDistribution = true;
                 }
             }
 
             if (!usedDistribution) {
-                // Fallback: Whole workout classification
                 let watts = w.watts;
 
-                // Use Work Pace (avg_split_500m) if available
                 if (!watts && w.avg_split_500m) {
                     watts = 2.8 / Math.pow(w.avg_split_500m / 500, 3);
                 }
 
-                const sec = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
-
-                if (!watts && w.distance_meters && sec > 0) {
-                    const split = 500 * (sec / w.distance_meters);
+                if (!watts && w.distance_meters && elapsedSeconds > 0) {
+                    const split = 500 * (elapsedSeconds / w.distance_meters);
                     watts = 2.8 / Math.pow(split / 500, 3);
                 }
                 const zone = classifyWorkout(watts || 0, baselineWatts);
 
-                // Hours
-                const hours = sec / 3600;
+                const hours = elapsedSeconds / 3600;
                 weeks[key][zone] += hours;
+                weeks[key].workTotal += hours;
                 weeks[key].total += hours;
 
-                // Distance - Include Rest
-                const distance = (w.distance_meters || 0) + (w.rest_distance_meters || 0);
-                weeks[key][`dist_${zone}`] += distance;
-                weeks[key].totalDist += distance;
+                weeks[key][`dist_${zone}`] += workDistance;
+                weeks[key].workTotalDist += workDistance;
+                weeks[key].dist_REST += restDistance;
+                weeks[key].totalDist += workDistance + restDistance;
             }
         });
 
@@ -354,8 +383,8 @@ export const Analytics: React.FC = () => {
     }, [weeklyVolume, volumeMetric]);
 
     const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0) + (w.rest_distance_meters || 0), 0);
-    // Total Time in Seconds for accurate display
-    const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + (w.duration_seconds || (w.duration_minutes * 60) || 0), 0);
+    const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutElapsedSeconds(w), 0);
+    const totalWorkSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutWorkSeconds(w, baselineWatts), 0);
 
     if (loading) {
         return <AnalyticsSkeleton />;
@@ -586,7 +615,7 @@ export const Analytics: React.FC = () => {
                             <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
                                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-6">
                                     <Activity size={18} className="text-emerald-400" />
-                                    Time in Zone
+                                    Time in Zone (Work)
                                 </h3>
                                 <div className="h-[250px] w-full relative" role="img" aria-label="Time in zone distribution chart">
                                     <ResponsiveContainer width="100%" height="100%">
@@ -619,11 +648,11 @@ export const Analytics: React.FC = () => {
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="text-center">
                                             <span className="text-3xl font-bold text-white">
-                                                {totalTimeSeconds > 0 && dataByZone.length > 0 ?
-                                                    Math.round(((dataByZone[0].value * 60) / totalTimeSeconds) * 100)
+                                                {totalWorkSeconds > 0 && dataByZone.length > 0 ?
+                                                    Math.round(((dataByZone[0].value * 60) / totalWorkSeconds) * 100)
                                                     : 0}%
                                             </span>
-                                            <div className="text-xs text-neutral-500 uppercase">is UT2</div>
+                                            <div className="text-xs text-neutral-500 uppercase">of work time is UT2</div>
                                         </div>
                                     </div>
                                 </div>
@@ -639,6 +668,7 @@ export const Analytics: React.FC = () => {
                                             <Ruler size={20} className="text-blue-400" />
                                             Weekly Volume
                                         </h3>
+                                        <p className="text-sm text-neutral-500 mt-1">Elapsed session volume, with recoveries shown separately when available.</p>
                                         <div className="flex gap-2 mt-2">
                                             {/* Metric Toggle */}
                                             <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
@@ -703,18 +733,22 @@ export const Analytics: React.FC = () => {
                                             content={({ active, payload, label }) => {
                                                 if (active && payload && payload.length) {
                                                     const data = payload[0].payload;
-                                                    const total = volumeMetric === 'hours' ? data.total : data.totalDist;
+                                                    const stackEntries = payload
+                                                        .filter((entry: any) => entry.dataKey !== 'trendValue' && Number(entry.value) > 0)
+                                                        .slice()
+                                                        .reverse();
+                                                    const total = stackEntries.reduce((sum: number, entry: any) => sum + Number(entry.value), 0);
 
-                                                    // Calculate Week Range
-                                                    const labelVal = label ?? 0; // Fallback to 0 if undefined
+                                                    const labelVal = label ?? 0;
                                                     const startDate = new Date(labelVal);
                                                     const endDate = new Date(startDate);
                                                     endDate.setDate(startDate.getDate() + 6);
 
                                                     const dateRange = `${startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+                                                    const workTotal = volumeMetric === 'hours' ? data.workTotal : data.workTotalDist;
 
                                                     return (
-                                                        <div className="bg-neutral-950 border border-neutral-800 p-3 rounded-lg shadow-xl text-xs space-y-2 min-w-[200px]">
+                                                        <div className="bg-neutral-950 border border-neutral-800 p-3 rounded-lg shadow-xl text-xs space-y-2 min-w-[220px]">
                                                             <div className="border-b border-neutral-800 pb-2 mb-2">
                                                                 <p className="text-neutral-400 font-medium mb-1">
                                                                     {dateRange}
@@ -728,9 +762,18 @@ export const Analytics: React.FC = () => {
                                                                         }
                                                                     </span>
                                                                 </div>
+                                                                <div className="flex items-center justify-between gap-6 mt-1">
+                                                                    <span className="text-neutral-500">Work only:</span>
+                                                                    <span className="text-neutral-300 font-mono">
+                                                                        {volumeMetric === 'hours'
+                                                                            ? `${Number(workTotal).toFixed(1)} hrs`
+                                                                            : `${(Number(workTotal) / 1000).toFixed(1)} km`
+                                                                        }
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                             <div className="space-y-1">
-                                                                {payload.slice().reverse().map((entry: any) => {
+                                                                {stackEntries.map((entry: any) => {
                                                                     const val = Number(entry.value);
                                                                     const pct = total > 0 ? ((val / total) * 100).toFixed(0) : '0';
                                                                     const unit = volumeMetric === 'hours' ? 'h' : 'k';
@@ -765,7 +808,8 @@ export const Analytics: React.FC = () => {
                                         <Bar dataKey={volumeMetric === 'hours' ? "UT1" : "dist_UT1"} name="UT1" stackId="a" fill={ZONES[1].color} />
                                         <Bar dataKey={volumeMetric === 'hours' ? "AT" : "dist_AT"} name="AT" stackId="a" fill={ZONES[2].color} />
                                         <Bar dataKey={volumeMetric === 'hours' ? "TR" : "dist_TR"} name="TR" stackId="a" fill={ZONES[3].color} />
-                                        <Bar dataKey={volumeMetric === 'hours' ? "AN" : "dist_AN"} name="AN" stackId="a" fill={ZONES[4].color} radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey={volumeMetric === 'hours' ? "AN" : "dist_AN"} name="AN" stackId="a" fill={ZONES[4].color} />
+                                        <Bar dataKey={volumeMetric === 'hours' ? "REST" : "dist_REST"} name="Rest" stackId="a" fill={REST_COLOR} radius={[4, 4, 0, 0]} />
 
                                         {/* Trend Line */}
                                         {/* Trend Line (Merged Data) */}
