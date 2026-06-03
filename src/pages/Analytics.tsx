@@ -261,14 +261,12 @@ export const Analytics: React.FC = () => {
 
         filteredWorkouts.forEach(w => {
             const date = new Date(w.completed_at);
-            // Simple "Week Start" Key
             const day = date.getDay();
-            const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
             const monday = new Date(date.setDate(diff));
             monday.setHours(0, 0, 0, 0);
-            const key = monday.toISOString().split('T')[0]; // "2023-10-23"
+            const key = monday.toISOString().split('T')[0];
 
-            // Initialize if new week
             if (!weeks[key]) {
                 weeks[key] = {
                     date: key,
@@ -565,7 +563,7 @@ export const Analytics: React.FC = () => {
                                     </div>
                                     <div className="flex flex-col items-end">
                                         <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Time</div>
-                                        <div className="text-xl font-bold text-white leading-none">{Math.round(totalTimeSeconds / 3600)}<span className="text-sm font-normal text-neutral-600 ml-1">h</span></div>
+                                        <div className="text-xl font-bold text-white leading-none">{(totalTimeSeconds / 3600).toFixed(1)}<span className="text-sm font-normal text-neutral-600 ml-1">h</span></div>
                                     </div>
                                 </div>
                                 <div className="w-px h-8 bg-neutral-800 mx-1"></div>
