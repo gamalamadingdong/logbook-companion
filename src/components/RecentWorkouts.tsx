@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { workoutService } from '../services/workoutService';
 
 interface RecentWorkoutSummary {
     id: number | string;
@@ -10,6 +11,8 @@ interface RecentWorkoutSummary {
     time?: number | null;
     type?: string | null;
     name: string;
+    manual_rwn?: string | null;
+    db_id?: string | null;
 }
 
 interface RecentWorkoutsProps {
@@ -28,6 +31,36 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     hasMore,
     onPageChange
 }) => {
+    const [query, setQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<RecentWorkoutSummary[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    useEffect(() => {
+        const trimmed = query.trim();
+        if (trimmed.length < 2) {
+            setSearchResults([]);
+            setSearching(false);
+            return;
+        }
+
+        const handle = window.setTimeout(async () => {
+            setSearching(true);
+            try {
+                const results = await workoutService.searchWorkouts(trimmed);
+                setSearchResults(results as RecentWorkoutSummary[]);
+            } catch (error) {
+                console.error('Workout search failed', error);
+                setSearchResults([]);
+            } finally {
+                setSearching(false);
+            }
+        }, 250);
+
+        return () => window.clearTimeout(handle);
+    }, [query]);
+
+    const searchActive = query.trim().length >= 2;
+    const visibleWorkouts = useMemo(() => (searchActive ? searchResults : workouts), [searchActive, searchResults, workouts]);
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
@@ -55,6 +88,27 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                 </div>
             </div>
 
+            <div className="mb-5">
+                <label htmlFor="recent-workout-search" className="sr-only">Search workout history</label>
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
+                    <input
+                        id="recent-workout-search"
+                        type="text"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search workout history by RWN or keyword"
+                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950 py-3 pl-10 pr-10 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    {searching && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-neutral-500" size={16} />
+                    )}
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">
+                    Search all logged workouts by canonical name, manual RWN, or workout label.
+                </p>
+            </div>
+
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
                     <thead>
@@ -67,8 +121,8 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-800/50">
-                        {workouts.map((workout) => (
-                            <tr key={workout.id} className="text-sm hover:bg-neutral-800/40 transition-colors group">
+                        {visibleWorkouts.map((workout) => (
+                            <tr key={workout.id || workout.db_id} className="text-sm hover:bg-neutral-800/40 transition-colors group">
                                 <td className="py-4 pl-4 text-neutral-300 font-medium">
                                     {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </td>
@@ -83,13 +137,15 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                         </div>
                                         <div>
                                             <div className="text-sm font-medium text-white">{workout.name}</div>
-                                            <div className="text-xs text-neutral-500">{formatMachineType(workout.type ?? '')}</div>
+                                            <div className="text-xs text-neutral-500">
+                                                {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="py-4 pr-4 text-right">
                                     <Link
-                                        to={`/workout/${workout.id}`}
+                                        to={`/workout/${workout.id || workout.db_id}`}
                                         className="text-indigo-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:border-indigo-500 transition-all inline-block"
                                     >
                                         Analyze
@@ -102,8 +158,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
             </div>
 
             {/* Pagination Controls */}
-            {
-                workouts.length > 0 && (
+            {!searchActive && visibleWorkouts.length > 0 && (
                     <div className="flex items-center justify-between mt-6 pt-6 border-t border-neutral-800">
                         <p className="text-sm text-neutral-500">
                             Page <span className="text-neutral-300 font-medium">{currentPage + 1}</span>
@@ -129,13 +184,11 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                 )
             }
 
-            {
-                workouts.length === 0 && !isLoading && (
-                    <div className="text-center py-12 text-neutral-500">
-                        No workouts found. Sync your logbook to get started.
-                    </div>
-                )
-            }
+            {visibleWorkouts.length === 0 && !isLoading && !searching && (
+                <div className="text-center py-12 text-neutral-500">
+                    {searchActive ? 'No workouts matched that search.' : 'No workouts found. Sync your logbook to get started.'}
+                </div>
+            )}
         </div >
     );
 };
