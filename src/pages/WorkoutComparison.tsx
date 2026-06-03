@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search, Heart, Activity, GitCompare } from 'lucide-react';
 import { EmptyState } from '../components/ui';
 import { workoutService } from '../services/workoutService';
-import { formatPace } from '../utils/prDetection';
+import { formatPace, formatTime } from '../utils/prDetection';
 import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
 import type { C2Stroke } from '../api/concept2.types';
 
@@ -20,6 +20,9 @@ interface WorkoutData {
     formatted_pace?: string;
     date?: string;
     completed_at?: string;
+    workout?: {
+        intervals?: any[];
+    };
 }
 
 interface SimilarWorkouts {
@@ -30,13 +33,81 @@ interface SimilarWorkouts {
 }
 
 interface SearchResult {
-    id?: string;
+    id?: string | number;
     db_id?: string;
     name: string;
     date: string;
     distance: number;
     time_formatted: string;
 }
+
+interface IntervalComparisonRow {
+    index: number;
+    label: string;
+    workoutA: {
+        value: string;
+        time: string;
+        split: string;
+        watts: string;
+        rate: string;
+        hr: string;
+    } | null;
+    workoutB: {
+        value: string;
+        time: string;
+        split: string;
+        watts: string;
+        rate: string;
+        hr: string;
+    } | null;
+    splitDelta: string;
+}
+
+const formatSecondsDelta = (deltaSeconds: number | null) => {
+    if (deltaSeconds === null || Number.isNaN(deltaSeconds)) return '-';
+    if (Math.abs(deltaSeconds) < 0.05) return 'Even';
+    const prefix = deltaSeconds > 0 ? '+' : '-';
+    return `${prefix}${Math.abs(deltaSeconds).toFixed(1)}s`;
+};
+
+const formatIntervalValue = (interval: any) => {
+    if (!interval) return '-';
+    if (interval.type === 'distance') return `${interval.distance}m`;
+    if (interval.type === 'time') return formatTime((interval.time || 0) / 10);
+    if (interval.distance) return `${interval.distance}m`;
+    return formatTime((interval.time || 0) / 10);
+};
+
+const formatIntervalTime = (interval: any) => {
+    if (!interval?.time) return '-';
+    return formatTime(interval.time / 10);
+};
+
+const getIntervalSplitSeconds = (interval: any) => {
+    if (!interval?.time || !interval?.distance) return null;
+    return ((interval.time / 10) / interval.distance) * 500;
+};
+
+const formatIntervalMetric = (value?: number | null, suffix = '') => {
+    if (value === undefined || value === null || Number.isNaN(value)) return '-';
+    return suffix ? `${Math.round(value)}${suffix}` : `${Math.round(value)}`;
+};
+
+const buildIntervalSummary = (interval: any) => {
+    if (!interval) return null;
+
+    const splitSeconds = getIntervalSplitSeconds(interval);
+
+    return {
+        value: formatIntervalValue(interval),
+        time: formatIntervalTime(interval),
+        split: splitSeconds !== null ? formatPace(splitSeconds) : '-',
+        watts: formatIntervalMetric(interval.watts, 'w'),
+        rate: formatIntervalMetric(interval.stroke_rate, ' spm'),
+        hr: interval.heart_rate?.average ? `${Math.round(interval.heart_rate.average)} bpm` : '-',
+        splitSeconds,
+    };
+};
 
 interface StatBoxProps {
     label: string;
@@ -141,6 +212,44 @@ export const WorkoutComparison: React.FC = () => {
 
     // Chart State
     const [chartMetric, setChartMetric] = useState<'watts' | 'pace' | 'rate' | 'hr'>('watts');
+
+    const intervalComparison = useMemo<IntervalComparisonRow[]>(() => {
+        const intervalsA = workoutA?.workout?.intervals ?? [];
+        const intervalsB = workoutB?.workout?.intervals ?? [];
+        const count = Math.max(intervalsA.length, intervalsB.length);
+
+        return Array.from({ length: count }, (_, index) => {
+            const intervalA = intervalsA[index];
+            const intervalB = intervalsB[index];
+            const summaryA = buildIntervalSummary(intervalA);
+            const summaryB = buildIntervalSummary(intervalB);
+            const splitDelta = summaryA?.splitSeconds !== undefined && summaryA?.splitSeconds !== null && summaryB?.splitSeconds !== undefined && summaryB?.splitSeconds !== null
+                ? formatSecondsDelta(summaryB.splitSeconds - summaryA.splitSeconds)
+                : '-';
+
+            return {
+                index: index + 1,
+                label: intervalA ? formatIntervalValue(intervalA) : intervalB ? formatIntervalValue(intervalB) : `Interval ${index + 1}`,
+                workoutA: summaryA ? {
+                    value: summaryA.value,
+                    time: summaryA.time,
+                    split: summaryA.split,
+                    watts: summaryA.watts,
+                    rate: summaryA.rate,
+                    hr: summaryA.hr,
+                } : null,
+                workoutB: summaryB ? {
+                    value: summaryB.value,
+                    time: summaryB.time,
+                    split: summaryB.split,
+                    watts: summaryB.watts,
+                    rate: summaryB.rate,
+                    hr: summaryB.hr,
+                } : null,
+                splitDelta,
+            };
+        });
+    }, [workoutA, workoutB]);
 
     useEffect(() => {
         const delaySearch = setTimeout(async () => {
@@ -372,6 +481,7 @@ export const WorkoutComparison: React.FC = () => {
             {/* Comparison Charts Area - Only if B is selected */}
             {
                 workoutB && (
+                    <>
                     <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -408,6 +518,64 @@ export const WorkoutComparison: React.FC = () => {
                             />
                         </div>
                     </div>
+
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Interval Compare</h3>
+                                <p className="text-sm text-neutral-500">Rep-by-rep comparison of the recorded interval data for both workouts.</p>
+                            </div>
+                            <div className="text-xs text-neutral-500 uppercase tracking-widest">{intervalComparison.length} rows</div>
+                        </div>
+
+                        {intervalComparison.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[980px] text-left">
+                                    <thead>
+                                        <tr className="border-b border-neutral-800 text-xs uppercase tracking-wider text-neutral-500">
+                                            <th className="pb-3 pr-4">Rep</th>
+                                            <th className="pb-3 pr-4">Target</th>
+                                            <th className="pb-3 pr-4">A Time</th>
+                                            <th className="pb-3 pr-4">A Split</th>
+                                            <th className="pb-3 pr-4">A Watts</th>
+                                            <th className="pb-3 pr-4">A Rate</th>
+                                            <th className="pb-3 pr-4">A HR</th>
+                                            <th className="pb-3 pr-4">B Time</th>
+                                            <th className="pb-3 pr-4">B Split</th>
+                                            <th className="pb-3 pr-4">B Watts</th>
+                                            <th className="pb-3 pr-4">B Rate</th>
+                                            <th className="pb-3 pr-4">B HR</th>
+                                            <th className="pb-3 text-right">Split Delta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-neutral-800/60">
+                                        {intervalComparison.map((row) => (
+                                            <tr key={row.index} className="text-sm">
+                                                <td className="py-3 pr-4 text-white font-medium">{row.index}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.label}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutA?.time ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-emerald-400">{row.workoutA?.split ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutA?.watts ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutA?.rate ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutA?.hr ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutB?.time ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-sky-400">{row.workoutB?.split ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutB?.watts ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutB?.rate ?? '-'}</td>
+                                                <td className="py-3 pr-4 font-mono text-neutral-300">{row.workoutB?.hr ?? '-'}</td>
+                                                <td className="py-3 text-right font-mono text-white">{row.splitDelta}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/50 p-6 text-sm text-neutral-500">
+                                These workouts do not expose interval arrays in the stored Concept2 payload, so there is no rep-by-rep table to compare yet.
+                            </div>
+                        )}
+                    </div>
+                    </>
                 )
             }
         </div >

@@ -10,11 +10,12 @@ interface SteadyStateAnalysisProps {
 }
 
 const BUCKETS = [
+    'All distances',
     'Short (< 5k)',
     'Medium (5k - 10k)',
     'Long (10k - 15k)',
     'Endurance (15k+)'
-];
+] as const;
 
 const DATE_RANGES = [
     { label: '3M', days: 90 },
@@ -26,7 +27,7 @@ const DATE_RANGES = [
 export const SteadyStateAnalysis: React.FC<SteadyStateAnalysisProps> = ({ baselineWatts }) => {
     const [workouts, setWorkouts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedBucket, setSelectedBucket] = useState<string>('Medium (5k - 10k)');
+    const [selectedBucket, setSelectedBucket] = useState<typeof BUCKETS[number]>('All distances');
     const [dateRange, setDateRange] = useState<number>(180); // Default 6 months
     const navigate = useNavigate();
 
@@ -48,10 +49,10 @@ export const SteadyStateAnalysis: React.FC<SteadyStateAnalysisProps> = ({ baseli
     }, []);
 
     const filteredWorkouts = useMemo(() => {
-        // 1. Filter by Bucket
-        const inBucket = workouts.filter(w => getDistanceBucket(w.distance) === selectedBucket);
+        const inBucket = selectedBucket === 'All distances'
+            ? workouts
+            : workouts.filter(w => getDistanceBucket(w.distance) === selectedBucket);
 
-        // 2. Filter by Date
         if (dateRange === 99999) return inBucket;
 
         const cutoff = new Date();
@@ -103,7 +104,7 @@ export const SteadyStateAnalysis: React.FC<SteadyStateAnalysisProps> = ({ baseli
                                     : 'text-neutral-500 hover:text-neutral-300'
                                     }`}
                             >
-                                {bucket.split(' ')[0]} {/* Show Short/Medium/Long */}
+                                {bucket === 'All distances' ? 'All' : bucket.split(' ')[0]}
                             </button>
                         ))}
                     </div>
@@ -126,7 +127,9 @@ export const SteadyStateAnalysis: React.FC<SteadyStateAnalysisProps> = ({ baseli
             {/* List of Workouts in Bucket */}
             <div className="bg-neutral-900/30 border border-neutral-800/50 rounded-xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-neutral-800 flex justify-between items-center">
-                    <h3 className="font-semibold text-neutral-300 text-sm">Recent {selectedBucket} Workouts</h3>
+                    <h3 className="font-semibold text-neutral-300 text-sm">
+                        {selectedBucket === 'All distances' ? 'Recent steady state workouts' : `Recent ${selectedBucket} workouts`}
+                    </h3>
                     <span className="text-xs text-neutral-500">{filteredWorkouts.length} total</span>
                 </div>
                 <div className="divide-y divide-neutral-800">

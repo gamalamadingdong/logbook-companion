@@ -4,6 +4,26 @@ import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, normalize
 import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService';
 import type { ErgLinkUploadMeta } from '../types/ergSession.types';
 
+const formatDurationSeconds = (durationSeconds?: number | null, durationMinutes?: number | null) => {
+    if (durationSeconds && durationSeconds > 0) {
+        const hours = Math.floor(durationSeconds / 3600);
+        const minutes = Math.floor((durationSeconds % 3600) / 60);
+        const seconds = Math.floor(durationSeconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    if (durationMinutes && durationMinutes > 0) {
+        return `${durationMinutes}m`;
+    }
+
+    return '-';
+};
+
 export const workoutService = {
     // Sources visible to dashboard/analysis views
     // Includes ErgLink live uploads so coaching-related pages can surface them.
@@ -230,7 +250,7 @@ export const workoutService = {
         if (error) throw error;
 
         return data.map(log => ({
-            id: log.external_id,
+            id: log.external_id || log.id,
             db_id: log.id,
             date: log.completed_at,
             watts: log.watts,
@@ -267,25 +287,30 @@ export const workoutService = {
         return aggregated;
     },
 
-    // Search Workouts (Comparison Picker)
+    // Search Workouts (Dashboard + Comparison Picker)
     searchWorkouts: async (term: string) => {
-        // Search by name or distance or type
-        // This is a simple LIKE search
+        const trimmed = term.trim();
+        if (!trimmed) return [];
+
+        const escaped = trimmed.replaceAll(',', '\\,');
+
         const { data, error } = await supabase
             .from('workout_logs')
-            .select('id, external_id, completed_at, workout_name, distance_meters, duration_seconds, duration_minutes, completed_at, canonical_name')
-            .or(`workout_name.ilike.%${term}%,canonical_name.ilike.%${term}%`)
+            .select('id, external_id, completed_at, workout_name, distance_meters, duration_seconds, duration_minutes, canonical_name, manual_rwn, source')
+            .in('source', [...workoutService.viewableSources])
+            .or(`workout_name.ilike.%${escaped}%,canonical_name.ilike.%${escaped}%,manual_rwn.ilike.%${escaped}%`)
             .order('completed_at', { ascending: false })
             .limit(20);
 
         if (error) throw error;
         return data.map(log => ({
-            id: log.external_id,
+            id: log.external_id || log.id,
             db_id: log.id,
             date: log.completed_at,
             name: log.canonical_name || log.workout_name,
             distance: log.distance_meters,
-            time_formatted: log.duration_seconds ? new Date(log.duration_seconds * 1000).toISOString().substr(11, 8) : `${log.duration_minutes}m`
+            time_formatted: formatDurationSeconds(log.duration_seconds, log.duration_minutes),
+            manual_rwn: log.manual_rwn
         }));
     },
 
