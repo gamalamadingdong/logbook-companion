@@ -4,7 +4,7 @@ import type { UserGoal } from '../services/supabase';
 import { BaselineInput } from '../components/analytics/BaselineInput';
 import { ZonePaceTrendChart } from '../components/analytics/ZonePaceTrendChart';
 import { PRList } from '../components/analytics/PRList';
-import { classifyWorkout, ZONES, aggregateBucketsByZone } from '../utils/zones';
+import { classifyWorkout, ZONES, aggregateBucketsByZone, calculateZoneDistribution } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Line } from 'recharts';
 import { Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -31,9 +31,26 @@ const REST_COLOR = '#737373';
 
 const getWorkoutElapsedSeconds = (workout: any) => workout.duration_seconds || (workout.duration_minutes ? workout.duration_minutes * 60 : 0);
 
-const getWorkoutWorkSeconds = (workout: any) => {
+const getEffectiveZoneDistribution = (workout: any, baselineWatts: number): Record<TrainingZone, number> | null => {
     if (workout.zone_distribution && Object.keys(workout.zone_distribution).length > 0) {
-        return (Object.values(workout.zone_distribution) as number[]).reduce((sum, seconds) => sum + seconds, 0);
+        return workout.zone_distribution as Record<TrainingZone, number>;
+    }
+
+    if (workout.raw_data && baselineWatts > 0) {
+        const computed = calculateZoneDistribution(workout.raw_data, baselineWatts);
+        const total = Object.values(computed).reduce((sum, seconds) => sum + seconds, 0);
+        if (total > 0) {
+            return computed;
+        }
+    }
+
+    return null;
+};
+
+const getWorkoutWorkSeconds = (workout: any, baselineWatts: number) => {
+    const distribution = getEffectiveZoneDistribution(workout, baselineWatts);
+    if (distribution) {
+        return (Object.values(distribution) as number[]).reduce((sum, seconds) => sum + seconds, 0);
     }
 
     return getWorkoutElapsedSeconds(workout);
@@ -263,22 +280,22 @@ export const Analytics: React.FC = () => {
             const restDistance = w.rest_distance_meters || 0;
             let usedDistribution = false;
 
-            if (w.zone_distribution && Object.keys(w.zone_distribution).length > 0) {
-                const distribution = w.zone_distribution as Record<TrainingZone, number>;
-                const totalWorkSeconds = (Object.values(distribution) as number[]).reduce((sum, seconds) => sum + seconds, 0);
+            const effectiveDistribution = getEffectiveZoneDistribution(w, baselineWatts);
+            if (effectiveDistribution) {
+                const dist = effectiveDistribution;
+                const totalWorkSeconds = (Object.values(dist) as number[]).reduce((a, b) => a + b, 0);
 
                 if (totalWorkSeconds > 10) {
-                    (Object.keys(distribution) as TrainingZone[]).forEach(zone => {
-                        const zoneSeconds = distribution[zone] || 0;
-                        const ratio = totalWorkSeconds > 0 ? zoneSeconds / totalWorkSeconds : 0;
-                        const hours = zoneSeconds / 3600;
+                    (Object.keys(dist) as TrainingZone[]).forEach(z => {
+                        const ratio = dist[z] / totalWorkSeconds;
 
-                        weeks[key][zone] += hours;
+                        const hours = dist[z] / 3600;
+                        weeks[key][z] += hours;
                         weeks[key].workTotal += hours;
 
-                        const zoneDistance = workDistance * ratio;
-                        weeks[key][`dist_${zone}`] += zoneDistance;
-                        weeks[key].workTotalDist += zoneDistance;
+                        const distance = workDistance * ratio;
+                        weeks[key][`dist_${z}`] += distance;
+                        weeks[key].workTotalDist += distance;
                     });
 
                     const restSeconds = Math.max(elapsedSeconds - totalWorkSeconds, 0);
@@ -365,7 +382,7 @@ export const Analytics: React.FC = () => {
 
     const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0) + (w.rest_distance_meters || 0), 0);
     const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutElapsedSeconds(w), 0);
-    const totalWorkSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutWorkSeconds(w), 0);
+    const totalWorkSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutWorkSeconds(w, baselineWatts), 0);
 
     if (loading) {
         return <AnalyticsSkeleton />;
