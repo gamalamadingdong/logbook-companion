@@ -11,7 +11,8 @@
     "recompute:speed-index": "node scripts/recompute_speed_index.mjs",
     "seed:demo:team-management": "node scripts/seed_demo_team_management.mjs",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "types:supabase": "supabase gen types typescript --project-id vmlhcbkyonemmlawnqqr --schema public > src/types/database.types.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

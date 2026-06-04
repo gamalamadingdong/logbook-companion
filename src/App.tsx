@@ -1,55 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
-import { Login } from './pages/Login';
-import { AuthBootstrap } from './pages/AuthBootstrap';
-import { Callback } from './pages/Callback';
-import { Dashboard } from './pages/Dashboard';
-import { Sync } from './pages/Sync';
-import { Analytics } from './pages/Analytics';
-import { WorkoutDetail } from './pages/WorkoutDetail';
-import { WorkoutHistory } from './pages/WorkoutHistory';
-import { WorkoutComparison } from './pages/WorkoutComparison';
-import { Preferences } from './pages/Preferences';
-import { Feedback } from './pages/Feedback';
-import { About } from './pages/About';
-import { CoachSessions } from './pages/CoachSessions';
-import { TemplateLibrary } from './pages/TemplateLibrary';
-import { TemplateDetail } from './pages/TemplateDetail';
-import { TemplateProposalPage } from './pages/TemplateProposalPage';
-import { TemplateProposalReview } from './pages/TemplateProposalReview';
-import { Documentation } from './pages/Documentation';
-import DownloadC2Data from './pages/DownloadC2Data';
-import { ResetPassword } from './pages/ResetPassword';
-import { CoachDashboard } from './pages/coaching/CoachDashboard';
-import { CoachingRoster } from './pages/coaching/CoachingRoster';
-import { CoachingSchedule } from './pages/coaching/CoachingSchedule';
-import { CoachingBoatings } from './pages/coaching/CoachingBoatings';
-import { CoachingAthleteDetail } from './pages/coaching/CoachingAthleteDetail';
-import { CoachingAssignments } from './pages/coaching/CoachingAssignments';
-import { AssignmentResults } from './pages/coaching/AssignmentResults';
-import { TeamSetup } from './pages/coaching/TeamSetup';
-import { TeamAnalytics } from './pages/coaching/TeamAnalytics';
-import { CoachingSettings } from './pages/coaching/CoachingSettings';
-import { RequestCoachingAccess } from './pages/coaching/RequestCoachingAccess';
-import { JoinTeam } from './pages/JoinTeam';
-import { MyTeamDashboard } from './pages/team/MyTeamDashboard';
-import { MyScores } from './pages/team/MyScores';
-import { MyTeamNotes } from './pages/team/MyTeamNotes';
-import { MyTeamSettings } from './pages/team/MyTeamSettings';
 import { CoachingProvider } from './contexts/CoachingContext';
-import { NotFound } from './pages/NotFound';
-import { PublicAssignmentResultsShare } from './pages/PublicAssignmentResultsShare';
-import { PublicTeamLeaderboardShare } from './pages/PublicTeamLeaderboardShare';
-import { AuthCallback } from './pages/AuthCallback';
-import { AuthConfirm } from './pages/AuthConfirm';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
 import { NotificationProvider } from './components/NotificationProvider';
 import { Toaster } from 'sonner';
+
+const lazyNamed = (
+  loader: () => Promise<Record<string, unknown>>,
+  exportName: string,
+) => lazy(async () => ({
+  default: (await loader())[exportName] as React.ComponentType,
+}));
+
+const Login = lazyNamed(() => import('./pages/Login'), 'Login');
+const AuthBootstrap = lazyNamed(() => import('./pages/AuthBootstrap'), 'AuthBootstrap');
+const AuthCallback = lazyNamed(() => import('./pages/AuthCallback'), 'AuthCallback');
+const AuthConfirm = lazyNamed(() => import('./pages/AuthConfirm'), 'AuthConfirm');
+const Callback = lazyNamed(() => import('./pages/Callback'), 'Callback');
+const PublicAssignmentResultsShare = lazyNamed(() => import('./pages/PublicAssignmentResultsShare'), 'PublicAssignmentResultsShare');
+const PublicTeamLeaderboardShare = lazyNamed(() => import('./pages/PublicTeamLeaderboardShare'), 'PublicTeamLeaderboardShare');
+const About = lazyNamed(() => import('./pages/About'), 'About');
+const Dashboard = lazyNamed(() => import('./pages/Dashboard'), 'Dashboard');
+const Sync = lazyNamed(() => import('./pages/Sync'), 'Sync');
+const Analytics = lazyNamed(() => import('./pages/Analytics'), 'Analytics');
+const WorkoutDetail = lazyNamed(() => import('./pages/WorkoutDetail'), 'WorkoutDetail');
+const Preferences = lazyNamed(() => import('./pages/Preferences'), 'Preferences');
+const WorkoutHistory = lazyNamed(() => import('./pages/WorkoutHistory'), 'WorkoutHistory');
+const WorkoutComparison = lazyNamed(() => import('./pages/WorkoutComparison'), 'WorkoutComparison');
+const Feedback = lazyNamed(() => import('./pages/Feedback'), 'Feedback');
+const RequestCoachingAccess = lazyNamed(() => import('./pages/coaching/RequestCoachingAccess'), 'RequestCoachingAccess');
+const CoachDashboard = lazyNamed(() => import('./pages/coaching/CoachDashboard'), 'CoachDashboard');
+const CoachSessions = lazyNamed(() => import('./pages/CoachSessions'), 'CoachSessions');
+const CoachingRoster = lazyNamed(() => import('./pages/coaching/CoachingRoster'), 'CoachingRoster');
+const CoachingAthleteDetail = lazyNamed(() => import('./pages/coaching/CoachingAthleteDetail'), 'CoachingAthleteDetail');
+const CoachingSchedule = lazyNamed(() => import('./pages/coaching/CoachingSchedule'), 'CoachingSchedule');
+const CoachingAssignments = lazyNamed(() => import('./pages/coaching/CoachingAssignments'), 'CoachingAssignments');
+const AssignmentResults = lazyNamed(() => import('./pages/coaching/AssignmentResults'), 'AssignmentResults');
+const CoachingBoatings = lazyNamed(() => import('./pages/coaching/CoachingBoatings'), 'CoachingBoatings');
+const TeamAnalytics = lazyNamed(() => import('./pages/coaching/TeamAnalytics'), 'TeamAnalytics');
+const TeamSetup = lazyNamed(() => import('./pages/coaching/TeamSetup'), 'TeamSetup');
+const CoachingSettings = lazyNamed(() => import('./pages/coaching/CoachingSettings'), 'CoachingSettings');
+const TemplateLibrary = lazyNamed(() => import('./pages/TemplateLibrary'), 'TemplateLibrary');
+const TemplateDetail = lazyNamed(() => import('./pages/TemplateDetail'), 'TemplateDetail');
+const TemplateProposalPage = lazyNamed(() => import('./pages/TemplateProposalPage'), 'TemplateProposalPage');
+const TemplateProposalReview = lazyNamed(() => import('./pages/TemplateProposalReview'), 'TemplateProposalReview');
+const Documentation = lazyNamed(() => import('./pages/Documentation'), 'Documentation');
+const DownloadC2Data = lazy(() => import('./pages/DownloadC2Data'));
+const ResetPassword = lazyNamed(() => import('./pages/ResetPassword'), 'ResetPassword');
+const JoinTeam = lazyNamed(() => import('./pages/JoinTeam'), 'JoinTeam');
+const MyTeamDashboard = lazyNamed(() => import('./pages/team/MyTeamDashboard'), 'MyTeamDashboard');
+const MyScores = lazyNamed(() => import('./pages/team/MyScores'), 'MyScores');
+const MyTeamNotes = lazyNamed(() => import('./pages/team/MyTeamNotes'), 'MyTeamNotes');
+const MyTeamSettings = lazyNamed(() => import('./pages/team/MyTeamSettings'), 'MyTeamSettings');
+const NotFound = lazyNamed(() => import('./pages/NotFound'), 'NotFound');
+
+const RouteLoadingScreen: React.FC = () => (
+  <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
+    Loading...
+  </div>
+);
 
 // ... (previous imports)
 
@@ -136,7 +150,7 @@ const AppContent: React.FC = () => {
             <Toaster position="top-center" richColors theme={resolvedTheme} toastOptions={{ style: { marginTop: '0.5rem' } }} />
             <BrowserRouter>
               <CoachingProvider>
-                <Routes>
+                <Suspense fallback={<RouteLoadingScreen />}><Routes>
           <Route path="/login" element={<Login />} />
                   <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
@@ -436,7 +450,7 @@ const AppContent: React.FC = () => {
               </Layout>
             }
           />
-        </Routes>
+        </Routes></Suspense>
               </CoachingProvider>
       </BrowserRouter>
     </>

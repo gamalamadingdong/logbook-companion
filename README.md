@@ -29,7 +29,7 @@ We provide tools to go beyond simple logbook summaries:
 - **Weekly Volume**: Visual trend lines of your total volume and zone distribution.
 - **Comparison**: Head-to-head overlay of any two workouts with support for Watts, Pace, Rate, and HR metrics.
 
-### 3. Live Sessions & Connectivity (Experimental)
+### 4. Live Sessions & Connectivity (Experimental)
 > **⚠️ Note:** Live Sessions and Group Workouts are currently under active development and considered experimental. Use with caution.
 
 Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature connects your browser directly to your Concept2 PM5 monitor via Bluetooth.
@@ -41,7 +41,8 @@ Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature conn
 
 ### Prerequisites
 - Node.js 18+
-- A Concept2 PM5 Monitor (for Live Sessions)
+- A Concept2 Logbook OAuth app for sync flows
+- A Concept2 PM5 Monitor only if you are testing Live Sessions
 
 ### Installation
 
@@ -49,7 +50,7 @@ Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature conn
 npm install
 ```
 
-Create a local `.env` from `.env.example` and set the Supabase values:
+Create a local `.env` from `.env.example` and set the Supabase and Concept2 values:
 
 ```bash
 cp .env.example .env
@@ -60,7 +61,11 @@ Required variables:
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_CONCEPT2_CLIENT_ID=your-concept2-client-id
+VITE_CONCEPT2_CLIENT_SECRET=your-concept2-client-secret
 ```
+
+For local maintenance scripts that need to bypass RLS, add `SUPABASE_SERVICE_ROLE_KEY` from the Supabase dashboard. Do not expose that key in browser code or public deployments.
 
 ### Development
 

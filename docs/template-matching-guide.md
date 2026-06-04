@@ -14,57 +14,40 @@ This happens in `useConcept2Sync.ts` after every workout upsert.
 
 ## 🔧 Backfilling Existing Workouts
 
-### Prerequisites
+There are two different backfill jobs. Use the right one for the data you are fixing.
 
-You need your Supabase credentials. The script will use either:
-1. **Service Role Key** (preferred): `SUPABASE_SERVICE_ROLE_KEY`
-2. **Anon Key** (fallback): `VITE_SUPABASE_ANON_KEY`
+### 1. Populate missing `canonical_name` values
 
-**Important**: The service role key can bypass RLS (Row Level Security), so use it carefully. For production, consider adding user authentication to the script.
-
-### Step 1: Set Environment Variables
-
-**Option A - Using .env file** (Recommended)
-Your `.env` file should already have:
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key  # Optional, more powerful
-```
-
-**Option B - Inline (temporary)**
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co SUPABASE_SERVICE_ROLE_KEY=your-key npx tsx scripts/backfill_workout_templates.ts
-```
-
-### Step 2: Run the Backfill Script
+Use the local script that exists in this repo:
 
 ```bash
-npx tsx scripts/backfill_workout_templates.ts
+npx tsx scripts/backfill_canonical.ts
 ```
 
-**What it does:**
-- Finds all workouts with `canonical_name` but no `template_id`
-- Matches them to templates using the same priority logic:
-  1. Your personal templates (by `canonical_name`)
-  2. Most popular community template (by `usage_count`)
-- Updates `workout_logs.template_id` for each match
+This script reads `workout_logs.raw_data`, derives a canonical workout name, and updates `workout_logs.canonical_name`. It requires Supabase credentials in `.env` and should use `SUPABASE_SERVICE_ROLE_KEY` when run against production data so RLS does not hide rows.
 
-### Step 2: Review Results
+### 2. Link workouts to templates
 
-The script will output:
+There is currently no checked-in `scripts/backfill_workout_templates.ts` script. For bulk template-linking, use the SQL workflow in [backfill-via-mcp.md](backfill-via-mcp.md). The core operation links exact canonical-name matches:
+
+```sql
+UPDATE workout_logs wl
+SET template_id = wt.id
+FROM workout_templates wt
+WHERE wl.canonical_name = wt.canonical_name
+  AND wl.template_id IS NULL
+  AND wt.canonical_name IS NOT NULL;
 ```
-✅ Matched: 45       # Workouts successfully linked
-⚠️  Skipped: 12      # No matching template found
-❌ Errors: 0         # Processing errors
-```
 
-### Step 3: Handle Unmatched Workouts
+After the SQL update, review the most common unmatched canonical names and either create missing templates or leave them unlinked until the workout structure is clarified.
 
-For workouts that couldn't be matched:
-- They may have unique structures not in your template library
-- You can create templates from them later
-- Manual linking could be added as a future feature
+### Backfill eligibility
+
+- Valid `canonical_name` on the workout log
+- No existing `template_id`
+- A matching template with the same `canonical_name`
+
+Skipped rows usually mean the workout has no structured name yet, the template does not exist, or the workout was already linked.
 
 ---
 
@@ -144,7 +127,7 @@ This means **only Concept2-synced workouts** currently have canonical names. Man
 -- Reset all template links
 UPDATE workout_logs SET template_id = NULL;
 
--- Then re-run the backfill script
+-- Then re-run the template-linking SQL in docs/backfill-via-mcp.md
 ```
 
 ---
@@ -163,29 +146,16 @@ Potential improvements:
 ## 📝 Example Usage
 
 ```bash
-# Set environment variables
-export VITE_SUPABASE_URL="https://your-project.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-
-# Run backfill
-npx tsx scripts/backfill_workout_templates.ts
+# Populate missing canonical names from raw workout data
+npx tsx scripts/backfill_canonical.ts
 ```
 
-**Expected Output**:
-```
-🔍 Finding workouts without template links...
-
-📊 Found 67 workouts to process
-
-✅ Matched "4x500m/1:00r" → template abc-123
-✅ Matched "10000m" → template def-456
-⚠️  No match for "3x750m/2:30r" (workout xyz-789)
-...
-
-============================================================
-📊 Backfill Complete:
-   ✅ Matched: 45
-   ⚠️  Skipped: 22
-   ❌ Errors: 0
-============================================================
+```sql
+-- Then link exact canonical-name matches via Supabase MCP / SQL editor
+UPDATE workout_logs wl
+SET template_id = wt.id
+FROM workout_templates wt
+WHERE wl.canonical_name = wt.canonical_name
+  AND wl.template_id IS NULL
+  AND wt.canonical_name IS NOT NULL;
 ```

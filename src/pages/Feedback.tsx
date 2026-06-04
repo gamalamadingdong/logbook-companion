@@ -27,15 +27,14 @@ export const Feedback: React.FC = () => {
     const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'new' | 'reviewed' | 'resolved'>('all');
-
-    // Admin-only page
-    if (!user || !isAdmin) {
-        return <Navigate to="/" replace />;
-    }
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
 
     useEffect(() => {
-        fetchFeedback();
-    }, []);
+        if (user && isAdmin) {
+            fetchFeedback();
+        }
+    }, [user, isAdmin]);
 
     const fetchFeedback = async () => {
         try {
@@ -120,8 +119,9 @@ export const Feedback: React.FC = () => {
         }
     };
 
-    const [replyingTo, setReplyingTo] = useState<string | null>(null);
-    const [replyText, setReplyText] = useState('');
+    if (!user || !isAdmin) {
+        return <Navigate to="/" replace />;
+    }
 
     const filteredFeedback = filter === 'all'
         ? feedback

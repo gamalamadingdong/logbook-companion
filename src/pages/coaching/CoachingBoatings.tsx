@@ -1443,6 +1443,25 @@ function LineupPredictorPanel({ prediction }: { prediction: LineupScorePredictio
                   </div>
                 </div>
 
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Calibration</div>
+                  <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-neutral-700">
+                    <span>Model</span>
+                    <span className="text-right font-mono text-[11px]">{prediction.calibration.modelVersion}</span>
+                    <span>Evidence coverage</span>
+                    <span className="text-right">{Math.round(prediction.calibration.evidenceCoverage * 100)}%</span>
+                    <span>Weight coverage</span>
+                    <span className="text-right">{Math.round(prediction.calibration.weightCoverage * 100)}%</span>
+                    <span>Avg samples / seat</span>
+                    <span className="text-right">{prediction.calibration.averageEvidenceCount.toFixed(1)} of {prediction.calibration.sampleLimit}</span>
+                    <span>Avg recency</span>
+                    <span className="text-right">{prediction.calibration.averageRecencyDays != null ? `${Math.round(prediction.calibration.averageRecencyDays)}d` : 'N/A'}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-neutral-600">
+                    Confidence weights: evidence 45%, depth 30%, body weight 15%, recency 10%.
+                  </div>
+                </div>
+
                 {prediction.athletes.some((a) => a.spiValue != null || a.syncMatch != null) && (
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Per-seat breakdown</div>

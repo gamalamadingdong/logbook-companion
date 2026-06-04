@@ -149,8 +149,7 @@ export function Modal({
         `}
       >
         {/* Header */}
-        {(title || true) && (
-          <div className="flex items-start justify-between gap-3 p-5 pb-0">
+        <div className="flex items-start justify-between gap-3 p-5 pb-0">
             <div className="min-w-0 flex-1">
               {title && (
                 <h2
@@ -172,7 +171,6 @@ export function Modal({
               <X className="w-5 h-5" />
             </button>
           </div>
-        )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">{children}</div>

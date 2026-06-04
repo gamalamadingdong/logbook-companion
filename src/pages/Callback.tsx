@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { supabase } from '../services/supabase';
@@ -8,29 +8,16 @@ export const Callback: React.FC = () => {
     const navigate = useNavigate();
     const hasRun = useRef(false);
 
-    useEffect(() => {
-        if (hasRun.current) return;
-        hasRun.current = true;
-
-        const code = searchParams.get('code');
-        if (code) {
-            exchangeToken(code);
-        } else {
-            console.error('No code found in URL');
-            navigate('/login');
-        }
-    }, [searchParams]);
-
-    const waitForAuthenticatedUser = async (maxAttempts = 10, delayMs = 300) => {
+    const waitForAuthenticatedUser = useCallback(async (maxAttempts = 10, delayMs = 300) => {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) return user;
             await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
         return null;
-    };
+    }, []);
 
-    const exchangeToken = async (code: string) => {
+    const exchangeToken = useCallback(async (code: string) => {
         try {
             const params = new URLSearchParams();
             params.append('client_id', import.meta.env.VITE_CONCEPT2_CLIENT_ID);
@@ -78,7 +65,20 @@ export const Callback: React.FC = () => {
             console.error('Token exchange failed', error);
             navigate('/login');
         }
-    };
+    }, [navigate, waitForAuthenticatedUser]);
+
+    useEffect(() => {
+        if (hasRun.current) return;
+        hasRun.current = true;
+
+        const code = searchParams.get('code');
+        if (code) {
+            void exchangeToken(code);
+        } else {
+            console.error('No code found in URL');
+            navigate('/login');
+        }
+    }, [exchangeToken, navigate, searchParams]);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-neutral-900 text-white">

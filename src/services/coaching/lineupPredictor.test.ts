@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CoachingAthlete, CoachingBoating } from './types';
 import type { TeamErgComparison } from './coachingService';
-import { buildLineupPredictions, calculateSPI, classifySyncGap, getSPILabel } from './lineupPredictor';
+import { buildLineupPredictions, calculateSPI, classifySyncGap, getSPILabel, LINEUP_PREDICTOR_MODEL_VERSION, LINEUP_PREDICTOR_SAMPLE_LIMIT } from './lineupPredictor';
 
 function makeAthlete(id: string, name: string, weightKg: number | null): CoachingAthlete {
   const [firstName, lastName] = name.split(' ');
@@ -168,6 +168,43 @@ describe('buildLineupPredictions', () => {
     expect(prediction?.averageRaw2kFormatted).toBeTruthy();
     expect(prediction?.lineupScoreSeconds).not.toBeNull();
     expect(prediction?.averageRaw2kSeconds).not.toBeNull();
+  });
+
+  it('exposes calibration metadata for confidence and sample provenance', () => {
+    const athletes = [makeAthlete('a1', 'Calibrated Rower', 75)];
+    const lineup = makeBoating({
+      boat_type: '1x',
+      positions: [{ seat: 1, athlete_id: 'a1', athlete_name: 'Calibrated Rower' }],
+    });
+
+    const evidence = Array.from({ length: LINEUP_PREDICTOR_SAMPLE_LIMIT + 1 }, (_, index) =>
+      makeEvidence({
+        athleteId: 'a1',
+        athleteName: 'Calibrated Rower',
+        distance: 2000,
+        bestTime: 420 + index,
+        bestSplit: 105 + (index * 0.25),
+        bestWatts: 302.3 - index,
+        date: `2026-03-${String(20 - index).padStart(2, '0')}`,
+      }),
+    );
+
+    const predictions = buildLineupPredictions({
+      boatings: [lineup],
+      athletes,
+      ergComparisons: evidence,
+    });
+
+    const prediction = predictions.get(lineup.id);
+
+    expect(prediction?.calibration.modelVersion).toBe(LINEUP_PREDICTOR_MODEL_VERSION);
+    expect(prediction?.calibration.sampleLimit).toBe(LINEUP_PREDICTOR_SAMPLE_LIMIT);
+    expect(prediction?.calibration.averageEvidenceCount).toBe(LINEUP_PREDICTOR_SAMPLE_LIMIT);
+    expect(prediction?.calibration.evidenceCoverage).toBe(1);
+    expect(prediction?.calibration.weightCoverage).toBe(1);
+    expect(prediction?.calibration.confidenceComponents.evidenceCoverage).toBeCloseTo(0.45, 5);
+    expect(prediction?.calibration.confidenceComponents.evidenceDepth).toBeCloseTo(0.3, 5);
+    expect(prediction?.calibration.powerDurationAnchors.some((anchor) => anchor.distance === 2000)).toBe(true);
   });
 
   it('falls back to raw erg power when body weight is missing', () => {

@@ -49,7 +49,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
                 type: 'system',
                 title: `${typeLabels[feedbackType]} Submitted`,
                 body: 'Thanks for your feedback! We\'ll review it shortly.',
-                href: '/feedback',
                 read: false,
                 created_at: new Date().toISOString(),
             });

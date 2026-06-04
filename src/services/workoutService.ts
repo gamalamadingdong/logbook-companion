@@ -24,6 +24,29 @@ const formatDurationSeconds = (durationSeconds?: number | null, durationMinutes?
     return '-';
 };
 
+
+export function buildWorkoutNameUpdates(payload: { manualRWN?: string; isBenchmark?: boolean }): Record<string, unknown> {
+    const updates: Record<string, unknown> = {};
+
+    if (payload.manualRWN !== undefined) {
+        const manualRWN = payload.manualRWN.trim();
+        updates.manual_rwn = manualRWN || null;
+
+        const canonicalName = deriveCanonicalNameFromRWN(manualRWN);
+        if (canonicalName) {
+            updates.canonical_name = canonicalName;
+            updates.canonical_signature = normalizeCanonicalName(canonicalName);
+            updates.template_id = null;
+            updates.match_confidence = null;
+            updates.match_reason = null;
+        }
+    }
+
+    if (payload.isBenchmark !== undefined) updates.is_benchmark = payload.isBenchmark;
+
+    return updates;
+}
+
 export const workoutService = {
     // Sources visible to dashboard/analysis views
     // Includes ErgLink live uploads so coaching-related pages can surface them.
@@ -354,10 +377,7 @@ export const workoutService = {
 
     // Update workout naming metadata (Manual Override)
     updateWorkoutName: async (id: string, payload: { manualRWN?: string; isBenchmark?: boolean }) => {
-        const updates: any = {};
-
-        if (payload.manualRWN !== undefined) updates.manual_rwn = payload.manualRWN;
-        if (payload.isBenchmark !== undefined) updates.is_benchmark = payload.isBenchmark;
+        const updates = buildWorkoutNameUpdates(payload);
 
         const { error } = await supabase
             .from('workout_logs')

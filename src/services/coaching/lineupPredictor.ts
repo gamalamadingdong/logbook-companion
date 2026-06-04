@@ -33,6 +33,9 @@ export const BOAT_TAX_LBS: Record<BoatType, number> = {
 
 export type SyncMatch = 'optimal' | 'stress' | 'negative';
 
+export const LINEUP_PREDICTOR_MODEL_VERSION = '2k-anchor-v1';
+export const LINEUP_PREDICTOR_SAMPLE_LIMIT = 8;
+
 export function calculateSPI(watts: number, weightKg: number, boatType: BoatType): number {
   const athleteLbs = weightKg * 2.20462;
   const boatTaxLbs = BOAT_TAX_LBS[boatType];
@@ -52,6 +55,23 @@ export function getSPILabel(spi: number): string {
   if (spi >= 1.40) return 'Contributor';
   if (spi >= 1.20) return 'Passenger';
   return 'Below threshold';
+}
+
+export interface LineupPredictionCalibration {
+  modelVersion: string;
+  sampleLimit: number;
+  evidenceCoverage: number;
+  weightCoverage: number;
+  averageEvidenceCount: number;
+  averageRecencyDays: number | null;
+  recencyScore: number;
+  confidenceComponents: {
+    evidenceCoverage: number;
+    evidenceDepth: number;
+    weightCoverage: number;
+    recency: number;
+  };
+  powerDurationAnchors: DistanceAnchor[];
 }
 
 export interface AthleteLineupPrediction {
@@ -99,6 +119,7 @@ export interface LineupScorePrediction {
   spiRange: { min: number; max: number } | null;
   negativeMatchCount: number;
   boatAverageSplitSeconds: number | null;
+  calibration: LineupPredictionCalibration;
 }
 
 function getExpectedRowerSeats(boatType: BoatType): number {
@@ -169,7 +190,7 @@ function buildAthletePrediction(
 ): AthleteLineupPrediction {
   const usableEvidence = evidence
     .filter((entry) => entry.bestWatts > 0 && entry.distance > 0)
-    .slice(0, 8);
+    .slice(0, LINEUP_PREDICTOR_SAMPLE_LIMIT);
   const warnings: string[] = [];
   const weightAdjustmentFactor = getWeightAdjustmentFactor(weightKg);
 
@@ -376,11 +397,18 @@ export function buildLineupPredictions(params: {
           ? 0.7
           : 0.4;
 
+    const confidenceComponents = {
+      evidenceCoverage: evidenceCoverage * 0.45,
+      evidenceDepth: Math.min(averageEvidenceCount, 3) / 3 * 0.3,
+      weightCoverage: weightCoverage * 0.15,
+      recency: recencyScore * 0.1,
+    };
+
     const confidenceScore = clamp(
-      (evidenceCoverage * 0.45) +
-      (Math.min(averageEvidenceCount, 3) / 3 * 0.3) +
-      (weightCoverage * 0.15) +
-      (recencyScore * 0.1),
+      confidenceComponents.evidenceCoverage +
+      confidenceComponents.evidenceDepth +
+      confidenceComponents.weightCoverage +
+      confidenceComponents.recency,
       0,
       1,
     );
@@ -407,6 +435,18 @@ export function buildLineupPredictions(params: {
       'Sync Gap flags athletes whose raw 2k split deviates from the crew average by >7 seconds in either direction — slower athletes as potential brakes, faster athletes as mismatched to the crew.',
       'Use this as a crew-comparison heuristic, not as a literal on-water race-time prediction.',
     ];
+
+    const calibration: LineupPredictionCalibration = {
+      modelVersion: LINEUP_PREDICTOR_MODEL_VERSION,
+      sampleLimit: LINEUP_PREDICTOR_SAMPLE_LIMIT,
+      evidenceCoverage,
+      weightCoverage,
+      averageEvidenceCount,
+      averageRecencyDays,
+      recencyScore,
+      confidenceComponents,
+      powerDurationAnchors: POWER_DURATION_ANCHORS,
+    };
 
     result.set(boating.id, {
       lineupId: boating.id,
@@ -435,6 +475,7 @@ export function buildLineupPredictions(params: {
       spiRange,
       negativeMatchCount,
       boatAverageSplitSeconds,
+      calibration,
     });
   }
 
