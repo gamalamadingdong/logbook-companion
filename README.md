@@ -49,6 +49,19 @@ Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature conn
 npm install
 ```
 
+Create a local `.env` from `.env.example` and set the Supabase values:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
 ### Development
 
 ```bash

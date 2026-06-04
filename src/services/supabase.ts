@@ -3,12 +3,25 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const fallbackSupabaseUrl = 'http://127.0.0.1'
+const fallbackSupabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MCwiZXhwIjo0MTAyNDQ0ODAwfQ.signature'
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Missing Supabase URL or Anon Key. Please check your .env file.')
+export const missingSupabaseEnvVars = [
+    !supabaseUrl ? 'VITE_SUPABASE_URL' : null,
+    !supabaseAnonKey ? 'VITE_SUPABASE_ANON_KEY' : null,
+].filter((value): value is string => Boolean(value))
+
+export const hasSupabaseEnv = missingSupabaseEnvVars.length === 0
+
+if (!hasSupabaseEnv) {
+    console.warn(
+        `Missing Supabase environment variables: ${missingSupabaseEnvVars.join(', ')}. ` +
+        'Add them to your local .env file before using authenticated features.'
+    )
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabaseAnonKey ?? fallbackSupabaseAnonKey, {
     auth: {
         flowType: 'pkce',
         detectSessionInUrl: true,
