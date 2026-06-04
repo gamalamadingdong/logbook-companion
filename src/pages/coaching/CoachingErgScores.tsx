@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
-import { useNotifications } from '../../hooks/useNotifications';
 import { parseLocalDate } from '../../utils/dateUtils';
 import {
   getErgScores,
@@ -19,11 +18,10 @@ import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { downloadCsv } from '../../utils/csvExport';
 import { exportToExcel } from '../../utils/exportUtils';
 import { toast } from 'sonner';
-import { makeNotification } from '../../utils/notificationFactory';
+import { notifyScoreEntered } from '../../services/notificationService';
 
 export function CoachingErgScores() {
   const { userId, teamId, orgId, isLoadingTeam, filterTeamId } = useCoachingContext();
-  const { addNotification } = useNotifications();
   const isOrgWide = filterTeamId === null && !!orgId;
   const effectiveTeamId = filterTeamId ?? teamId;
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
@@ -99,14 +97,10 @@ export function CoachingErgScores() {
   const handleAddScore = async (score: Omit<Parameters<typeof createErgScore>[2], 'athlete_id'> & { athlete_id: string }) => {
     if (!teamId) return;
     try {
-      await createErgScore(teamId, userId, score);
-      const athlete = ergAthletes.find((a) => a.id === score.athlete_id);
-      addNotification(makeNotification({
-        type: 'score_entered',
-        title: 'Score recorded',
-        body: `${score.distance}m score saved${athlete ? ` for ${athlete.name}` : ''}.`,
-        href: '/team-management/log',
-      }));
+      const savedScore = await createErgScore(teamId, userId, score);
+      notifyScoreEntered(savedScore.id, userId).catch((notificationError) => {
+        console.error('Failed to notify score recipient:', notificationError);
+      });
       setIsAdding(false);
       await refreshData();
     } catch (err) {

@@ -103,3 +103,30 @@ export async function clearNotifications(userId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+export async function notifyAssignmentCreated(
+  groupAssignmentId: string,
+  actorUserId: string,
+): Promise<number> {
+  const { data, error } = await typedSupabase.rpc('notify_assignment_created', {
+    p_group_assignment_id: groupAssignmentId,
+    p_actor_user_id: actorUserId,
+  });
+
+  if (error) throw error;
+  return data ?? 0;
+}
+
+export async function notifyScoreEntered(
+  scoreId: string,
+  actorUserId: string,
+): Promise<number> {
+  const { data, error } = await typedSupabase.rpc('notify_score_entered', {
+    p_score_id: scoreId,
+    p_actor_user_id: actorUserId,
+  });
+
+  if (error) throw error;
+  return data ?? 0;
+}
+

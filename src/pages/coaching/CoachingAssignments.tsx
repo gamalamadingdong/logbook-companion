@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { useMeasurementUnits } from '../../hooks/useMeasurementUnits';
-import { useNotifications } from '../../hooks/useNotifications';
 import {
   getGroupAssignments,
   createGroupAssignment,
@@ -53,13 +52,12 @@ import {
   getRangeForPreset,
 } from '../../services/coaching/analyticsView';
 import { ComplianceTrendChart } from '../../components/coaching/ComplianceTrendChart';
-import { makeNotification } from '../../utils/notificationFactory';
+import { notifyAssignmentCreated } from '../../services/notificationService';
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function CoachingAssignments() {
   const { userId, teamId, teamName, orgId, activeTeam, isLoadingTeam, filterTeamId, filterTeamName } = useCoachingContext();
-  const { addNotification } = useNotifications();
   const effectiveTeamId = filterTeamId ?? teamId;
 
   // Data
@@ -202,14 +200,11 @@ export function CoachingAssignments() {
 
   const handleCreate = async (input: GroupAssignmentInput, athleteIds: string[]) => {
     try {
-      await createGroupAssignment(input, athleteIds);
+      const assignment = await createGroupAssignment(input, athleteIds);
+      notifyAssignmentCreated(assignment.id, userId).catch((notificationError) => {
+        console.error('Failed to notify assignment recipients:', notificationError);
+      });
       toast.success('Workout assigned');
-      addNotification(makeNotification({
-        type: 'assignment_created',
-        title: 'Assignment published',
-        body: `${input.title || 'Workout'} assigned to ${athleteIds.length} ${athleteIds.length === 1 ? 'athlete' : 'athletes'}.`,
-        href: '/team-management/assignments',
-      }));
       setShowCreateForm(false);
       await loadData();
       if (viewMode === 'compliance') await loadComplianceData();

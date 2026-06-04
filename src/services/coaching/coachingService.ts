@@ -3305,7 +3305,7 @@ export async function quickScoreAndComplete(
     heart_rate?: number;
     notes?: string;
   }
-): Promise<void> {
+): Promise<CoachingErgScore> {
   // 1. Create the erg score
   const ergScore = await createErgScore(teamId, coachUserId, {
     athlete_id: athleteId,
@@ -3315,6 +3315,7 @@ export async function quickScoreAndComplete(
 
   // 2. Mark the assignment complete, linking to the erg score
   await completeAthleteAssignment(groupAssignmentId, athleteId, ergScore.id);
+  return ergScore;
 }
 
 /** Get assignment history for a specific athlete (most recent first) */

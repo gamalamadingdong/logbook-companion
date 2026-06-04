@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { X, Loader2, Clock, Ruler } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNotifications } from '../../hooks/useNotifications';
-import { makeNotification } from '../../utils/notificationFactory';
+import { notifyScoreEntered } from '../../services/notificationService';
 import {
   quickScoreAndComplete,
   completeAthleteAssignment,
@@ -34,7 +33,6 @@ export function QuickScoreModal({
   onClose,
   onComplete,
 }: QuickScoreModalProps) {
-  const { addNotification } = useNotifications();
   // Pick the first missing assignment (most common: one assignment per day)
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selectedCompletion = missingCompletions[selectedIdx];
@@ -73,6 +71,8 @@ export function QuickScoreModal({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      let savedScore: Awaited<ReturnType<typeof createErgScore>> | null = null;
+
       if (markOnlyMode && selectedCompletion) {
         // Just mark complete — no score
         await completeAthleteAssignment(
@@ -80,7 +80,7 @@ export function QuickScoreModal({
           athlete.id
         );
       } else if (selectedCompletion) {
-        await quickScoreAndComplete(teamId, coachUserId, athlete.id, selectedCompletion.group_assignment_id, {
+        savedScore = await quickScoreAndComplete(teamId, coachUserId, athlete.id, selectedCompletion.group_assignment_id, {
           distance: distanceNum,
           time_seconds: totalSeconds,
           split_500m: split500m,
@@ -90,7 +90,7 @@ export function QuickScoreModal({
           notes: notes.trim() || undefined,
         });
       } else {
-        await createErgScore(teamId, coachUserId, {
+        savedScore = await createErgScore(teamId, coachUserId, {
           athlete_id: athlete.id,
           date: new Date().toISOString().slice(0, 10),
           distance: distanceNum,
@@ -108,13 +108,10 @@ export function QuickScoreModal({
         await updateAthlete(athlete.id, { weight_kg: weightKg });
       }
       toast.success(`Score recorded for ${athlete.name}`);
-      if (!markOnlyMode) {
-        addNotification(makeNotification({
-          type: 'score_entered',
-          title: 'Score recorded',
-          body: `${distanceNum}m score saved for ${athlete.name}.`,
-          href: '/team-management/roster',
-        }));
+      if (savedScore) {
+        notifyScoreEntered(savedScore.id, coachUserId).catch((notificationError) => {
+          console.error('Failed to notify score recipient:', notificationError);
+        });
       }
       onComplete();
     } catch (err) {

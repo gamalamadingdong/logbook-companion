@@ -4066,6 +4066,14 @@ export type Database = {
         }
       }
       map_workout_category: { Args: { legacy_type: string }; Returns: string }
+      notify_assignment_created: {
+        Args: { p_actor_user_id: string; p_group_assignment_id: string }
+        Returns: number
+      }
+      notify_score_entered: {
+        Args: { p_actor_user_id: string; p_score_id: string }
+        Returns: number
+      }
       refresh_zone_performance_history: { Args: never; Returns: undefined }
       resolve_assignment_results_share: {
         Args: { p_token: string }
