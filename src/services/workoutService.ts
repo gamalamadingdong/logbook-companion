@@ -1,8 +1,31 @@
 import { supabase } from './supabase';
-import type { C2ResultDetail, C2Stroke } from '../api/concept2.types';
+import type { C2Interval, C2ResultDetail, C2Stroke } from '../api/concept2.types';
 import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, normalizeCanonicalName } from '../utils/workoutCanonical';
 import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService';
-import type { ErgLinkUploadMeta } from '../types/ergSession.types';
+import type { Database, Json } from '../types/database.types';
+
+type WorkoutLogRow = Database['public']['Tables']['workout_logs']['Row'];
+
+interface WorkoutRawData extends Record<string, unknown> {
+    group_assignment_id?: string;
+    time_formatted?: string;
+    workout?: {
+        intervals?: C2Interval[];
+    };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toWorkoutRawData(value: Json | null): WorkoutRawData | null {
+    if (!isRecord(value)) return null;
+    return value as WorkoutRawData;
+}
+
+function hasWorkoutIntervals(raw: WorkoutRawData | null): raw is WorkoutRawData & { workout: { intervals: C2Interval[] } } {
+    return Array.isArray(raw?.workout?.intervals);
+}
 
 const formatDurationSeconds = (durationSeconds?: number | null, durationMinutes?: number | null) => {
     if (durationSeconds && durationSeconds > 0) {
@@ -66,10 +89,12 @@ export const workoutService = {
 
         if (error) throw error;
 
-        const autoLinkTasks = data
-            .filter(log => log.source === 'erg_link_live' && !!log.id && !!log.user_id && !!log.raw_data)
+        const logs = ((data ?? []) as WorkoutLogRow[]);
+
+        const autoLinkTasks = logs
+            .filter((log) => log.source === 'erg_link_live' && !!log.id && !!log.user_id && !!log.raw_data)
             .map((log) => {
-                const raw = log.raw_data as ErgLinkUploadMeta | null;
+                const raw = toWorkoutRawData(log.raw_data);
                 const groupAssignmentId = raw?.group_assignment_id;
                 if (!groupAssignmentId) return null;
 
@@ -86,8 +111,8 @@ export const workoutService = {
             await Promise.allSettled(autoLinkTasks);
         }
 
-        return data.map(log => {
-            const raw = log.raw_data;
+        return logs.map(log => {
+            const raw = toWorkoutRawData(log.raw_data);
             // DB is Primary Source
             // Try to use DB canonical name, fallback to calculating it, then fallback to DB workout name
             let canonicalName = log.canonical_name;
@@ -99,7 +124,7 @@ export const workoutService = {
             }
             // 2. Auto-Detection (Legacy / Default)
             // If missing OR "Unstructured", try to generate from raw (and backfill)
-            else if ((!canonicalName || canonicalName === 'Unstructured') && raw && raw.workout && raw.workout.intervals) {
+            else if ((!canonicalName || canonicalName === 'Unstructured') && hasWorkoutIntervals(raw)) {
                 const generated = deriveCanonicalNameFromIntervals(raw.workout.intervals);
                 if (generated) {
                     canonicalName = generated;
@@ -113,8 +138,8 @@ export const workoutService = {
 
             // Fallbacks — workout_name holds C2 workout_type (e.g. 'FixedDistanceSplits') due to column swap in DB
             if (!canonicalName) {
-                if (log.workout_name === 'FixedDistanceSplits' || log.workout_name === 'FixedDistanceNoSplits') canonicalName = `${log.distance_meters}m`;
-                else if (log.workout_name === 'FixedTimeSplits' || log.workout_name === 'FixedTimeNoSplits') canonicalName = `${Math.round(log.duration_minutes)}:00`;
+                if (log.workout_name === 'FixedDistanceSplits' || log.workout_name === 'FixedDistanceNoSplits') canonicalName = `${log.distance_meters ?? 0}m`;
+                else if (log.workout_name === 'FixedTimeSplits' || log.workout_name === 'FixedTimeNoSplits') canonicalName = `${Math.round(log.duration_minutes ?? 0)}:00`;
                 else if (log.workout_name === 'JustRow') canonicalName = 'Just Row';
                 else canonicalName = log.workout_name;
             }
@@ -131,18 +156,20 @@ export const workoutService = {
                     : `${minutes}:${seconds.toString().padStart(4, '0')}`;
             }
 
+            const durationMinutes = log.duration_minutes ?? 0;
+
             return {
-                id: log.external_id, // Use C2 ID for compatibility
+                id: log.external_id ?? log.id, // Use C2 ID for compatibility when present
                 db_id: log.id, // Keep internal DB ID accessible
                 date: log.completed_at,
-                distance: log.distance_meters,
-                time: log.duration_seconds ? log.duration_seconds * 10 : (log.duration_minutes * 600),
-                time_formatted: timeFormatted || `${log.duration_minutes}m`,
+                distance: log.distance_meters ?? 0,
+                time: log.duration_seconds ? log.duration_seconds * 10 : (durationMinutes * 600),
+                time_formatted: timeFormatted || `${durationMinutes}m`,
                 type: log.workout_type,
                 name: canonicalName,
-                watts: log.watts,
-                stroke_rate: log.average_stroke_rate,
-                calories_total: log.calories_burned,
+                watts: log.watts ?? undefined,
+                stroke_rate: log.average_stroke_rate ?? undefined,
+                calories_total: log.calories_burned ?? undefined,
                 raw_data: raw
             };
         });

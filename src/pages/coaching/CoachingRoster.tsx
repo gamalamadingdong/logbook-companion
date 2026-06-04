@@ -32,6 +32,8 @@ import { benchmarkCriteriaIndicator, benchmarkTierBadgeClass, benchmarkTierLabel
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useMeasurementUnits } from '../../hooks/useMeasurementUnits';
+import { useNotifications } from '../../hooks/useNotifications';
+import { makeNotification } from '../../utils/notificationFactory';
 
 const experienceLevelOrder: Record<string, number> = { beginner: 0, intermediate: 1, experienced: 2, advanced: 3 };
 
@@ -48,6 +50,7 @@ function gradeRank(grade: string | undefined | null): number {
 export function CoachingRoster() {
   const { userId, teamId, orgId, teams, isLoadingTeam, teamError, filterTeamId, filterTeamName } = useCoachingContext();
   const units = useMeasurementUnits();
+  const { addNotification } = useNotifications();
   const isImperial = units === 'imperial';
   const navigate = useNavigate();
 
@@ -203,6 +206,13 @@ export function CoachingRoster() {
         weight_kg: data.weight_kg,
         notes: data.notes,
       }, data.squad || null, data.performance_tier ?? null);
+      const athleteName = `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim() || 'Athlete';
+      addNotification(makeNotification({
+        type: 'athlete_joined',
+        title: 'Athlete added',
+        body: `${athleteName} was added to the roster.`,
+        href: '/team-management/roster',
+      }));
       setIsAdding(false);
       await refreshAthletes();
     } catch (err) {

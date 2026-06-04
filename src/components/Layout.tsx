@@ -155,7 +155,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </nav>
 
                 <div className="p-4 border-t border-neutral-800 space-y-2">
-                    {user && <NotificationBell />}
+                    {user && <NotificationBell variant="sidebar" />}
                     {user && !localStorage.getItem('concept2_token') && (
                         <button
                             type="button"
@@ -211,7 +211,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
                 {user && (
                     <div className="shrink-0 mr-1">
-                        <NotificationBell />
+                        <NotificationBell variant="icon" align="right" />
                     </div>
                 )}
                 <button

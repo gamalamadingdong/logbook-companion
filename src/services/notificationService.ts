@@ -1,21 +1,25 @@
 import { supabase } from './supabase';
-import type { AppNotification } from '../types/notification.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../types/database.types';
+import type { AppNotification, NotificationType } from '../types/notification.types';
 
 export type NewAppNotification = Omit<AppNotification, 'created_at'> & {
   created_at?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: AppNotificationInsert['metadata'];
 };
 
-type AppNotificationRow = AppNotification & {
-  user_id: string;
-  read_at?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
+type AppNotificationRow = Database['public']['Tables']['app_notifications']['Row'];
+type AppNotificationInsert = Database['public']['Tables']['app_notifications']['Insert'];
+type AppNotificationUpdate = Database['public']['Tables']['app_notifications']['Update'];
+
+const typedSupabase = supabase as SupabaseClient<Database>;
+
+const appNotificationSelect = 'id, type, title, body, href, read, created_at, user_id, read_at, metadata';
 
 function toNotification(row: AppNotificationRow): AppNotification {
   return {
     id: row.id,
-    type: row.type,
+    type: row.type as NotificationType,
     title: row.title,
     body: row.body,
     href: row.href ?? undefined,
@@ -25,54 +29,66 @@ function toNotification(row: AppNotificationRow): AppNotification {
 }
 
 export async function fetchNotifications(userId: string, limit = 50): Promise<AppNotification[]> {
-  const { data, error } = await supabase
+  const { data, error } = await typedSupabase
     .from('app_notifications')
-    .select('id, type, title, body, href, read, created_at, user_id, read_at, metadata')
+    .select(appNotificationSelect)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  return (data ?? []).map((row) => toNotification(row as AppNotificationRow));
+  return (data ?? []).map(toNotification);
 }
 
 export async function createNotification(
   userId: string,
   notification: NewAppNotification,
 ): Promise<AppNotification> {
-  const { data, error } = await supabase
+  const insertNotification: AppNotificationInsert = {
+    id: notification.id,
+    user_id: userId,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    href: notification.href,
+    read: notification.read,
+    created_at: notification.created_at,
+    metadata: notification.metadata ?? {},
+  };
+
+  const { data, error } = await typedSupabase
     .from('app_notifications')
-    .insert({
-      id: notification.id,
-      user_id: userId,
-      type: notification.type,
-      title: notification.title,
-      body: notification.body,
-      href: notification.href,
-      read: notification.read,
-      created_at: notification.created_at,
-      metadata: notification.metadata ?? {},
-    })
-    .select('id, type, title, body, href, read, created_at, user_id, read_at, metadata')
+    .insert(insertNotification)
+    .select(appNotificationSelect)
     .single();
 
   if (error) throw error;
-  return toNotification(data as AppNotificationRow);
+  return toNotification(data);
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  const { error } = await supabase
+  const updateNotification: AppNotificationUpdate = {
+    read: true,
+    read_at: new Date().toISOString(),
+  };
+
+  const { error } = await typedSupabase
     .from('app_notifications')
-    .update({ read: true, read_at: new Date().toISOString() })
+    .update(updateNotification)
     .eq('id', id);
 
   if (error) throw error;
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
-  const { error } = await supabase
+  const updateNotification: AppNotificationUpdate = {
+    read: true,
+    read_at: new Date().toISOString(),
+  };
+
+  const { error } = await typedSupabase
     .from('app_notifications')
-    .update({ read: true, read_at: new Date().toISOString() })
+    .update(updateNotification)
     .eq('user_id', userId)
     .eq('read', false);
 
@@ -80,7 +96,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 }
 
 export async function clearNotifications(userId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await typedSupabase
     .from('app_notifications')
     .delete()
     .eq('user_id', userId);

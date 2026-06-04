@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { X, Loader2, Clock, Ruler } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNotifications } from '../../hooks/useNotifications';
+import { makeNotification } from '../../utils/notificationFactory';
 import {
   quickScoreAndComplete,
   completeAthleteAssignment,
@@ -32,6 +34,7 @@ export function QuickScoreModal({
   onClose,
   onComplete,
 }: QuickScoreModalProps) {
+  const { addNotification } = useNotifications();
   // Pick the first missing assignment (most common: one assignment per day)
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selectedCompletion = missingCompletions[selectedIdx];
@@ -105,6 +108,14 @@ export function QuickScoreModal({
         await updateAthlete(athlete.id, { weight_kg: weightKg });
       }
       toast.success(`Score recorded for ${athlete.name}`);
+      if (!markOnlyMode) {
+        addNotification(makeNotification({
+          type: 'score_entered',
+          title: 'Score recorded',
+          body: `${distanceNum}m score saved for ${athlete.name}.`,
+          href: '/team-management/roster',
+        }));
+      }
       onComplete();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save score');

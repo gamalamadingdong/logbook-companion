@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, ClipboardList, Trophy, UserPlus, BarChart3, Info, CheckCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Bell,
+  ClipboardList,
+  Trophy,
+  UserPlus,
+  BarChart3,
+  Info,
+  CheckCheck,
+  Trash2,
+} from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import type { NotificationType } from '../types/notification.types';
 
@@ -12,6 +22,11 @@ const typeIcon: Record<NotificationType, React.FC<{ size?: number; className?: s
   system: Info,
 };
 
+interface NotificationBellProps {
+  variant?: 'sidebar' | 'icon';
+  align?: 'left' | 'right';
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -23,12 +38,15 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-export const NotificationBell: React.FC = () => {
-  const { notifications, unreadCount, markAsRead, markAllRead } = useNotifications();
+export const NotificationBell: React.FC<NotificationBellProps> = ({
+  variant = 'sidebar',
+  align = 'left',
+}) => {
+  const { notifications, unreadCount, markAsRead, markAllRead, clearAll } = useNotifications();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -40,7 +58,6 @@ export const NotificationBell: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -50,43 +67,64 @@ export const NotificationBell: React.FC = () => {
     return () => document.removeEventListener('keydown', handler);
   }, [open]);
 
+  const buttonClass = variant === 'icon'
+    ? 'relative flex h-10 w-10 items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800/70 rounded-lg transition-colors'
+    : 'relative flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-white hover:bg-neutral-800/50 rounded-lg transition-all';
+
+  const panelClass = variant === 'icon'
+    ? `absolute top-full mt-2 ${align === 'right' ? 'right-0' : 'left-0'} w-[min(22rem,calc(100vw-2rem))] max-h-[28rem] overflow-y-auto bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl z-[70]`
+    : 'absolute left-full ml-2 bottom-0 w-80 max-h-96 overflow-y-auto bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl z-[60]';
+
   return (
     <div ref={containerRef} className="relative">
-      {/* Bell button */}
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative flex items-center gap-3 px-4 py-3 w-full text-left text-neutral-400 hover:text-white hover:bg-neutral-800/50 rounded-lg transition-all"
+        className={buttonClass}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
-        <Bell size={20} />
-        <span className="md:inline hidden">Notifications</span>
+        <Bell size={variant === 'icon' ? 19 : 20} />
+        {variant === 'sidebar' && <span className="hidden md:inline">Notifications</span>}
         {unreadCount > 0 && (
-          <span className="absolute top-2 left-8 md:static md:ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-red-500 rounded-full">
+          <span className={variant === 'icon'
+            ? 'absolute -right-1 -top-1 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white'
+            : 'absolute top-2 left-8 md:static md:ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-red-500 rounded-full'}
+          >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown panel */}
       {open && (
-        <div className="absolute left-full ml-2 bottom-0 w-80 max-h-96 overflow-y-auto bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-[60]">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-700/50">
+        <div className={panelClass} role="dialog" aria-label="Notifications">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-700/50">
             <h3 className="text-sm font-semibold text-white">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={() => markAllRead()}
-                className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-              >
-                <CheckCheck size={14} />
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllRead}
+                  className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <CheckCheck size={14} />
+                  Read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="flex items-center gap-1 text-xs text-neutral-400 hover:text-red-300 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Notification list */}
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-neutral-500">
               <Bell size={32} className="mb-3 opacity-40" />
@@ -104,7 +142,7 @@ export const NotificationBell: React.FC = () => {
                         if (!n.read) markAsRead(n.id);
                         if (n.href) {
                           setOpen(false);
-                          window.location.href = n.href;
+                          navigate(n.href);
                         }
                       }}
                       className={`flex items-start gap-3 w-full text-left px-4 py-3 hover:bg-neutral-800/60 transition-colors ${
@@ -119,9 +157,7 @@ export const NotificationBell: React.FC = () => {
                           <span className={`text-sm truncate ${!n.read ? 'font-semibold text-white' : 'text-neutral-300'}`}>
                             {n.title}
                           </span>
-                          {!n.read && (
-                            <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-400" />
-                          )}
+                          {!n.read && <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-400" />}
                         </div>
                         <p className="text-xs text-neutral-400 line-clamp-2 mt-0.5">{n.body}</p>
                         <span className="text-[11px] text-neutral-500 mt-1 block">{timeAgo(n.created_at)}</span>
