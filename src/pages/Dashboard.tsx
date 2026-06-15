@@ -177,7 +177,13 @@ export const Dashboard: React.FC = () => {
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
                             <div className="text-neutral-400 text-sm mb-1">Hello,</div>
                             <div className="text-3xl font-bold text-white">{userProfile?.display_name || user?.email?.split('@')[0]}</div>
-                            <div className="text-sm text-neutral-500 mt-1">C2: {c2Profile?.username || 'Not Connected'}</div>
+                            <div className="text-sm text-neutral-500 mt-1">
+                                C2: {c2Profile?.username ? (
+                                    <span className="font-bold italic">{c2Profile.username}</span>
+                                ) : (
+                                    'Not Connected'
+                                )}
+                            </div>
                         </div>
 
                         <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">

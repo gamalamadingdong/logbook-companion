@@ -4,6 +4,53 @@
 
 ---
 
+## ADR-024: Concept2 dashboard username emphasis is presentation-only
+
+**Date**: June 15, 2026
+**Status**: Accepted
+**Author**: AI Assistant
+
+### Context
+
+Issue #36 asks for the Concept2 username on the dashboard to be visually emphasized with bold and italic styling while preserving the existing `C2:` label, `Not Connected` fallback, dashboard layout, and Concept2 connection behavior.
+
+### Decision
+
+Treat the change as a presentation-only dashboard rendering update. Do not alter the Concept2 profile data shape, persisted workout template data, auth flow, sync behavior, or database seed/template JSON.
+
+### Rationale
+
+The requested behavior depends only on how `c2Profile.username` is rendered in `src/pages/Dashboard.tsx`. Persisted data and template fixtures are unrelated to the acceptance criteria and should remain stable.
+
+### Consequences
+
+**Positive**:
+- the connected username can be emphasized without changing data loading or persistence behavior
+- the disconnected fallback remains plain text
+- the bounded issue slice avoids unrelated schema or seed-data churn
+- validation can stay focused on the rendered dashboard text states: connected username, normal `C2:` label, and `Not Connected` fallback
+
+**Negative**:
+- none for the current scope
+
+### Validation Coverage
+
+For this issue, validation should prove the rendering contract rather than unrelated Concept2 behavior:
+
+1. connected state renders the `C2:` label normally and only the username with bold plus italic styling
+2. disconnected state still renders `C2: Not Connected` without emphasized fallback text
+3. build, lint, and test commands remain clean after the presentation-only change
+
+### Alternatives Considered
+
+1. **Add a persisted display preference or profile field**
+   - Rejected because the issue requests fixed styling, not user-configurable behavior
+
+2. **Modify workout template seed data**
+   - Rejected because Concept2 username display does not depend on workout template persistence
+
+---
+
 ## ADR-023: Lineup predictor should lead with a weight-adjusted crew score, not headline race times
 
 **Date**: March 27, 2026
