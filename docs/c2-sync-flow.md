@@ -175,7 +175,7 @@ The system generates standardized RWN strings for template matching:
 10. Fallback baseline of 202W
 11. Stroke `p` field ambiguity (watts vs pace)
 12. Season always starts May 1st
-13. No sync progress persistence
+13. No sync progress persistence - see [`c2-background-sync-plan.md`](./c2-background-sync-plan.md) for the proposed durable job design.
 
 ---
 

@@ -29,6 +29,24 @@ export default function DownloadC2Data() {
     const [progress, setProgress] = useState<DownloadProgress>({ phase: 'idle' });
     const [exportData, setExportData] = useState<ExportData | null>(null);
 
+    const saveExportArtifact = async (payload: {
+        type: 'summary' | 'workout' | 'strokes' | 'metadata';
+        workoutId?: number;
+        workoutData: unknown;
+    }) => {
+        if (!import.meta.env.DEV) return;
+
+        const response = await fetch('/api/save-workout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Local export save failed (${response.status})`);
+        }
+    };
+
     const downloadAllData = async () => {
         try {
             setProgress({ phase: 'fetching-list' });
@@ -66,13 +84,9 @@ export default function DownloadC2Data() {
 
 
             // Save summary immediately
-            await fetch('/api/save-workout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'summary',
-                    workoutData: allResults
-                })
+            await saveExportArtifact({
+                type: 'summary',
+                workoutData: allResults
             });
 
             // Step 2: Fetch full details for each workout
@@ -93,14 +107,10 @@ export default function DownloadC2Data() {
                     const detail = await getResultDetail(result.id);
 
                     // Save workout file immediately
-                    await fetch('/api/save-workout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            type: 'workout',
-                            workoutId: result.id,
-                            workoutData: detail
-                        })
+                    await saveExportArtifact({
+                        type: 'workout',
+                        workoutId: result.id,
+                        workoutData: detail
                     });
 
                     // Try to fetch and save stroke data
@@ -111,17 +121,13 @@ export default function DownloadC2Data() {
                             strokeDataCount++;
 
                             // Save stroke data
-                            await fetch('/api/save-workout', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    type: 'strokes',
-                                    workoutId: result.id,
-                                    workoutData: strokes
-                                })
+                            await saveExportArtifact({
+                                type: 'strokes',
+                                workoutId: result.id,
+                                workoutData: strokes
                             });
                         }
-                    } catch (err) {
+                    } catch {
                         // Stroke data not available for this workout
                     }
 
@@ -170,13 +176,9 @@ export default function DownloadC2Data() {
             };
 
             // Save metadata
-            await fetch('/api/save-workout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'metadata',
-                    workoutData: exportData.metadata
-                })
+            await saveExportArtifact({
+                type: 'metadata',
+                workoutData: exportData.metadata
             });
 
             setExportData(exportData);
@@ -217,7 +219,10 @@ export default function DownloadC2Data() {
                     <li>Downloads your entire Concept2 logbook history</li>
                     <li>Fetches full workout details (splits, intervals)</li>
                     <li>Includes stroke-by-stroke data (when available)</li>
-                    <li>Saves files to <code className="bg-blue-100 px-1 rounded">data/c2-export/</code> as they download</li>
+                    <li>Generates a JSON export file in your browser</li>
+                    {import.meta.env.DEV && (
+                        <li>Saves local dev files to <code className="bg-blue-100 px-1 rounded">data/c2-export/</code> as they download</li>
+                    )}
                 </ul>
             </div>
 

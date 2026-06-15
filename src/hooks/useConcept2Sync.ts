@@ -65,6 +65,31 @@ export const useConcept2Sync = () => {
             || code === 'econnaborted';
     };
 
+    const describeError = (err: unknown): string => {
+        if (err instanceof Error && err.message) return err.message;
+        if (typeof err === 'string') return err;
+
+        const error = err as {
+            code?: string;
+            message?: string;
+            details?: string;
+            hint?: string;
+            response?: { status?: number; data?: { error?: string; message?: string } };
+        };
+
+        const responseMessage = error?.response?.data?.message || error?.response?.data?.error;
+        const parts = [
+            responseMessage,
+            error?.message,
+            error?.details,
+            error?.hint,
+            error?.code,
+            error?.response?.status ? `HTTP ${error.response.status}` : null,
+        ].filter(Boolean);
+
+        return parts.length > 0 ? parts.join(' ') : 'Unknown error';
+    };
+
     const startSync = useCallback(async (options: SyncOptions = { range: '30days' }) => {
         // Smart Sync Throttling
         if (options.skipIfRecent) {
@@ -190,6 +215,7 @@ export const useConcept2Sync = () => {
             let skippedExisting = 0;
             let skippedFiltered = 0;
             let failed = 0;
+            let lastProcessingError: unknown = null;
 
             // Default machine types if not provided
             const machineTypes = options.machineTypes || { 'rower': true, 'bike': true, 'skierg': true };
@@ -417,9 +443,17 @@ export const useConcept2Sync = () => {
                 } catch (innerErr) {
                     console.error(`Failed to process workout ${summary.id}:`, innerErr);
                     failed++;
+                    lastProcessingError = innerErr;
                     setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered, ${failed} failed)`);
                     // Just continue to next
                 }
+            }
+
+            if (processed === 0 && failed > 0) {
+                throw new Error(
+                    `Fetched ${allSummaries.length} Concept2 workouts, but none were saved to Logbook Companion. ` +
+                    `Last failure: ${describeError(lastProcessingError)}`
+                );
             }
 
             // 4. Update PR Cache
@@ -436,8 +470,8 @@ export const useConcept2Sync = () => {
 
         } catch (err) {
             console.error(err);
-            const defaultMessage = err instanceof Error ? err.message : 'Sync failed.';
-            const networkMessage = 'Network error during sync. This is more common on mobile data. Try again on stable Wi-Fi, keep the app in foreground, or reconnect Concept2 if needed.';
+            const defaultMessage = describeError(err) || 'Sync failed.';
+            const networkMessage = 'The Concept2 sync request was interrupted before data could be saved. This can happen on iPad/iPhone browsers during long foreground syncs even on fast Wi-Fi. Keep the app open and screen awake, try a smaller date range first, or reconnect Concept2 if it repeats.';
             setError(isTransientError(err) ? networkMessage : defaultMessage);
             setStatus('Sync failed.');
         } finally {
