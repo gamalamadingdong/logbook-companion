@@ -497,6 +497,66 @@ export type Database = {
         }
         Relationships: []
       }
+      c2_sync_jobs: {
+        Row: {
+          created_at: string
+          current_page: number | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          last_error: string | null
+          options: Json
+          processed_count: number
+          range: string
+          saved_count: number
+          skipped_count: number
+          started_at: string | null
+          status: string
+          total_pages: number | null
+          total_workouts: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_page?: number | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          last_error?: string | null
+          options?: Json
+          processed_count?: number
+          range: string
+          saved_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_workouts?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_page?: number | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          last_error?: string | null
+          options?: Json
+          processed_count?: number
+          range?: string
+          saved_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_workouts?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       coaching_access_requests: {
         Row: {
           created_at: string

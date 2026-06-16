@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js'
+import type { Tables } from '../types/database.types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -111,6 +112,31 @@ export interface WorkoutTemplate {
     usage_count?: number;
 }
 
+export type C2SyncJobStatus =
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'partial_success'
+    | 'cancelled'
+
+export type C2SyncJob = Tables<'c2_sync_jobs'> & {
+    status: C2SyncJobStatus
+}
+
+export const getLatestC2SyncJob = async (userId: string): Promise<C2SyncJob | null> => {
+    const { data, error } = await supabase
+        .from('c2_sync_jobs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) throw error
+    return data as C2SyncJob | null
+}
+
 export const upsertWorkout = async (workout: Partial<WorkoutLog>) => {
     // We use external_id as the unique key to prevent duplicates
     const { data, error } = await supabase
@@ -159,4 +185,3 @@ export const getWorkoutTemplates = async () => {
     }
     return data as WorkoutTemplate[];
 };
-

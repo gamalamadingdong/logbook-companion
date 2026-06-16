@@ -144,6 +144,8 @@ Deliverables:
 - Add generated TypeScript types.
 - Add a minimal UI/service read path for job status if needed.
 
+Implementation note: this phase is represented by the `c2_sync_jobs` schema and the minimal latest-job read helper only. It intentionally does not start background sync jobs, run C2 batch work, or alter the existing browser `useConcept2Sync` path.
+
 Done when:
 
 - A logged-in user can see only their own sync jobs.
