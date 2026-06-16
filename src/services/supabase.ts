@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js'
+import type { C2SyncJob } from '../types/ergSession.types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -160,3 +161,19 @@ export const getWorkoutTemplates = async () => {
     return data as WorkoutTemplate[];
 };
 
+export const getLatestC2SyncJob = async (userId: string) => {
+    const { data, error } = await supabase
+        .from('c2_sync_jobs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) {
+        console.error('Error fetching latest Concept2 sync job:', error)
+        throw error
+    }
+
+    return data as C2SyncJob | null
+}

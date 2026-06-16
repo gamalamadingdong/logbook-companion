@@ -191,6 +191,61 @@ export const SOURCE_PRIORITY = {
 
 export type WorkoutSource = keyof typeof SOURCE_PRIORITY;
 
+// ============================================================================
+// 3A. CONCEPT2 BACKGROUND SYNC JOB CONTRACT
+//     Phase 1 of docs/c2-background-sync-plan.md: durable Supabase state only.
+// ============================================================================
+
+export const C2_SYNC_JOB_STATUSES = [
+  'queued',
+  'running',
+  'completed',
+  'failed',
+  'partial_success',
+  'cancelled',
+] as const;
+
+export type C2SyncJobStatus = (typeof C2_SYNC_JOB_STATUSES)[number];
+
+export type C2SyncJobRange = 'all' | 'recent' | 'custom' | string;
+
+export interface C2SyncJob {
+  id: string;
+  user_id: string;
+  status: C2SyncJobStatus;
+  range: C2SyncJobRange;
+  options: Record<string, unknown>;
+  current_page: number | null;
+  total_pages: number | null;
+  total_workouts: number | null;
+  processed_count: number;
+  saved_count: number;
+  skipped_count: number;
+  failed_count: number;
+  last_error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type C2SyncJobProgressUpdate = Partial<
+  Pick<
+    C2SyncJob,
+    | 'status'
+    | 'current_page'
+    | 'total_pages'
+    | 'total_workouts'
+    | 'processed_count'
+    | 'saved_count'
+    | 'skipped_count'
+    | 'failed_count'
+    | 'last_error'
+    | 'started_at'
+    | 'finished_at'
+  >
+>;
+
 /**
  * Matching criteria for deduplication/upgrade between sources.
  * Two workout_logs rows are considered the "same workout" if:

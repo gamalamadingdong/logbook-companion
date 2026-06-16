@@ -177,6 +177,12 @@ The system generates standardized RWN strings for template matching:
 12. Season always starts May 1st
 13. No sync progress persistence - see [`c2-background-sync-plan.md`](./c2-background-sync-plan.md) for the proposed durable job design.
 
+## Background Sync Validation Boundary
+
+Issue #37 covers only Phase 1 of the durable background sync plan: the `c2_sync_jobs` schema foundation and read/progress authorization checks. Validation for that slice should prove owner-only reads, blocked cross-user reads, service-role/admin progress updates, and unchanged browser sync behavior. It should not expect `start-c2-sync`, `run-c2-sync-batch`, workout fetching, or `workout_logs` writes through the new background path yet.
+
+Required evidence for this boundary is intentionally narrow: cite the migration and policy names, show the owner-read and cross-user-read outcomes, show one service-role/admin progress update outcome, and record the repo validation command results. Any failure should be reported as a Phase 1 validation blocker instead of expanding the scope into background workers or UI cutover.
+
 ---
 
 ## Key Files

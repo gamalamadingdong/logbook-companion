@@ -4,6 +4,29 @@ import type { C2Profile, C2Response, C2Result, C2ResultDetail, C2Stroke } from '
 const BASE_URL = 'https://log.concept2.com/api';
 import { supabase } from '../services/supabase';
 
+export type Concept2SyncJobStatus =
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'partial_success'
+    | 'cancelled';
+
+const ACTIVE_C2_SYNC_JOB_STATUSES = new Set<Concept2SyncJobStatus>(['queued', 'running']);
+
+export const isActiveConcept2SyncJobStatus = (status: string | null | undefined): boolean => {
+    return ACTIVE_C2_SYNC_JOB_STATUSES.has(status as Concept2SyncJobStatus);
+};
+
+export const formatConcept2SyncJobStatus = (status: string | null | undefined): string => {
+    if (!status) return 'No background sync job found';
+
+    return status
+        .split('_')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+};
+
 export const concept2Client = axios.create({
     baseURL: BASE_URL,
     timeout: 20000,

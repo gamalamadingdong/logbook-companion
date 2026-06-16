@@ -1,14 +1,50 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { initiateGoogleLogin, createSheet, appendData } from '../api/googleSheets';
 import { useAuth } from '../hooks/useAuth';
 import { useConcept2Sync, type SyncRange } from '../hooks/useConcept2Sync';
+import { formatConcept2SyncJobStatus, isActiveConcept2SyncJobStatus } from '../api/concept2';
 import { supabase } from '../services/supabase';
-import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope, ShieldCheck } from 'lucide-react';
+import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope, ShieldCheck, Clock3 } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'sonner';
+
+type C2SyncJobRow = {
+    id: string;
+    status: string;
+    range: string;
+    processed_count: number | null;
+    saved_count: number | null;
+    skipped_count: number | null;
+    failed_count: number | null;
+    total_workouts: number | null;
+    last_error: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+    updated_at: string | null;
+    created_at: string | null;
+};
+
+type C2SyncJobsQuery = {
+    select: (columns: string) => {
+        eq: (column: string, value: string) => {
+            order: (column: string, options: { ascending: boolean }) => {
+                limit: (count: number) => {
+                    maybeSingle: () => Promise<{
+                        data: C2SyncJobRow | null;
+                        error: { message?: string } | null;
+                    }>;
+                };
+            };
+        };
+    };
+};
+
+type C2SyncJobsClient = {
+    from: (table: 'c2_sync_jobs') => C2SyncJobsQuery;
+};
 
 export const Sync: React.FC = () => {
     const {
@@ -16,6 +52,7 @@ export const Sync: React.FC = () => {
         progress: syncProgress,
         status: syncStatus,
         error: syncError,
+        completedAt: foregroundSyncCompletedAt,
         startSync
     } = useConcept2Sync();
 
@@ -36,6 +73,8 @@ export const Sync: React.FC = () => {
     const [localStatus, setLocalStatus] = useState<string>('');
     const [localProgress] = useState(0);
     const [localError, setLocalError] = useState<string | null>(null);
+    const [latestC2SyncJob, setLatestC2SyncJob] = useState<C2SyncJobRow | null>(null);
+    const [loadingC2SyncJob, setLoadingC2SyncJob] = useState(false);
 
     // Derived state
     // If syncing, use hook state. Otherwise use local state.
@@ -82,6 +121,52 @@ export const Sync: React.FC = () => {
         };
     }, [tokensReady]);
 
+    const loadLatestC2SyncJob = useCallback(async () => {
+        setLoadingC2SyncJob(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                setLatestC2SyncJob(null);
+                return;
+            }
+
+            // Phase 1 read-only surface for docs/c2-background-sync-plan.md.
+            // This does not start background work or change the existing browser sync path.
+            const { data, error } = await (supabase as unknown as C2SyncJobsClient)
+                .from('c2_sync_jobs')
+                .select('id, status, range, processed_count, saved_count, skipped_count, failed_count, total_workouts, last_error, started_at, finished_at, updated_at, created_at')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (error) {
+                console.warn('Could not load latest Concept2 background sync job:', error);
+                return;
+            }
+
+            setLatestC2SyncJob(data ?? null);
+        } finally {
+            setLoadingC2SyncJob(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (tokensReady) {
+            void loadLatestC2SyncJob();
+        }
+    }, [tokensReady, foregroundSyncCompletedAt, loadLatestC2SyncJob]);
+
+    useEffect(() => {
+        if (!isActiveConcept2SyncJobStatus(latestC2SyncJob?.status)) return;
+
+        const interval = window.setInterval(() => {
+            void loadLatestC2SyncJob();
+        }, 5000);
+
+        return () => window.clearInterval(interval);
+    }, [latestC2SyncJob?.status, loadLatestC2SyncJob]);
+
     const handleC2Connect = () => {
         const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
         const redirect_uri = `${window.location.origin}/callback`;
@@ -123,6 +208,23 @@ export const Sync: React.FC = () => {
         });
     };
 
+    const formatSyncDate = (value: string | null | undefined) => {
+        if (!value) return 'Not recorded';
+        return new Date(value).toLocaleString();
+    };
+
+    const latestJobProgress = latestC2SyncJob?.total_workouts
+        ? Math.round(((latestC2SyncJob.processed_count ?? 0) / latestC2SyncJob.total_workouts) * 100)
+        : 0;
+
+    const latestJobStatusClass = latestC2SyncJob?.status === 'failed'
+        ? 'text-red-300'
+        : latestC2SyncJob?.status === 'completed'
+            ? 'text-emerald-300'
+            : latestC2SyncJob?.status === 'partial_success'
+                ? 'text-amber-300'
+                : 'text-sky-300';
+
     return (
         <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans">
             <div className="max-w-3xl mx-auto space-y-8">
@@ -135,6 +237,79 @@ export const Sync: React.FC = () => {
                     </div>
                 </div>
 
+            </div>
+
+            {/* Background Sync Status Card */}
+            <div className="bg-neutral-900/40 rounded-2xl border border-neutral-800 p-8 space-y-5">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-sky-500/10 text-sky-400">
+                        {loadingC2SyncJob ? <Loader2 size={24} className="animate-spin" /> : <Clock3 size={24} />}
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-semibold text-white">Background Sync Status</h2>
+                        <p className="text-neutral-400 mt-1 max-w-lg">
+                            Track the latest durable Concept2 sync job stored in Supabase. The current sync button still runs the existing foreground browser sync.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-black/40 rounded-xl p-6 border border-neutral-800/50 space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-neutral-300 font-medium">Latest job</span>
+                        <span className={`font-mono text-sm ${latestJobStatusClass}`}>
+                            {formatConcept2SyncJobStatus(latestC2SyncJob?.status)}
+                        </span>
+                    </div>
+
+                    {latestC2SyncJob ? (
+                        <>
+                            <progress
+                                value={Math.max(0, Math.min(100, latestJobProgress))}
+                                max={100}
+                                className="w-full h-2 rounded-full overflow-hidden [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-sky-500 [&::-moz-progress-bar]:bg-sky-500"
+                            />
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                <div>
+                                    <div className="text-neutral-500">Processed</div>
+                                    <div className="text-white font-mono">{latestC2SyncJob.processed_count ?? 0}</div>
+                                </div>
+                                <div>
+                                    <div className="text-neutral-500">Saved</div>
+                                    <div className="text-white font-mono">{latestC2SyncJob.saved_count ?? 0}</div>
+                                </div>
+                                <div>
+                                    <div className="text-neutral-500">Skipped</div>
+                                    <div className="text-white font-mono">{latestC2SyncJob.skipped_count ?? 0}</div>
+                                </div>
+                                <div>
+                                    <div className="text-neutral-500">Failed</div>
+                                    <div className="text-white font-mono">{latestC2SyncJob.failed_count ?? 0}</div>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1 text-xs text-neutral-500">
+                                <span>Range: {latestC2SyncJob.range}</span>
+                                <span>Updated: {formatSyncDate(latestC2SyncJob.updated_at ?? latestC2SyncJob.created_at)}</span>
+                                {latestC2SyncJob.last_error && (
+                                    <span className="text-red-300">Last error: {latestC2SyncJob.last_error}</span>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm text-neutral-500">
+                            No background sync job has been recorded yet.
+                        </p>
+                    )}
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => void loadLatestC2SyncJob()}
+                    disabled={loadingC2SyncJob}
+                    className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                    {loadingC2SyncJob ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                    <span>Refresh Background Status</span>
+                </button>
             </div>
 
             {/* Database Sync Card */}

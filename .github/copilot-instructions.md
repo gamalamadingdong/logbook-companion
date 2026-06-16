@@ -214,6 +214,22 @@ Define data structures and entities FIRST. Then relationships and invariants. Th
 - No abstractions unless they demonstrably reduce duplication.
 - Challenge requests that introduce unnecessary complexity.
 
+### Bounded UI Validation
+For presentation-only dashboard changes, keep validation tied to the rendered contract:
+- verify the changed text state and the unchanged fallback state
+- keep labels and surrounding layout behavior unchanged unless the issue explicitly asks otherwise
+
+### Concept2 Background Sync Phase 1 Validation
+For the durable schema foundation in `docs/c2-background-sync-plan.md`, validation must stay bounded to the Phase 1 contract:
+- prove `c2_sync_jobs` has owner-scoped read access through RLS
+- prove another authenticated user cannot read a different user's sync jobs
+- prove service-role/admin code can update progress fields
+- prove the existing browser sync path remains unchanged and no workouts are fetched or written by the background path yet
+- cite concrete evidence for each claim: migration/policy names, seeded or authenticated user ids, query/update result shape, and the validation command result
+- keep any follow-up notes scoped to Phase 1; do not request Edge Function, worker, or UI cutover changes from this validation slice
+- do not use a styling issue as a reason to alter data loading, auth, sync, API clients, schema, or seed data
+- document the focused validation evidence in working memory or the issue handoff artifact
+
 ### Type Safety (TypeScript)
 - Strict mode. No `any` unless absolutely necessary.
 - Interface definitions for all data structures.

@@ -27,6 +27,7 @@ export const useConcept2Sync = () => {
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
+    const [completedAt, setCompletedAt] = useState<string | null>(null);
 
     const findSupabaseUser = async (email: string) => {
         const { data, error } = await supabase
@@ -105,6 +106,7 @@ export const useConcept2Sync = () => {
 
         setSyncing(true);
         setError(null);
+        setCompletedAt(null);
         setStatus('Initializing sync...');
         setProgress(0);
 
@@ -195,6 +197,7 @@ export const useConcept2Sync = () => {
             if (allSummaries.length === 0) {
                 setStatus('No workouts found.');
                 localStorage.setItem('last_c2_sync_timestamp', Date.now().toString()); // Save even if 0 found, it was a success
+                setCompletedAt(new Date().toISOString());
                 setSyncing(false);
                 return;
             }
@@ -467,6 +470,7 @@ export const useConcept2Sync = () => {
 
             // SAVE LOCALSTORAGE TIMESTAMP
             localStorage.setItem('last_c2_sync_timestamp', Date.now().toString());
+            setCompletedAt(new Date().toISOString());
 
         } catch (err) {
             console.error(err);
@@ -484,6 +488,7 @@ export const useConcept2Sync = () => {
         progress,
         status,
         error,
+        completedAt,
         startSync
     };
 };

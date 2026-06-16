@@ -144,6 +144,22 @@ Deliverables:
 - Add generated TypeScript types.
 - Add a minimal UI/service read path for job status if needed.
 
+Validation coverage:
+
+- Verify the migration creates `c2_sync_jobs` with the Phase 1 status values and progress counters described above.
+- Verify RLS allows an authenticated user to select only rows where `user_id = auth.uid()`.
+- Verify RLS does not allow an authenticated user to select another user's job rows.
+- Verify service-role/admin execution can update job progress fields such as `status`, page counters, processed/saved/skipped/failed counts, `last_error`, and timestamps.
+- Verify existing browser Concept2 sync behavior still runs through `useConcept2Sync`; Phase 1 must not fetch workouts or write `workout_logs` through the new background path.
+
+Phase 1 validation evidence should include:
+
+- The migration file path and the exact `c2_sync_jobs` policy names reviewed or exercised.
+- A user-owned read check that returns the seeded/authenticated user's job.
+- A cross-user read check that returns no rows for a different authenticated user.
+- A service-role/admin update check that changes at least one progress counter and `updated_at`.
+- A build/type/lint/test result, or a specific blocker if local validation cannot run.
+
 Done when:
 
 - A logged-in user can see only their own sync jobs.
