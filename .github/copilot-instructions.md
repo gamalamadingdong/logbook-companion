@@ -214,6 +214,13 @@ Define data structures and entities FIRST. Then relationships and invariants. Th
 - No abstractions unless they demonstrably reduce duplication.
 - Challenge requests that introduce unnecessary complexity.
 
+### Bounded UI Validation
+For presentation-only dashboard changes, keep validation tied to the rendered contract:
+- verify the changed text state and the unchanged fallback state
+- keep labels and surrounding layout behavior unchanged unless the issue explicitly asks otherwise
+- do not use a styling issue as a reason to alter data loading, auth, sync, API clients, schema, or seed data
+- document the focused validation evidence in working memory or the issue handoff artifact
+
 ### Type Safety (TypeScript)
 - Strict mode. No `any` unless absolutely necessary.
 - Interface definitions for all data structures.
