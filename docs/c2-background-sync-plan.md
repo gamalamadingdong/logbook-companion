@@ -134,9 +134,7 @@ Use direct Supabase reads from `c2_sync_jobs` and optionally `c2_sync_job_items`
 
 ### Phase 1: Durable Job Schema
 
-Risk: low.
-
-Deliverables:
+### Deliverables
 
 - Add `c2_sync_jobs` migration.
 - Add RLS policies so users can read their own jobs.
@@ -144,88 +142,191 @@ Deliverables:
 - Add generated TypeScript types.
 - Add a minimal UI/service read path for job status if needed.
 
-Done when:
+### Acceptance Criteria
 
 - A logged-in user can see only their own sync jobs.
 - Admin/service role can update job progress.
 - No existing browser sync behavior changes.
 
+### Validation
+
+- SQL lint and migration review passes for new `c2_sync_jobs` and optional `c2_sync_job_items` objects.
+- RLS query checks confirm user-scoped reads are enforced for job rows.
+- Manual check verifies current browser sync path still runs with no code-path changes.
+
+### Non-Goals
+
+- No user-visible sync flow changes in this phase.
+- No Concept2 token handling changes.
+- No workout migration logic in this phase.
+
+### Risks
+
+- Migration order issues or type drift if DB schema changes are not aligned with current auth expectations.
+- Missing RLS coverage could expose job rows if policy logic is incomplete.
+
 ### Phase 2: Start Job API
 
-Risk: low to moderate.
-
-Deliverables:
+### Deliverables
 
 - Add `start-c2-sync` Edge Function.
 - Validate input and insert a queued/running job.
 - Return `job_id` immediately.
 - Optionally no-op the worker trigger at first, or trigger a stub worker that only marks the job started.
 
-Done when:
+### Acceptance Criteria
 
 - The browser can create a job and poll it.
 - No workouts are migrated through the new path yet.
 - Existing `useConcept2Sync` remains the production sync path.
 
+### Validation
+
+- Run function-level smoke tests (or direct invocations) to confirm `start-c2-sync` creates a `c2_sync_jobs` row and responds with `job_id`.
+- Polling endpoint returns current `c2_sync_jobs` state after invocation.
+- Confirm no frontend sync behavior changes are triggered through new API alone.
+
+### Non-Goals
+
+- No changes to token refresh logic yet.
+- No full batch processing path.
+- No migration off browser sync in UI.
+
+### Risks
+
+- API surface mismatch between UI contract and function payload.
+- Invalid range/machine filter handling causing unusable queued jobs.
+- Premature background trigger behavior if worker trigger is accidentally activated before schema and validations stabilize.
+
 ### Phase 3: Batch Worker Skeleton
 
-Risk: moderate.
-
-Deliverables:
+### Deliverables
 
 - Add `run-c2-sync-batch` with job locking/status transitions.
 - Implement token lookup and refresh without returning secrets to the browser.
 - Implement bounded execution and next-batch triggering.
 - Initially process only summary pages and job counters, not full workout upserts.
 
-Done when:
+### Acceptance Criteria
 
 - A test job can move through pages and complete with summary counts.
 - Re-running a batch does not corrupt job state.
 - Failures leave useful `last_error` values.
 
+### Validation
+
+- Run bounded batch jobs against a test user and verify page counters update and stop conditions are respected.
+- Re-run same batch path twice to confirm idempotent status transitions.
+- Inject a mocked failure and verify job transitions to a partial/failed state with `last_error` populated.
+
+### Non-Goals
+
+- No full workout upserts in this phase.
+- No template matching or PR cache updates yet.
+- No UI cutover from browser sync yet.
+
+### Risks
+
+- Locking or status update races under repeated invocations.
+- Overly broad retry behavior causing duplicate summary processing.
+- Time-budget logic failing to yield before runtime cutoff.
+
 ### Phase 4: Port Workout Processing
 
-Risk: high.
-
-Deliverables:
+### Deliverables
 
 - Move the current browser workout mapping into server-side code.
 - Preserve existing `workout_logs` field semantics, canonical names, zone distribution, template matching, assignment linking, PR cache behavior, and power bucket behavior where applicable.
 - Add per-workout item status and error recording.
 
-Done when:
+### Acceptance Criteria
 
 - A server-side job can sync a narrow range, such as the last 30 days, for a test user.
 - Results match the current browser sync output for the same Concept2 account and date range.
 - Partial failures are visible and do not mark the whole job as successful unless at least one expected row saved/skipped correctly.
 
+### Validation
+
+- Compare sample output between background job and current browser sync for the same user/range.
+- Run batch job with controlled partial failures to ensure item-level status and error capture.
+- Confirm job completion status reflects `partial_success` when any items fail and `failed` when no progress is made.
+
+### Non-Goals
+
+- No large history (`all`) migration in this phase.
+- No UI migration or sync button behavior changes.
+- No new user controls beyond job status visibility.
+
+### Risks
+
+- Mapping semantic drift from browser logic (especially naming, PR cache, and zone handling).
+- Longer batch execution windows due to heavy mapping, increasing timeout and retry complexity.
+- Increased write conflicts against `workout_logs` if existing workflows touch same rows.
+
 ### Phase 5: UI Cutover
 
-Risk: moderate.
-
-Deliverables:
+### Deliverables
 
 - Change `Sync.tsx` from direct browser sync to job start + polling.
 - Show durable progress from `c2_sync_jobs`.
 - Keep the current browser sync behind a dev/debug fallback until the background path is proven.
 - Update user-facing copy so users know they can leave and return later.
 
-Done when:
+### Acceptance Criteria
 
 - A user can start a sync, refresh or close the page, and later see the same job status.
 - The UI no longer depends on iPad Safari staying awake for the whole sync.
 
+### Validation
+
+- Manual QA: start sync, background/close tab flow, reopen and confirm progress continuity from `c2_sync_jobs`.
+- Automated/basic component check confirms polling updates without direct Concept2 fetch calls in the main path.
+- Verify dev fallback remains reachable but opt-in from UI behavior.
+
+### Non-Goals
+
+- No removal of browser sync until production confidence checks pass.
+- No new complex retry or cancel workflows yet.
+- No major redesign of sync screens beyond source-of-truth shift.
+
+### Risks
+
+- Incorrect polling/backoff causing stale or noisy UI status.
+- User confusion if fallback path and background path are both visible without clear labeling.
+- Partial status visibility gaps while jobs are still in-progress migration states.
+
 ### Phase 6: Cleanup
 
-Risk: low to moderate.
-
-Deliverables:
+### Deliverables
 
 - Remove or demote the direct browser sync path once the background worker is stable.
 - Add support/admin views for failed jobs if needed.
 - Add retry/cancel controls if user demand appears.
 - Update `docs/c2-sync-flow.md` to make the background worker the primary architecture.
+
+### Acceptance Criteria
+
+- Background worker path is the documented and preferred sync flow.
+- Browser sync is no longer the default path for production users.
+- Failed-state visibility and recoverability are demonstrably better than before cleanup.
+
+### Validation
+
+- Regression run across sync flows to confirm default behavior routes through `c2_sync_jobs`.
+- Validate docs and internal runbooks reflect the worker-first model.
+- Confirm support/retry workflows work for at least one failed and one retried job scenario.
+
+### Non-Goals
+
+- No deep support process redesign outside Concept2 sync.
+- No speculative admin tooling beyond failure visibility.
+- No API surface broadening outside existing sync functions and job tables.
+
+### Risks
+
+- Accidental regression for users still relying on the old browser flow.
+- Incomplete operator guidance if rollback/cleanup steps are not documented.
+- Premature retirement of fallback path before parity is proven.
 
 ## Open Questions
 
