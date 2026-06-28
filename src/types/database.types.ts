@@ -497,6 +497,122 @@ export type Database = {
         }
         Relationships: []
       }
+      c2_sync_job_items: {
+        Row: {
+          created_at: string
+          error: string | null
+          external_id: string
+          id: string
+          job_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          external_id: string
+          id?: string
+          job_id: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          external_id?: string
+          id?: string
+          job_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_sync_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "c2_sync_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "c2_sync_job_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      c2_sync_jobs: {
+        Row: {
+          created_at: string
+          current_page: number
+          failed_count: number
+          finished_at: string | null
+          id: string
+          last_error: string | null
+          options: Json
+          processed_count: number
+          range: string
+          saved_count: number
+          skipped_count: number
+          started_at: string | null
+          status: string
+          total_pages: number | null
+          total_workouts: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_page?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          last_error?: string | null
+          options?: Json
+          processed_count?: number
+          range: string
+          saved_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status: string
+          total_pages?: number | null
+          total_workouts?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_page?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          last_error?: string | null
+          options?: Json
+          processed_count?: number
+          range?: string
+          saved_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_workouts?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_sync_jobs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       coaching_access_requests: {
         Row: {
           created_at: string
