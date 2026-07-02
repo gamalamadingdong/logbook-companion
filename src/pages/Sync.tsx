@@ -10,15 +10,24 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'sonner';
 
-type C2SyncJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+type C2SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+
+type C2SyncJobMetadata = {
+    counters?: {
+        pages_processed?: number;
+        summaries_seen?: number;
+    };
+    next_page?: number | null;
+    last_error?: {
+        message?: string;
+    } | string | null;
+};
 
 type C2SyncJob = {
     id: string;
     status: C2SyncJobStatus;
-    progress?: number | null;
-    processed_count?: number | null;
-    total_count?: number | null;
-    last_error?: string | null;
+    error_message?: string | null;
+    metadata?: C2SyncJobMetadata | null;
 };
 
 type StartC2SyncResponse = Partial<C2SyncJob> & {
@@ -72,10 +81,11 @@ export const Sync: React.FC = () => {
     const error = syncing ? syncError : localError;
     const jobInProgress = syncJob?.status === 'queued' || syncJob?.status === 'running';
     const syncBusy = syncing || startingSyncJob || jobInProgress;
+    const jobCounters = syncJob?.metadata?.counters;
     const displayedStatus = syncJob
-        ? `Job ${syncJob.status}${syncJob.processed_count != null && syncJob.total_count != null ? ` (${syncJob.processed_count}/${syncJob.total_count})` : ''}`
+        ? `Job ${syncJob.status}${jobCounters?.summaries_seen != null ? ` (${jobCounters.summaries_seen} summaries)` : ''}`
         : status;
-    const displayedProgress = syncJob?.progress ?? progress;
+    const displayedProgress = progress;
 
     useEffect(() => {
         if (!syncing && syncStatus) {
@@ -95,7 +105,7 @@ export const Sync: React.FC = () => {
         const pollJob = async () => {
             const { data, error } = await (supabase as unknown as C2SyncJobsReader)
                 .from('c2_sync_jobs')
-                .select('id, status, progress, processed_count, total_count, last_error')
+                .select('id, status, error_message, metadata')
                 .eq('id', syncJob.id)
                 .single();
 
@@ -108,13 +118,15 @@ export const Sync: React.FC = () => {
                 const nextJob = data;
                 setSyncJob(nextJob);
 
-                if (nextJob.status === 'completed') {
+                if (nextJob.status === 'succeeded') {
                     setLocalStatus(`Sync job ${nextJob.id} completed.`);
                     toast.success('Concept2 sync job completed.');
                 }
 
                 if (nextJob.status === 'failed') {
-                    setLocalError(nextJob.last_error || `Sync job ${nextJob.id} failed.`);
+                    const lastError = nextJob.metadata?.last_error;
+                    const metadataError = typeof lastError === 'string' ? lastError : lastError?.message;
+                    setLocalError(nextJob.error_message || metadataError || `Sync job ${nextJob.id} failed.`);
                 }
             }
         };
@@ -208,10 +220,8 @@ export const Sync: React.FC = () => {
             const nextJob: C2SyncJob = {
                 id: jobId,
                 status: data?.status || 'queued',
-                progress: data?.progress ?? 0,
-                processed_count: data?.processed_count ?? null,
-                total_count: data?.total_count ?? null,
-                last_error: null
+                error_message: null,
+                metadata: null
             };
 
             setSyncJob(nextJob);
@@ -294,7 +304,7 @@ export const Sync: React.FC = () => {
                     {syncJob && (
                         <div className="mt-3 flex flex-col gap-1 text-xs text-neutral-500">
                             <span>Job ID: {syncJob.id}</span>
-                            {syncJob.last_error && <span className="text-red-300">{syncJob.last_error}</span>}
+                            {syncJob.error_message && <span className="text-red-300">{syncJob.error_message}</span>}
                         </div>
                     )}
                 </div>
