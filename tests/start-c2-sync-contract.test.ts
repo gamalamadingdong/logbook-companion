@@ -27,7 +27,7 @@ describe('start-c2-sync edge function contract', () => {
     expect(source).toContain('must use YYYY-MM-DD format.');
     expect(source).toContain('must be a valid calendar date.');
     expect(source).toContain('requested_from cannot be after requested_to.');
-    expect(source).toContain('mode must be summary_only for this phase.');
+    expect(source).toContain('mode must be workout_processing for this phase.');
     expect(source).toContain('metadata must be a JSON object when provided.');
   });
 

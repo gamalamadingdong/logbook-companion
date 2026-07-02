@@ -37,19 +37,29 @@ describe('run-c2-sync-batch edge function contract', () => {
     expect(source).not.toContain('concept2_token: integration.concept2_token');
   });
 
-  it('processes bounded summary pages and persists counters without workout upserts', () => {
+  it('processes bounded summary pages, workout details, and per-item outcomes', () => {
     expect(source).toContain('DEFAULT_PAGE_LIMIT');
     expect(source).toContain('DEFAULT_TIME_BUDGET_MS');
     expect(source).toContain("new URL('/users/me/results', CONCEPT2_API_BASE_URL)");
+    expect(source).toContain("new URL(`/users/me/results/${resultId}`, CONCEPT2_API_BASE_URL)");
+    expect(source).toContain("new URL(`/users/me/results/${resultId}/strokes`, CONCEPT2_API_BASE_URL)");
     expect(source).toContain('pages_processed');
     expect(source).toContain('summaries_seen');
+    expect(source).toContain('workouts_processed');
+    expect(source).toContain('workouts_failed');
     expect(source).toContain('next_page');
-    expect(source).not.toContain(".from('workout_logs')");
-    expect(source).not.toContain('.upsert(');
+    expect(source).toContain(".from('c2_sync_job_items')");
+    expect(source).toContain(".from('workout_logs')");
+    expect(source).toContain("'skipped_existing'");
+    expect(source).toContain("'skipped_filtered'");
+    expect(source).toContain('calculateZoneDistribution');
+    expect(source).toContain('calculatePowerBuckets');
+    expect(source).toContain('matchWorkoutToTemplate');
+    expect(source).toContain('refreshPersonalRecords');
   });
 
   it('requeues unfinished work, triggers the next batch, and persists terminal failures', () => {
-    expect(source).toContain("status: finished ? 'succeeded' : 'queued'");
+    expect(source).toContain("status: noSuccessfulWrites ? 'failed' : finished ? 'succeeded' : 'queued'");
     expect(source).toContain('triggerNextBatch');
     expect(source).toContain("status: 'failed'");
     expect(source).toContain('error_code');

@@ -5,7 +5,7 @@ export type C2SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'c
 export interface StartC2SyncJobOptions {
     requestedFrom?: string | null
     requestedTo?: string | null
-    mode?: 'summary_only'
+    mode?: 'workout_processing'
     metadata?: Record<string, unknown>
 }
 
@@ -38,7 +38,7 @@ export async function startC2SyncJob(options: StartC2SyncJobOptions = {}) {
         body: {
             requested_from: options.requestedFrom ?? null,
             requested_to: options.requestedTo ?? null,
-            mode: options.mode ?? 'summary_only',
+            mode: options.mode ?? 'workout_processing',
             metadata: options.metadata ?? {},
         },
     })

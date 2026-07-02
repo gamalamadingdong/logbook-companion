@@ -197,6 +197,15 @@ export const Sync: React.FC = () => {
         setStartingSyncJob(true);
         setLocalStatus('Starting Concept2 sync job...');
 
+        const formatDate = (date: Date | null) => date ? date.toISOString().split('T')[0] : null;
+        const requestedFrom = syncRange === 'custom'
+            ? formatDate(startDate)
+            : syncRange === '30days'
+                ? formatDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+                : syncRange === 'season'
+                    ? `${new Date().getMonth() < 4 ? new Date().getFullYear() - 1 : new Date().getFullYear()}-05-01`
+                    : null;
+        const requestedTo = syncRange === 'custom' ? formatDate(endDate) : null;
         const syncOptions = {
             range: syncRange,
             startDate,
@@ -207,7 +216,16 @@ export const Sync: React.FC = () => {
 
         try {
             const { data, error } = await supabase.functions.invoke('start-c2-sync', {
-                body: syncOptions
+                body: {
+                    requested_from: requestedFrom,
+                    requested_to: requestedTo,
+                    mode: 'workout_processing',
+                    metadata: {
+                        range: syncRange,
+                        force_resync: forceResync,
+                        machine_types: machineTypes,
+                    },
+                }
             }) as { data: StartC2SyncResponse | null; error: Error | null };
 
             if (error) throw error;

@@ -12,7 +12,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type SyncMode = 'summary_only';
+type SyncMode = 'workout_processing';
 
 interface StartC2SyncPayload {
   requested_from?: unknown;
@@ -56,11 +56,11 @@ function normalizeOptionalDate(value: unknown, fieldName: string): string | null
 
 function normalizeMode(value: unknown): SyncMode {
   if (value === undefined || value === null || value === '') {
-    return 'summary_only';
+    return 'workout_processing';
   }
 
-  if (value !== 'summary_only') {
-    throw new Error('mode must be summary_only for this phase.');
+  if (value !== 'workout_processing') {
+    throw new Error('mode must be workout_processing for this phase.');
   }
 
   return value;
