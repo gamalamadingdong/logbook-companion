@@ -67,3 +67,19 @@ export async function getC2SyncJob(jobId: string) {
 
     return data as C2SyncJob
 }
+
+export async function getLatestC2SyncJob() {
+    const { data, error } = await supabase
+        .from('c2_sync_jobs')
+        .select('*')
+        .eq('source', 'concept2')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) {
+        throw error
+    }
+
+    return data as C2SyncJob | null
+}
