@@ -1,6 +1,13 @@
 import { supabase } from './supabase'
 
 export type C2SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
+export type C2SyncJobItemStatus =
+    | 'queued'
+    | 'processing'
+    | 'succeeded'
+    | 'skipped_existing'
+    | 'skipped_filtered'
+    | 'failed'
 
 export interface StartC2SyncJobOptions {
     requestedFrom?: string | null
@@ -22,6 +29,21 @@ export interface C2SyncJob {
     attempt_count: number
     error_code: string | null
     error_message: string | null
+    metadata: Record<string, unknown>
+    created_at: string
+    updated_at: string
+}
+
+export interface C2SyncJobItem {
+    id: string
+    job_id: string
+    user_id: string
+    external_id: string
+    status: C2SyncJobItemStatus
+    error_code: string | null
+    error_message: string | null
+    started_at: string | null
+    finished_at: string | null
     metadata: Record<string, unknown>
     created_at: string
     updated_at: string
@@ -82,4 +104,44 @@ export async function getLatestC2SyncJob() {
     }
 
     return data as C2SyncJob | null
+}
+
+export async function getRecentFailedC2SyncJobs(limit = 10) {
+    const { data, error } = await supabase
+        .from('c2_sync_jobs')
+        .select('*')
+        .eq('source', 'concept2')
+        .eq('status', 'failed')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+    if (error) {
+        throw error
+    }
+
+    return (data ?? []) as C2SyncJob[]
+}
+
+export async function getC2SyncJobItems(jobId: string, status?: C2SyncJobItemStatus) {
+    let query = supabase
+        .from('c2_sync_job_items')
+        .select('*')
+        .eq('job_id', jobId)
+        .order('created_at', { ascending: true })
+
+    if (status) {
+        query = query.eq('status', status)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+        throw error
+    }
+
+    return (data ?? []) as C2SyncJobItem[]
+}
+
+export async function getFailedC2SyncJobItems(jobId: string) {
+    return getC2SyncJobItems(jobId, 'failed')
 }
