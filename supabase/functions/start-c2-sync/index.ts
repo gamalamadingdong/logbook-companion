@@ -5,6 +5,7 @@ declare const Deno: {
   env: { get: (key: string) => string | undefined };
   serve: (handler: (req: Request) => Response | Promise<Response>) => void;
 };
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,6 +65,22 @@ function normalizeMode(value: unknown): SyncMode {
   }
 
   return value;
+}
+
+async function triggerBatchWorker(supabaseUrl: string, serviceRoleKey: string, jobId: string) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/run-c2-sync-batch`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(`Failed to trigger Concept2 sync worker: HTTP ${response.status}${message ? ` ${message}` : ''}`);
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -147,10 +164,25 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(500, { error: 'Failed to start Concept2 sync job.' });
     }
 
+    let triggeredWorker = false;
+    const workerTrigger = triggerBatchWorker(supabaseUrl, supabaseServiceRoleKey, data.id);
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      EdgeRuntime.waitUntil(workerTrigger);
+      triggeredWorker = true;
+    } else {
+      try {
+        await workerTrigger;
+        triggeredWorker = true;
+      } catch (error) {
+        console.error('[start-c2-sync] Worker trigger error:', error);
+      }
+    }
+
     return jsonResponse(202, {
       job_id: data.id,
       status: data.status,
       created_at: data.created_at,
+      triggered_worker: triggeredWorker,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected server error.';
