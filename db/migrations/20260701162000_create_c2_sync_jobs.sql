@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS public.c2_sync_jobs (
   error_message text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT c2_sync_jobs_requested_range_check
+    CHECK (requested_from IS NULL OR requested_to IS NULL OR requested_from <= requested_to),
+  CONSTRAINT c2_sync_jobs_finished_terminal_check
+    CHECK (finished_at IS NULL OR status IN ('succeeded', 'failed', 'canceled'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_c2_sync_jobs_user_created
@@ -47,6 +51,9 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_c2_sync_jobs_updated_at();
 
 ALTER TABLE public.c2_sync_jobs ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT ON public.c2_sync_jobs TO authenticated;
+GRANT ALL ON public.c2_sync_jobs TO service_role;
 
 DROP POLICY IF EXISTS "Users can view their own C2 sync jobs" ON public.c2_sync_jobs;
 CREATE POLICY "Users can view their own C2 sync jobs"
