@@ -1,0 +1,170 @@
+/**
+ * Convert WorkoutStructure to canonical RWN string
+ * This is the "trinity" regeneration function: Structure → RWN
+ */
+
+import type { WorkoutStructure, BlockType, IntervalStructure, VariableStructure, SessionExtension } from './types';
+
+// Helper: Format block tag prefix from blockType
+function getBlockTagPrefix(step: { blockType?: BlockType }): string {
+    if (step.blockType === 'warmup') return '[w]';
+    if (step.blockType === 'cooldown') return '[c]';
+    if (step.blockType === 'test') return '[t]';
+    return '';
+}
+
+function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins}:00`;
+}
+
+function formatDistance(meters: number): string {
+    return `${meters}m`;
+}
+
+// Serialize a SessionExtension back to orchestration syntax
+function serializeSessionExtension(ext: SessionExtension, coreRWN: string): string {
+    switch (ext.kind) {
+        case 'partner': {
+            const parts: string[] = [];
+            parts.push(`on=${ext.on ?? coreRWN}`);
+            if (ext.off && ext.off !== 'wait') parts.push(`off=${ext.off}`);
+            if (ext.switch && ext.switch !== 'piece_end') parts.push(`switch=${ext.switch}`);
+            return `partner(${parts.join(', ')})`;
+        }
+        case 'relay': {
+            const parts: string[] = [];
+            if (ext.leg) parts.push(`leg=${formatDistance(ext.leg)}`);
+            if (ext.total) parts.push(`total=${formatDistance(ext.total)}`);
+            if (ext.team_size) parts.push(`team_size=${ext.team_size}`);
+            if (ext.order && ext.order !== 'round_robin') parts.push(`order=${ext.order}`);
+            if (ext.off_task && ext.off_task !== 'wait') parts.push(`off_task=${ext.off_task}`);
+            return `relay(${parts.join(', ')})`;
+        }
+        case 'rotate': {
+            const parts: string[] = [];
+            if (ext.stations) parts.push(`stations=${ext.stations}`);
+            if (ext.switch) parts.push(`switch=${ext.switch}`);
+            if (ext.rounds) parts.push(`rounds=${ext.rounds}`);
+            if (ext.plan && ext.plan.length > 0) parts.push(`plan=[${ext.plan.join(',')}]`);
+            return `rotate(${parts.join(', ')})`;
+        }
+        case 'circuit': {
+            const items = ext.items ?? [];
+            return `circuit(${items.join(', ')})`;
+        }
+        default:
+            return coreRWN;
+    }
+}
+
+export function structureToRWN(structure: WorkoutStructure): string {
+    if (!structure) {
+        return '';
+    }
+
+    // Build core RWN first, then wrap with orchestration if needed
+    const coreRWN = structureToCoreRWN(structure);
+
+    if (structure.sessionExtension) {
+        return serializeSessionExtension(structure.sessionExtension, coreRWN);
+    }
+
+    return coreRWN;
+}
+
+function structureToCoreRWN(structure: WorkoutStructure): string {
+
+    if (structure.type === 'steady_state') {
+        const steadyStruct = structure as unknown as { blockType?: BlockType; value: number; unit: string; zone?: string; splitValue?: number; splitUnit?: string; subSegments?: { value: number; duration_type: string; target_rate?: number; target_rate_max?: number; target_pace?: string; target_pace_max?: string }[] };
+        const prefix = getBlockTagPrefix(steadyStruct);
+        
+        let base: string;
+        if (steadyStruct.unit === 'meters') {
+            const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
+            base = `${prefix}${steadyStruct.value}m${zone}`;
+        } else {
+            const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
+            base = `${prefix}${formatTime(steadyStruct.value)}${zone}`;
+        }
+
+        // Append sub-segments or split notation
+        if (steadyStruct.subSegments && steadyStruct.subSegments.length > 0) {
+            const segs = steadyStruct.subSegments.map(s => {
+                const val = s.duration_type === 'distance' ? formatDistance(s.value) : formatTime(s.value);
+                const parts = [val];
+                if (s.target_rate) parts.push(`@r${s.target_rate}`);
+                if (s.target_pace) parts.push(`@${s.target_pace}`);
+                return parts.join('');
+            });
+            return `${base}[${segs.join(' + ')}]`;
+        } else if (steadyStruct.splitValue) {
+            const splitStr = steadyStruct.splitUnit === 'meters'
+                ? formatDistance(steadyStruct.splitValue)
+                : formatTime(steadyStruct.splitValue);
+            return `${base} [${splitStr}]`;
+        }
+
+        return base;
+    }
+
+    if (structure.type === 'interval') {
+        const intervalStruct = structure as IntervalStructure;
+        const prefix = getBlockTagPrefix(intervalStruct.work as unknown as { blockType?: BlockType });
+        
+        const workPart = intervalStruct.work.type === 'distance'
+            ? `${intervalStruct.work.value}m`
+            : formatTime(intervalStruct.work.value);
+        
+        // Rest is always time-based on PM5
+        const restPart = formatTime(intervalStruct.rest.value);
+        
+        return `${prefix}${intervalStruct.repeats}x${workPart}/${restPart}r`;
+    }
+
+    if (structure.type === 'variable') {
+        const varStruct = structure as VariableStructure;
+        const parts: string[] = [];
+        let currentPrefix = '';
+        
+        for (let i = 0; i < varStruct.steps.length; i++) {
+            const step = varStruct.steps[i];
+            const stepPrefix = getBlockTagPrefix(step);
+            
+            if (step.type === 'work') {
+                let workStr = step.duration_type === 'distance'
+                    ? `${step.value}m`
+                    : formatTime(step.value);
+                
+                // Only add prefix if it changed from previous block
+                if (stepPrefix && stepPrefix !== currentPrefix) {
+                    workStr = stepPrefix + workStr;
+                    currentPrefix = stepPrefix;
+                }
+                
+                // Check if next step is rest to form "work/rest" pair
+                if (i + 1 < varStruct.steps.length && varStruct.steps[i + 1].type === 'rest') {
+                    const restStep = varStruct.steps[i + 1];
+                    const restStr = restStep.duration_type === 'distance'
+                        ? `${restStep.value}m`
+                        : formatTime(restStep.value);
+                    parts.push(`${workStr}/${restStr}r`);
+                    i++; // Skip the rest step since we consumed it
+                } else {
+                    parts.push(workStr);
+                }
+            } else if (step.type === 'rest') {
+                // Standalone rest (not part of work/rest pair)
+                const restStr = step.duration_type === 'distance'
+                    ? `${step.value}m`
+                    : formatTime(step.value);
+                parts.push(`${restStr}r`);
+            }
+        }
+        
+        return parts.join(' + ');
+    }
+
+    return '';
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@readyall/rwn",
+  "version": "0.1.0",
+  "description": "Rowing Workout Notation (RWN) — parser, serializer, and whiteboard renderer for rowing workouts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "rowing",
+    "workout",
+    "notation",
+    "parser",
+    "ergometer",
+    "concept2",
+    "rwn"
+  ],
+  "author": {
+    "name": "Sam Gammon",
+    "email": "samdgammon@gmail.com",
+    "url": "https://logbook.readyall.org"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,1434 @@
+import type { WorkoutStructure, WorkoutStep, BlockType, SessionExtension } from './types';
+
+/**
+ * RWN Parser
+ * Parses Rowers Workout Notation strings into WorkoutStructure objects.
+ * 
+ * Block Tag Notation (Preferred):
+ *   [w]10:00 + 5x500m/1:00r + [c]5:00
+ *   [w] = warmup, [c] = cooldown, [t] = test
+ * 
+ * Inline Tag Notation (Legacy, still supported):
+ *   10:00#warmup + 5x500m/1:00r + 5:00#cooldown
+ */
+
+// Block tag mapping: [w] -> warmup, [c] -> cooldown, [t] -> test
+const BLOCK_TAG_MAP: Record<string, BlockType> = {
+    'w': 'warmup',
+    'c': 'cooldown',
+    't': 'test'
+};
+
+// Key mapping for Steady State units
+function mapToSteadyUnit(type: 'distance' | 'time' | 'calories'): 'meters' | 'seconds' | 'calories' {
+    if (type === 'distance') return 'meters';
+    if (type === 'time') return 'seconds';
+    return 'calories';
+}
+
+// Helper: Parse Duration ("30:00", "1:30", "45") -> seconds
+function parseTime(str: string): number | null {
+    if (!str) return null;
+    const parts = str.split(':');
+    if (parts.length === 2) {
+        return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+    } else if (parts.length === 1) {
+        return parseFloat(parts[0]);
+    }
+    return null;
+}
+
+// Helper: Parse Component ("2000m", "30:00", "500cal", "[w]10:00")
+interface ParsedComponent {
+    type: 'distance' | 'time' | 'calories';
+    value: number;
+    guidance?: {
+        target_rate?: number;
+        target_rate_max?: number;  // If present, target_rate is min, this is max
+        target_pace?: string;
+        target_pace_max?: string;  // If present, target_pace is min, this is max
+    };
+    blockType?: BlockType;  // Semantic block type from [w], [c], [t] prefix
+    tags?: string[];        // Legacy inline tags (#warmup, #cooldown, #test)
+}
+
+function parseGuidanceText(guidanceText: string): ParsedComponent['guidance'] {
+    const guidance: ParsedComponent['guidance'] = {};
+    const guidanceParts = guidanceText.split('@').map(p => p.trim()).filter(Boolean);
+
+    for (const part of guidanceParts) {
+        if (!guidance.target_rate) {
+            const rateRangeMatch = part.match(/^(?:r)?(\d+)(?:-|\.\.)(\d+)(?:spm)?$/i);
+            if (rateRangeMatch) {
+                guidance.target_rate = parseInt(rateRangeMatch[1]);
+                guidance.target_rate_max = parseInt(rateRangeMatch[2]);
+                continue;
+            }
+        }
+
+        if (!guidance.target_rate) {
+            const rateMatch = part.match(/^(?:r)?(\d+)(?:spm)?$/i);
+            if (rateMatch) {
+                guidance.target_rate = parseInt(rateMatch[1]);
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const paceRangeMatch = part.match(/^(\d+:\d+(?:\.\d+)?)(?:-|\.\.)(\d+:\d+(?:\.\d+)?)$/);
+            if (paceRangeMatch) {
+                guidance.target_pace = paceRangeMatch[1];
+                guidance.target_pace_max = paceRangeMatch[2];
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const relPaceRangeMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)(?:-|\.\.)((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceRangeMatch) {
+                guidance.target_pace = relPaceRangeMatch[1].replace(/\s+/g, '');
+                guidance.target_pace_max = relPaceRangeMatch[2].replace(/\s+/g, '');
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const relPaceMatch = part.match(/^((?:2k|5k|6k|30m|60m)\s*[+-]\s*\d+(?:\.\d+)?)$/i);
+            if (relPaceMatch) {
+                guidance.target_pace = relPaceMatch[1].replace(/\s+/g, '');
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const barePaceMatch = part.match(/^(2k|5k|6k|30m|60m)$/i);
+            if (barePaceMatch) {
+                guidance.target_pace = barePaceMatch[1].toLowerCase();
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace) {
+            const zoneMatch = part.match(/^(UT2|UT1|AT|TR|AN|open)$/i);
+            if (zoneMatch) {
+                guidance.target_pace = zoneMatch[1].toLowerCase() === 'open'
+                    ? 'open'
+                    : zoneMatch[1].toUpperCase();
+                continue;
+            }
+        }
+
+        if (!guidance.target_pace && !guidance.target_rate) {
+            const paceMatch = part.match(/^(\d+:\d+(?:\.\d+)?)$/);
+            if (paceMatch) {
+                guidance.target_pace = paceMatch[1];
+                continue;
+            }
+        }
+    }
+
+    return guidance;
+}
+
+function parseComponent(str: string): ParsedComponent | null {
+    let rawClean = str.trim();
+
+    // Extract Block Tag prefix: [w], [c], [t]
+    let blockType: BlockType | undefined;
+    const blockTagMatch = rawClean.match(/^\[([wct])\]/i);
+    if (blockTagMatch) {
+        const tagChar = blockTagMatch[1].toLowerCase();
+        blockType = BLOCK_TAG_MAP[tagChar];
+        rawClean = rawClean.substring(blockTagMatch[0].length).trim();
+    }
+
+    // Extract inline Tags (#warmup, #test) - legacy support
+    const tags: string[] = [];
+    const tagMatches = rawClean.matchAll(/#([\w-]+)/g);
+    for (const m of tagMatches) {
+        const tag = m[1].toLowerCase();
+        tags.push(tag);
+        // Also set blockType from inline tags if not already set
+        if (!blockType) {
+            if (tag === 'warmup') blockType = 'warmup';
+            else if (tag === 'cooldown') blockType = 'cooldown';
+            else if (tag === 'test' || tag === 'benchmark') blockType = 'test';
+        }
+    }
+    const clean = rawClean.replace(/#[\w-]+/g, '').trim();
+
+    // If empty after stripping tags, return null
+    if (!clean) return null;
+
+    // Safety: A component should not contain '/', that's a structural separator
+    if (clean.includes('/')) return null;
+
+    // Extract guidance first (@r20, @2:00, @2k@32spm)
+    // Also handle rate shorthand: "30:00r20" -> "30:00" at rate 20
+    let guidanceText = '';
+    let coreText = clean;
+
+    // Check for rate shorthand pattern BEFORE @ (e.g., "30:00r20" or "30r20")
+    // Pattern: time/distance followed by "r" + 2-digit rate (16-36 typical)
+    const rateShorthandMatch = clean.match(/^(.+?)r(\d{2})$/);
+    if (rateShorthandMatch) {
+        const potentialCore = rateShorthandMatch[1];
+        const potentialRate = parseInt(rateShorthandMatch[2]);
+        // Only treat as rate if it looks like a valid rate (16-40) and core is valid
+        if (potentialRate >= 16 && potentialRate <= 40) {
+            // Check if potentialCore is a valid time or distance (not ending in 'r' for rest)
+            if (/^\d+:\d+$/.test(potentialCore) || /^\d+m$/i.test(potentialCore) || /^\d+$/.test(potentialCore)) {
+                coreText = potentialCore;
+                guidanceText = `r${potentialRate}`;
+            }
+        }
+    }
+
+    // Standard @ guidance extraction
+    const atIndex = coreText.indexOf('@');
+    if (atIndex !== -1) {
+        const beforeAt = coreText.substring(0, atIndex).trim();
+        const afterAt = coreText.substring(atIndex + 1).trim();
+        // Append to existing guidanceText if we found shorthand
+        if (guidanceText) {
+            guidanceText = `${guidanceText}@${afterAt}`;
+        } else {
+            guidanceText = afterAt;
+        }
+        coreText = beforeAt;
+    }
+
+    const guidance = guidanceText ? parseGuidanceText(guidanceText) : {};
+
+    // Parse Modality/Unit
+    // Distance: 2000m, 5k, 5km
+    if (/^\d+(m|k|km)$/i.test(coreText)) {
+        let value = parseInt(coreText.replace(/(m|k|km)/i, ''));
+        const unit = coreText.match(/(m|k|km)$/i)?.[1].toLowerCase();
+        if (unit === 'k' || unit === 'km') {
+            value *= 1000;
+        }
+        return {
+            type: 'distance',
+            value,
+            guidance,
+            blockType,
+            tags
+        };
+    }
+
+    // Calories: 500cal or 500c
+    if (/^\d+(?:cal|c)$/i.test(coreText)) {
+        return {
+            type: 'calories',
+            value: parseInt(coreText.replace(/(?:cal|c)/i, '')),
+            guidance,
+            blockType,
+            tags
+        };
+    }
+
+    // Time: 30:00 or 120s
+    if (coreText.includes(':')) {
+        const sec = parseTime(coreText);
+        if (sec !== null) {
+            return { type: 'time', value: sec, guidance, blockType, tags };
+        }
+    }
+
+    return null;
+}
+
+// Helper: Extract guidance from rest token (e.g., "1:00r@r32" -> guidance applies to work)
+// Coaches sometimes attach guidance after rest: "8x500m/1:00r@r32" means rate 32 on the work piece.
+function extractGuidanceFromRest(restStr: string): { cleanRest: string; guidance: ParsedComponent['guidance'] } {
+    const atIndex = restStr.indexOf('@');
+    if (atIndex === -1) return { cleanRest: restStr, guidance: {} };
+
+    const cleanRest = restStr.substring(0, atIndex).trim();
+    const guidanceText = restStr.substring(atIndex + 1).trim();
+    return { cleanRest, guidance: parseGuidanceText(guidanceText) };
+}
+
+// Helper: Merge rest-extracted guidance into work guidance (work's own guidance takes precedence)
+function mergeGuidance(
+    workGuidance: ParsedComponent['guidance'],
+    restGuidance: ParsedComponent['guidance']
+): ParsedComponent['guidance'] {
+    if (!restGuidance) return workGuidance;
+    return {
+        target_rate: workGuidance?.target_rate ?? restGuidance.target_rate,
+        target_rate_max: workGuidance?.target_rate_max ?? restGuidance.target_rate_max,
+        target_pace: workGuidance?.target_pace ?? restGuidance.target_pace,
+        target_pace_max: workGuidance?.target_pace_max ?? restGuidance.target_pace_max,
+    };
+}
+
+// Helper: Parse Rest ("2:00r", "90s", "1:00")
+function parseRest(str: string): number {
+    const clean = str.toLowerCase().replace(/r$/, '').replace(/s$/, '').trim(); // Remove trailing 'r' or 's'
+    const val = parseTime(clean);
+    return val !== null ? val : 0;
+}
+
+function isLikelyRestToken(str: string): boolean {
+    const clean = str.trim().toLowerCase();
+    if (!clean) return false;
+
+    // Undefined rest shorthand
+    if (clean === '...r' || clean === 'ur' || clean === 'u') return true;
+
+    // Numeric rest forms: 90, 90s, 90r, 1:30, 1:30r, 1:30s
+    if (/^\d+(?:\.\d+)?(?:s|r)?$/.test(clean)) return true;
+    if (/^\d+:\d+(?:\.\d+)?(?:s|r)?$/.test(clean)) return true;
+
+    return false;
+}
+
+function parseVariableList(text: string, modality?: WorkoutStructure['modality']): WorkoutStructure | null {
+    const prefixedMatch = text.match(/^v\s*(.+)$/i);
+    const body = prefixedMatch ? prefixedMatch[1].trim() : text.trim();
+
+    const rawParts = body.split('/').map(p => p.trim()).filter(Boolean);
+    if (rawParts.length < 2) return null;
+
+    const steps: WorkoutStep[] = [];
+
+    for (const token of rawParts) {
+        const comp = parseComponent(token);
+        if (comp) {
+            steps.push({
+                type: 'work',
+                modality,
+                duration_type: comp.type,
+                value: comp.value,
+                target_rate: comp.guidance?.target_rate,
+                target_rate_max: comp.guidance?.target_rate_max,
+                target_pace: comp.guidance?.target_pace,
+                target_pace_max: comp.guidance?.target_pace_max,
+                blockType: comp.blockType,
+                tags: comp.tags
+            });
+            continue;
+        }
+
+        // Allow explicit rest tokens in variable lists
+        if (isLikelyRestToken(token)) {
+            steps.push({
+                type: 'rest',
+                duration_type: 'time',
+                value: parseRest(token)
+            });
+            continue;
+        }
+
+        return null;
+    }
+
+    const workCount = steps.filter(s => s.type === 'work').length;
+    if (workCount === 0) return null;
+
+    return {
+        type: 'variable',
+        modality,
+        steps
+    };
+}
+
+// Helper: Split string by separator, respecting parenthesis grouping
+function splitRefined(text: string, separator: string): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let depth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+
+        if (char === '(') depth++;
+        if (char === ')') depth--;
+
+        // Check if we hit the separator at depth 0
+        if (depth === 0 && text.substring(i, i + separator.length) === separator) {
+            // Special handling for '+' separator: Ignore if it looks like pacing guidance (e.g., "2k+18")
+            if (separator === '+') {
+                const lookBehind = text.substring(Math.max(0, i - 5), i); // Check for 2k, 5k, etc.
+                const lookAhead = text.substring(i + 1, Math.min(text.length, i + 6)); // Check for digits
+
+                // Matches "2k", "5k", "6k", "30m", "60m" optionally followed by whitespace
+                const isGuidancePrefix = /(?:2k|5k|6k|30m|60m)\s*$/i.test(lookBehind);
+                // Matches optional whitespace followed by digit
+                const isGuidanceSuffix = /^\s*\d/.test(lookAhead);
+
+                if (isGuidancePrefix && isGuidanceSuffix) {
+                    current += char;
+                    continue; // Skip the split, treat as content
+                }
+            }
+
+            parts.push(current);
+            current = '';
+            i += separator.length - 1; // Skip separator
+        } else {
+            current += char;
+        }
+    }
+    parts.push(current);
+    return parts.filter(p => p.trim() !== '');
+}
+
+function splitTopLevel(text: string, separator: string): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let parenDepth = 0;
+    let bracketDepth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '(') parenDepth++;
+        if (char === ')') parenDepth--;
+        if (char === '[') bracketDepth++;
+        if (char === ']') bracketDepth--;
+
+        if (parenDepth === 0 && bracketDepth === 0 && text.substring(i, i + separator.length) === separator) {
+            parts.push(current.trim());
+            current = '';
+            i += separator.length - 1;
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.trim()) parts.push(current.trim());
+    return parts;
+}
+
+function parseDistanceMeters(value: string | undefined): number | null {
+    if (!value) return null;
+    const clean = value.trim().toLowerCase();
+    if (/^\d+(?:\.\d+)?m$/.test(clean)) return Math.round(parseFloat(clean.replace(/m$/, '')));
+    if (/^\d+(?:\.\d+)?k(?:m)?$/.test(clean)) return Math.round(parseFloat(clean.replace(/k(?:m)?$/, '')) * 1000);
+    if (/^\d+(?:\.\d+)?$/.test(clean)) return Math.round(parseFloat(clean));
+    return null;
+}
+
+function parseListValue(value: string | undefined): string[] {
+    if (!value) return [];
+    const trimmed = value.trim();
+    const body = trimmed.startsWith('[') && trimmed.endsWith(']')
+        ? trimmed.slice(1, -1)
+        : trimmed;
+    return splitTopLevel(body, ',').map((x) => x.trim()).filter(Boolean);
+}
+
+function parseNamedArgs(text: string): Record<string, string> {
+    const args: Record<string, string> = {};
+    for (const part of splitTopLevel(text, ',')) {
+        const idx = part.indexOf('=');
+        if (idx === -1) continue;
+        const key = part.substring(0, idx).trim().toLowerCase();
+        const value = part.substring(idx + 1).trim();
+        if (key) args[key] = value;
+    }
+    return args;
+}
+
+function appendSessionExtension(base: WorkoutStructure, ext: SessionExtension): WorkoutStructure {
+    const tags = Array.from(new Set([...(base.tags ?? []), 'orchestration', ext.kind]));
+    return {
+        ...base,
+        tags,
+        sessionExtension: ext,
+    };
+}
+
+function parseEmbeddedRWN(expr: string): WorkoutStructure | null {
+    const trimmed = expr.trim();
+    const modalityWrapped = trimmed.match(/^(row|bike|ski|run|other)\((.*)\)$/i);
+    if (modalityWrapped) {
+        const modality = modalityWrapped[1][0].toUpperCase() + modalityWrapped[1].slice(1).toLowerCase();
+        return parseRWN(`${modality}: ${modalityWrapped[2]}`);
+    }
+    return parseRWN(trimmed);
+}
+
+function parseSessionExtensionSyntax(text: string, modality?: WorkoutStructure['modality']): WorkoutStructure | null {
+    const call = text.trim().match(/^(partner|relay|rotate|circuit)\s*\((.*)\)$/i);
+    if (!call) return null;
+
+    const kind = call[1].toLowerCase() as SessionExtension['kind'];
+    const body = call[2].trim();
+
+    if (kind === 'circuit') {
+        const items = parseListValue(body);
+        return {
+            type: 'variable',
+            modality: modality ?? 'other',
+            steps: [],
+            tags: ['orchestration', 'circuit'],
+            sessionExtension: {
+                kind: 'circuit',
+                items,
+            },
+        };
+    }
+
+    const args = parseNamedArgs(body);
+
+    if (kind === 'partner') {
+        const onExpr = args.on;
+        if (!onExpr) return null;
+        const base = parseEmbeddedRWN(onExpr);
+        if (!base) return null;
+
+        return appendSessionExtension(base, {
+            kind: 'partner',
+            on: onExpr,
+            off: args.off ?? 'wait',
+            switch: args.switch ?? 'piece_end',
+        });
+    }
+
+    if (kind === 'relay') {
+        const leg = parseDistanceMeters(args.leg);
+        const total = parseDistanceMeters(args.total);
+        if (!leg || !total || leg <= 0 || total <= 0) return null;
+
+        const repeats = Math.max(1, Math.ceil(total / leg));
+        const base: WorkoutStructure = {
+            type: 'interval',
+            modality: modality ?? 'row',
+            repeats,
+            work: {
+                type: 'distance',
+                value: leg,
+            },
+            rest: {
+                type: 'time',
+                value: 0,
+            },
+            tags: ['orchestration', 'relay'],
+        };
+
+        return appendSessionExtension(base, {
+            kind: 'relay',
+            leg,
+            total,
+            switch: args.switch ?? 'leg_complete',
+            order: args.order ?? 'round_robin',
+            off_task: args.off_task ?? 'wait',
+            team_size: args.team_size ? parseInt(args.team_size, 10) : undefined,
+        });
+    }
+
+    if (kind === 'rotate') {
+        const plan = parseListValue(args.plan);
+        const parsedPlanEntries = plan.map((p) => parseEmbeddedRWN(p)).filter((v): v is WorkoutStructure => v != null);
+        const base = parsedPlanEntries[0] ?? {
+            type: 'variable',
+            modality: modality ?? 'other',
+            steps: [],
+            tags: ['orchestration', 'rotate'],
+        };
+
+        return appendSessionExtension(base, {
+            kind: 'rotate',
+            stations: args.stations ? parseInt(args.stations, 10) : (plan.length > 0 ? plan.length : undefined),
+            rounds: args.rounds ? parseInt(args.rounds, 10) : undefined,
+            switch: args.switch ?? 'piece_end',
+            plan,
+        });
+    }
+
+    return null;
+}
+
+// Helper: Parse a repeated group like "3 x ( ... )"
+function parseRepeatedGroup(text: string, modality?: WorkoutStructure['modality']): WorkoutStructure | null {
+    // Regex matches "N x (anything)" or "N x (anything) / rest r"
+    // But regex is weak for nested parenthesis.
+    // Let's assume the syntax is "N x " + Group
+
+    // Find the first 'x'
+    const xIndex = text.indexOf('x');
+    if (xIndex === -1) return null;
+
+    const repeatsStr = text.substring(0, xIndex).trim();
+    if (!/^\d+$/.test(repeatsStr)) return null; // Not a number before x
+
+    const repeats = parseInt(repeatsStr);
+    const remainder = text.substring(xIndex + 1).trim();
+
+    // Check if remainder starts with '('
+    if (!remainder.startsWith('(')) return null;
+
+    // Find matching closing parenthesis
+    let depth = 0;
+    let closeIndex = -1;
+    for (let i = 0; i < remainder.length; i++) {
+        if (remainder[i] === '(') depth++;
+        if (remainder[i] === ')') depth--;
+
+        if (depth === 0) {
+            closeIndex = i;
+            break;
+        }
+    }
+
+    if (closeIndex === -1) return null; // Unbalanced?
+
+    const groupContent = remainder.substring(1, closeIndex); // Inside ()
+    const afterGroup = remainder.substring(closeIndex + 1).trim();
+
+    // Check for trailing rest: "/ 2:00r"
+    let groupRest = 0;
+    if (afterGroup.startsWith('/')) {
+        groupRest = parseRest(afterGroup.substring(1).trim());
+    } else if (afterGroup !== '') {
+        // If there's garbage after the group that isn't a rest, maybe this isn't a simple repeat group?
+        // e.g. "3x(...) + 2000m" -> This would be handled by top-level variable parser first
+        // But if we are called here, we are assuming we are checking for a SINGLE repeating group structure.
+        return null;
+    }
+
+    // Parse the inner content. It could be "Work/Rest" or "A+B"
+    // For "3x(750/3r + 500/3r)", inner is "750/3r + 500/3r" -> Variable
+    // For "3x(2000m)", inner is "2000m" -> Steady
+    const innerStruct = parseRWN(groupContent); // Recursive call!
+    if (!innerStruct) return null;
+
+    const unrolledSteps: WorkoutStep[] = [];
+
+    // Helper to Convert Structure to Steps
+    const extractSteps = (struct: WorkoutStructure): WorkoutStep[] => {
+        if (struct.type === 'variable') return struct.steps;
+        if (struct.type === 'steady_state') {
+            return [{
+                type: 'work',
+                modality: struct.modality,
+                duration_type: struct.unit === 'seconds' ? 'time' : (struct.unit === 'meters' ? 'distance' : 'calories'),
+                value: struct.value,
+                target_rate: struct.target_rate,
+                target_rate_max: struct.target_rate_max,
+                target_pace: struct.target_pace,
+                target_pace_max: struct.target_pace_max,
+                blockType: struct.blockType,
+                tags: struct.tags
+            }];
+        }
+        if (struct.type === 'interval') {
+            // An interval is already N x Work/Rest.
+            // If we have 3 x (4x500m/1r), that's nested intervals.
+            // Unroll the inner interval fully
+            const steps: WorkoutStep[] = [];
+            for (let i = 0; i < struct.repeats; i++) {
+                steps.push({
+                    type: 'work',
+                    modality: struct.modality,
+                    duration_type: struct.work.type,
+                    value: struct.work.value,
+                    target_rate: struct.work.target_rate,
+                    target_rate_max: struct.work.target_rate_max,
+                    target_pace: struct.work.target_pace,
+                    target_pace_max: struct.work.target_pace_max,
+                    blockType: struct.work.blockType,
+                    tags: struct.work.tags
+                });
+                steps.push({
+                    type: 'rest',
+                    duration_type: 'time',
+                    value: struct.rest.value
+                });
+            }
+            return steps;
+        }
+        return [];
+    };
+
+    const baseSteps = extractSteps(innerStruct);
+
+    // Unroll N times
+    for (let r = 0; r < repeats; r++) {
+        // Add base steps
+        unrolledSteps.push(...baseSteps);
+
+        // Add group rest if not the last set?
+        // Usually "3x(A+B)/2r" means 2r after each set.
+        // Even after the last one? Often yes in machine programming.
+        if (groupRest > 0) {
+            unrolledSteps.push({
+                type: 'rest',
+                duration_type: 'time',
+                value: groupRest
+            });
+        }
+    }
+
+    // Optimization: If the groupRest is 0, AND baseSteps ends with a rest, we might have double rest? 
+    // No, existing parsers handle rest inside segments.
+
+    return {
+        type: 'variable',
+        modality,
+        steps: unrolledSteps,
+        tags: innerStruct.tags // Propagate tags?
+    };
+}
+
+// Bracket notation: PM5 splits or sub-segment breakdowns
+// "10000m [1000m]" → PM5 split (single bare value)
+// "2000m[500m@r22 + 500m@r24 + ...]" → sub-segment breakdown (has + or @)
+interface BracketResult {
+    coreText: string;
+    kind: 'split' | 'sub_segments';
+    splitValue?: number;
+    splitUnit?: 'meters' | 'seconds';
+    subSegments?: WorkoutStep[];
+}
+
+function extractBracketNotation(text: string): BracketResult | null {
+    // Match trailing [...] — with or without space before bracket
+    // But NOT [w], [c], [t] block tags at the START
+    const bracketMatch = text.match(/^(.+?)\s*\[([^\]]+)\]\s*$/);
+    if (!bracketMatch) return null;
+
+    const coreText = bracketMatch[1].trim();
+    const bracketContent = bracketMatch[2].trim();
+
+    // Skip if core text is empty (bracket at start = block tag territory)
+    if (!coreText) return null;
+
+    // Disambiguate: single bare value = PM5 split, anything with + or @ = sub-segments
+    const hasSegmentSyntax = bracketContent.includes('+') || bracketContent.includes('@');
+
+    if (!hasSegmentSyntax) {
+        // PM5 split resolution: "1000m" or "5:00"
+        const comp = parseComponent(bracketContent);
+        if (comp) {
+            return {
+                coreText,
+                kind: 'split',
+                splitValue: comp.value,
+                splitUnit: comp.type === 'distance' ? 'meters' : 'seconds',
+            };
+        }
+        return null;
+    }
+
+    // Sub-segment breakdown: parse inner content as a variable workout
+    const innerParts = splitRefined(bracketContent, '+');
+    const steps: WorkoutStep[] = [];
+
+    for (const part of innerParts) {
+        const comp = parseComponent(part.trim());
+        if (comp) {
+            steps.push({
+                type: 'work',
+                duration_type: comp.type,
+                value: comp.value,
+                target_rate: comp.guidance?.target_rate,
+                target_rate_max: comp.guidance?.target_rate_max,
+                target_pace: comp.guidance?.target_pace,
+                target_pace_max: comp.guidance?.target_pace_max,
+                blockType: comp.blockType,
+                tags: comp.tags,
+            });
+        }
+    }
+
+    if (steps.length === 0) return null;
+
+    return {
+        coreText,
+        kind: 'sub_segments',
+        subSegments: steps,
+    };
+}
+
+
+/**
+ * Normalize minute/second shorthand to canonical MM:SS form.
+ * Coaches write 3' (3 minutes), 30" (30 seconds), 3'30" (3:30).
+ * Must match combined form first to avoid partial matches.
+ */
+function normalizeMinuteSecondShorthand(input: string): string {
+    // Combined: 3'30" → 3:30, 1'5" → 1:05
+    let result = input.replace(/(\d+)'(\d{1,2})"/g, (_, m, s) => {
+        return `${m}:${s.padStart(2, '0')}`;
+    });
+    // Minutes only: 3' → 3:00 (but not if already consumed by combined pattern)
+    result = result.replace(/(\d+)'/g, '$1:00');
+    // Seconds only: 30" → 0:30
+    result = result.replace(/(\d+)"/g, (_, s) => {
+        return `0:${s.padStart(2, '0')}`;
+    });
+    return result;
+}
+
+
+export function parseRWN(input: string): WorkoutStructure | null {
+    if (!input || !input.trim()) return null;
+
+    // Normalize minute/second shorthand: 3' → 3:00, 30" → 0:30, 3'30" → 3:30
+    let text = normalizeMinuteSecondShorthand(input.trim());
+    let modality: WorkoutStructure['modality'] = undefined;
+
+    // 0. Check for Modality Prefix (e.g., "Bike: 4x500m")
+    const modalityMatch = text.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
+    if (modalityMatch) {
+        modality = modalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
+        text = modalityMatch[2].trim();
+    }
+
+    // 0.1 Extract trailing bracket notation: splits or sub-segments
+    // e.g., "10000m [1000m]" or "10000m[1000m]" or "2000m[500m@r22 + 500m@r24 ...]"
+    // Must come before orchestration parsing since brackets are not parens
+    const bracketResult = extractBracketNotation(text);
+    if (bracketResult) {
+        text = bracketResult.coreText;
+    }
+
+    const result = parseRWNCore(text, modality);
+    if (!result) return null;
+
+    // Apply bracket notation to the result
+    if (bracketResult && result.type === 'steady_state') {
+        if (bracketResult.kind === 'split') {
+            result.splitValue = bracketResult.splitValue;
+            result.splitUnit = bracketResult.splitUnit;
+        } else if (bracketResult.kind === 'sub_segments') {
+            result.subSegments = bracketResult.subSegments;
+        }
+    }
+
+    return result;
+}
+
+function parseRWNCore(text: string, modality: WorkoutStructure['modality']): WorkoutStructure | null {
+
+    // 0.4 Session orchestration syntax (additive extension)
+    // Examples:
+    // - partner(on=4x1000m, off=wait, switch=piece_end)
+    // - relay(leg=500m,total=6000m)
+    // - rotate(stations=4, switch=15:00, rounds=4, plan=[run(15:00),row(4x500m/1:00r)])
+    // - circuit(20 burpees,20 pushups,20 situps)
+    const orchestrationStruct = parseSessionExtensionSyntax(text, modality);
+    if (orchestrationStruct) return orchestrationStruct;
+
+    // 0.5 Check for "Repeated Group" FIRST if it wraps the whole string
+    // e.g. "3 x ( ... )"
+    // This priority ensures we don't split "3 x (A + B)" into "3 x (A" and "B)" by mistake if we did + split first (won't happen with splitRefined, but still good to handle explicitly).
+    // Actually, "3 x (A+B)" doesn't have a top level +.
+    // But "3x(A) + 3x(B)" does.
+
+    // Try parsing as a grouped repeat first IF it matches the pattern
+    // Only if it doesn't have a top-level '+' (otherwise + takes precedence for "3x(A)+3x(B)")
+    const topLevelParts = splitRefined(text, '+');
+
+    if (topLevelParts.length > 1) {
+        // Variable workout with multiple segments
+        return parseVariableWorkout(topLevelParts, modality);
+    }
+
+    // No top level +, check for Group Repeat "N x (...)"
+    if (text.includes('(')) {
+        const groupStruct = parseRepeatedGroup(text, modality);
+        if (groupStruct) return groupStruct;
+
+        // 0.6 Check for Implicit Single Group "(...)" or "(...)/r"
+        // If it starts with parentheses, try parsing as "1 x ..."
+        if (text.startsWith('(')) {
+            // Re-use parseRepeatedGroup by prepending "1x"
+            // This handles "(A+B)/R" -> "1x(A+B)/R"
+            const implicitStruct = parseRepeatedGroup("1x" + text, modality);
+
+            if (implicitStruct && implicitStruct.type === 'variable') {
+                // DISTRIBUTED REST LOGIC
+                // For a single repeat (implicitly 1x), if there is a group rest "/R",
+                // we interpret this as "Distributed Rest" applied to EACH step.
+                // Standard parseRepeatedGroup applies rest at END of the set.
+                // But for "Variable List" syntax (vA/B/C), users often mean "Use this rest for all steps".
+
+                // Check if the original text had a rest suffix "/..."
+                // Use regex to check for trailing slash-rest pattern outside parens?
+                // parseRepeatedGroup already successfully parsed it, so look at the result.
+
+                // If we have >1 steps and they seem to result from "1x(A+B+C)/R",
+                // parseRepeatedGroup returns: [A, B, C, Rest].
+                // We want: [A, Rest, B, Rest, C, Rest].
+
+                // Let's manually inspect how parseRepeatedGroup constructs the steps for 1x.
+                // it calls extractSteps(inner) -> [A, B, C]
+                // loops 1x
+                // push ...[A, B, C]
+                // push Rest if groupRest > 0.
+
+                // So result is [A, B, C, R].
+                // We want to TRANSFORM this into [A, R, B, R, C, R].
+
+                // Detect if there was an explicit rest by checking the last step
+                const lastStep = implicitStruct.steps[implicitStruct.steps.length - 1];
+                if (lastStep.type === 'rest' && lastStep.value > 0) {
+                    const distributedRest = lastStep.value;
+                    const workSteps = implicitStruct.steps.filter(s => s.type === 'work');
+
+                    // Rebuild steps with distributed rest
+                    const newSteps: WorkoutStep[] = [];
+                    workSteps.forEach(s => {
+                        newSteps.push(s);
+                        newSteps.push({
+                            type: 'rest',
+                            duration_type: 'time',
+                            value: distributedRest
+                        });
+                    });
+
+                    return {
+                        ...implicitStruct,
+                        steps: newSteps
+                    };
+                }
+            }
+
+            if (implicitStruct) return implicitStruct;
+        }
+    }
+
+    // 0.7 Variable list notation support
+    // Examples:
+    // - v500m/1000m/1500m
+    // - 500m/1000m/1500m
+    // - v1:00/3:00/7:00
+    const slashParts = text.split('/').map(p => p.trim()).filter(Boolean);
+    const isVPrefixed = /^v\s*/i.test(text);
+    const isPotentialVariableList =
+        isVPrefixed ||
+        slashParts.length > 2 ||
+        (slashParts.length === 2 && !isLikelyRestToken(slashParts[1]));
+
+    if (!text.includes('(') && isPotentialVariableList) {
+        const variableListStruct = parseVariableList(text, modality);
+        if (variableListStruct) return variableListStruct;
+    }
+
+    // 1. Check for Intervals (contains 'x') - Standard "N x Work" or "N x Work/Rest"
+    // Regex: (\d+)x\s*(.+)
+    const intervalMatch = text.match(/^(\d+)\s*x\s*(.+)$/i);
+
+    if (intervalMatch && !text.includes('(')) { // Ensure we don't aggressively capture complex groups failed above
+        const repeats = parseInt(intervalMatch[1]);
+        let remainder = intervalMatch[2].trim();
+
+        // Extract Interval-level tags (e.g. at end of string or mixed in)
+        const intervalTags: string[] = [];
+        const tagMatches = remainder.matchAll(/#([\w-]+)/g);
+        for (const m of tagMatches) {
+            intervalTags.push(m[1].toLowerCase());
+        }
+        // Remove tags to clean up parsing
+        remainder = remainder.replace(/#[\w-]+/g, '').trim();
+
+        // Split remainder into Work and Rest
+        // Standard syntax: Work/Rest
+        const parts = remainder.split('/');
+
+        if (parts.length >= 1) {
+            const workStr = parts[0].trim();
+            const rawRestStr = parts.length > 1 ? parts[1].trim() : '0r';
+
+            const workComp = parseComponent(workStr);
+            if (workComp) {
+                // Extract any guidance attached to rest (e.g., "1:00r@r32") and apply to work
+                const { cleanRest, guidance: restGuidance } = extractGuidanceFromRest(rawRestStr);
+                const merged = mergeGuidance(workComp.guidance, restGuidance);
+                const restVal = parseRest(cleanRest);
+
+                return {
+                    type: 'interval',
+                    modality,
+                    repeats,
+                    work: {
+                        type: workComp.type,
+                        value: workComp.value,
+                        target_rate: merged?.target_rate,
+                        target_rate_max: merged?.target_rate_max,
+                        target_pace: merged?.target_pace,
+                        target_pace_max: merged?.target_pace_max,
+                        blockType: workComp.blockType,
+                        tags: intervalTags.length > 0 ? intervalTags : workComp.tags
+                    },
+                    rest: {
+                        type: 'time',
+                        value: restVal
+                    },
+                    tags: intervalTags.length > 0 ? intervalTags : workComp.tags
+                };
+            }
+        }
+    }
+
+    // 2. Check for single interval with rest (e.g., "15:00@UT1/2:00r" without "1x" prefix)
+    // This handles cases like "Work/Rest" without the multiplier
+    if (text.includes('/') && !text.includes('(')) {
+        const parts = text.split('/');
+        if (parts.length === 2) {
+            const workStr = parts[0].trim();
+            const rawRestStr = parts[1].trim();
+
+            const workComp = parseComponent(workStr);
+            if (workComp) {
+                const { cleanRest, guidance: restGuidance } = extractGuidanceFromRest(rawRestStr);
+                const merged = mergeGuidance(workComp.guidance, restGuidance);
+                const restVal = parseRest(cleanRest);
+
+                return {
+                    type: 'interval',
+                    modality,
+                    repeats: 1,
+                    work: {
+                        type: workComp.type,
+                        value: workComp.value,
+                        target_rate: merged?.target_rate,
+                        target_rate_max: merged?.target_rate_max,
+                        target_pace: merged?.target_pace,
+                        target_pace_max: merged?.target_pace_max,
+                        blockType: workComp.blockType,
+                        tags: workComp.tags
+                    },
+                    rest: {
+                        type: 'time',
+                        value: restVal
+                    },
+                    tags: workComp.tags
+                };
+            }
+        }
+    }
+
+    // 3. Steady State (Single component)
+    const singleComp = parseComponent(text);
+    if (singleComp) {
+        return {
+            type: 'steady_state',
+            modality,
+            value: singleComp.value,
+            unit: mapToSteadyUnit(singleComp.type),
+            target_rate: singleComp.guidance?.target_rate,
+            target_rate_max: singleComp.guidance?.target_rate_max,
+            target_pace: singleComp.guidance?.target_pace,
+            target_pace_max: singleComp.guidance?.target_pace_max,
+            blockType: singleComp.blockType,
+            tags: singleComp.tags
+        } as WorkoutStructure;
+    }
+
+    // Fallback: Return null
+    return null;
+}
+
+function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['modality']): WorkoutStructure {
+    const steps: WorkoutStep[] = [];
+
+    parts.forEach(seg => {
+        const cleanSeg = seg.trim();
+        // Each segment could be a component or a sub-interval?
+        // e.g. "2000m + 4x500m" -> Steady + Interval
+        // We parse each segment using parseRWN recursively!
+        // but avoid infinite loop if it returns a variable structure with same string (unlikely since we split by +)
+
+        let segModality = modality;
+        let cleanText = cleanSeg;
+
+        // Handle local modality override?
+        const segModalityMatch = cleanSeg.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
+        if (segModalityMatch) {
+            segModality = segModalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
+            cleanText = segModalityMatch[2].trim();
+        }
+
+        const subStruct = parseRWN(cleanText) || parseLegacySegment(cleanText); // Fallback to legacy simplistic parsing if simple component
+
+        if (subStruct) {
+            // Flatten subStruct into steps
+            if (subStruct.type === 'variable') {
+                steps.push(...subStruct.steps);
+            } else if (subStruct.type === 'steady_state') {
+                steps.push({
+                    type: 'work',
+                    modality: subStruct.modality || segModality,
+                    duration_type: subStruct.unit === 'seconds' ? 'time' : (subStruct.unit === 'meters' ? 'distance' : 'calories'),
+                    value: subStruct.value,
+                    target_rate: subStruct.target_rate,
+                    target_rate_max: subStruct.target_rate_max,
+                    target_pace: subStruct.target_pace,
+                    target_pace_max: subStruct.target_pace_max,
+                    blockType: subStruct.blockType,
+                    tags: subStruct.tags
+                });
+            } else if (subStruct.type === 'interval') {
+                // Expand interval
+                for (let i = 0; i < subStruct.repeats; i++) {
+                    steps.push({
+                        type: 'work',
+                        modality: subStruct.modality || segModality,
+                        duration_type: subStruct.work.type,
+                        value: subStruct.work.value,
+                        target_rate: subStruct.work.target_rate,
+                        target_rate_max: subStruct.work.target_rate_max,
+                        target_pace: subStruct.work.target_pace,
+                        target_pace_max: subStruct.work.target_pace_max,
+                        blockType: subStruct.work.blockType,
+                        tags: subStruct.work.tags
+                    });
+                    steps.push({
+                        type: 'rest',
+                        duration_type: 'time',
+                        value: subStruct.rest.value
+                    });
+                }
+            }
+        }
+    });
+
+    return {
+        type: 'variable',
+        modality,
+        steps
+    };
+}
+
+// Fallback for simple "2000m/2:00r" strings that might not parse via parseRWN if they are partial?
+// Actually parseRWN handles "2000m" (Steady) well.
+// But "2000m/2:00r" isn't a valid WORKOUT by itself in our grammar unless it's "1x2000m/2:00r" or "2000m" (steady doesn't have rest).
+// In a variable chain, "2000m/2:00r" implies Work+Rest.
+// So we need to handle that specifically here if parseRWN returns null.
+function parseLegacySegment(text: string): WorkoutStructure | null {
+    // Check for Work/Rest
+    const parts = text.split('/');
+    if (parts.length >= 2) {
+        const workStr = parts[0].trim();
+        const restStr = parts[1].trim();
+
+        const workComp = parseComponent(workStr);
+        if (workComp) {
+            const restVal = parseRest(restStr);
+            // Construct a fake "1x" interval? Or just Variable steps?
+            // Return as Interval 1x
+            return {
+                type: 'interval',
+                repeats: 1,
+                work: {
+                    type: workComp.type,
+                    value: workComp.value,
+                    target_rate: workComp.guidance?.target_rate,
+                    target_rate_max: workComp.guidance?.target_rate_max,
+                    target_pace: workComp.guidance?.target_pace,
+                    target_pace_max: workComp.guidance?.target_pace_max,
+                    blockType: workComp.blockType,
+                    tags: workComp.tags
+                },
+                rest: {
+                    type: 'time',
+                    value: restVal
+                }
+            };
+        }
+    }
+    return null;
+}
+
+/**
+ * Validation result with detailed error messages
+ */
+export interface RWNValidationResult {
+    valid: boolean;
+    errors: string[];
+    warnings?: string[];
+    structure?: WorkoutStructure;
+}
+
+/**
+ * Validate RWN string and return detailed errors
+ */
+export function validateRWN(input: string): RWNValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!input || input.trim() === '') {
+        return { valid: false, errors: ['RWN cannot be empty'] };
+    }
+
+    // Try to parse
+    const structure = parseRWN(input);
+
+    if (!structure) {
+        // Generic parsing failure - try to give specific hints
+        const trimmed = input.trim();
+
+        // Check for common mistakes
+        if (trimmed.includes('x') && !trimmed.match(/\d+x/)) {
+            errors.push("Missing repeat count before 'x' (e.g., '4x500m')");
+        }
+
+        if (trimmed.includes('/') && !trimmed.match(/\/\d/)) {
+            errors.push("Missing rest time after '/' (e.g., '/1:30r')");
+        }
+
+        if (trimmed.match(/\d+k\b/)) {
+            errors.push("Use full distance in meters (e.g., '5000m' instead of '5k')");
+        }
+
+        if (!trimmed.match(/\d+m\b/) && !trimmed.match(/\d+:\d+/) && !trimmed.match(/\d+cal\b/)) {
+            errors.push("No valid distance (m), time (mm:ss), or calories (cal) found");
+        }
+
+        // If no specific error found, generic message
+        if (errors.length === 0) {
+            errors.push("Could not parse RWN. Check syntax (e.g., '4x500m/1:00r' or '5000m')");
+        }
+
+        return { valid: false, errors, warnings };
+    }
+
+    // Successful parse - check for warnings
+    if (structure.type === 'interval' && structure.repeats > 50) {
+        warnings.push(`High repeat count (${structure.repeats}x) - is this intended?`);
+    }
+
+    if (structure.type === 'steady_state' && structure.unit === 'meters' && structure.value > 50000) {
+        warnings.push(`Long distance (${structure.value}m) - verify this is correct`);
+    }
+
+    if (structure.type === 'steady_state' && structure.unit === 'seconds' && structure.value > 7200) {
+        warnings.push(`Long duration (${Math.floor(structure.value / 60)} min) - verify this is correct`);
+    }
+
+    return {
+        valid: true,
+        errors: [],
+        warnings: warnings.length > 0 ? warnings : undefined,
+        structure
+    };
+}
+
+/**
+ * Duration estimation result
+ */
+export interface DurationEstimate {
+    workDistance: number;  // Total meters of work (excludes rest)
+    workTime: number;      // Total seconds of work
+    restTime: number;      // Total seconds of rest
+    totalTime: number;     // workTime + restTime
+    estimateMethod: 'explicit_pace' | 'explicit_time' | 'default_pace' | 'no_estimate' | 'needs_baseline';
+    paceUsed?: string;     // Pace used for calculation (e.g., "2:00/500m")
+    requiresBaseline?: boolean; // True if workout uses training zones but user has no baseline data
+}
+
+/**
+ * Estimate workout duration and work distance from RWN
+ * @param input RWN string
+ * @param defaultPace Default pace to use if none specified (e.g., "2:05")
+ */
+export function estimateDuration(input: string, defaultPace: string = '2:05'): DurationEstimate | null {
+    const structure = parseRWN(input);
+
+    if (!structure) {
+        return null;
+    }
+
+    let workDistance = 0;
+    let workTime = 0;
+    let restTime = 0;
+    let estimateMethod: DurationEstimate['estimateMethod'] = 'no_estimate';
+    let paceUsed: string | undefined;
+    let requiresBaseline = false;
+
+    // Helper: Convert pace string "2:05" to seconds per 500m
+    // Returns null for training zones (UT1, AT, etc.) that need user baseline
+    const parsePaceToSeconds = (pace: string): number | null => {
+        // Skip training zones - these need user baseline data
+        if (/^(UT2|UT1|AT|TR|AN)$/i.test(pace)) {
+            return null;
+        }
+
+        // Skip relative paces like "2k+5" - these need user baseline
+        if (/^(2k|5k|6k|30m|60m)/i.test(pace)) {
+            return null;
+        }
+
+        // Parse absolute pace "2:05" format
+        const parts = pace.split(':');
+        if (parts.length === 2) {
+            return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+        }
+
+        // Single number (seconds)
+        return parseFloat(pace);
+    };
+
+    // Helper: Calculate time for distance at pace
+    const timeForDistance = (meters: number, paceSeconds: number): number => {
+        return (meters / 500) * paceSeconds;
+    };
+
+    if (structure.type === 'steady_state') {
+        if (structure.unit === 'meters') {
+            workDistance = structure.value;
+
+            // Use explicit pace if provided
+            if (structure.target_pace) {
+                const paceSeconds = parsePaceToSeconds(structure.target_pace);
+                if (paceSeconds) {
+                    paceUsed = structure.target_pace;
+                    workTime = timeForDistance(workDistance, paceSeconds);
+                    estimateMethod = 'explicit_pace';
+                } else {
+                    // Training zone or relative pace - can't estimate without baseline
+                    requiresBaseline = true;
+                    estimateMethod = 'needs_baseline';
+                }
+            } else {
+                // Use default pace
+                paceUsed = defaultPace;
+                workTime = timeForDistance(workDistance, parsePaceToSeconds(defaultPace)!);
+                estimateMethod = 'default_pace';
+            }
+        } else if (structure.unit === 'seconds') {
+            workTime = structure.value;
+            estimateMethod = 'explicit_time';
+
+            // Estimate distance if we have pace
+            if (structure.target_pace) {
+                paceUsed = structure.target_pace;
+                const paceSeconds = parsePaceToSeconds(structure.target_pace);
+                if (paceSeconds !== null) {
+                    workDistance = (workTime / paceSeconds) * 500;
+                }
+            } else {
+                // Use default pace to estimate distance
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workDistance = (workTime / paceSeconds) * 500;
+                }
+            }
+        } else if (structure.unit === 'calories') {
+            // Can't estimate time from calories without power data
+            estimateMethod = 'no_estimate';
+        }
+    } else if (structure.type === 'interval') {
+        const { repeats, work, rest } = structure;
+
+        // Calculate work per interval
+        if (work.type === 'distance') {
+            workDistance = work.value * repeats;
+
+            if (work.target_pace) {
+                paceUsed = work.target_pace;
+                const paceSeconds = parsePaceToSeconds(work.target_pace);
+                if (paceSeconds !== null) {
+                    workTime = timeForDistance(work.value, paceSeconds) * repeats;
+                    estimateMethod = 'explicit_pace';
+                }
+            } else {
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workTime = timeForDistance(work.value, paceSeconds) * repeats;
+                    estimateMethod = 'default_pace';
+                }
+            }
+        } else if (work.type === 'time') {
+            workTime = work.value * repeats;
+            estimateMethod = 'explicit_time';
+
+            if (work.target_pace) {
+                paceUsed = work.target_pace;
+                const paceSeconds = parsePaceToSeconds(work.target_pace);
+                if (paceSeconds !== null) {
+                    workDistance = ((work.value / paceSeconds) * 500) * repeats;
+                }
+            } else {
+                paceUsed = defaultPace;
+                const paceSeconds = parsePaceToSeconds(defaultPace);
+                if (paceSeconds !== null) {
+                    workDistance = ((work.value / paceSeconds) * 500) * repeats;
+                }
+            }
+        } else if (work.type === 'calories') {
+            estimateMethod = 'no_estimate';
+        }
+
+        // Rest is always time (already in seconds)
+        restTime = rest.value * (repeats - 1); // N intervals = N-1 rest periods
+    } else if (structure.type === 'variable') {
+        // Sum up all work steps
+        for (const step of structure.steps) {
+            if (step.type === 'work') {
+                if (step.duration_type === 'distance') {
+                    workDistance += step.value;
+
+                    if (step.target_pace) {
+                        paceUsed = step.target_pace;
+                        const paceSeconds = parsePaceToSeconds(step.target_pace);
+                        if (paceSeconds !== null) {
+                            workTime += timeForDistance(step.value, paceSeconds);
+                            estimateMethod = 'explicit_pace';
+                        }
+                    } else {
+                        paceUsed = paceUsed || defaultPace;
+                        const paceSeconds = parsePaceToSeconds(defaultPace);
+                        if (paceSeconds !== null) {
+                            workTime += timeForDistance(step.value, paceSeconds);
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'default_pace';
+                            }
+                        }
+                    }
+                } else if (step.duration_type === 'time') {
+                    workTime += step.value;
+
+                    if (step.target_pace) {
+                        paceUsed = step.target_pace;
+                        const paceSeconds = parsePaceToSeconds(step.target_pace);
+                        if (paceSeconds !== null) {
+                            workDistance += (step.value / paceSeconds) * 500;
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'explicit_pace';
+                            }
+                        }
+                    } else {
+                        paceUsed = paceUsed || defaultPace;
+                        const paceSeconds = parsePaceToSeconds(defaultPace);
+                        if (paceSeconds !== null) {
+                            workDistance += (step.value / paceSeconds) * 500;
+                            if (estimateMethod !== 'explicit_pace') {
+                                estimateMethod = 'explicit_time';
+                            }
+                        }
+                    }
+                }
+            } else if (step.type === 'rest') {
+                restTime += step.value;
+            }
+        }
+    }
+
+    return {
+        workDistance: Math.round(workDistance),
+        workTime: Math.round(workTime),
+        restTime: Math.round(restTime),
+        totalTime: Math.round(workTime + restTime),
+        estimateMethod,
+        paceUsed,
+        requiresBaseline
+    };
+}
+
+/**
+ * Format seconds to MM:SS
+ */
+export function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
