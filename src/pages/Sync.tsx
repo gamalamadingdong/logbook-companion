@@ -4,11 +4,79 @@ import { initiateGoogleLogin, createSheet, appendData } from '../api/googleSheet
 import { useAuth } from '../hooks/useAuth';
 import { useConcept2Sync, type SyncRange } from '../hooks/useConcept2Sync';
 import { supabase } from '../services/supabase';
+import {
+    getC2SyncJob,
+    getLatestC2SyncJob,
+    startC2SyncJob,
+    type C2SyncJob,
+} from '../services/c2SyncJobService';
 import { FileSpreadsheet, Check, Loader2, RefreshCw, AlertCircle, Microscope, ShieldCheck } from 'lucide-react';
 import { calculateZoneDistribution } from '../utils/zones';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'sonner';
+
+type C2SyncJobMetadata = {
+    counters?: {
+        pages_processed?: number;
+        summaries_seen?: number;
+        workouts_processed?: number;
+        workouts_skipped_existing?: number;
+        workouts_skipped_filtered?: number;
+        workouts_failed?: number;
+    };
+    next_page?: number | null;
+    last_error?: {
+        message?: string;
+    } | string | null;
+};
+
+const isC2SyncJobMetadata = (value: unknown): value is C2SyncJobMetadata =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getJobMetadata = (job: C2SyncJob | null): C2SyncJobMetadata =>
+    isC2SyncJobMetadata(job?.metadata) ? job.metadata : {};
+
+const getLastErrorMessage = (metadata: C2SyncJobMetadata) => {
+    if (typeof metadata.last_error === 'string') return metadata.last_error;
+    if (
+        typeof metadata.last_error === 'object' &&
+        metadata.last_error !== null &&
+        'message' in metadata.last_error &&
+        typeof metadata.last_error.message === 'string'
+    ) {
+        return metadata.last_error.message;
+    }
+
+    return null;
+};
+
+const getJobProgress = (job: C2SyncJob | null, fallbackProgress: number) => {
+    if (!job) return fallbackProgress;
+    if (job.status === 'succeeded') return 100;
+    if (job.status === 'failed' || job.status === 'canceled') return 100;
+    if (job.status === 'queued') return 8;
+
+    const counters = getJobMetadata(job).counters;
+    const pagesProcessed = counters?.pages_processed ?? 0;
+    return Math.max(15, Math.min(95, 15 + pagesProcessed * 12));
+};
+
+const formatJobStatus = (job: C2SyncJob | null, fallbackStatus: string) => {
+    if (!job) return fallbackStatus;
+
+    const metadata = getJobMetadata(job);
+    const counters = metadata.counters;
+    const pieces = [
+        `Job ${job.status}`,
+        counters?.pages_processed != null ? `${counters.pages_processed} page${counters.pages_processed === 1 ? '' : 's'}` : null,
+        counters?.summaries_seen != null ? `${counters.summaries_seen} summaries` : null,
+        counters?.workouts_processed != null ? `${counters.workouts_processed} saved` : null,
+        counters?.workouts_failed ? `${counters.workouts_failed} failed` : null,
+    ].filter(Boolean);
+
+    return pieces.join(' | ');
+};
 
 export const Sync: React.FC = () => {
     const {
@@ -31,11 +99,19 @@ export const Sync: React.FC = () => {
     });
     const [startDate, setStartDate] = useState<Date | null>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
     const [endDate, setEndDate] = useState<Date | null>(new Date());
+    const [syncJob, setSyncJob] = useState<C2SyncJob | null>(null);
+    const [startingSyncJob, setStartingSyncJob] = useState(false);
+    const [loadingLatestJob, setLoadingLatestJob] = useState(false);
+    const [runningBrowserFallback, setRunningBrowserFallback] = useState(false);
 
     // Local state for non-sync actions (Google, Maintenance)
     const [localStatus, setLocalStatus] = useState<string>('');
     const [localProgress] = useState(0);
     const [localError, setLocalError] = useState<string | null>(null);
+    const { tokensReady } = useAuth();
+
+    // CHECK CONNECTION STATUS
+    const [isConnected, setIsConnected] = useState(!!localStorage.getItem('concept2_token'));
 
     // Derived state
     // If syncing, use hook state. Otherwise use local state.
@@ -43,6 +119,12 @@ export const Sync: React.FC = () => {
     const status = syncing ? syncStatus : localStatus;
     const progress = syncing ? syncProgress : localProgress;
     const error = syncing ? syncError : localError;
+    const jobInProgress = syncJob?.status === 'queued' || syncJob?.status === 'running';
+    const syncBusy = syncing || startingSyncJob || runningBrowserFallback || jobInProgress;
+    const jobMetadata = getJobMetadata(syncJob);
+    const jobCounters = jobMetadata.counters;
+    const displayedStatus = formatJobStatus(syncJob, status);
+    const displayedProgress = getJobProgress(syncJob, progress);
 
     useEffect(() => {
         if (!syncing && syncStatus) {
@@ -56,11 +138,60 @@ export const Sync: React.FC = () => {
         }
     }, [syncing, syncError]);
 
+    useEffect(() => {
+        if (!isConnected) return;
 
-    const { tokensReady } = useAuth();
+        const loadLatestJob = async () => {
+            setLoadingLatestJob(true);
+            try {
+                const latestJob = await getLatestC2SyncJob();
+                if (latestJob) {
+                    setSyncJob(latestJob);
+                    if (latestJob.status === 'queued' || latestJob.status === 'running') {
+                        setLocalStatus(`Resumed tracking sync job ${latestJob.id}.`);
+                    } else {
+                        setLocalStatus(`Last sync job ${latestJob.status}.`);
+                    }
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Unable to load the latest sync job.';
+                setLocalError(message);
+            } finally {
+                setLoadingLatestJob(false);
+            }
+        };
 
-    // CHECK CONNECTION STATUS
-    const [isConnected, setIsConnected] = useState(!!localStorage.getItem('concept2_token'));
+        void loadLatestJob();
+    }, [isConnected]);
+
+    useEffect(() => {
+        if (!syncJob?.id || !jobInProgress) return;
+
+        const pollJob = async () => {
+            try {
+                const nextJob = await getC2SyncJob(syncJob.id);
+                setSyncJob(nextJob);
+
+                if (nextJob.status === 'succeeded') {
+                    setLocalStatus(`Sync job ${nextJob.id} completed.`);
+                    toast.success('Concept2 sync job completed.');
+                }
+
+                if (nextJob.status === 'failed') {
+                    const metadataError = getLastErrorMessage(getJobMetadata(nextJob));
+                    setLocalError(nextJob.error_message || metadataError || `Sync job ${nextJob.id} failed.`);
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Unable to refresh sync job.';
+                setLocalError(`Unable to refresh sync job ${syncJob.id}: ${message}`);
+            }
+        };
+
+        const intervalId = window.setInterval(pollJob, 5000);
+        void pollJob();
+
+        return () => window.clearInterval(intervalId);
+    }, [jobInProgress, syncJob?.id]);
 
     useEffect(() => {
         const checkConnection = () => setIsConnected(!!localStorage.getItem('concept2_token'));
@@ -109,18 +240,81 @@ export const Sync: React.FC = () => {
         initiateGoogleLogin();
     };
 
+    const formatDate = (date: Date | null) => date ? date.toISOString().split('T')[0] : null;
+
+    const getSyncRequest = () => {
+        const requestedFrom = syncRange === 'custom'
+            ? formatDate(startDate)
+            : syncRange === '30days'
+                ? formatDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+                : syncRange === 'season'
+                    ? `${new Date().getMonth() < 4 ? new Date().getFullYear() - 1 : new Date().getFullYear()}-05-01`
+                    : null;
+
+        return {
+            requestedFrom,
+            requestedTo: syncRange === 'custom' ? formatDate(endDate) : null,
+            browserOptions: {
+                range: syncRange,
+                startDate,
+                endDate,
+                forceResync,
+                machineTypes
+            },
+            metadata: {
+                range: syncRange,
+                force_resync: forceResync,
+                machine_types: machineTypes,
+            },
+        };
+    };
+
     const handleSyncToDatabase = async () => {
         // Reset local error/status before starting
         setLocalError(null);
-        // We don't set local status because hook status will take over immediately
+        setSyncJob(null);
+        setStartingSyncJob(true);
+        setLocalStatus('Starting Concept2 sync job...');
 
-        await startSync({
-            range: syncRange,
-            startDate,
-            endDate,
-            forceResync,
-            machineTypes
-        });
+        const syncRequest = getSyncRequest();
+
+        try {
+            const data = await startC2SyncJob({
+                requestedFrom: syncRequest.requestedFrom,
+                requestedTo: syncRequest.requestedTo,
+                mode: 'workout_processing',
+                metadata: syncRequest.metadata,
+            });
+
+            const nextJob = await getC2SyncJob(data.job_id);
+            setSyncJob(nextJob);
+            setLocalStatus(`Sync job ${data.job_id} started. You can leave this page and come back later.`);
+            toast.success('Concept2 sync job started.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to start Concept2 sync job.';
+            console.error('Failed to start Concept2 sync job.', err);
+            setLocalError(`${message} Use the debug fallback only if you need the old browser-bound sync path.`);
+            setLocalStatus('Background sync did not start.');
+        } finally {
+            setStartingSyncJob(false);
+        }
+    };
+
+    const handleBrowserFallbackSync = async () => {
+        if (!window.confirm('Run the old browser-bound Concept2 sync in this tab? Closing or suspending the browser can stop it.')) {
+            return;
+        }
+
+        setLocalError(null);
+        setRunningBrowserFallback(true);
+        setLocalStatus('Running browser debug sync...');
+
+        try {
+            const syncRequest = getSyncRequest();
+            await startSync(syncRequest.browserOptions);
+        } finally {
+            setRunningBrowserFallback(false);
+        }
     };
 
     return (
@@ -150,7 +344,7 @@ export const Sync: React.FC = () => {
                             {isConnected && <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full border border-emerald-500/30">Connected</span>}
                         </h2>
                         <p className="text-neutral-400 mt-1 max-w-lg">
-                            Pull your latest workouts from Concept2 (including stroke-by-stroke data) and archive them to your private database for deep analysis.
+                            Start a durable Concept2 sync job. You can leave this page and return later to see the latest job status.
                         </p>
                     </div>
                 </div>
@@ -178,15 +372,25 @@ export const Sync: React.FC = () => {
                 <div className="bg-black/40 rounded-xl p-6 border border-neutral-800/50">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-neutral-300 font-medium">Status</span>
-                        <span className="text-emerald-400 font-mono text-sm">{status}</span>
+                        <span className="text-emerald-400 font-mono text-sm">{loadingLatestJob ? 'Loading latest job...' : displayedStatus}</span>
                     </div>
 
                     {/* Progress Bar */}
                     <progress
-                        value={Math.max(0, Math.min(100, progress))}
+                        value={Math.max(0, Math.min(100, displayedProgress))}
                         max={100}
                         className="w-full h-2 rounded-full overflow-hidden [&::-webkit-progress-bar]:bg-neutral-800 [&::-webkit-progress-value]:bg-emerald-500 [&::-moz-progress-bar]:bg-emerald-500"
                     />
+                    {syncJob && (
+                        <div className="mt-3 flex flex-col gap-1 text-xs text-neutral-500">
+                            <span>Job ID: {syncJob.id}</span>
+                            {syncJob.updated_at && <span>Last updated: {new Date(syncJob.updated_at).toLocaleString()}</span>}
+                            {jobCounters?.workouts_skipped_existing != null && <span>{jobCounters.workouts_skipped_existing} existing workouts skipped</span>}
+                            {jobCounters?.workouts_skipped_filtered != null && <span>{jobCounters.workouts_skipped_filtered} workouts filtered out</span>}
+                            {jobMetadata.next_page && <span>Next queued page: {jobMetadata.next_page}</span>}
+                            {syncJob.error_message && <span className="text-red-300">{syncJob.error_message}</span>}
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-4">
@@ -273,24 +477,35 @@ export const Sync: React.FC = () => {
 
                     <button
                         onClick={handleSyncToDatabase}
-                        disabled={syncing || !isConnected}
+                        disabled={syncBusy || !isConnected}
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
                     >
-                        {syncing ? (
+                        {syncBusy ? (
                             <>
                                 <Loader2 className="animate-spin" />
-                                Syncing... {Math.round(progress)}%
+                                {startingSyncJob ? 'Starting job...' : `Syncing... ${Math.round(displayedProgress)}%`}
                             </>
                         ) : !isConnected ? (
                             'Logbook Disconnected - Reconnect Required'
                         ) : (
-                            'Start Database Sync'
+                            'Start Background Sync'
                         )}
                     </button>
 
                     <div className="flex items-center justify-center gap-2 text-xs text-neutral-500 pt-2">
                         <ShieldCheck size={14} className="text-emerald-500/80" />
-                        <span>Authenticated securely via Concept2. Tokens differ from passwords.</span>
+                        <span>Server-side sync continues after tab close or mobile browser suspension.</span>
+                    </div>
+
+                    <div className="pt-3 border-t border-neutral-800/60">
+                        <button
+                            type="button"
+                            onClick={handleBrowserFallbackSync}
+                            disabled={syncBusy || !isConnected}
+                            className="w-full py-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-900 disabled:text-neutral-600 disabled:cursor-not-allowed text-neutral-400 text-xs font-medium rounded-lg transition-all border border-neutral-800"
+                        >
+                            Debug: run legacy browser sync in this tab
+                        </button>
                     </div>
                 </div>
             </div>

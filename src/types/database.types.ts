@@ -497,6 +497,113 @@ export type Database = {
         }
         Relationships: []
       }
+      c2_sync_jobs: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          last_processed_at: string | null
+          metadata: Json
+          requested_from: string | null
+          requested_to: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          last_processed_at?: string | null
+          metadata?: Json
+          requested_from?: string | null
+          requested_to?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          last_processed_at?: string | null
+          metadata?: Json
+          requested_from?: string | null
+          requested_to?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      c2_sync_job_items: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          external_id: string
+          finished_at: string | null
+          id: string
+          job_id: string
+          metadata: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          external_id: string
+          finished_at?: string | null
+          id?: string
+          job_id: string
+          metadata?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          external_id?: string
+          finished_at?: string | null
+          id?: string
+          job_id?: string
+          metadata?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_sync_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "c2_sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coaching_access_requests: {
         Row: {
           created_at: string

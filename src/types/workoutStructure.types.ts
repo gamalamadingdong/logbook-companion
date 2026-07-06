@@ -1,106 +1,37 @@
 /**
  * Workout Structure Types
- * 
- * These types define the machine-readable workout structure that can be
- * programmed into PM5 and used by erg-link.
+ *
+ * Core RWN structure types are owned by @readyall/rwn and re-exported here.
+ * App-specific types (WorkoutTemplate, library DTOs, proposals) are defined below.
  */
 
-// Main discriminated union for workout structures
-export type WorkoutStructure =
-    | SteadyStateStructure
-    | IntervalStructure
-    | VariableStructure;
+// Import core RWN types for local use in this file
+import type {
+    WorkoutStructure,
+    SteadyStateStructure,
+    IntervalStructure,
+    VariableStructure,
+    IntervalStep,
+    RestStep,
+    WorkoutStep,
+    SessionExtension,
+    BlockType,
+} from '@readyall/rwn';
 
-export interface SessionExtension {
-    kind: 'partner' | 'relay' | 'rotate' | 'circuit';
-    switch?: string;
-    on?: string;
-    off?: string;
-    leg?: number;
-    total?: number;
-    team_size?: number;
-    order?: string;
-    off_task?: string;
-    stations?: number;
-    rounds?: number;
-    plan?: string[];
-    items?: string[];
-}
+// Re-export so existing consumers keep working
+export type {
+    WorkoutStructure,
+    SteadyStateStructure,
+    IntervalStructure,
+    VariableStructure,
+    IntervalStep,
+    RestStep,
+    WorkoutStep,
+    SessionExtension,
+    BlockType,
+};
 
-// Block type for semantic workout segments (moved before usage)
-export type BlockType = 'warmup' | 'cooldown' | 'test' | 'main';
-
-// Steady state: Just Row / Single Distance / Single Time / Single Calories
-export interface SteadyStateStructure {
-    type: 'steady_state';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
-    value: number;
-    unit: 'meters' | 'seconds' | 'calories';
-    target_rate?: number;      // Optional SPM guidance (min if range)
-    target_rate_max?: number;  // If present, target_rate is min, this is max
-    target_pace?: string;      // Optional pace guidance (min if range)
-    target_pace_max?: string;  // If present, target_pace is min, this is max
-    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
-    tags?: string[];           // Legacy inline tags (prefer blockType)
-    sessionExtension?: SessionExtension;
-    splitValue?: number;       // PM5 split resolution (meters or seconds)
-    splitUnit?: 'meters' | 'seconds';
-    subSegments?: WorkoutStep[]; // Sub-segment breakdown (e.g., 2000m[500m@r22 + 500m@r24 ...])
-}
-
-// Fixed intervals: Repeating distance/time/calories with time-based rest
-export interface IntervalStructure {
-    type: 'interval';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
-    repeats: number;
-    work: IntervalStep;
-    rest: RestStep; // Rest is always time on PM5
-    tags?: string[];
-    sessionExtension?: SessionExtension;
-}
-
-// Variable intervals: Complex/mixed patterns (pyramids, ladders, etc.)
-export interface VariableStructure {
-    type: 'variable';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
-    steps: WorkoutStep[];
-    tags?: string[];
-    sessionExtension?: SessionExtension;
-}
-
-// Step within a fixed interval (work duration)
-export interface IntervalStep {
-    type: 'distance' | 'time' | 'calories'; // PM5 supports all three for work
-    value: number; // meters for distance, seconds for time, cals for calories
-    target_rate?: number;      // Optional SPM guidance (min if range)
-    target_rate_max?: number;  // If present, target_rate is min, this is max
-    target_pace?: string;      // Optional pace guidance (min if range)
-    target_pace_max?: string;  // If present, target_pace is min, this is max
-    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
-    tags?: string[];           // Legacy inline tags (prefer blockType)
-}
-
-// Rest step (PM5 only supports time-based rest)
-export interface RestStep {
-    type: 'time'; // Rest is always time on PM5
-    value: number; // seconds
-}
-
-// Individual step in a variable workout
-export interface WorkoutStep {
-    type: 'work' | 'rest';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
-    duration_type: 'distance' | 'time' | 'calories'; // Work can be any; rest should be 'time'
-    value: number; // meters for distance, seconds for time, cals for calories
-    target_rate?: number;      // Optional SPM guidance (min if range)
-    target_rate_max?: number;  // If present, target_rate is min, this is max
-    target_pace?: string;      // Optional pace guidance (min if range)
-    target_pace_max?: string;  // If present, target_pace is min, this is max
-    blockType?: BlockType;     // Semantic block type (warmup, cooldown, test, main)
-    tags?: string[];           // Legacy inline tags (prefer blockType)
-}
-
-// Helper type for workout template from database
+// ── App-Specific Types (not part of the RWN package) ──────────────────────
 export interface WorkoutTemplate {
     id: string;
     name: string;
