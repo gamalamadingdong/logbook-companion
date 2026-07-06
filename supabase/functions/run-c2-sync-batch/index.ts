@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const CONCEPT2_API_BASE_URL = 'https://log.concept2.com/api';
+const CONCEPT2_API_BASE_URL = 'https://log.concept2.com/api/';
 const CONCEPT2_TOKEN_URL = 'https://log.concept2.com/oauth/access_token';
 const DEFAULT_PAGE_LIMIT = 3;
 const DEFAULT_TIME_BUDGET_MS = 20_000;
@@ -188,7 +188,7 @@ function getMachineTypes(metadata: Record<string, unknown>) {
 }
 
 function buildResultsUrl(job: C2SyncJob, page: number) {
-  const url = new URL('/users/me/results', CONCEPT2_API_BASE_URL);
+  const url = new URL(`users/me/results`, CONCEPT2_API_BASE_URL);
   url.searchParams.set('page', String(page));
 
   if (job.requested_from) {
@@ -203,11 +203,11 @@ function buildResultsUrl(job: C2SyncJob, page: number) {
 }
 
 function buildResultDetailUrl(resultId: number) {
-  return new URL(`/users/me/results/${resultId}`, CONCEPT2_API_BASE_URL).toString();
+  return new URL(`users/me/results/${resultId}`, CONCEPT2_API_BASE_URL).toString();
 }
 
 function buildStrokesUrl(resultId: number) {
-  return new URL(`/users/me/results/${resultId}/strokes`, CONCEPT2_API_BASE_URL).toString();
+  return new URL(`users/me/results/${resultId}/strokes`, CONCEPT2_API_BASE_URL).toString();
 }
 
 async function fetchConcept2Json(token: string, url: string, allowNotFound = false) {
@@ -1016,11 +1016,18 @@ Deno.serve(async (req: Request) => {
         const response = await fetch(buildResultsUrl(job, nextPage), {
           headers: {
             Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
+            Accept: 'application/vnd.c2logbook.v1+json',
           },
         });
 
         if (!response.ok) {
+          const details = await response.text().catch(() => '');
+          console.error('[run-c2-sync-batch] Summary page request failed', {
+            url: buildResultsUrl(job, nextPage),
+            status: response.status,
+            body: details.slice(0, 500),
+            page: nextPage,
+          });
           throw new Error(`Concept2 summary page ${nextPage} failed with HTTP ${response.status}.`);
         }
 
