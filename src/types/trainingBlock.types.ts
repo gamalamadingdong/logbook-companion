@@ -156,8 +156,10 @@ export interface TrainingBlockActualLogEvent {
     planned_week_number?: number;
     planned_day_slot?: number;
     planned_day_key?: string;
+    planned_session_key?: string | null;
     distance_meters?: number | null;
     duration_seconds?: number | null;
+    avg_split_500m?: number | null;
     perceived_exertion?: number | null;
     workout_name?: string | null;
     canonical_name?: string | null;
@@ -189,6 +191,9 @@ export interface TrainingBlockWeekSummary {
     planned_distance_meters: number;
     target_distance_meters: number;
     actual_distance_meters: number;
+    logged_session_count: number;
+    completed_day_count: number;
+    planned_session_count: number;
     target_coverage_ratio: number;
     delta_to_target_meters: number;
     key_session_credits: {

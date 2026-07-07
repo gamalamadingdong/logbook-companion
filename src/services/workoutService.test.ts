@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildManualWorkoutLogInsert, buildWorkoutNameUpdates } from './workoutService';
+import { buildManualWorkoutLogInsert, buildManualWorkoutLogUpdate, buildWorkoutNameUpdates } from './workoutService';
 
 describe('buildWorkoutNameUpdates', () => {
     it('normalizes a manual RWN override into canonical matching metadata', () => {
@@ -36,9 +36,11 @@ describe('buildManualWorkoutLogInsert', () => {
             manualRWN: '  8x500m/3:30r  ',
             distanceMeters: 4000,
             durationSeconds: 1800,
+            avgSplit500m: 225,
             perceivedExertion: 7,
             plannedWeekNumber: 1,
             plannedDaySlot: 0,
+            plannedSessionKey: 'mon_8x500-primary',
         });
 
         expect(insert).toMatchObject({
@@ -53,14 +55,51 @@ describe('buildManualWorkoutLogInsert', () => {
             distance_meters: 4000,
             duration_seconds: 1800,
             duration_minutes: 30,
+            avg_split_500m: 225,
             perceived_exertion: 7,
-            notes: '[tb:slot:0]',
+            notes: '[tb:slot:0] [tb:session:mon_8x500-primary]',
         });
         expect(insert.raw_data).toMatchObject({
             source: 'training_block_manual_entry',
             mode: 'row',
             planned_week_number: 1,
             planned_day_slot: 0,
+            planned_session_key: 'mon_8x500-primary',
+            avg_split_500m: 225,
+        });
+    });
+
+
+    it('builds editable manual workout updates without changing ownership fields', () => {
+        const update = buildManualWorkoutLogUpdate({
+            userId: 'user-1',
+            completedAt: '2026-07-06T17:30:00.000Z',
+            mode: 'row',
+            manualRWN: '8x500m/3:30r',
+            distanceMeters: 4100,
+            durationSeconds: 1810,
+            avgSplit500m: 220.7,
+            perceivedExertion: 8,
+            notes: 'Edited after review',
+            plannedWeekNumber: 1,
+            plannedDaySlot: 0,
+            plannedSessionKey: 'mon_8x500-primary',
+        });
+
+        expect(update).toMatchObject({
+            completed_at: '2026-07-06T17:30:00.000Z',
+            source: 'manual',
+            workout_type: 'row',
+            distance_meters: 4100,
+            duration_seconds: 1810,
+            avg_split_500m: 220.7,
+            perceived_exertion: 8,
+            notes: 'Edited after review [tb:slot:0] [tb:session:mon_8x500-primary]',
+        });
+        expect(update).not.toHaveProperty('user_id');
+        expect(update.raw_data).toMatchObject({
+            planned_session_key: 'mon_8x500-primary',
+            avg_split_500m: 220.7,
         });
     });
 
@@ -99,11 +138,13 @@ describe('buildManualWorkoutLogInsert', () => {
             notes: 'Strength (push) complete',
             plannedWeekNumber: 1,
             plannedDaySlot: 2,
+            plannedSessionKey: 'wed_strength_push-support',
             trainingBlockQuickCompletionKey: 'strength-push',
         });
 
-        expect(insert.notes).toBe('Strength (push) complete [tb:slot:2] [tb:strength:completed] [tb:quick:strength-push]');
+        expect(insert.notes).toBe('Strength (push) complete [tb:slot:2] [tb:session:wed_strength_push-support] [tb:strength:completed] [tb:quick:strength-push]');
         expect(insert.raw_data).toMatchObject({
+            planned_session_key: 'wed_strength_push-support',
             training_block_quick_completion_key: 'strength-push',
         });
     });

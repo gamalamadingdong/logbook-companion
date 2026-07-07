@@ -214,6 +214,7 @@ describe('trainingBlockService builders', () => {
             key_session_credit: 'no',
             strength_status: 'completed',
             planned_day_slot: 0,
+            planned_session_key: 'mon-primary',
         } as TrainingBlockLogReviewRow;
 
         expect(reviewRowToOverride(row)).toEqual({
@@ -221,6 +222,7 @@ describe('trainingBlockService builders', () => {
             key_session_credit: 'no',
             strength_status: 'completed',
             planned_day_slot: 0,
+            planned_session_key: 'mon-primary',
         });
     });
 });

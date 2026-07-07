@@ -169,4 +169,50 @@ describe('trainingBlockCalculations', () => {
         expect(summary.status).toBe('as_written');
         expect(summary.key_session_credit).toBe('yes');
     });
+
+    it('pins manually assigned logs to the selected planned session and ignores does-not-count logs', () => {
+        const plan = buildRowing12WeekPlan();
+        const monday = plan.days[0];
+        const tuesday = plan.days[1];
+        const logs: TrainingBlockActualLogEvent[] = [
+            {
+                workout_id: 'manual-pin-to-tuesday',
+                date: monday.date,
+                source: 'concept2',
+                canonical_name: '8x500m/3:30r',
+                workout_name: 'Intervals',
+                workout_type: 'FixedDistanceInterval',
+                distance_meters: 4000,
+                planned_session_key: tuesday.sessions[0].id,
+            },
+            {
+                workout_id: 'ignored-exact-monday',
+                date: monday.date,
+                source: 'concept2',
+                canonical_name: '8x500m/3:30r',
+                workout_name: 'Ignored intervals',
+                workout_type: 'FixedDistanceInterval',
+                distance_meters: 4000,
+                status: 'skipped',
+            },
+        ];
+
+        const aligned = alignLogsToPlanDays(plan, logs, 'slot');
+        expect(aligned.get(`${monday.week_number}:${monday.day_slot}`)).toBeUndefined();
+        expect(aligned.get(`${tuesday.week_number}:${tuesday.day_slot}`)?.map((log) => log.workout_id)).toEqual(['manual-pin-to-tuesday']);
+
+        const weekSummary = summarizeWeekProgress(plan, logs).find((summary) => summary.week_number === monday.week_number);
+        const mondaySummary = weekSummary?.day_summaries.find((summary) => summary.date === monday.date);
+        const tuesdaySummary = weekSummary?.day_summaries.find((summary) => summary.date === tuesday.date);
+        expect(mondaySummary?.actual_distance_meters).toBe(0);
+        expect(tuesdaySummary?.actual_distance_meters).toBe(4000);
+        expect(weekSummary?.actual_distance_meters).toBe(4000);
+        expect(weekSummary?.logged_session_count).toBe(1);
+        expect(weekSummary?.completed_day_count).toBe(1);
+        expect(weekSummary?.planned_session_count).toBeGreaterThan(0);
+        const ignoredOnlySummary = summarizeDayProgress(monday, [logs[1]]);
+        expect(ignoredOnlySummary.actual_distance_meters).toBe(0);
+        expect(ignoredOnlySummary.logged_session_count).toBe(0);
+    });
+
 });

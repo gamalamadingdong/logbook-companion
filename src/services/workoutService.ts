@@ -6,6 +6,7 @@ import type { Database, Json } from '../types/database.types';
 
 type WorkoutLogRow = Database['public']['Tables']['workout_logs']['Row'];
 type WorkoutLogInsert = Database['public']['Tables']['workout_logs']['Insert'];
+type WorkoutLogUpdate = Database['public']['Tables']['workout_logs']['Update'];
 
 export type ManualWorkoutLogMode = 'row' | 'cross_training' | 'strength' | 'support';
 
@@ -16,10 +17,12 @@ export interface ManualWorkoutLogInput {
     manualRWN?: string | null;
     distanceMeters?: number | null;
     durationSeconds?: number | null;
+    avgSplit500m?: number | null;
     perceivedExertion?: number | null;
     notes?: string | null;
     plannedWeekNumber?: number | null;
     plannedDaySlot?: number | null;
+    plannedSessionKey?: string | null;
     trainingBlockQuickCompletionKey?: string | null;
 }
 
@@ -92,6 +95,9 @@ function buildManualNotes(input: ManualWorkoutLogInput): string | null {
     if (input.plannedDaySlot === 0 || input.plannedDaySlot) {
         markers.push(`[tb:slot:${input.plannedDaySlot}]`);
     }
+    if (input.plannedSessionKey) {
+        markers.push(`[tb:session:${input.plannedSessionKey}]`);
+    }
     if (input.mode === 'strength') {
         markers.push('[tb:strength:completed]');
     }
@@ -102,12 +108,13 @@ function buildManualNotes(input: ManualWorkoutLogInput): string | null {
     return [notes, ...markers].filter(Boolean).join(' ') || null;
 }
 
-export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): WorkoutLogInsert {
+function buildManualWorkoutLogPayload(input: ManualWorkoutLogInput): WorkoutLogInsert {
     const supportsDistance = input.mode === 'row' || input.mode === 'cross_training';
     const supportsRWN = input.mode === 'row' || input.mode === 'cross_training';
     const manualRWN = supportsRWN ? trimToNull(input.manualRWN) : null;
     const canonicalName = deriveCanonicalNameFromRWN(manualRWN);
     const durationSeconds = finitePositiveNumber(input.durationSeconds);
+    const avgSplit500m = input.mode === 'row' ? finitePositiveNumber(input.avgSplit500m) : null;
     const distanceMeters = supportsDistance ? finitePositiveNumber(input.distanceMeters) : null;
     const perceivedExertion = finitePositiveNumber(input.perceivedExertion);
     const modeLabel = manualModeLabel(input.mode);
@@ -124,6 +131,7 @@ export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): Worko
         distance_meters: distanceMeters,
         duration_seconds: durationSeconds,
         duration_minutes: durationSeconds ? durationSeconds / 60 : null,
+        avg_split_500m: avgSplit500m,
         perceived_exertion: perceivedExertion,
         notes: buildManualNotes(input),
         raw_data: {
@@ -131,12 +139,39 @@ export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): Worko
             mode: input.mode,
             planned_week_number: input.plannedWeekNumber ?? null,
             planned_day_slot: input.plannedDaySlot ?? null,
+            planned_session_key: input.plannedSessionKey ?? null,
+            avg_split_500m: avgSplit500m,
             training_block_quick_completion_key: input.trainingBlockQuickCompletionKey ?? null,
         },
     };
 }
 
+export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): WorkoutLogInsert {
+    return buildManualWorkoutLogPayload(input);
+}
 
+export function buildManualWorkoutLogUpdate(input: ManualWorkoutLogInput): WorkoutLogUpdate {
+    const payload = buildManualWorkoutLogPayload(input);
+    const { user_id: _userId, created_at: _createdAt, id: _id, ...updates } = payload;
+    return updates;
+}
+
+
+
+export async function updateManualWorkoutLog(workoutId: string, input: ManualWorkoutLogInput): Promise<WorkoutLogRow> {
+    const payload = buildManualWorkoutLogUpdate(input);
+    const { data, error } = await supabase
+        .from('workout_logs')
+        .update(payload)
+        .eq('id', workoutId)
+        .eq('user_id', input.userId)
+        .eq('source', 'manual')
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data as WorkoutLogRow;
+}
 
 export async function deleteManualWorkoutLog(workoutId: string, userId: string): Promise<void> {
     const { error } = await supabase
@@ -188,6 +223,7 @@ export const workoutService = {
         return data as WorkoutLogRow;
     },
 
+    updateManualWorkoutLog,
     deleteManualWorkoutLog,
 
     // Fetch recent workouts list (Dashboard)

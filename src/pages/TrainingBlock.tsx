@@ -25,6 +25,11 @@ import {
     type TrainingBlockPlanOptionId,
 } from '../utils/trainingBlockStatus';
 import {
+    validateTrainingBlockTemplate,
+    type TrainingBlockLinkedWorkoutTemplate,
+    type TrainingBlockTemplateHealth,
+} from '../utils/trainingBlockTemplateValidation';
+import {
     getAthletes,
     getGroupAssignments,
     type GroupAssignment,
@@ -44,12 +49,13 @@ import type { Database } from '../types/database.types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useScopedTeamScope } from '../hooks/useScopedTeamScope';
-import { formatSplit } from '../utils/paceCalculator';
+import { formatSplit, parsePaceToSeconds } from '../utils/paceCalculator';
 import { workoutService, type ManualWorkoutLogMode } from '../services/workoutService';
 import {
     deleteTrainingBlockLogReview,
     ensureTrainingBlockEnrollment,
     getTrainingBlockEnrollment,
+    getTrainingBlockLinkedWorkoutTemplates,
     getTrainingBlockLogReviews,
     getTrainingBlockPlanFromDatabase,
     reviewRowToOverride,
@@ -65,6 +71,7 @@ type TrainingBlockWorkoutLogRow = Pick<
     | 'completed_at'
     | 'distance_meters'
     | 'duration_seconds'
+    | 'avg_split_500m'
     | 'perceived_exertion'
     | 'source'
     | 'workout_name'
@@ -75,10 +82,10 @@ type TrainingBlockWorkoutLogRow = Pick<
     | 'workout_type'
     | 'user_id'
 >;
-type WorkoutLogOverride = Pick<
+type WorkoutLogOverride = Partial<Pick<
     TrainingBlockActualLogEvent,
-    'status' | 'key_session_credit' | 'strength_status' | 'planned_day_slot'
->;
+    'status' | 'key_session_credit' | 'strength_status' | 'planned_day_slot' | 'planned_session_key'
+>>;
 type TeamAthleteOption = {
     userId: string;
     name: string;
@@ -113,8 +120,9 @@ type ManualEntryFormState = {
     completedDate: string;
     completedTime: string;
     manualRWN: string;
-    distanceKm: string;
+    distanceMetersInput: string;
     durationMinutes: string;
+    avgSplit: string;
     perceivedExertion: string;
     notes: string;
     rowingOptIn: boolean;
@@ -124,12 +132,20 @@ interface DayLogEvent extends TrainingBlockActualLogEvent {
     workout_name: string;
     workout_type: string;
     rawDateLabel: string;
+    rawCompletedAt: string;
     user_id: string;
     athlete_name?: string;
 }
 
 const TRAINING_BLOCK_OVERRIDE_STORAGE_KEY = 'training_block_log_review_overrides_v1';
+
+const reviewSurfaceClass = 'rounded-lg border border-border bg-surface-card p-3 text-sm shadow-sm';
+const reviewControlSurfaceClass = 'mt-3 rounded-lg border border-border bg-surface-secondary p-3';
+const matchedCompletionClass = 'mt-3 space-y-2 rounded-lg border border-emerald-500/50 border-l-4 border-l-emerald-400 bg-surface-secondary p-3 shadow-sm';
+const fieldClass = 'mt-1 h-9 w-full rounded-md border border-border bg-surface-card px-2 text-xs text-content-primary outline-none focus:border-blue-400/70 disabled:cursor-not-allowed disabled:opacity-60';
+const manualFieldClass = 'mt-1 w-full rounded-md border border-border bg-surface-card px-2 py-2 text-xs text-content-primary outline-none focus:border-blue-400/70';
 const AUTO_OVERRIDE_VALUE = 'AUTO_OVERRIDE';
+const DOES_NOT_COUNT_VALUE = 'DOES_NOT_COUNT';
 
 const overrideStatusOptions: Array<{
     value: TrainingBlockWorkoutStatus;
@@ -191,8 +207,9 @@ function emptyManualEntryForm(date: string, mode: ManualWorkoutLogMode, rwn = ''
         completedDate: date,
         completedTime: '12:00',
         manualRWN: rwn,
-        distanceKm: '',
+        distanceMetersInput: '',
         durationMinutes: '',
+        avgSplit: '',
         perceivedExertion: '',
         notes: '',
         rowingOptIn: false,
@@ -257,6 +274,12 @@ function formatDistanceMeters(value: number | null | undefined): string {
     return `${Math.round(value)} m`;
 }
 
+function formatSignedDistanceMeters(value: number | null | undefined): string {
+    if (!value) return '0m';
+    const sign = value > 0 ? '+' : '-';
+    return `${sign}${formatDistanceMeters(Math.abs(value))}`;
+}
+
 function formatDuration(seconds: number | null | undefined): string {
     if (!seconds || seconds <= 0) return '-';
     const rounded = Math.round(seconds);
@@ -279,6 +302,12 @@ function parseOptionalPositiveNumber(value: string): number | null {
 function formatInputDateTime(date: string, time: string): string {
     const safeTime = /^\d{2}:\d{2}$/.test(time) ? time : '12:00';
     return new Date(`${date}T${safeTime}:00`).toISOString();
+}
+
+function formatInputTime(value: string): string {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '12:00';
+    return `${parsed.getHours().toString().padStart(2, '0')}:${parsed.getMinutes().toString().padStart(2, '0')}`;
 }
 
 
@@ -338,7 +367,7 @@ function parseLogMarkerOverrides(notes: string | null | undefined): WorkoutLogOv
 
     const override: WorkoutLogOverride = {};
 
-    const markerRegex = /\[tb:(status|key|strength|day|slot):\s*([a-z0-9_\/-]+)\]/gi;
+    const markerRegex = /\[tb:(status|key|strength|day|slot|session):\s*([a-z0-9_\/-]+)\]/gi;
     const matches = [...notes.matchAll(markerRegex)];
 
     const statusMap: Record<string, TrainingBlockWorkoutStatus> = {
@@ -412,6 +441,9 @@ function parseLogMarkerOverrides(notes: string | null | undefined): WorkoutLogOv
                 override.planned_day_slot = daySlotAlias[value];
             }
         }
+        if (field === 'session') {
+            override.planned_session_key = value;
+        }
     }
 
     return override;
@@ -454,6 +486,11 @@ const statusTone: Record<TrainingBlockWorkoutStatus, {
     swapped: { variant: 'info', dot: true },
     partial: { variant: 'warning', dot: true },
     skipped: { variant: 'danger', dot: true },
+};
+
+const templateHealthIssueTone: Record<TrainingBlockTemplateHealth['issues'][number]['severity'], string> = {
+    error: 'border-red-500/30 bg-red-950/20 text-red-200',
+    warning: 'border-amber-500/30 bg-amber-950/20 text-amber-200',
 };
 
 const sourceLabel: Record<TrainingBlockSessionSource, string> = {
@@ -506,6 +543,7 @@ function mapLogs(logs: TrainingBlockWorkoutLogRow[], athleteNameByUserId: Map<st
             source,
             distance_meters: log.distance_meters ?? undefined,
             duration_seconds: log.duration_seconds ?? undefined,
+            avg_split_500m: log.avg_split_500m ?? undefined,
             perceived_exertion: log.perceived_exertion ?? undefined,
             notes: log.notes,
             workout_name: workoutName,
@@ -514,6 +552,7 @@ function mapLogs(logs: TrainingBlockWorkoutLogRow[], athleteNameByUserId: Map<st
             template_id: log.template_id,
             workout_type: log.workout_type || workoutType,
             rawDateLabel: localDateString(log.completed_at),
+            rawCompletedAt: log.completed_at,
             athlete_name: athleteName,
             ...markerOverrides,
         };
@@ -550,8 +589,10 @@ export const TrainingBlock: React.FC = () => {
     const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>([]);
     const [assignmentsLoading, setAssignmentsLoading] = useState(false);
     const [plan, setPlan] = useState(STATIC_TRAINING_BLOCK_PLAN);
+    const [planSource, setPlanSource] = useState<'database' | 'static'>('static');
     const [selectedDate, setSelectedDate] = useState(getDefaultPlanDate(STATIC_TRAINING_BLOCK_PLAN));
     const [manualEntryOpen, setManualEntryOpen] = useState(false);
+    const [editingManualLogId, setEditingManualLogId] = useState<string | null>(null);
     const [manualEntryForm, setManualEntryForm] = useState<ManualEntryFormState>(() => emptyManualEntryForm(getDefaultPlanDate(STATIC_TRAINING_BLOCK_PLAN), 'cross_training'));
     const [manualEntrySaving, setManualEntrySaving] = useState(false);
     const [manualEntryError, setManualEntryError] = useState<string | null>(null);
@@ -559,6 +600,8 @@ export const TrainingBlock: React.FC = () => {
     const [isTrainingBlockActive, setTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
     const [selectedTemplateId, setSelectedTemplateId] = useState<TrainingBlockPlanOptionId>(() => readSelectedTrainingBlockTemplate());
     const [trainingBlockEnrollment, setTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
+    const [linkedWorkoutTemplatesById, setLinkedWorkoutTemplatesById] = useState<Map<string, TrainingBlockLinkedWorkoutTemplate>>(new Map());
+    const [linkedWorkoutTemplatesLoaded, setLinkedWorkoutTemplatesLoaded] = useState(false);
     const [reviewPersistenceMode, setReviewPersistenceMode] = useState<'loading' | 'database' | 'local'>('loading');
 
     useEffect(() => {
@@ -582,6 +625,7 @@ export const TrainingBlock: React.FC = () => {
                 if (cancelled) return;
 
                 setPlan(persistedPlan ?? fallbackPlan);
+                setPlanSource(persistedPlan ? 'database' : 'static');
                 setTrainingBlockEnrollment(null);
                 setLogOverrides({});
                 setReviewPersistenceMode('local');
@@ -607,6 +651,7 @@ export const TrainingBlock: React.FC = () => {
                 if (cancelled) return;
 
                 setPlan(resolvedPlan);
+                setPlanSource(persistedPlan ? 'database' : 'static');
                 setTrainingBlockEnrollment(enrollment);
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
@@ -623,6 +668,7 @@ export const TrainingBlock: React.FC = () => {
                 if (cancelled) return;
 
                 setPlan(fallbackPlan);
+                setPlanSource('static');
                 setTrainingBlockEnrollment(null);
                 setReviewPersistenceMode('local');
 
@@ -654,6 +700,42 @@ export const TrainingBlock: React.FC = () => {
         if (plan.days.some((day) => day.date === selectedDate)) return;
         setSelectedDate(getDefaultPlanDate(plan));
     }, [plan, selectedDate]);
+
+
+    useEffect(() => {
+        let cancelled = false;
+        const templateIds = [...new Set(plan.days.flatMap((day) =>
+            day.sessions.map((session) => session.workout_template_id).filter((id): id is string => Boolean(id)),
+        ))];
+
+        setLinkedWorkoutTemplatesLoaded(false);
+        if (templateIds.length === 0) {
+            setLinkedWorkoutTemplatesById(new Map());
+            setLinkedWorkoutTemplatesLoaded(true);
+            return;
+        }
+
+        void getTrainingBlockLinkedWorkoutTemplates(templateIds)
+            .then((templates) => {
+                if (cancelled) return;
+                setLinkedWorkoutTemplatesById(templates);
+            })
+            .catch((error) => {
+                console.error('Failed to load linked training block workout templates', error);
+                if (!cancelled) {
+                    setLinkedWorkoutTemplatesById(new Map());
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLinkedWorkoutTemplatesLoaded(true);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [plan]);
 
 
     useEffect(() => {
@@ -702,6 +784,7 @@ export const TrainingBlock: React.FC = () => {
             userId: user.id,
             workoutLogId: workoutId,
             plannedDaySlot: next.planned_day_slot ?? null,
+            plannedSessionKey: next.planned_session_key ?? null,
             status: next.status ?? null,
             keySessionCredit: next.key_session_credit ?? null,
             strengthStatus: next.strength_status ?? null,
@@ -767,7 +850,7 @@ export const TrainingBlock: React.FC = () => {
 
                     const { data, error: fetchError } = await supabase
                         .from('workout_logs')
-                        .select('id, completed_at, distance_meters, duration_seconds, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
+                        .select('id, completed_at, distance_meters, duration_seconds, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
                         .in('user_id', teamUserIds)
                         .gte('completed_at', planWindowStart)
                         .lte('completed_at', planWindowEnd)
@@ -790,7 +873,7 @@ export const TrainingBlock: React.FC = () => {
 
                 const { data, error: fetchError } = await supabase
                     .from('workout_logs')
-                    .select('id, completed_at, distance_meters, duration_seconds, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
+                    .select('id, completed_at, distance_meters, duration_seconds, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
                     .eq('user_id', user.id)
                     .gte('completed_at', planWindowStart)
                     .lte('completed_at', planWindowEnd)
@@ -869,10 +952,41 @@ export const TrainingBlock: React.FC = () => {
     const selectedWeekSummary = planLogSummaries.find((weekSummary) => weekSummary.week_number === selectedDay.week_number);
     const selectedDaySummary = daySummariesByDate.get(selectedDay.date) ?? summarizeDayProgress(selectedDay, []);
     const selectedWeekDays = plan.days.filter((entry) => entry.week_number === selectedDay.week_number);
+    const selectedWeekSessionOptions = selectedWeekDays.flatMap((day) => day.sessions.map((session) => ({ day, session })));
     const selectedWeekStart = selectedWeekDays[0]?.date ?? selectedDay.date;
     const selectedWeekEnd = selectedWeekDays[selectedWeekDays.length - 1]?.date ?? selectedDay.date;
     const selectedDayKey = `${selectedDay.week_number}:${selectedDay.day_slot}`;
     const selectedDayLogs = (alignedLogsByDay.get(selectedDayKey) ?? []) as DayLogEvent[];
+    const selectedDayLogMatches = useMemo(() => selectedDayLogs.map((log) => ({
+        log,
+        match: scoreLogAgainstPlanDay(selectedDay, log),
+    })), [selectedDay, selectedDayLogs]);
+    const matchedLogsBySessionId = useMemo(() => {
+        const bySession = new Map<string, Array<{ log: DayLogEvent; match: ReturnType<typeof scoreLogAgainstPlanDay> }>>();
+        selectedDayLogMatches.forEach((entry) => {
+            if (entry.log.status === 'skipped') return;
+            if (!entry.match.planned_session_id) return;
+            if (entry.match.relationship !== 'satisfies' && entry.match.relationship !== 'support_only') return;
+
+            const existing = bySession.get(entry.match.planned_session_id);
+            if (existing) {
+                existing.push(entry);
+            } else {
+                bySession.set(entry.match.planned_session_id, [entry]);
+            }
+        });
+        return bySession;
+    }, [selectedDayLogMatches]);
+    const supportPrepLogMatches = selectedDayLogMatches.filter(({ log, match }) => {
+        if (log.status === 'skipped') return false;
+        if (match.planned_session_id) return false;
+        return log.notes?.toLowerCase().includes('[tb:quick:support-prep]') ?? false;
+    });
+    const selectedDayReviewLogEntries = selectedDayLogMatches.filter(({ log, match }) => {
+        if (log.status === 'skipped') return true;
+        if (!match.planned_session_id) return true;
+        return match.relationship !== 'satisfies' && match.relationship !== 'support_only';
+    });
     const selectedWeekLogs = selectedWeekDays.flatMap((entry) => (alignedLogsByDay.get(`${entry.week_number}:${entry.day_slot}`) ?? []) as DayLogEvent[]);
     const selectedReference = selectedDay.reference;
     const defaultManualSession = selectedDay.sessions.find((session) => session.source === 'cross_training')
@@ -884,6 +998,10 @@ export const TrainingBlock: React.FC = () => {
         : 'support';
     const defaultManualRWN = defaultManualSession?.planned_rwn ?? '';
     const selectedPlanOption = TRAINING_BLOCK_PLAN_OPTIONS.find((option) => option.id === selectedTemplateId) ?? TRAINING_BLOCK_PLAN_OPTIONS[0];
+    const templateHealth = useMemo(() => validateTrainingBlockTemplate(plan, {
+        source: planSource,
+        linkedWorkoutTemplatesById,
+    }), [linkedWorkoutTemplatesById, plan, planSource]);
     const canCreateManualEntry = isTrainingBlockActive && (!isTeamContext || selectedAthleteUserId === user?.id);
     const manualEntryUsesRWN = manualEntryForm.mode === 'row' || manualEntryForm.mode === 'cross_training';
     const manualEntryUsesDistance = manualEntryForm.mode === 'row' || manualEntryForm.mode === 'cross_training';
@@ -900,7 +1018,36 @@ export const TrainingBlock: React.FC = () => {
     const openManualEntry = () => {
         if (!canCreateManualEntry) return;
         setManualEntryError(null);
+        setEditingManualLogId(null);
         setManualEntryForm(emptyManualEntryForm(selectedDay.date, defaultManualMode, defaultManualRWN, defaultManualSession?.id ?? ''));
+        setManualEntryOpen(true);
+    };
+
+    const closeManualEntry = () => {
+        setManualEntryOpen(false);
+        setEditingManualLogId(null);
+        setManualEntryError(null);
+    };
+
+    const openManualLogEdit = (log: DayLogEvent) => {
+        if (!canCreateManualEntry || log.source !== 'manual' || log.user_id !== user?.id || isTrainingBlockQuickLog(log)) return;
+        setManualEntryError(null);
+        setEditingManualLogId(log.workout_id);
+        setManualEntryForm({
+            mode: (log.workout_type === 'row' || log.workout_type === 'cross_training' || log.workout_type === 'strength' || log.workout_type === 'support')
+                ? log.workout_type
+                : 'support',
+            plannedSessionId: log.planned_session_key ?? '',
+            completedDate: log.date,
+            completedTime: formatInputTime(log.rawCompletedAt),
+            manualRWN: log.manual_rwn ?? '',
+            distanceMetersInput: log.distance_meters ? String(Math.round(log.distance_meters)) : '',
+            durationMinutes: log.duration_seconds ? String(Math.round((log.duration_seconds / 60) * 10) / 10) : '',
+            avgSplit: log.avg_split_500m ? formatSplit(log.avg_split_500m) : '',
+            perceivedExertion: log.perceived_exertion ? String(log.perceived_exertion) : '',
+            notes: log.notes?.replace(/\s*\[tb:[^\]]+\]/g, '').trim() ?? '',
+            rowingOptIn: log.workout_type === 'row',
+        });
         setManualEntryOpen(true);
     };
 
@@ -908,7 +1055,7 @@ export const TrainingBlock: React.FC = () => {
         setTrainingBlockActive(value);
         writeTrainingBlockActive(value);
         if (!value) {
-            setManualEntryOpen(false);
+            closeManualEntry();
         }
 
         if (!user?.id) return;
@@ -947,7 +1094,8 @@ export const TrainingBlock: React.FC = () => {
             mode,
             plannedSessionId: '',
             manualRWN: modeUsesRWN ? (prev.manualRWN.trim() ? prev.manualRWN : defaultRWNForManualMode(mode)) : '',
-            distanceKm: modeUsesDistance ? prev.distanceKm : '',
+            distanceMetersInput: modeUsesDistance ? prev.distanceMetersInput : '',
+            avgSplit: mode === 'row' ? prev.avgSplit : '',
             rowingOptIn: mode === 'row' ? prev.rowingOptIn : false,
         }));
     };
@@ -966,7 +1114,8 @@ export const TrainingBlock: React.FC = () => {
             plannedSessionId: session.id,
             mode,
             manualRWN: session.planned_rwn ?? defaultRWNForManualMode(mode),
-            distanceKm: modeUsesDistance ? prev.distanceKm : '',
+            distanceMetersInput: modeUsesDistance ? prev.distanceMetersInput : '',
+            avgSplit: mode === 'row' ? prev.avgSplit : '',
             rowingOptIn: mode === 'row' ? prev.rowingOptIn : false,
         }));
     };
@@ -987,34 +1136,51 @@ export const TrainingBlock: React.FC = () => {
             return;
         }
 
-        const distanceKm = manualEntryUsesDistance ? parseOptionalPositiveNumber(manualEntryForm.distanceKm) : null;
+        const distanceMetersInput = manualEntryUsesDistance ? parseOptionalPositiveNumber(manualEntryForm.distanceMetersInput) : null;
         const durationMinutes = parseOptionalPositiveNumber(manualEntryForm.durationMinutes);
+        const avgSplitSeconds = manualEntryForm.mode === 'row' ? parsePaceToSeconds(manualEntryForm.avgSplit) : null;
         const perceivedExertion = parseOptionalPositiveNumber(manualEntryForm.perceivedExertion);
+        const distanceMeters = distanceMetersInput ? Math.round(distanceMetersInput) : null;
+        const durationSeconds = durationMinutes
+            ? Math.round(durationMinutes * 60)
+            : distanceMeters && avgSplitSeconds
+                ? Math.round((distanceMeters / 500) * avgSplitSeconds)
+                : null;
+        const avgSplit500m = avgSplitSeconds
+            ?? (manualEntryForm.mode === 'row' && distanceMeters && durationSeconds
+                ? durationSeconds / (distanceMeters / 500)
+                : null);
 
         setManualEntrySaving(true);
         setManualEntryError(null);
 
         try {
-            const inserted = await workoutService.createManualWorkoutLog({
+            const payload = {
                 userId: user.id,
                 completedAt: formatInputDateTime(manualEntryForm.completedDate, manualEntryForm.completedTime),
                 mode: manualEntryForm.mode,
                 manualRWN: manualEntryUsesRWN ? manualEntryForm.manualRWN : null,
-                distanceMeters: distanceKm ? Math.round(distanceKm * 1000) : null,
-                durationSeconds: durationMinutes ? Math.round(durationMinutes * 60) : null,
+                distanceMeters,
+                durationSeconds,
+                avgSplit500m,
                 perceivedExertion,
                 notes: manualEntryForm.notes,
                 plannedWeekNumber: selectedDay.week_number,
                 plannedDaySlot: selectedDay.day_slot,
-            });
+                plannedSessionKey: manualEntryForm.plannedSessionId || null,
+            };
 
-            setRawLogs((prev) => [
-                ...mapLogs([inserted as TrainingBlockWorkoutLogRow], new Map()),
-                ...prev,
-            ]);
-            setManualEntryOpen(false);
+            const saved = editingManualLogId
+                ? await workoutService.updateManualWorkoutLog(editingManualLogId, payload)
+                : await workoutService.createManualWorkoutLog(payload);
+            const mapped = mapLogs([saved as TrainingBlockWorkoutLogRow], new Map())[0];
+
+            setRawLogs((prev) => editingManualLogId
+                ? prev.map((entry) => entry.workout_id === editingManualLogId ? mapped : entry)
+                : [mapped, ...prev]);
+            closeManualEntry();
         } catch (err) {
-            console.error('Failed to create manual training block log', err);
+            console.error('Failed to save manual training block log', err);
             setManualEntryError('Could not save the manual workout. Please check the fields and try again.');
         } finally {
             setManualEntrySaving(false);
@@ -1083,6 +1249,7 @@ export const TrainingBlock: React.FC = () => {
                 notes: `${options.title} complete`,
                 plannedWeekNumber: selectedDay.week_number,
                 plannedDaySlot: selectedDay.day_slot,
+                plannedSessionKey: selectedDay.sessions.some((session) => session.id === key) ? key : null,
                 trainingBlockQuickCompletionKey: key,
             });
 
@@ -1476,7 +1643,7 @@ export const TrainingBlock: React.FC = () => {
                     <Card variant="outlined" className="border-neutral-700 bg-neutral-900/40">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                                <p className="text-sm font-semibold text-white">Paused plan</p>
+                                <p className="text-sm font-semibold text-content-primary">Paused plan</p>
                                 <p className="text-sm text-neutral-400 mt-1">
                                     The block remains visible for planning, but quick checks, manual completions, and review overrides are disabled until it is active.
                                 </p>
@@ -1490,6 +1657,89 @@ export const TrainingBlock: React.FC = () => {
                                 Activate block
                             </button>
                         </div>
+                    </Card>
+                )}
+
+                {!isTeamContext && (
+                    <Card variant="outlined" className="border-neutral-800 bg-neutral-900/30">
+                        <details>
+                            <summary className="cursor-pointer list-none">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-content-primary">Template details</p>
+                                        <p className="text-xs text-content-muted mt-1">
+                                            {templateHealth.source === 'database' ? 'Database template' : 'Static fallback'} · {templateHealth.total_sessions} sessions · {templateHealth.library_linked_sessions} library-linked · {templateHealth.block_local_sessions} block-local{linkedWorkoutTemplatesLoaded ? '' : ' · loading library links'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant={templateHealth.error_count > 0 ? 'danger' : 'success'} dot={templateHealth.error_count > 0}>
+                                            {templateHealth.error_count} errors
+                                        </Badge>
+                                        <Badge variant={templateHealth.warning_count > 0 ? 'warning' : 'muted'} dot={templateHealth.warning_count > 0}>
+                                            {templateHealth.warning_count} warnings
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </summary>
+                            <div className="mt-4 border-t border-neutral-800 pt-4 space-y-3">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Days</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.total_days}/{templateHealth.expected_days}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">RWN sessions</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.rwn_session_count}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Support prescriptions</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.support_session_count}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Empty days</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.empty_day_count}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Library RWN</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.linked_sessions_with_library_rwn}/{templateHealth.library_linked_sessions}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Block RWN on linked</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.linked_sessions_with_block_rwn}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">Library-only RWN</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.linked_sessions_using_library_rwn}</p>
+                                    </div>
+                                    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <p className="text-neutral-500">RWN mismatches</p>
+                                        <p className="text-neutral-200 mt-1">{templateHealth.linked_sessions_with_rwn_mismatch}</p>
+                                    </div>
+                                </div>
+                                {templateHealth.issues.length === 0 ? (
+                                    <p className="text-xs text-neutral-500">No template validation issues found.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {templateHealth.issues.slice(0, 6).map((issue, index) => (
+                                            <div key={`${issue.code}-${issue.session_id ?? 'day'}-${index}`} className={`rounded border px-3 py-2 text-xs ${templateHealthIssueTone[issue.severity]}`}>
+                                                <p className="font-medium">{issue.code}</p>
+                                                <p className="mt-0.5 opacity-90">{issue.message}</p>
+                                                {(issue.week_number || issue.day_slot !== undefined || issue.session_id) && (
+                                                    <p className="mt-1 opacity-70">
+                                                        {issue.week_number ? `Week ${issue.week_number}` : ''}{issue.day_slot !== undefined ? ` · Day ${issue.day_slot + 1}` : ''}{issue.session_id ? ` · ${issue.session_id}` : ''}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {templateHealth.issues.length > 6 && (
+                                            <p className="text-xs text-neutral-500">{templateHealth.issues.length - 6} more issues not shown.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </details>
                     </Card>
                 )}
 
@@ -1513,10 +1763,10 @@ export const TrainingBlock: React.FC = () => {
                                 >
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div>
-                                            <p className="text-sm font-medium text-white">
+                                            <p className="text-sm font-medium text-content-primary">
                                                 {athleteSummary.athleteName}
                                             </p>
-                                            <p className="text-xs text-neutral-500 mt-1">
+                                            <p className="text-xs text-content-muted mt-1">
                                                 {athleteSummary.teamName}
                                             </p>
                                         </div>
@@ -1525,10 +1775,10 @@ export const TrainingBlock: React.FC = () => {
                                             <p className="text-neutral-500">
                                                 {formatDistanceMeters(athleteSummary.actualDistance)} / {formatDistanceMeters(athleteSummary.targetDistance)}
                                             </p>
-                                            <p className="text-neutral-500 mt-1">
+                                            <p className="text-content-muted mt-1">
                                                 Slot coverage: {athleteSummary.coveredSlots}/7
                                             </p>
-                                            <p className="text-neutral-500 mt-1">
+                                            <p className="text-content-muted mt-1">
                                                 Key sessions: {athleteSummary.keySessionCreditText}
                                             </p>
                                         </div>
@@ -1580,16 +1830,16 @@ export const TrainingBlock: React.FC = () => {
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            <p className="text-xs text-neutral-500 mt-1">
+                                            <p className="text-xs text-content-muted mt-1">
                                                 {assignment.teamName} · {assignment.assignmentScope}
                                             </p>
                                             {weekMatch?.match.planned_session_title && (
-                                                <p className="text-xs text-neutral-400 mt-1">
+                                                <p className="text-xs text-content-secondary mt-1">
                                                     Week match: {weekMatch.match.planned_session_title} · {weekMatch.planned_day.day_of_week} {formatWeekday(weekMatch.planned_day.date)}
                                                 </p>
                                             )}
                                             {assignment.instructions && (
-                                                <p className="text-xs text-neutral-400 mt-1">Instructions: {assignment.instructions}</p>
+                                                <p className="text-xs text-content-secondary mt-1">Instructions: {assignment.instructions}</p>
                                             )}
                                             {isCoach && (
                                                 <Link
@@ -1629,163 +1879,187 @@ export const TrainingBlock: React.FC = () => {
                         title={`Week ${selectedWeekSummary?.week_number ?? 1} summary`}
                         subtitle={isTeamContext
                             ? `${scopeTeamText} · ${selectedAthleteLabel}`
-                            : `${formatWeekday(selectedWeekStart)} – ${formatWeekday(selectedWeekEnd)} · same-week matching`}
+                            : `${formatWeekday(selectedWeekStart)} - ${formatWeekday(selectedWeekEnd)} · same-week matching`}
+                        action={
+                            <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
+                                {selectedDay.day_of_week} · {statusLabel[selectedDaySummary.status]}
+                            </Badge>
+                        }
                     />
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-                            <p className="text-xs text-neutral-500 uppercase">Target</p>
-                            <p className="text-2xl font-semibold mt-1">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Target</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">
                                 {selectedWeekSummary ? formatDistanceMeters(selectedWeekSummary.target_distance_meters) : '-'}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Plan {selectedWeekSummary ? formatDistanceMeters(selectedWeekSummary.planned_distance_meters) : '-'}</p>
                         </div>
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-                            <p className="text-xs text-neutral-500 uppercase">Actual</p>
-                            <p className="text-2xl font-semibold mt-1">
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Meters logged</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">
                                 {selectedWeekSummary ? formatDistanceMeters(selectedWeekSummary.actual_distance_meters) : '-'}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">{selectedWeekSummary ? `${formatSignedDistanceMeters(selectedWeekSummary.delta_to_target_meters)} vs target` : '-'}</p>
                         </div>
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-                            <p className="text-xs text-neutral-500 uppercase">Coverage</p>
-                            <p className="text-2xl font-semibold mt-1">{weekCoverage}%</p>
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Sessions</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">
+                                {selectedWeekSummary?.logged_session_count ?? 0}/{selectedWeekSummary?.planned_session_count ?? 0}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Logged / planned</p>
                         </div>
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-                            <p className="text-xs text-neutral-500 uppercase">Key sessions</p>
-                            <p className="text-2xl font-semibold mt-1">
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Days logged</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">
+                                {selectedWeekSummary?.completed_day_count ?? 0}/7
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Matched by day</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Key sessions</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">
                                 {selectedWeekSummary?.key_session_credits.earned ?? 0}/{selectedWeekSummary?.key_session_credits.possible ?? 0}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">{selectedWeekSummary?.key_session_credits.partial ?? 0} partial</p>
                         </div>
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-                            <p className="text-xs text-neutral-500 uppercase">Load</p>
-                            <p className="text-2xl font-semibold mt-1">{selectedWeekLoad.toFixed(1)}</p>
-                        </div>
-                    </div>
-                    <div className="mt-4">
-                        <div className="h-2.5 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-emerald-500 transition-all"
-                                style={{ width: `${weekCoverage}%` }}
-                            />
+                        <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Load</p>
+                            <p className="mt-1 text-xl font-semibold text-content-primary">{selectedWeekLoad.toFixed(1)}</p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Distance x RPE</p>
                         </div>
                     </div>
-                    <div className="mt-5 flex flex-wrap gap-2">
-                        {planLogSummaries.map((weekSummary) => {
-                            const firstDay = plan.days.find((day) => day.week_number === weekSummary.week_number);
-                            const isSelected = weekSummary.week_number === selectedWeekSummary?.week_number;
-                            const coverage = Math.min(100, Math.round(weekSummary.target_coverage_ratio * 100));
 
-                            return (
-                                <button
-                                    key={weekSummary.week_number}
-                                    type="button"
-                                    onClick={() => {
-                                        if (firstDay) setSelectedDate(firstDay.date);
-                                    }}
-                                    className={`h-9 min-w-12 rounded border px-2.5 text-xs transition-all ${
-                                        isSelected
-                                            ? 'border-emerald-500/70 bg-emerald-900/20 text-white'
-                                            : 'border-neutral-800 bg-neutral-950/50 text-neutral-400 hover:border-neutral-700 hover:text-white'
-                                    }`}
-                                    title={`Week ${weekSummary.week_number}: ${coverage}% coverage`}
-                                >
-                                    W{weekSummary.week_number}
-                                </button>
-                            );
-                        })}
+                    <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_18rem]">
+                        <div className="space-y-3">
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                                <div className="h-2 rounded-full bg-surface-secondary lg:flex-1 overflow-hidden">
+                                    <div
+                                        className="h-full bg-emerald-500 transition-all"
+                                        style={{ width: `${weekCoverage}%` }}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {planLogSummaries.map((weekSummary) => {
+                                        const firstDay = plan.days.find((day) => day.week_number === weekSummary.week_number);
+                                        const isSelected = weekSummary.week_number === selectedWeekSummary?.week_number;
+                                        const coverage = Math.min(100, Math.round(weekSummary.target_coverage_ratio * 100));
+
+                                        return (
+                                            <button
+                                                key={weekSummary.week_number}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (firstDay) setSelectedDate(firstDay.date);
+                                                }}
+                                                className={`h-8 min-w-10 rounded-md border px-2 text-xs font-medium transition-colors ${
+                                                    isSelected
+                                                        ? 'border-emerald-500/70 bg-emerald-500/15 text-content-primary'
+                                                        : 'border-border bg-surface-card text-content-muted hover:border-emerald-500/40 hover:text-content-primary'
+                                                }`}
+                                                title={`Week ${weekSummary.week_number}: ${coverage}% coverage`}
+                                            >
+                                                W{weekSummary.week_number}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+                                {selectedWeekDays.map((day) => {
+                                    const daySummary = daySummariesByDate.get(day.date) ?? summarizeDayProgress(day, []);
+                                    const isSelected = day.date === selectedDay.date;
+                                    const style = statusTone[daySummary.status];
+                                    const dailyLogs = alignedLogsByDay.get(`${day.week_number}:${day.day_slot}`) ?? [];
+                                    const dayAssignments = assignmentsByDate.get(day.date) ?? [];
+                                    return (
+                                        <button
+                                            key={day.date}
+                                            type="button"
+                                            onClick={() => setSelectedDate(day.date)}
+                                            className={`min-h-16 rounded-lg border p-2 text-left transition-colors ${
+                                                isSelected
+                                                    ? 'border-emerald-500/70 bg-emerald-500/10'
+                                                    : 'border-border bg-surface-card hover:border-emerald-500/40 hover:bg-surface-secondary'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                                                        {day.day_of_week.slice(0, 3)}
+                                                    </p>
+                                                    <p className="mt-0.5 text-sm font-medium text-content-primary">
+                                                        {formatWeekday(day.date)}
+                                                    </p>
+                                                </div>
+                                                <Badge variant={style.variant} size="sm" dot={style.dot}>
+                                                    {dailyLogs.length}
+                                                </Badge>
+                                            </div>
+                                            <p className="mt-1 text-xs text-content-muted">
+                                                {formatDistanceMeters(day.planned_distance_meters)} planned
+                                            </p>
+                                            {dayAssignments.length > 0 && (
+                                                <p className="mt-0.5 text-[11px] text-content-secondary">
+                                                    {dayAssignments.length} team prescription{dayAssignments.length === 1 ? '' : 's'}
+                                                </p>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-surface-card p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs uppercase tracking-wide text-content-muted">Selected day</p>
+                                <Badge variant={statusTone[selectedDaySummary.status].variant} size="sm" dot={statusTone[selectedDaySummary.status].dot}>
+                                    {statusLabel[selectedDaySummary.status]}
+                                </Badge>
+                            </div>
+                            <p className="mt-1 text-sm font-semibold text-content-primary">
+                                {selectedDay.day_of_week} · {formatWeekday(selectedDay.date)}
+                            </p>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <p className="text-[11px] text-content-muted">Planned</p>
+                                    <p className="font-semibold text-content-primary">{formatDistanceMeters(selectedDay.planned_distance_meters)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-content-muted">Actual</p>
+                                    <p className="font-semibold text-content-primary">{formatDistanceMeters(dayActualDistance)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-content-muted">Sessions</p>
+                                    <p className="font-semibold text-content-primary">{selectedDaySummary.logged_session_count}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-content-muted">Key</p>
+                                    <p className="font-semibold text-content-primary">{selectedDaySummary.key_session_credit}</p>
+                                </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-content-muted">
+                                <span><Flame size={12} className="inline-block mr-1 text-amber-400" />{dayLoad.toFixed(1)} load</span>
+                                <span>{selectedDayLogs.length} log{selectedDayLogs.length === 1 ? '' : 's'} today</span>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <Card className="xl:col-span-1">
-                        <CardHeader
-                            title={`${selectedDay.day_of_week}`}
-                            subtitle={formatWeekday(selectedDay.date)}
-                            action={
-                                <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
-                                    {statusLabel[selectedDaySummary.status]}
-                                </Badge>
-                            }
-                        />
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3 mb-4">
-                            <p className="text-xs uppercase text-neutral-500">Day summary</p>
-                            <div className="grid grid-cols-2 gap-3 mt-3">
-                                <div>
-                                    <p className="text-xs text-neutral-500">Planned</p>
-                                    <p className="text-lg font-semibold">{formatDistanceMeters(selectedDay.planned_distance_meters)}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-neutral-500">Actual</p>
-                                    <p className="text-lg font-semibold">{formatDistanceMeters(dayActualDistance)}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-neutral-500">Sessions</p>
-                                    <p className="text-lg font-semibold">{selectedDaySummary.logged_session_count}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-neutral-500">Key credit</p>
-                                    <p className="text-lg font-semibold">{selectedDaySummary.key_session_credit}</p>
-                                </div>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-500">
-                                <span><Flame size={12} className="inline-block mr-1 text-amber-400" />{dayLoad.toFixed(1)} load</span>
-                                <span>{selectedWeekLogs.length} logs this week</span>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            {selectedWeekDays.map((day) => {
-                                const daySummary = daySummariesByDate.get(day.date) ?? summarizeDayProgress(day, []);
-                                const isSelected = day.date === selectedDay.date;
-                                const style = statusTone[daySummary.status];
-                                const dailyLogs = alignedLogsByDay.get(`${day.week_number}:${day.day_slot}`) ?? [];
-                                const dayAssignments = assignmentsByDate.get(day.date) ?? [];
-                                return (
-                                    <button
-                                        key={day.date}
-                                        type="button"
-                                        onClick={() => setSelectedDate(day.date)}
-                                        className={`w-full text-left p-2.5 rounded-lg border transition-all ${
-                                            isSelected
-                                                ? 'border-emerald-500/60 bg-emerald-900/10'
-                                                : 'border-neutral-800 hover:border-neutral-700'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium text-white truncate">
-                                                    {day.day_of_week} · {formatWeekday(day.date)}
-                                                </p>
-                                                <p className="text-xs text-neutral-500 mt-0.5">
-                                                    {formatDistanceMeters(day.planned_distance_meters)} planned · {dailyLogs.length} log{dailyLogs.length === 1 ? '' : 's'}
-                                                </p>
-                                            </div>
-                                            <Badge variant={style.variant} dot={style.dot}>
-                                                {statusLabel[daySummary.status]}
-                                            </Badge>
-                                        </div>
-                                        {dayAssignments.length > 0 && (
-                                            <p className="text-xs text-neutral-500 mt-1">
-                                                {dayAssignments.length} team prescription{dayAssignments.length === 1 ? '' : 's'}
-                                            </p>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </Card>
-
-                    <Card className="xl:col-span-2">
-                        <CardHeader
-                            title={`${selectedDay.day_of_week} · ${formatWeekday(selectedDay.date)}`}
-                            subtitle="Workouts completed this week can count toward the matching planned session"
-                            action={
-                                <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
-                                    {statusLabel[selectedDaySummary.status]}
-                                </Badge>
-                            }
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                    <CardHeader
+                        title="Plan & matching"
+                        subtitle={`${selectedDay.day_of_week} · ${formatWeekday(selectedDay.date)} · workouts completed this week can count toward the matching planned session`}
+                        action={
+                            <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
+                                {statusLabel[selectedDaySummary.status]}
+                            </Badge>
+                        }
+                    />
+                        <div className={`grid grid-cols-1 gap-4 ${selectedDayReviewLogEntries.length === 0 && !manualEntryOpen ? 'lg:grid-cols-[minmax(0,1fr)_16rem]' : 'lg:grid-cols-[minmax(0,1fr)_22rem]'}`}>
                             {selectedDayAssignments.length > 0 && (
-                                <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 md:col-span-2">
-                                    <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                                <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 lg:col-span-2">
+                                    <h3 className="text-sm font-semibold text-content-primary mb-3 flex items-center gap-2">
                                         <Users size={16} className="text-indigo-400" />
                                         Team prescriptions for this date
                                     </h3>
@@ -1801,29 +2075,29 @@ export const TrainingBlock: React.FC = () => {
                                                     className="rounded-lg border border-neutral-800 px-3 py-2.5 text-sm"
                                                 >
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <p className="text-white">{assignment.canonical_name ?? assignment.title ?? 'Unnamed assignment'}</p>
+                                                        <p className="text-content-primary">{assignment.canonical_name ?? assignment.title ?? 'Unnamed assignment'}</p>
                                                         <div className="flex flex-wrap items-center justify-end gap-2">
                                                             <Badge variant={relationshipTone.variant} dot={relationshipTone.dot}>
                                                                 {relationshipTone.label}
                                                             </Badge>
-                                                            <span className="text-xs text-neutral-400">
+                                                            <span className="text-xs text-content-muted">
                                                                 {assignment.teamName}
                                                             </span>
                                                         </div>
                                                     </div>
                                                     {assignmentMatch.planned_session_title && (
-                                                        <p className="text-xs text-neutral-400 mt-1">
+                                                        <p className="text-xs text-content-secondary mt-1">
                                                             Plan match: {assignmentMatch.planned_session_title}
                                                             {weekMatch && weekMatch.planned_day.date !== assignment.scheduled_date
                                                                 ? ` · ${weekMatch.planned_day.day_of_week} ${formatWeekday(weekMatch.planned_day.date)}`
                                                                 : ''}
                                                         </p>
                                                     )}
-                                                    <p className="text-xs text-neutral-500 mt-1">
+                                                    <p className="text-xs text-content-muted mt-1">
                                                         {assignmentMatch.reason}
                                                     </p>
                                                     {assignment.instructions && (
-                                                        <p className="text-xs text-neutral-500 mt-1">
+                                                        <p className="text-xs text-content-muted mt-1">
                                                             Instructions: {assignment.instructions}
                                                         </p>
                                                     )}
@@ -1834,12 +2108,12 @@ export const TrainingBlock: React.FC = () => {
                                 </section>
                             )}
 
-                            <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
-                                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                            <section className="rounded-xl border border-border bg-surface-card p-4">
+                                <h3 className="text-sm font-semibold text-content-primary mb-3 flex items-center gap-2">
                                     <Target size={16} className="text-emerald-400" />
                                     Planned intent
                                 </h3>
-                                <p className="text-xs text-neutral-500 mb-3">
+                                <p className="text-xs text-content-muted mb-3">
                                     Planned distance this day: {formatDistanceMeters(selectedDay.planned_distance_meters)}
                                 </p>
                                 <div className="space-y-3">
@@ -1850,13 +2124,13 @@ export const TrainingBlock: React.FC = () => {
                                             return (
                                                 <div
                                                     key={session.id}
-                                                    className="rounded-lg border border-neutral-800 p-3 text-sm"
+                                                    className={reviewSurfaceClass}
                                                 >
                                                     <div className="flex items-start justify-between gap-3">
-                                                        <p className="font-medium text-white">{session.title}</p>
+                                                        <p className="font-medium text-content-primary">{session.title}</p>
                                                         <div className="flex flex-wrap items-center justify-end gap-2">
                                                             {(session.source === 'strength') && (
-                                                                <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300">
+                                                                <label className="inline-flex items-center gap-1.5 text-xs text-content-secondary">
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={isPlannedSessionComplete(session.id)}
@@ -1889,29 +2163,74 @@ export const TrainingBlock: React.FC = () => {
                                                             RWN: {session.planned_rwn}
                                                         </p>
                                                     )}
-                                                    <p className="text-neutral-500 mt-1">
+                                                    <p className="text-content-muted mt-1">
                                                         {session.expected_distance_meters ? `${formatDistanceMeters(session.expected_distance_meters)} planned` : 'Duration/effort focused'}
                                                         {session.target_split_seconds_per_500m ? ` · target ${formatSplit(session.target_split_seconds_per_500m)}/500m` : ''}
                                                     </p>
+                                                    {(matchedLogsBySessionId.get(session.id) ?? []).length > 0 && (
+                                                        <div className={matchedCompletionClass}>
+                                                            {(matchedLogsBySessionId.get(session.id) ?? []).map(({ log, match }) => {
+                                                                const canEditMatchedLog = !isTeamContext && log.source === 'manual' && log.user_id === user?.id && !isTrainingBlockQuickLog(log);
+                                                                const canRemoveMatchedLog = !isTeamContext && log.source === 'manual' && log.user_id === user?.id;
+
+                                                                return (
+                                                                    <div key={log.workout_id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                        <div>
+                                                                            <p className="text-xs font-semibold text-content-primary">
+                                                                                Completed: {log.workout_name ?? 'Workout'}
+                                                                            </p>
+                                                                            <p className="text-[11px] text-content-secondary">
+                                                                                {formatDistanceMeters(log.distance_meters)} · {formatDuration(log.duration_seconds)}{log.avg_split_500m ? ` · ${formatSplit(log.avg_split_500m)}/500m` : ''}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
+                                                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-300" />
+                                                                                {assignmentRelationshipTone[match.relationship].label}
+                                                                            </span>
+                                                                            {canEditMatchedLog && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => openManualLogEdit(log)}
+                                                                                    className="rounded-md border border-border bg-surface-card px-2 py-0.5 text-[11px] font-medium text-content-primary hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-200"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                            )}
+                                                                            {canRemoveMatchedLog && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => void removeManualWorkoutLog(log)}
+                                                                                    className="rounded-md border border-border bg-surface-card px-2 py-0.5 text-[11px] font-medium text-content-primary hover:border-red-400 hover:text-red-600 dark:hover:text-red-200"
+                                                                                >
+                                                                                    Remove
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                     {session.instructions && session.instructions.length > 0 && (
-                                                        <ul className="mt-2 text-xs text-neutral-400 list-disc list-inside">
+                                                        <ul className="mt-2 text-xs text-content-secondary list-disc list-inside">
                                                             {session.instructions.map((instruction) => (
                                                                 <li key={instruction}>{instruction}</li>
                                                             ))}
                                                         </ul>
                                                     )}
                                                     {routine && routine.exercises && routine.exercises.length > 0 && (
-                                                        <div className="mt-3 border-t border-neutral-800 pt-3">
-                                                            <p className="text-xs uppercase tracking-wide text-neutral-400 mb-2">
+                                                        <div className="mt-3 border-t border-border pt-3">
+                                                            <p className="text-xs uppercase tracking-wide text-content-muted mb-2">
                                                                 {routine.kind} routine
                                                             </p>
-                                                            <p className="text-[11px] text-neutral-500 mb-2">
+                                                            <p className="text-[11px] text-content-muted mb-2">
                                                                 Focus: {routine.focus.join(', ')}
                                                             </p>
-                                                            <ul className="space-y-1 text-xs text-neutral-300 list-disc list-inside">
+                                                            <ul className="space-y-1 text-xs text-content-secondary list-disc list-inside">
                                                                 {routine.exercises.map((exercise) => (
                                                                     <li key={`${exercise.name}-${exercise.sets}-${exercise.reps}`}>
-                                                                        <span className="text-neutral-100">{exercise.name}</span>
+                                                                        <span className="text-content-primary">{exercise.name}</span>
                                                                         {' '}
                                                                         {formatExerciseSetNotation(exercise.sets, exercise.reps)}
                                                                         {exercise.notes ? ` · ${exercise.notes}` : ''}
@@ -1920,8 +2239,8 @@ export const TrainingBlock: React.FC = () => {
                                                             </ul>
                                                             {routine.notes && routine.notes.length > 0 && (
                                                                 <div className="mt-2">
-                                                                    <p className="text-[11px] text-neutral-500">Coach notes</p>
-                                                                    <ul className="text-xs list-disc list-inside text-neutral-300 mt-1">
+                                                                    <p className="text-[11px] text-content-muted">Coach notes</p>
+                                                                    <ul className="text-xs list-disc list-inside text-content-secondary mt-1">
                                                                         {routine.notes.map((note) => (
                                                                             <li key={note}>{note}</li>
                                                                         ))}
@@ -1936,10 +2255,10 @@ export const TrainingBlock: React.FC = () => {
                                     ))}
                                 </div>
                                 {selectedReference && (
-                                    <div className="mt-4 pt-3 border-t border-neutral-800">
+                                    <div className="mt-4 pt-3 border-t border-border">
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                                            <p className="text-xs uppercase tracking-wide text-neutral-400">Support prep</p>
-                                            <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300">
+                                            <p className="text-xs uppercase tracking-wide text-content-muted">Support prep</p>
+                                            <label className="inline-flex items-center gap-1.5 text-xs text-content-secondary">
                                                 <input
                                                     type="checkbox"
                                                     checked={isSupportPrepComplete}
@@ -1963,26 +2282,35 @@ export const TrainingBlock: React.FC = () => {
                                             {formatReferenceList(selectedReference.core, 'Core')}
                                             {formatReferenceList(selectedReference.stretching, 'Stretching')}
                                         </div>
+                                        {supportPrepLogMatches.length > 0 && (
+                                            <div className={matchedCompletionClass}>
+                                                {supportPrepLogMatches.map(({ log }) => (
+                                                    <p key={log.workout_id} className="text-xs font-semibold text-content-primary">
+                                                        Completed: {formatDuration(log.duration_seconds)} support prep
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 {selectedReference && selectedReference.routines.length === 0 && selectedDay.sessions.every((session) => session.source !== 'strength') && (
-                                    <p className="mt-4 text-[11px] text-neutral-500">
+                                    <p className="mt-4 text-[11px] text-content-muted">
                                         This day has support prep and no scheduled strength slot.
                                     </p>
                                 )}
                             </section>
 
-                            <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
+                            <section className="self-start rounded-xl border border-border bg-surface-card p-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                                    <h3 className="text-sm font-semibold text-content-primary flex items-center gap-2">
                                         <CalendarDays size={16} className="text-blue-400" />
-                                        Logged workouts ({selectedDayLogs.length})
+                                        Review logs ({selectedDayReviewLogEntries.length})
                                     </h3>
                                     <button
                                         type="button"
                                         onClick={openManualEntry}
                                         disabled={!canCreateManualEntry}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-neutral-700 text-xs text-neutral-200 hover:border-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-blue-400/70 disabled:cursor-not-allowed disabled:opacity-50"
                                         title={isTrainingBlockActive ? (canCreateManualEntry ? 'Add a manual completion' : 'Manual entries can only be created for your own account') : 'Activate the training block to add completions'}
                                     >
                                         <Plus size={13} />
@@ -1990,23 +2318,23 @@ export const TrainingBlock: React.FC = () => {
                                     </button>
                                 </div>
                                 {manualEntryOpen && (
-                                    <form onSubmit={saveManualEntry} className="mb-4 rounded-lg border border-blue-500/30 bg-blue-950/10 p-3 space-y-3">
+                                    <form onSubmit={saveManualEntry} className="mb-4 space-y-3 rounded-lg border border-blue-500/35 bg-blue-500/10 p-3">
                                         <div className="flex flex-wrap items-start justify-between gap-2">
                                             <div>
-                                                <p className="text-sm font-medium text-white">Add a manual workout log</p>
-                                                <p className="text-xs text-neutral-500 mt-1">Use quick checks for simple support completion. Use this form when you want a fuller manual log; Concept2 sync remains preferred for rowing.</p>
+                                                <p className="text-sm font-medium text-content-primary">{editingManualLogId ? 'Edit manual workout log' : 'Add a manual workout log'}</p>
+                                                <p className="text-xs text-content-muted mt-1">Use quick checks for simple support completion. Use this form when you want a fuller manual log; Concept2 sync remains preferred for rowing.</p>
                                             </div>
-                                            <button type="button" onClick={() => setManualEntryOpen(false)} className="text-xs text-neutral-400 hover:text-white">
+                                            <button type="button" onClick={closeManualEntry} className="text-xs text-content-muted hover:text-content-primary">
                                                 Cancel
                                             </button>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <label className="text-xs text-neutral-400">
+                                            <label className="text-xs text-content-muted">
                                                 Planned session
                                                 <select
                                                     value={manualEntryForm.plannedSessionId}
                                                     onChange={(event) => updateManualEntrySession(event.target.value)}
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 >
                                                     <option value="">Custom manual log</option>
                                                     {selectedDay.sessions.map((session) => (
@@ -2014,12 +2342,12 @@ export const TrainingBlock: React.FC = () => {
                                                     ))}
                                                 </select>
                                             </label>
-                                            <label className="text-xs text-neutral-400">
+                                            <label className="text-xs text-content-muted">
                                                 Type
                                                 <select
                                                     value={manualEntryForm.mode}
                                                     onChange={(event) => updateManualEntryMode(event.target.value as ManualWorkoutLogMode)}
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 >
                                                     {manualModeOptions.map((option) => (
                                                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -2027,73 +2355,86 @@ export const TrainingBlock: React.FC = () => {
                                                 </select>
                                             </label>
                                             {manualEntryUsesRWN && (
-                                                <label className="text-xs text-neutral-400">
+                                                <label className="text-xs text-content-muted">
                                                     RWN / modality
                                                     <input
                                                         value={manualEntryForm.manualRWN}
                                                         onChange={(event) => updateManualEntryForm('manualRWN', event.target.value)}
                                                         placeholder={manualEntryForm.mode === 'row' ? '8x500m/3:30r' : 'Cross: 60:00'}
-                                                        className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                        className={manualFieldClass}
                                                     />
                                                 </label>
                                             )}
-                                            <label className="text-xs text-neutral-400">
+                                            <label className="text-xs text-content-muted">
                                                 Date
                                                 <input
                                                     type="date"
                                                     value={manualEntryForm.completedDate}
                                                     onChange={(event) => updateManualEntryForm('completedDate', event.target.value)}
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 />
                                             </label>
-                                            <label className="text-xs text-neutral-400">
+                                            <label className="text-xs text-content-muted">
                                                 Time
                                                 <input
                                                     type="time"
                                                     value={manualEntryForm.completedTime}
                                                     onChange={(event) => updateManualEntryForm('completedTime', event.target.value)}
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 />
                                             </label>
                                             {manualEntryUsesDistance && (
-                                                <label className="text-xs text-neutral-400">
-                                                    Distance km
+                                                <label className="text-xs text-content-muted">
+                                                    Meters
                                                     <input
-                                                        inputMode="decimal"
-                                                        value={manualEntryForm.distanceKm}
-                                                        onChange={(event) => updateManualEntryForm('distanceKm', event.target.value)}
-                                                        placeholder="0"
-                                                        className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                        inputMode="numeric"
+                                                        pattern="[0-9]*"
+                                                        value={manualEntryForm.distanceMetersInput}
+                                                        onChange={(event) => updateManualEntryForm('distanceMetersInput', event.target.value)}
+                                                        placeholder="8000"
+                                                        className={manualFieldClass}
                                                     />
                                                 </label>
                                             )}
-                                            <label className="text-xs text-neutral-400">
+                                            {manualEntryForm.mode === 'row' && (
+                                                <label className="text-xs text-content-muted">
+                                                    Average split /500m
+                                                    <input
+                                                        inputMode="decimal"
+                                                        value={manualEntryForm.avgSplit}
+                                                        onChange={(event) => updateManualEntryForm('avgSplit', event.target.value)}
+                                                        placeholder="2:05.0"
+                                                        className={manualFieldClass}
+                                                    />
+                                                </label>
+                                            )}
+                                            <label className="text-xs text-content-muted">
                                                 Duration min
                                                 <input
                                                     inputMode="decimal"
                                                     value={manualEntryForm.durationMinutes}
                                                     onChange={(event) => updateManualEntryForm('durationMinutes', event.target.value)}
                                                     placeholder="60"
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 />
                                             </label>
-                                            <label className="text-xs text-neutral-400">
+                                            <label className="text-xs text-content-muted">
                                                 RPE
                                                 <input
                                                     inputMode="numeric"
                                                     value={manualEntryForm.perceivedExertion}
                                                     onChange={(event) => updateManualEntryForm('perceivedExertion', event.target.value)}
                                                     placeholder="1-10"
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 />
                                             </label>
-                                            <label className="text-xs text-neutral-400 sm:col-span-2">
+                                            <label className="text-xs text-content-muted sm:col-span-2">
                                                 Notes
                                                 <textarea
                                                     value={manualEntryForm.notes}
                                                     onChange={(event) => updateManualEntryForm('notes', event.target.value)}
                                                     rows={2}
-                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
+                                                    className={manualFieldClass}
                                                 />
                                             </label>
                                         </div>
@@ -2120,28 +2461,35 @@ export const TrainingBlock: React.FC = () => {
                                             className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-500 text-white text-xs font-medium hover:bg-blue-400 disabled:opacity-60"
                                         >
                                             <CheckCircle2 size={14} />
-                                            {manualEntrySaving ? 'Saving...' : 'Save manual log'}
+                                            {manualEntrySaving ? 'Saving...' : editingManualLogId ? 'Save changes' : 'Save manual log'}
                                         </button>
                                     </form>
                                 )}
-                                {selectedDayLogs.length === 0 ? (
-                                    <p className="text-sm text-neutral-500">No workouts recorded for this day yet.</p>
+                                {selectedDayReviewLogEntries.length === 0 ? (
+                                    <p className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-xs text-content-secondary">All logged workouts for this day are attached to plan items above.</p>
                                 ) : (
                                     <div className="space-y-3">
-                                        {selectedDayLogs.map((log) => {
+                                        {selectedDayReviewLogEntries.map(({ log, match: logMatch }) => {
                                             const tone = sourceTone[log.source];
-                                            const logMatch = scoreLogAgainstPlanDay(selectedDay, log);
                                             const relationshipTone = assignmentRelationshipTone[logMatch.relationship];
                                             const isQuickLog = isTrainingBlockQuickLog(log);
                                             const canRemoveManualLog = !isTeamContext && log.source === 'manual' && log.user_id === user?.id;
+                                            const manualSessionOption = log.planned_session_key
+                                                ? selectedWeekSessionOptions.find(({ session }) => session.id === log.planned_session_key)
+                                                : null;
+                                            const reviewAssignmentValue = log.status === 'skipped'
+                                                ? DOES_NOT_COUNT_VALUE
+                                                : manualSessionOption
+                                                    ? `${manualSessionOption.day.day_slot}|${manualSessionOption.session.id}`
+                                                    : AUTO_OVERRIDE_VALUE;
 
                                             return (
                                                 <div
                                                     key={log.workout_id}
-                                                    className="rounded-lg border border-neutral-800 p-3 text-sm"
+                                                    className={reviewSurfaceClass}
                                                 >
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <p className="font-medium text-white">{log.workout_name}</p>
+                                                        <p className="font-medium text-content-primary">{log.workout_name}</p>
                                                         <div className="flex flex-wrap items-center justify-end gap-2">
                                                             <Badge variant={relationshipTone.variant} dot={relationshipTone.dot}>
                                                                 {relationshipTone.label}
@@ -2154,12 +2502,23 @@ export const TrainingBlock: React.FC = () => {
                                                             <span className={`px-2 py-0.5 rounded-full text-xs ${tone.text} ${tone.bg}`}>
                                                                 {tone.label}
                                                             </span>
+                                                            {canRemoveManualLog && !isQuickLog && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openManualLogEdit(log)}
+                                                                    disabled={quickCompletionSavingKey === log.workout_id}
+                                                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-primary hover:border-blue-400/60 hover:text-blue-600 dark:hover:text-blue-200 disabled:opacity-50"
+                                                                    title="Edit this manual workout log"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            )}
                                                             {canRemoveManualLog && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => void removeManualWorkoutLog(log)}
                                                                     disabled={quickCompletionSavingKey === log.workout_id}
-                                                                    className="inline-flex items-center gap-1 rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:border-red-400/60 hover:text-red-200 disabled:opacity-50"
+                                                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-primary hover:border-red-400/60 hover:text-red-600 dark:hover:text-red-200 disabled:opacity-50"
                                                                     title="Remove this manual workout log"
                                                                 >
                                                                     <Trash2 size={12} />
@@ -2168,124 +2527,178 @@ export const TrainingBlock: React.FC = () => {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <p className="text-neutral-400 mt-1">
+                                                    <p className="text-content-secondary mt-1">
                                                         {log.workout_type} · {formatDistanceMeters(log.distance_meters)} · RPE {log.perceived_exertion ?? '-'}
                                                     </p>
                                                     {isTeamContext && (
-                                                        <p className="text-neutral-500 text-xs mt-1">
+                                                        <p className="text-content-muted text-xs mt-1">
                                                             Athlete: {log.athlete_name ?? 'Unknown athlete'}
                                                         </p>
                                                     )}
-                                                    <p className="text-neutral-500 text-xs mt-1">
+                                                    <p className="text-content-muted text-xs mt-1">
                                                         Completed {log.rawDateLabel}{log.rawDateLabel !== selectedDay.date ? ` · matched ${formatPlanSlot(selectedDay.day_slot)} (${formatWeekday(selectedDay.date)})` : ''}
                                                     </p>
-                                                    <p className="text-neutral-500 text-xs mt-1">
-                                                        {formatDuration(log.duration_seconds)} · {isQuickLog ? 'Quick completion' : log.notes ? 'With notes' : 'No notes'}
+                                                    <p className="text-content-muted text-xs mt-1">
+                                                        {formatDuration(log.duration_seconds)}{log.avg_split_500m ? ` · ${formatSplit(log.avg_split_500m)}/500m` : ''} · {isQuickLog ? 'Quick completion' : log.notes ? 'With notes' : 'No notes'}
                                                     </p>
                                                     {logMatch.planned_session_title && (
-                                                        <p className="text-xs text-neutral-400 mt-2">
+                                                        <p className="text-xs text-content-secondary mt-2">
                                                             Plan match: {logMatch.planned_session_title}
                                                         </p>
                                                     )}
-                                                    <p className="text-xs text-neutral-500 mt-1">
+                                                    <p className="text-xs text-content-muted mt-1">
                                                         {logMatch.reason}
                                                     </p>
-                                                    <div className="mt-2 border-t border-neutral-800 pt-2">
-                                                        <p className="text-[11px] uppercase tracking-wider text-neutral-500 mb-2">
-                                                            Plan review overrides
-                                                        </p>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                                                            <label className="text-xs text-neutral-400">
-                                                                Status
-                                                                <select
-                                                                    value={log.status ?? AUTO_OVERRIDE_VALUE}
-                                                                    disabled={!isTrainingBlockActive}
-                                                                    onChange={(event) => {
-                                                                        const value = event.target.value;
-                                                                        updateLogOverride(log.workout_id, {
-                                                                            status: value === AUTO_OVERRIDE_VALUE ? undefined : value as TrainingBlockWorkoutStatus,
-                                                                        });
-                                                                    }}
-                                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-1"
-                                                                >
-                                                                    <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
-                                                                    {overrideStatusOptions.map((option) => (
-                                                                        <option key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
-                                                            <label className="text-xs text-neutral-400">
-                                                                Plan slot
-                                                                <select
-                                                                    value={log.planned_day_slot ?? AUTO_OVERRIDE_VALUE}
-                                                                    disabled={!isTrainingBlockActive}
-                                                                    onChange={(event) => {
-                                                                        const value = event.target.value;
-                                                                        updateLogOverride(log.workout_id, {
-                                                                            planned_day_slot: value === AUTO_OVERRIDE_VALUE
-                                                                                ? undefined
-                                                                                : Number.parseInt(value, 10),
-                                                                        });
-                                                                    }}
-                                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-1"
-                                                                >
-                                                                    <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
-                                                                    {overridePlanSlotOptions.map((option) => (
-                                                                        <option key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
-                                                            <label className="text-xs text-neutral-400">
-                                                                Key session
-                                                                <select
-                                                                    value={log.key_session_credit ?? AUTO_OVERRIDE_VALUE}
-                                                                    disabled={!isTrainingBlockActive}
-                                                                    onChange={(event) => {
-                                                                        const value = event.target.value;
-                                                                        updateLogOverride(log.workout_id, {
-                                                                            key_session_credit: value === AUTO_OVERRIDE_VALUE
-                                                                                ? undefined
-                                                                                : (value as TrainingBlockKeySessionCredit),
-                                                                        });
-                                                                    }}
-                                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-1"
-                                                                >
-                                                                    <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
-                                                                    {overrideKeySessionOptions.map((option) => (
-                                                                        <option key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
-                                                            <label className="text-xs text-neutral-400">
-                                                                Strength
-                                                                <select
-                                                                    value={log.strength_status ?? AUTO_OVERRIDE_VALUE}
-                                                                    disabled={!isTrainingBlockActive}
-                                                                    onChange={(event) => {
-                                                                        const value = event.target.value;
-                                                                        updateLogOverride(log.workout_id, {
-                                                                            strength_status: value === AUTO_OVERRIDE_VALUE
-                                                                                ? undefined
-                                                                                : (value as TrainingBlockStrengthStatus),
-                                                                        });
-                                                                    }}
-                                                                    className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-1"
-                                                                >
-                                                                    <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
-                                                                    {overrideStrengthOptions.map((option) => (
-                                                                        <option key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
+                                                    <div className={reviewControlSurfaceClass}>
+                                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                            <div>
+                                                                <p className="text-xs font-semibold text-content-primary">Review match</p>
+                                                                <p className="text-[11px] text-content-muted">Adjust how this log counts toward the selected week.</p>
+                                                            </div>
+                                                            <span className="text-[11px] text-content-muted">
+                                                                {log.status === 'skipped' ? 'Not counted' : logMatch.planned_session_title ?? 'Auto review'}
+                                                            </span>
                                                         </div>
+
+                                                        <label className="mt-3 block text-xs text-content-muted">
+                                                            Match this log
+                                                            <select
+                                                                value={reviewAssignmentValue}
+                                                                disabled={!isTrainingBlockActive}
+                                                                onChange={(event) => {
+                                                                    const value = event.target.value;
+                                                                    if (value === AUTO_OVERRIDE_VALUE) {
+                                                                        updateLogOverride(log.workout_id, {
+                                                                            planned_session_key: undefined,
+                                                                            planned_day_slot: undefined,
+                                                                            status: log.status === 'skipped' ? undefined : log.status,
+                                                                        });
+                                                                        return;
+                                                                    }
+                                                                    if (value === DOES_NOT_COUNT_VALUE) {
+                                                                        updateLogOverride(log.workout_id, {
+                                                                            planned_session_key: undefined,
+                                                                            planned_day_slot: undefined,
+                                                                            status: 'skipped',
+                                                                        });
+                                                                        return;
+                                                                    }
+                                                                    const [slotValue, sessionKey] = value.split('|');
+                                                                    updateLogOverride(log.workout_id, {
+                                                                        planned_day_slot: Number.parseInt(slotValue, 10),
+                                                                        planned_session_key: sessionKey,
+                                                                        status: log.status === 'skipped' ? undefined : log.status,
+                                                                    });
+                                                                }}
+                                                                className={fieldClass}
+                                                            >
+                                                                <option value={AUTO_OVERRIDE_VALUE}>Auto match</option>
+                                                                <option value={DOES_NOT_COUNT_VALUE}>Does not count</option>
+                                                                {selectedWeekSessionOptions.map(({ day, session }) => (
+                                                                    <option key={`${day.week_number}-${day.day_slot}-${session.id}`} value={`${day.day_slot}|${session.id}`}>
+                                                                        {formatPlanSlot(day.day_slot)} · {session.title}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </label>
+
+                                                        <details className="mt-3 group">
+                                                            <summary className="cursor-pointer list-none text-[11px] font-medium uppercase tracking-wide text-content-muted hover:text-content-primary">
+                                                                Advanced overrides
+                                                            </summary>
+                                                            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                                                <label className="text-xs text-content-muted">
+                                                                    Status
+                                                                    <select
+                                                                        value={log.status ?? AUTO_OVERRIDE_VALUE}
+                                                                        disabled={!isTrainingBlockActive}
+                                                                        onChange={(event) => {
+                                                                            const value = event.target.value;
+                                                                            updateLogOverride(log.workout_id, {
+                                                                                status: value === AUTO_OVERRIDE_VALUE ? undefined : value as TrainingBlockWorkoutStatus,
+                                                                            });
+                                                                        }}
+                                                                        className={fieldClass}
+                                                                    >
+                                                                        <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
+                                                                        {overrideStatusOptions.map((option) => (
+                                                                            <option key={option.value} value={option.value}>
+                                                                                {option.label}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </label>
+                                                                <label className="text-xs text-content-muted">
+                                                                    Plan slot
+                                                                    <select
+                                                                        value={log.planned_day_slot ?? AUTO_OVERRIDE_VALUE}
+                                                                        disabled={!isTrainingBlockActive}
+                                                                        onChange={(event) => {
+                                                                            const value = event.target.value;
+                                                                            updateLogOverride(log.workout_id, {
+                                                                                planned_day_slot: value === AUTO_OVERRIDE_VALUE
+                                                                                    ? undefined
+                                                                                    : Number.parseInt(value, 10),
+                                                                            });
+                                                                        }}
+                                                                        className={fieldClass}
+                                                                    >
+                                                                        <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
+                                                                        {overridePlanSlotOptions.map((option) => (
+                                                                            <option key={option.value} value={option.value}>
+                                                                                {option.label}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </label>
+                                                                <label className="text-xs text-content-muted">
+                                                                    Key session
+                                                                    <select
+                                                                        value={log.key_session_credit ?? AUTO_OVERRIDE_VALUE}
+                                                                        disabled={!isTrainingBlockActive}
+                                                                        onChange={(event) => {
+                                                                            const value = event.target.value;
+                                                                            updateLogOverride(log.workout_id, {
+                                                                                key_session_credit: value === AUTO_OVERRIDE_VALUE
+                                                                                    ? undefined
+                                                                                    : (value as TrainingBlockKeySessionCredit),
+                                                                            });
+                                                                        }}
+                                                                        className={fieldClass}
+                                                                    >
+                                                                        <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
+                                                                        {overrideKeySessionOptions.map((option) => (
+                                                                            <option key={option.value} value={option.value}>
+                                                                                {option.label}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </label>
+                                                                <label className="text-xs text-content-muted">
+                                                                    Strength
+                                                                    <select
+                                                                        value={log.strength_status ?? AUTO_OVERRIDE_VALUE}
+                                                                        disabled={!isTrainingBlockActive}
+                                                                        onChange={(event) => {
+                                                                            const value = event.target.value;
+                                                                            updateLogOverride(log.workout_id, {
+                                                                                strength_status: value === AUTO_OVERRIDE_VALUE
+                                                                                    ? undefined
+                                                                                    : (value as TrainingBlockStrengthStatus),
+                                                                            });
+                                                                        }}
+                                                                        className={fieldClass}
+                                                                    >
+                                                                        <option value={AUTO_OVERRIDE_VALUE}>Auto</option>
+                                                                        {overrideStrengthOptions.map((option) => (
+                                                                            <option key={option.value} value={option.value}>
+                                                                                {option.label}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </label>
+                                                            </div>
+                                                        </details>
                                                     </div>
                                                 </div>
                                             );
@@ -2298,7 +2711,7 @@ export const TrainingBlock: React.FC = () => {
                         {selectedWeekReviewLogs.length > 0 && (
                             <section className="mt-4 bg-amber-950/10 border border-amber-500/30 rounded-xl p-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <h3 className="text-sm font-semibold text-white">Needs review this week</h3>
+                                    <h3 className="text-sm font-semibold text-content-primary">Needs review this week</h3>
                                     <span className="text-xs text-amber-200">{selectedWeekReviewLogs.length} log{selectedWeekReviewLogs.length === 1 ? '' : 's'}</span>
                                 </div>
                                 <div className="mt-3 space-y-2">
@@ -2306,20 +2719,20 @@ export const TrainingBlock: React.FC = () => {
                                         const relationship = weekMatch?.match.relationship ?? 'unmatched';
                                         const relationshipTone = assignmentRelationshipTone[relationship];
                                         return (
-                                            <div key={`review-${log.workout_id}`} className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-3 py-2.5 text-sm">
+                                            <div key={`review-${log.workout_id}`} className="rounded-lg border border-border bg-surface-secondary px-3 py-2.5 text-sm">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <p className="text-white">{log.workout_name}</p>
+                                                    <p className="text-content-primary">{log.workout_name}</p>
                                                     <Badge variant={relationshipTone.variant} dot={relationshipTone.dot}>{relationshipTone.label}</Badge>
                                                 </div>
-                                                <p className="text-xs text-neutral-500 mt-1">
+                                                <p className="text-xs text-content-muted mt-1">
                                                     Completed {log.rawDateLabel} · {formatDistanceMeters(log.distance_meters)} · {formatDuration(log.duration_seconds)}
                                                 </p>
                                                 {weekMatch?.match.planned_session_title ? (
-                                                    <p className="text-xs text-neutral-400 mt-1">
+                                                    <p className="text-xs text-content-secondary mt-1">
                                                         Best week match: {weekMatch.match.planned_session_title} · {weekMatch.planned_day.day_of_week} {formatWeekday(weekMatch.planned_day.date)}
                                                     </p>
                                                 ) : (
-                                                    <p className="text-xs text-neutral-500 mt-1">No clear same-week plan match.</p>
+                                                    <p className="text-xs text-content-muted mt-1">No clear same-week plan match.</p>
                                                 )}
                                             </div>
                                         );
@@ -2328,8 +2741,7 @@ export const TrainingBlock: React.FC = () => {
                             </section>
                         )}
 
-                    </Card>
-                </div>
+                </Card>
             </div>
         </div>
     );

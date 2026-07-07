@@ -149,4 +149,53 @@ describe('trainingBlockMatching', () => {
         expect(match?.match.planned_session_id).toBe('mon_8x500-primary');
     });
 
+
+    it('manual planned-session assignment beats automatic RWN matching', () => {
+        const monday = plan.days[0];
+        const tuesday = plan.days[1];
+        const match = scoreAssignmentAgainstPlanDay(tuesday, {
+            id: 'manual-pin',
+            scheduled_date: tuesday.date,
+            canonical_name: monday.sessions[0].planned_rwn,
+            title: 'Intervals pinned to steady day',
+            planned_session_key: tuesday.sessions[0].id,
+        });
+
+        expect(match.relationship).toBe('satisfies');
+        expect(match.planned_session_id).toBe(tuesday.sessions[0].id);
+        expect(match.confidence).toBe(1);
+        expect(match.reason).toContain('manually assigned');
+    });
+
+
+    it('counts support-prep quick completions as support work for review filtering', () => {
+        const wednesday = plan.days[2];
+        const match = scoreAssignmentAgainstPlanDay(wednesday, {
+            id: 'support-prep-log',
+            scheduled_date: wednesday.date,
+            title: 'Support prep complete',
+            workout_type: 'support',
+            source: 'manual',
+            notes: 'Support prep complete [tb:slot:2] [tb:quick:support-prep]',
+        });
+
+        expect(match.relationship).toBe('support_only');
+        expect(match.confidence).toBeGreaterThan(0.9);
+    });
+
+    it('manual does-not-count review suppresses automatic matching', () => {
+        const monday = plan.days[0];
+        const match = scoreAssignmentAgainstPlanDay(monday, {
+            id: 'ignored-log',
+            scheduled_date: monday.date,
+            canonical_name: '8x500m/3:30r',
+            title: 'Ignored exact workout',
+            status: 'skipped',
+        });
+
+        expect(match.relationship).toBe('unmatched');
+        expect(match.confidence).toBe(1);
+        expect(match.reason).toContain('not counting');
+    });
+
 });

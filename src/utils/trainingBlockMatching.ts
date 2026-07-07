@@ -26,6 +26,8 @@ export interface TrainingBlockMatchCandidate {
     duration_seconds?: number | null;
     source?: string | null;
     notes?: string | null;
+    status?: TrainingBlockActualLogEvent['status'];
+    planned_session_key?: string | null;
 }
 
 export type TrainingBlockAssignmentCandidate = TrainingBlockMatchCandidate;
@@ -252,6 +254,36 @@ export function scoreCandidateAgainstPlanDay(
     day: TrainingBlockPlannedDay,
     assignment: TrainingBlockMatchCandidate,
 ): TrainingBlockAssignmentMatch {
+    if (assignment.status === 'skipped') {
+        return {
+            relationship: 'unmatched',
+            confidence: 1,
+            reason: 'Workout log was manually marked as not counting toward this training block.',
+        };
+    }
+
+    const manuallyAssignedSession = assignment.planned_session_key
+        ? day.sessions.find((session) => session.id === assignment.planned_session_key)
+        : null;
+    if (manuallyAssignedSession) {
+        return {
+            relationship: manuallyAssignedSession.support_prescription ? 'support_only' : 'satisfies',
+            confidence: 1,
+            planned_session_id: manuallyAssignedSession.id,
+            planned_session_title: manuallyAssignedSession.title,
+            reason: 'Workout log was manually assigned to this planned session.',
+        };
+    }
+
+    const text = assignmentText(assignment);
+    if (text.includes('[tb:quick:support-prep]')) {
+        return {
+            relationship: 'support_only',
+            confidence: 0.95,
+            reason: 'Support prep quick completion counts as support work for this planned day.',
+        };
+    }
+
     const assignmentInfos = assignmentRWNInfos(assignment);
     const matches: TrainingBlockAssignmentMatch[] = [];
 
@@ -348,6 +380,8 @@ export function scoreLogAgainstPlanWeek(
         duration_seconds: log.duration_seconds,
         source: log.source,
         notes: log.notes,
+        status: log.status,
+        planned_session_key: log.planned_session_key,
     });
 }
 
@@ -367,5 +401,7 @@ export function scoreLogAgainstPlanDay(
         duration_seconds: log.duration_seconds,
         source: log.source,
         notes: log.notes,
+        status: log.status,
+        planned_session_key: log.planned_session_key,
     });
 }

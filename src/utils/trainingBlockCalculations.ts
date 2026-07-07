@@ -61,6 +61,10 @@ function daySlotToKey(weekNumber: number, daySlot: number): string {
     return `${weekNumber}:${daySlot}`;
 }
 
+function isIgnoredLog(log: TrainingBlockActualLogEvent): boolean {
+    return log.status === 'skipped';
+}
+
 function resolveDaySlotHint(log: TrainingBlockActualLogEvent): number | null {
     if (log.planned_day_slot === 0 || log.planned_day_slot) {
         if (log.planned_day_slot < 0 || log.planned_day_slot > 6) {
@@ -166,6 +170,16 @@ function sortByAffinity(
     return hasCompatibility * 100 + utilization;
 }
 
+function findManualSessionBucket(
+    plannedBuckets: WeekBuckets,
+    log: TrainingBlockActualLogEvent,
+): PlanDayBucket | null {
+    if (!log.planned_session_key) return null;
+    return plannedBuckets.days.find((bucket) =>
+        bucket.day.sessions.some((session) => session.id === log.planned_session_key),
+    ) ?? null;
+}
+
 function findStrongestMatchedBucket(
     plannedBuckets: WeekBuckets,
     log: TrainingBlockActualLogEvent,
@@ -219,7 +233,7 @@ export function alignLogsToPlanDays(
 
     const pending = new Map<number, TrainingBlockActualLogEvent[]>();
 
-    for (const rawLog of logs.map(normalizeLog)) {
+    for (const rawLog of logs.map(normalizeLog).filter((log) => !isIgnoredLog(log))) {
         const weekNumber = rawLog.planned_week_number
             ?? resolveWeekNumber(plan.start_date, rawLog.date);
 
@@ -229,6 +243,16 @@ export function alignLogsToPlanDays(
 
         const plannedBuckets = weekBuckets.get(weekNumber);
         if (!plannedBuckets) continue;
+
+        const manualSessionBucket = findManualSessionBucket(plannedBuckets, rawLog);
+        if (manualSessionBucket) {
+            assignLogToBucket(bucketsByPlanDate, mode, rawLog, manualSessionBucket);
+            const next = plannedBuckets.fillBySlot.get(manualSessionBucket.day.day_slot);
+            if (typeof next === 'number') {
+                plannedBuckets.fillBySlot.set(manualSessionBucket.day.day_slot, next + 1);
+            }
+            continue;
+        }
 
         const hintSlot = resolveDaySlotHint(rawLog);
         if (hintSlot !== null) {
@@ -427,12 +451,13 @@ export function summarizeDayProgress(
     day: TrainingBlockPlannedDay,
     logs: readonly TrainingBlockActualLogEvent[] = [],
 ): TrainingBlockDaySummary {
+    const countedLogs = logs.filter((log) => !isIgnoredLog(log));
     const plannedDistance = plannedDistanceMetersForDay(day);
-    const actualDistance = getPrimaryDistanceFromLogs(logs);
-    const status = deriveDayStatus(day, logs, plannedDistance, actualDistance);
-    const keySessionCredit = deriveKeySessionCredit(day, logs, plannedDistance, actualDistance);
-    const strengthStatus = getLogStrengthStatus(logs);
-    const trainingLoad = logs.reduce(
+    const actualDistance = getPrimaryDistanceFromLogs(countedLogs);
+    const status = deriveDayStatus(day, countedLogs, plannedDistance, actualDistance);
+    const keySessionCredit = deriveKeySessionCredit(day, countedLogs, plannedDistance, actualDistance);
+    const strengthStatus = getLogStrengthStatus(countedLogs);
+    const trainingLoad = countedLogs.reduce(
         (sum, log) => sum + (calculateTrainingLoad(log.distance_meters, log.perceived_exertion) ?? 0),
         0,
     );
@@ -454,7 +479,7 @@ export function summarizeDayProgress(
                 ? 'not_scheduled'
                 : strengthStatus,
         training_load: trainingLoad > 0 ? Number(trainingLoad.toFixed(2)) : null,
-        logged_session_count: logs.length,
+        logged_session_count: countedLogs.length,
     };
 }
 
@@ -492,14 +517,16 @@ export function summarizeWeekProgress(
         .sort((a, b) => a - b)
         .map((weekNumber) => {
             const daySummaries = summariesByWeek[weekNumber];
+            const plannedDays = plan.days.filter((day) => day.week_number === weekNumber);
             const plannedDistance = daySummaries.reduce((sum, day) => sum + day.planned_distance_meters, 0);
             const actualDistance = daySummaries.reduce((sum, day) => sum + day.actual_distance_meters, 0);
+            const loggedSessionCount = daySummaries.reduce((sum, day) => sum + day.logged_session_count, 0);
+            const completedDayCount = daySummaries.filter((day) => day.logged_session_count > 0).length;
+            const plannedSessionCount = plannedDays.reduce((sum, day) => sum + day.sessions.length, 0);
             const targetDistance = findTargetDistanceForWeek(weekNumber);
-            const possibleKeySessions = plan.days
-                .filter((day) => day.week_number === weekNumber)
-                .reduce((sum, day) => {
-                    return sum + day.sessions.filter((session) => session.is_key_session).length;
-                }, 0);
+            const possibleKeySessions = plannedDays.reduce((sum, day) => {
+                return sum + day.sessions.filter((session) => session.is_key_session).length;
+            }, 0);
 
             const earnedCredit = daySummaries.reduce(
                 (sum, day) => sum + keySessionValue(day.key_session_credit),
@@ -512,6 +539,9 @@ export function summarizeWeekProgress(
                 planned_distance_meters: plannedDistance,
                 target_distance_meters: targetDistance,
                 actual_distance_meters: actualDistance,
+                logged_session_count: loggedSessionCount,
+                completed_day_count: completedDayCount,
+                planned_session_count: plannedSessionCount,
                 target_coverage_ratio:
                     targetDistance > 0 ? clampPercent(actualDistance / targetDistance) : 0,
                 delta_to_target_meters: actualDistance - targetDistance,

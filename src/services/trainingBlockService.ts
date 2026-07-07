@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 import type { Database } from '../types/database.types';
 import type {
+    TrainingBlockLinkedWorkoutTemplate,
+} from '../utils/trainingBlockTemplateValidation';
+import type {
     TrainingBlockDayCategory,
     TrainingBlockIntervalSpec,
     TrainingBlockKeySessionCredit,
@@ -53,6 +56,7 @@ export interface TrainingBlockReviewOverride {
     key_session_credit?: TrainingBlockKeySessionCredit;
     strength_status?: TrainingBlockStrengthStatus;
     planned_day_slot?: number;
+    planned_session_key?: string;
 }
 
 export interface TrainingBlockTemplateSnapshot {
@@ -182,6 +186,7 @@ export function reviewRowToOverride(row: TrainingBlockLogReviewRow): TrainingBlo
     if (row.key_session_credit) override.key_session_credit = row.key_session_credit as TrainingBlockKeySessionCredit;
     if (row.strength_status) override.strength_status = row.strength_status as TrainingBlockStrengthStatus;
     if (row.planned_day_slot === 0 || row.planned_day_slot) override.planned_day_slot = row.planned_day_slot;
+    if (row.planned_session_key) override.planned_session_key = row.planned_session_key;
     return override;
 }
 
@@ -233,6 +238,32 @@ export async function getTrainingBlockTemplateId(templateKey: TrainingBlockTempl
 
     if (error) throw error;
     return data?.id ?? null;
+}
+
+export async function getTrainingBlockLinkedWorkoutTemplates(
+    templateIds: readonly string[],
+): Promise<Map<string, TrainingBlockLinkedWorkoutTemplate>> {
+    const uniqueIds = [...new Set(templateIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return new Map();
+
+    const { data, error } = await supabase
+        .from('workout_templates')
+        .select('id, name, canonical_name, workout_type, status, rwn')
+        .in('id', uniqueIds);
+
+    if (error) throw error;
+
+    return new Map((data ?? []).map((template) => [
+        template.id,
+        {
+            id: template.id,
+            name: template.name,
+            canonical_name: template.canonical_name,
+            workout_type: template.workout_type,
+            status: template.status,
+            rwn: template.rwn,
+        },
+    ]));
 }
 
 export async function getTrainingBlockEnrollment(
