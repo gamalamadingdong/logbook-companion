@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CalendarDays, Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronDown, ChevronsRight, Building2, LayoutDashboard } from 'lucide-react';
+import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronDown, ChevronsRight, Building2, LayoutDashboard } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { getTeamStats, getTeamAthleteCounts } from '../../services/coaching/coachingService';
 
@@ -8,7 +8,6 @@ const tabs = [
   { path: '/team-management' as const, label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { path: '/team-management/roster' as const, label: 'Roster', icon: Users, exact: false },
   { path: '/team-management/schedule' as const, label: 'Schedule', icon: Calendar, exact: false },
-  { path: '/team-management/training-block' as const, label: 'Training Block', icon: CalendarDays, exact: false },
   { path: '/team-management/assignments' as const, label: 'Team Workouts', icon: ClipboardList, exact: false },
   { path: '/team-management/analytics' as const, label: 'Analytics', icon: BarChart3, exact: false },
   { path: '/team-management/live' as const, label: 'Live', icon: Activity, exact: false },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Loader2, Activity, ClipboardList, CheckCircle2, XCircle, Plus, Building2, ChevronDown, ChevronRight, Shield, Search, CalendarDays } from 'lucide-react';
+import { Users, Calendar, Loader2, Activity, ClipboardList, CheckCircle2, XCircle, Plus, Building2, ChevronDown, ChevronRight, Shield, Search } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { RowingShellIcon } from '../../components/icons/RowingIcons';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
@@ -653,15 +653,6 @@ export const CoachDashboard: React.FC = () => {
                       <p className="text-xs text-neutral-500 mt-1">workouts · {groupedOrgAssignments.size} team{groupedOrgAssignments.size !== 1 ? 's' : ''}</p>
                     </>
                   )}
-                </Link>
-
-                {/* Training Block summary card */}
-                <Link to="/team-management/training-block" className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors group">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Training Block</h3>
-                    <CalendarDays className="w-4 h-4 text-neutral-600 group-hover:text-indigo-400 transition-colors" />
-                  </div>
-                  <p className="text-xs text-neutral-500 mt-1">Open coached weekly template review and compare plans with logged sessions.</p>
                 </Link>
 
                 {/* Lineups summary card */}

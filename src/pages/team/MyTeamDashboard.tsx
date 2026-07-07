@@ -4,7 +4,6 @@ import {
   Users,
   Trophy,
   FileText,
-  CalendarDays,
   Settings,
   Loader2,
   AlertTriangle,
@@ -83,7 +82,6 @@ export function MyTeamDashboard() {
   const sections = [
     { path: '/team/scores', label: 'My Erg Scores', icon: Trophy, description: 'View your test results & progress in the current scope' },
     { path: '/team/notes', label: 'My Session Notes', icon: FileText, description: 'Notes from your coaches in the current scope' },
-    { path: '/team/training-block', label: '12-week Training Block', icon: CalendarDays, description: 'Review your plan versus logged sessions in this cycle' },
   ];
 
   return (

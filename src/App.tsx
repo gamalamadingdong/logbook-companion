@@ -404,19 +404,11 @@ const AppContent: React.FC = () => {
           />
           <Route
             path="/team-management/training-block"
-            element={
-              <CoachRoute>
-                <TrainingBlock />
-              </CoachRoute>
-            }
+            element={<Navigate to="/team-management/assignments" replace />}
           />
           <Route
             path="/team/training-block"
-            element={
-              <ProtectedRoute>
-                <TrainingBlock />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/training-block" replace />}
           />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route
