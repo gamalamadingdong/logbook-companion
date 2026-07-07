@@ -10,6 +10,7 @@ import type {
     TrainingBlockReferenceContent,
     TrainingBlockReferenceExercise,
     TrainingBlockSessionRole,
+    TrainingBlockSupportPrescription,
     TrainingBlockTemplateKey,
     TrainingBlockWeekTarget,
     TrainingBlockWorkoutFamily,
@@ -35,7 +36,7 @@ function canonicalizeRWN(raw: string): string {
     return structureToRWN(parsed);
 }
 
-const PETER_PLAN_RWN_BY_FAMILY: Readonly<Record<TrainingBlockWorkoutFamily, string>> = {
+const PETER_PLAN_RWN_BY_FAMILY: Readonly<Partial<Record<TrainingBlockWorkoutFamily, string>>> = {
     mon_8x500: '8x500m/3:30r',
     mon_pyramid_250_500_750_1000_750_500_250: '250m + 500m + 750m + 1000m + 750m + 500m + 250m',
     mon_4x1000: '4x1000m/5:00r',
@@ -57,54 +58,70 @@ const PETER_PLAN_RWN_BY_FAMILY: Readonly<Record<TrainingBlockWorkoutFamily, stri
     flush_min_3k: '3000m',
     flush_standard_4to5k: '4500m',
     flush_full_6k: '6000m',
-    cross_training: '60:00',
-    strength_pull: '30:00',
-    strength_push: '30:00',
-    rest: '0:00',
-    cross_with_optional_row: '60:00',
+    cross_training: 'Cross: 60:00',
+    cross_with_optional_row: 'Cross: 60:00',
 } as const;
 
 function resolvePlannedRWN(family: TrainingBlockWorkoutFamily): string {
-    return canonicalizeRWN(PETER_PLAN_RWN_BY_FAMILY[family]);
+    const rawRWN = PETER_PLAN_RWN_BY_FAMILY[family];
+    if (!rawRWN) {
+        throw new Error(`No canonical RWN defined for training block family: ${family}`);
+    }
+
+    return canonicalizeRWN(rawRWN);
 }
 
 const PULL_ROUTINE = [
     {
-        name: 'Pull',
-        sets: 3,
-        reps: '10-12',
-        notes: 'Focus control, tempo, full hip hinge.',
+        name: 'Deadlift or Romanian Deadlift',
+        sets: 4,
+        reps: '6-8',
+        notes: 'Quality hinge pattern; stop 1-2 reps before failure.',
     },
     {
-        name: 'Deadlift',
-        sets: 3,
-        reps: '5-6',
-        notes: 'Keep core braced and neutral spine.',
+        name: 'Pendlay Row or Bench Pull',
+        sets: 4,
+        reps: '8',
+        notes: 'Brace hard and keep the pull controlled.',
     },
     {
-        name: 'Rowing-specific circuit',
-        sets: 2,
-        reps: '2x 12',
-        notes: 'Light pull with low weight, smooth transitions.',
+        name: 'Weighted Pull-ups or Lat Pulldown',
+        sets: 3,
+        reps: '8-10',
+        notes: 'Full range without grinding.',
+    },
+    {
+        name: 'Face Pulls',
+        sets: 3,
+        reps: '15',
+        notes: 'Light, clean scapular control.',
     },
 ] as const satisfies readonly TrainingBlockReferenceExercise[];
 
 const PUSH_ROUTINE = [
     {
-        name: 'Push-up variant',
-        sets: 3,
-        reps: '8-12',
+        name: 'Front Squat or Back Squat',
+        sets: 4,
+        reps: '6-8',
+        notes: 'Smooth reps; no failed attempts.',
     },
     {
-        name: 'DB Press',
-        sets: 3,
-        reps: '6-8',
+        name: 'Overhead Press or Flat Bench Press',
+        sets: 4,
+        reps: '8',
         notes: 'Controlled eccentric on each rep.',
     },
     {
-        name: 'Bench Supported Rows',
-        sets: 2,
-        reps: '12-15',
+        name: 'Walking Lunges',
+        sets: 3,
+        reps: '10 steps per leg',
+        notes: 'Stay tall and balanced.',
+    },
+    {
+        name: 'Ab Wheel Rollouts',
+        sets: 3,
+        reps: '10-12',
+        notes: 'Brace through the trunk; shorten range if needed.',
     },
 ] as const satisfies readonly TrainingBlockReferenceExercise[];
 
@@ -272,18 +289,32 @@ function buildSteadySession(distanceMeters: number, role: TrainingBlockSessionRo
     };
 }
 
-function buildCrossSession(distanceMeters: number): TrainingBlockPlannedSession {
+function buildStrengthSupportPrescription(kind: 'pull' | 'push'): TrainingBlockSupportPrescription {
+    const routine = kind === 'pull' ? PULL_REFERENCE.routines[0] : PUSH_REFERENCE.routines[0];
     return {
-        id: `cross-${distanceMeters}`,
-        title: `Cross-training ${distanceMeters / 1000}k equivalent`,
+        kind: 'strength',
+        title: `Strength (${kind})`,
+        focus: routine.focus,
+        exercises: routine.exercises,
+        notes: [
+            '1-2 reps in reserve.',
+            'No failed reps or grindy reps.',
+            'Quality and consistency over load chasing.',
+        ],
+    };
+}
+
+function buildCrossSession(): TrainingBlockPlannedSession {
+    return {
+        id: 'cross-60min',
+        title: 'Cross-training 60 min',
         planned_rwn: resolvePlannedRWN('cross_training'),
         family: 'cross_training',
         role: 'primary',
         source: 'cross_training',
-        expected_distance_meters: undefined,
         expected_duration_minutes: 60,
         counts_toward_weekly_volume: false,
-        instructions: ['Bike, ski, run, or strength-endurance work.'],
+        instructions: ['Bike, ski, run, or general aerobic conditioning.'],
     };
 }
 
@@ -292,10 +323,10 @@ function buildStrengthSession(kind: 'pull' | 'push'): TrainingBlockPlannedSessio
     return {
         id: `strength-${kind}`,
         title: `Strength (${kind})`,
-        planned_rwn: resolvePlannedRWN(kind === 'pull' ? 'strength_pull' : 'strength_push'),
         family: isPull ? 'strength_pull' : 'strength_push',
         role: 'strength',
         source: 'strength',
+        support_prescription: buildStrengthSupportPrescription(kind),
         instructions: [isPull ? 'Keep low to moderate load' : 'Keep movement quality high'],
         counts_toward_weekly_volume: false,
     };
@@ -386,7 +417,7 @@ function buildDay(
     } else if (daySlot === 1 || daySlot === 4) {
         sessions.push(buildSteadySession(daySlot === 1 ? 8000 : 10000, 'primary'));
     } else if (daySlot === 2 || daySlot === 5) {
-        sessions.push(buildCrossSession(daySlot === 2 ? 0 : 0));
+        sessions.push(buildCrossSession());
         sessions.push(buildStrengthSession('push'));
     } else if (daySlot === 3) {
         sessions.push(resolveThursdaySession(weekNumber));

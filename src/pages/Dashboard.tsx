@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { RecentWorkouts } from '../components/RecentWorkouts';
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
-import { Waves, Link as LinkIcon, AlertCircle, RefreshCw } from 'lucide-react';
+import { Waves, Link as LinkIcon, AlertCircle, RefreshCw, CalendarCheck } from 'lucide-react';
 import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
 import { TrainingStreakWidget } from '../components/analytics/TrainingStreakWidget';
 import { WeeklyVolumeSparkline } from '../components/analytics/WeeklyVolumeSparkline';
@@ -11,6 +12,15 @@ import { splitToWatts } from '../utils/zones';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { SectionError } from '../components/SectionError';
 import { OnboardingWizard } from '../components/OnboardingWizard';
+import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
+import { summarizeWeekProgress } from '../utils/trainingBlockCalculations';
+import {
+    formatTrainingBlockWeekRange,
+    getNearestTrainingBlockDay,
+    getTrainingBlockWeekDaysForDate,
+    readTrainingBlockActive,
+} from '../utils/trainingBlockStatus';
+import type { TrainingBlockActualLogEvent } from '../types/trainingBlock.types';
 
 const DashboardSkeleton: React.FC = () => (
     <div className="min-h-screen bg-neutral-900 text-white p-8" aria-busy="true" role="status">
@@ -99,6 +109,31 @@ export const Dashboard: React.FC = () => {
 
         return 200;
     }, [userProfile, userGoals]);
+
+    const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
+    const trainingBlockNow = useMemo(() => new Date(), []);
+    const trainingBlockDay = useMemo(() => getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+    const trainingBlockWeekDays = useMemo(() => getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+    const trainingBlockWeekSummary = useMemo(() => {
+        if (!trainingBlockDay) return null;
+        const events: TrainingBlockActualLogEvent[] = statsHistory.map((workout) => ({
+            workout_id: String(workout.id),
+            date: workout.completed_at,
+            source: workout.source === 'manual' ? 'manual' : 'concept2',
+            distance_meters: workout.distance_meters ?? null,
+            duration_seconds: workout.duration_seconds ?? (workout.duration_minutes ? Math.round(workout.duration_minutes * 60) : null),
+            workout_name: workout.workout_name ?? workout.canonical_name ?? null,
+            canonical_name: workout.canonical_name ?? null,
+            manual_rwn: workout.manual_rwn ?? null,
+            workout_type: workout.workout_type ?? null,
+        }));
+        return summarizeWeekProgress(ROWING_12_WEEK_TEMPLATE, events)
+            .find((week) => week.week_number === trainingBlockDay.week_number) ?? null;
+    }, [statsHistory, trainingBlockDay]);
+
+    const trainingBlockCoverage = trainingBlockWeekSummary
+        ? Math.min(100, Math.round(trainingBlockWeekSummary.target_coverage_ratio * 100))
+        : 0;
 
     if (loading) {
         return <DashboardSkeleton />;
@@ -202,6 +237,40 @@ export const Dashboard: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <TrainingStreakWidget workouts={statsHistory} />
                         <WeeklyVolumeSparkline workouts={statsHistory} />
+                    </div>
+
+                    <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-2xl p-5">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-neutral-400 text-sm mb-2">
+                                    <CalendarCheck size={18} className={isTrainingBlockActive ? 'text-emerald-400' : 'text-neutral-500'} />
+                                    <span>Training block</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full border ${isTrainingBlockActive ? 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20' : 'border-neutral-700 text-neutral-400 bg-neutral-900/60'}`}>
+                                        {isTrainingBlockActive ? 'Active' : 'Preview'}
+                                    </span>
+                                </div>
+                                {trainingBlockDay ? (
+                                    <div>
+                                        <p className="text-xl font-semibold text-white">
+                                            Week {trainingBlockDay.week_number} · {formatTrainingBlockWeekRange(trainingBlockWeekDays)}
+                                        </p>
+                                        <p className="text-sm text-neutral-400 mt-1">
+                                            {trainingBlockWeekSummary
+                                                ? `${trainingBlockCoverage}% coverage · ${trainingBlockWeekSummary.key_session_credits.earned}/${trainingBlockWeekSummary.key_session_credits.possible} key sessions`
+                                                : 'No current week summary yet'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-neutral-400">No training block selected.</p>
+                                )}
+                            </div>
+                            <Link
+                                to="/training-block"
+                                className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white transition-colors"
+                            >
+                                Open block
+                            </Link>
+                        </div>
                     </div>
 
                     {/* Week at a Glance */}

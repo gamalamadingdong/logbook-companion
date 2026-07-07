@@ -124,4 +124,49 @@ describe('trainingBlockCalculations', () => {
         expect(tuesdayIds).toContain('day1');
         expect(mondayIds.every((id) => id !== 'day1')).toBe(true);
     });
+
+    it('aligns a shifted exact canonical workout to its matching plan slot inside the same week', () => {
+        const plan = buildRowing12WeekPlan();
+        const monday = plan.days[0];
+        const tuesday = plan.days[1];
+        const logs: TrainingBlockActualLogEvent[] = [
+            {
+                workout_id: 'shifted-monday-key',
+                date: tuesday.date,
+                source: 'concept2',
+                canonical_name: '8x500m/3:30r',
+                workout_name: 'FixedDistanceInterval',
+                workout_type: 'FixedDistanceInterval',
+                distance_meters: 4000,
+            },
+        ];
+
+        const aligned = alignLogsToPlanDays(plan, logs, 'slot');
+        expect(aligned.get(`${monday.week_number}:${monday.day_slot}`)?.map((log) => log.workout_id)).toContain('shifted-monday-key');
+        expect(aligned.get(`${tuesday.week_number}:${tuesday.day_slot}`)).toBeUndefined();
+
+        const mondaySummary = summarizeDayProgress(monday, aligned.get(`${monday.week_number}:${monday.day_slot}`) ?? []);
+        expect(mondaySummary.status).toBe('as_written');
+        expect(mondaySummary.key_session_credit).toBe('yes');
+    });
+
+    it('matches manual RWN entries to the plan without requiring Concept2 data', () => {
+        const plan = buildRowing12WeekPlan();
+        const monday = plan.days[0];
+        const logs: TrainingBlockActualLogEvent[] = [
+            {
+                workout_id: 'manual-rwn-key',
+                date: monday.date,
+                source: 'manual',
+                manual_rwn: '8x500m/3:30r',
+                workout_name: 'Manual intervals',
+                workout_type: 'manual',
+                distance_meters: 4000,
+            },
+        ];
+
+        const summary = summarizeDayProgress(monday, logs);
+        expect(summary.status).toBe('as_written');
+        expect(summary.key_session_credit).toBe('yes');
+    });
 });

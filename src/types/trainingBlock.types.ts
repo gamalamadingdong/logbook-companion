@@ -12,6 +12,28 @@ export type TrainingBlockSessionSource = 'erg' | 'cross_training' | 'strength' |
 
 export type TrainingBlockSessionRole = 'primary' | 'supplemental' | 'warmup' | 'cooldown' | 'strength';
 
+export type TrainingBlockSupportKind = 'strength' | 'core' | 'stretching' | 'mobility';
+
+export interface TrainingBlockSupportExercisePrescription {
+    name: string;
+    sets?: number;
+    reps?: string;
+    duration_seconds?: number;
+    side?: 'left' | 'right' | 'both' | 'per_side';
+    rest_seconds?: number;
+    intensity?: string;
+    alternatives?: readonly string[];
+    notes?: string;
+}
+
+export interface TrainingBlockSupportPrescription {
+    kind: TrainingBlockSupportKind;
+    title: string;
+    focus?: readonly string[];
+    exercises?: readonly TrainingBlockSupportExercisePrescription[];
+    notes?: readonly string[];
+}
+
 export type TrainingBlockWorkoutFamily =
     | 'mon_8x500'
     | 'mon_pyramid_250_500_750_1000_750_500_250'
@@ -65,7 +87,9 @@ export interface TrainingBlockIntervalSpec {
 export interface TrainingBlockPlannedSession {
     id: string;
     title: string;
-    planned_rwn: string;
+    planned_rwn?: string;
+    workout_template_id?: string | null;
+    support_prescription?: TrainingBlockSupportPrescription;
     family: TrainingBlockWorkoutFamily;
     role: TrainingBlockSessionRole;
     source: TrainingBlockSessionSource;
@@ -136,6 +160,9 @@ export interface TrainingBlockActualLogEvent {
     duration_seconds?: number | null;
     perceived_exertion?: number | null;
     workout_name?: string | null;
+    canonical_name?: string | null;
+    manual_rwn?: string | null;
+    template_id?: string | null;
     workout_type?: string | null;
     status?: TrainingBlockWorkoutStatus;
     key_session_credit?: TrainingBlockKeySessionCredit;

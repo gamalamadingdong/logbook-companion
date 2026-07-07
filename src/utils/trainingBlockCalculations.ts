@@ -10,6 +10,7 @@ import type {
     TrainingBlockWeekSummary,
     TrainingBlockWorkoutStatus,
 } from '../types/trainingBlock.types';
+import { rankTrainingBlockMatch, scoreLogAgainstPlanDay, type TrainingBlockAssignmentMatch } from './trainingBlockMatching';
 
 const DEFAULT_NO_LOG_STATUS: TrainingBlockWorkoutStatus = 'as_written';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -165,6 +166,26 @@ function sortByAffinity(
     return hasCompatibility * 100 + utilization;
 }
 
+function findStrongestMatchedBucket(
+    plannedBuckets: WeekBuckets,
+    log: TrainingBlockActualLogEvent,
+): { bucket: PlanDayBucket; match: TrainingBlockAssignmentMatch } | null {
+    const matches = plannedBuckets.days
+        .filter((bucket) => bucket.day.category !== 'rest')
+        .map((bucket) => ({
+            bucket,
+            match: scoreLogAgainstPlanDay(bucket.day, log),
+        }))
+        .filter(({ match }) => (match.relationship === 'satisfies' && match.confidence >= 0.9) || match.relationship === 'support_only')
+        .sort((a, b) => {
+            const diff = rankTrainingBlockMatch(b.match) - rankTrainingBlockMatch(a.match);
+            if (diff !== 0) return diff;
+            return a.bucket.day.day_slot - b.bucket.day.day_slot;
+        });
+
+    return matches[0] ?? null;
+}
+
 function assignLogToBucket(
     buckets: Map<string, TrainingBlockActualLogEvent[]>,
     mode: DayAlignmentMode,
@@ -223,11 +244,19 @@ export function alignLogsToPlanDays(
         }
 
         const existingByDate = plannedBuckets.byDate.get(rawLog.date);
-        if (existingByDate) {
-            assignLogToBucket(bucketsByPlanDate, mode, rawLog, existingByDate);
-            const next = plannedBuckets.fillBySlot.get(existingByDate.day.day_slot);
+        const strongestMatched = findStrongestMatchedBucket(plannedBuckets, rawLog);
+        const targetByMatch = strongestMatched && existingByDate
+            ? rankTrainingBlockMatch(strongestMatched.match) > rankTrainingBlockMatch(scoreLogAgainstPlanDay(existingByDate.day, rawLog))
+                ? strongestMatched.bucket
+                : null
+            : strongestMatched?.bucket ?? null;
+
+        if (targetByMatch || existingByDate) {
+            const target = targetByMatch ?? existingByDate!;
+            assignLogToBucket(bucketsByPlanDate, mode, rawLog, target);
+            const next = plannedBuckets.fillBySlot.get(target.day.day_slot);
             if (typeof next === 'number') {
-                plannedBuckets.fillBySlot.set(existingByDate.day.day_slot, next + 1);
+                plannedBuckets.fillBySlot.set(target.day.day_slot, next + 1);
             }
             continue;
         }
@@ -345,6 +374,14 @@ function deriveDayStatus(
 
     if (logs.length === 0) return DEFAULT_NO_LOG_STATUS;
 
+    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log));
+    if (matches.some((match) => match.relationship === 'satisfies')) {
+        return 'as_written';
+    }
+    if (matches.some((match) => match.relationship === 'modifies' || match.relationship === 'support_only')) {
+        return 'modified';
+    }
+
     if (plannedDistance > 0) {
         const ratio = actualDistance / plannedDistance;
         return ratio >= 0.9 ? 'modified' : ratio > 0 ? 'partial' : DEFAULT_NO_LOG_STATUS;
@@ -371,6 +408,15 @@ function deriveKeySessionCredit(
     if (!hasKeySession) return 'n_a';
     if (plannedDistance <= 0) return 'n_a';
     if (actualDistance <= 0) return 'no';
+
+    const keySessionIds = new Set(day.sessions.filter((session) => session.is_key_session).map((session) => session.id));
+    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log));
+    if (matches.some((match) => match.relationship === 'satisfies' && match.planned_session_id && keySessionIds.has(match.planned_session_id))) {
+        return 'yes';
+    }
+    if (matches.some((match) => match.relationship === 'modifies' && match.planned_session_id && keySessionIds.has(match.planned_session_id))) {
+        return 'partial';
+    }
 
     const ratio = actualDistance / plannedDistance;
     if (ratio >= 0.95) return 'yes';

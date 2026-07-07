@@ -121,7 +121,7 @@ RWN is a text notation for describing rowing workouts that must:
 ### 4.1 Block Tags
 
 > **Scope Note:** Block tags are designed for **erg workout structure** (warmup, cooldown, test phases).
-> For non-erg activities (strength, stretching, core), use `Other:` machine type with free text.
+> For deliberate generic cross-training, use `Cross:`. Strength, stretching, core, and mobility need a support-work extension before they should be treated as canonical RWN.
 > Full practice capture (erg + gym + stretch) may be better modeled as a **Training Session** containing multiple workouts.
 
 | ID | Requirement | Priority | Test Case |
@@ -153,7 +153,7 @@ RWN is a text notation for describing rowing workouts that must:
 | ID | Requirement | Priority | Test Case |
 |----|-------------|----------|-----------|
 | **MT-1** | Support `Row:`, `Ski:`, `Bike:` prefixes | P1 | `Bike: 15000m` |
-| **MT-2** | Support `Run:`, `Other:` for cross-training | P2 | `Run: 5k` |
+| **MT-2** | Support `Run:`, `Other:` for cross-training | P2 | `Cross: 60:00` |
 | **MT-3** | Mixed modality with `+` | P2 | `Row: 2000m + Other: Plank` |
 
 > **Future Consideration:** `Other:` with free text may not be ideal for structured circuit/strength training.

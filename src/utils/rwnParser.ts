@@ -443,7 +443,7 @@ function appendSessionExtension(base: WorkoutStructure, ext: SessionExtension): 
 
 function parseEmbeddedRWN(expr: string): WorkoutStructure | null {
     const trimmed = expr.trim();
-    const modalityWrapped = trimmed.match(/^(row|bike|ski|run|other)\((.*)\)$/i);
+    const modalityWrapped = trimmed.match(/^(row|bike|ski|run|cross|other)\((.*)\)$/i);
     if (modalityWrapped) {
         const modality = modalityWrapped[1][0].toUpperCase() + modalityWrapped[1].slice(1).toLowerCase();
         return parseRWN(`${modality}: ${modalityWrapped[2]}`);
@@ -773,9 +773,9 @@ export function parseRWN(input: string): WorkoutStructure | null {
     let modality: WorkoutStructure['modality'] = undefined;
 
     // 0. Check for Modality Prefix (e.g., "Bike: 4x500m")
-    const modalityMatch = text.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
+    const modalityMatch = text.match(/^(Row|Bike|Ski|Run|Cross|Other):\s*(.+)$/i);
     if (modalityMatch) {
-        modality = modalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
+        modality = modalityMatch[1].toLowerCase() as WorkoutStructure['modality'];
         text = modalityMatch[2].trim();
     }
 
@@ -1039,9 +1039,9 @@ function parseVariableWorkout(parts: string[], modality?: WorkoutStructure['moda
         let cleanText = cleanSeg;
 
         // Handle local modality override?
-        const segModalityMatch = cleanSeg.match(/^(Row|Bike|Ski|Run|Other):\s*(.+)$/i);
+        const segModalityMatch = cleanSeg.match(/^(Row|Bike|Ski|Run|Cross|Other):\s*(.+)$/i);
         if (segModalityMatch) {
-            segModality = segModalityMatch[1].toLowerCase() as 'row' | 'bike' | 'ski' | 'run' | 'other';
+            segModality = segModalityMatch[1].toLowerCase() as WorkoutStructure['modality'];
             cleanText = segModalityMatch[2].trim();
         }
 

@@ -6,9 +6,8 @@ import { structureToRWN } from '../serializer';
  * Round-trip tests: parse → serialize → parse
  * The serialized output should re-parse to an equivalent structure.
  *
- * NOTE: The serializer does not yet preserve all guidance (target_pace,
- * target_rate, modality). These tests document current behavior;
- * round-trip fidelity will improve as the serializer matures.
+ * NOTE: These tests document current serializer behavior; round-trip
+ * fidelity will improve as the serializer matures.
  */
 
 describe('structureToRWN', () => {
@@ -27,6 +26,18 @@ describe('structureToRWN', () => {
             expect(structure).not.toBeNull();
             const serialized = structureToRWN(structure!);
             expect(serialized).toBe('30:00');
+        });
+
+        it('serializes cross modality prefix', () => {
+            const structure = parseRWN('Cross: 60:00');
+            expect(structure).not.toBeNull();
+            expect(structureToRWN(structure!)).toBe('Cross: 60:00');
+        });
+
+        it('preserves rate guidance', () => {
+            const structure = parseRWN('30:00@r20');
+            expect(structure).not.toBeNull();
+            expect(structureToRWN(structure!)).toBe('30:00@r20');
         });
     });
 

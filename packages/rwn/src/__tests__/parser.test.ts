@@ -642,6 +642,20 @@ describe('RWN Parser - Variable List Notation', () => {
     });
 });
 
+describe('RWN Parser - Cross Modality', () => {
+    test('parses Cross prefix as generic cross-training modality', () => {
+        const result = parseRWN('Cross: 60:00');
+
+        expect(result).not.toBeNull();
+        expect(result?.type).toBe('steady_state');
+        if (result?.type === 'steady_state') {
+            expect(result.modality).toBe('cross');
+            expect(result.unit).toBe('seconds');
+            expect(result.value).toBe(3600);
+        }
+    });
+});
+
 describe('RWN Parser - Session Orchestration Extensions (Additive)', () => {
     test('parses partner syntax and preserves core on-workout structure', () => {
         const result = parseRWN('partner(on=4x1000m, off=wait, switch=piece_end)');

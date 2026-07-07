@@ -542,7 +542,7 @@ A: You can manually change the linked template on the workout detail page.
 A: Yes! Use manual entry with RWN. You won't have split data, but you'll still get template matching and trend tracking.
 
 **Q: How do I track non-rowing workouts?**  
-A: RWN supports other modalities: `Run: 5000m`, `Bike: 30:00`, `Other: Strength training`
+A: RWN supports other modalities: `Run: 5000m`, `Bike: 30:00`, `Cross: 60:00`. Strength/core/stretching/mobility should not be reduced to bare duration placeholders.
 
 **Q: Can I plan future workouts?**  
 A: Yes! Create a workout with a future date. It won't have performance data yet, but it's in your calendar.

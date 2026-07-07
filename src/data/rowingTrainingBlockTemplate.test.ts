@@ -46,44 +46,51 @@ describe('rowingTrainingBlockTemplate', () => {
     it('stores parseable RWN values for key pete plan sessions', () => {
         const plan = buildRowing12WeekPlan();
 
-        const mondayWeek1 = plan.days[0].sessions[0];
-        const thuWeek1 = plan.days[3].sessions[0];
-        const monWeek2 = plan.days[7].sessions[0];
-        const thuWeek2 = plan.days[10].sessions[0];
-        const monWeek4 = plan.days[21].sessions[0];
-        const thuWeek4 = plan.days[24].sessions[0];
-        const monWeek12 = plan.days[77].sessions[0];
-        const thuWeek12 = plan.days[80].sessions[0];
+        const keySessions = [
+            plan.days[0].sessions[0],
+            plan.days[3].sessions[0],
+            plan.days[7].sessions[0],
+            plan.days[10].sessions[0],
+            plan.days[21].sessions[0],
+            plan.days[24].sessions[0],
+            plan.days[77].sessions[0],
+            plan.days[80].sessions[0],
+        ];
 
-        expect(mondayWeek1.planned_rwn.length).toBeGreaterThan(0);
-        expect(thuWeek1.planned_rwn.length).toBeGreaterThan(0);
-        expect(monWeek2.planned_rwn.length).toBeGreaterThan(0);
-        expect(thuWeek2.planned_rwn.length).toBeGreaterThan(0);
-        expect(monWeek4.planned_rwn.length).toBeGreaterThan(0);
-        expect(thuWeek4.planned_rwn.length).toBeGreaterThan(0);
-        expect(monWeek12.planned_rwn.length).toBeGreaterThan(0);
-        expect(thuWeek12.planned_rwn.length).toBeGreaterThan(0);
-
-        expect(() => parseRWN(mondayWeek1.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(thuWeek1.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(monWeek2.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(thuWeek2.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(monWeek4.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(thuWeek4.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(monWeek12.planned_rwn)).not.toThrow();
-        expect(() => parseRWN(thuWeek12.planned_rwn)).not.toThrow();
+        for (const session of keySessions) {
+            expect(session.planned_rwn).toBeDefined();
+            expect(session.planned_rwn?.length).toBeGreaterThan(0);
+            expect(parseRWN(session.planned_rwn!)).not.toBeNull();
+        }
     });
 
-    it('stores parseable RWN for every scheduled session', () => {
+    it('stores parseable RWN only for canonical erg and cross-training sessions', () => {
         const plan = buildRowing12WeekPlan();
         const sessions = plan.days.flatMap((day) => day.sessions);
-        expect(sessions.length).toBeGreaterThan(0);
+        const rwnSessions = sessions.filter((session) => session.planned_rwn);
+        const strengthSessions = sessions.filter((session) => session.source === 'strength');
 
-        for (const session of sessions) {
-            expect(typeof session.planned_rwn).toBe('string');
-            expect(session.planned_rwn.length).toBeGreaterThan(0);
-            expect(() => parseRWN(session.planned_rwn)).not.toThrow();
+        expect(rwnSessions.length).toBeGreaterThan(0);
+        expect(strengthSessions.length).toBeGreaterThan(0);
+
+        for (const session of rwnSessions) {
+            expect(parseRWN(session.planned_rwn!)).not.toBeNull();
         }
+
+        for (const session of strengthSessions) {
+            expect(session.planned_rwn).toBeUndefined();
+            expect(session.support_prescription?.kind).toBe('strength');
+            expect(session.support_prescription?.exercises?.length).toBeGreaterThan(0);
+        }
+    });
+
+    it('uses Cross RWN for generic aerobic cross-training', () => {
+        const plan = buildRowing12WeekPlan();
+        const crossSession = plan.days[2].sessions.find((session) => session.source === 'cross_training');
+
+        expect(crossSession?.planned_rwn).toBe('Cross: 60:00');
+        const parsed = parseRWN(crossSession!.planned_rwn!);
+        expect(parsed?.modality).toBe('cross');
     });
 
     it('aligns day category and weekly target assignments', () => {

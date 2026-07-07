@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search, Lightbulb, Check, Loader2 } from 'lucide-react';
+import { Activity, Zap, Wind, Clock, Timer, SplitSquareHorizontal, ExternalLink, Pencil, X, Save, AlertCircle, BookmarkPlus, BookmarkCheck, Link as LinkIcon, Search, Lightbulb, Check, Loader2, CalendarCheck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Label } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
@@ -22,6 +22,15 @@ import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructur
 import { DEMO_WORKOUTS } from '../data/demoData';
 import { getUserBaseline2kWatts } from '../utils/paceCalculator';
 import { toast } from 'sonner';
+import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
+import { scoreLogAgainstPlanWeek } from '../utils/trainingBlockMatching';
+import {
+    formatTrainingBlockWeekRange,
+    getNearestTrainingBlockDay,
+    getTrainingBlockWeekDaysForDate,
+    readTrainingBlockActive,
+} from '../utils/trainingBlockStatus';
+import type { TrainingBlockActualLogEvent } from '../types/trainingBlock.types';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -449,6 +458,33 @@ export const WorkoutDetail: React.FC = () => {
         return buckets || {};
     }, [visibleStrokes, buckets]);
 
+    const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
+    const trainingBlockDay = useMemo(() => {
+        if (!detail?.date) return null;
+        return getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, detail.date);
+    }, [detail?.date]);
+    const trainingBlockWeekDays = useMemo(() => {
+        if (!detail?.date) return [];
+        return getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, detail.date);
+    }, [detail?.date]);
+    const trainingBlockWeekMatch = useMemo(() => {
+        if (!detail || trainingBlockWeekDays.length === 0) return null;
+
+        const event: TrainingBlockActualLogEvent = {
+            workout_id: String(detail.id),
+            date: detail.date,
+            source: (detail as { source?: string }).source === 'manual' ? 'manual' : 'concept2',
+            distance_meters: detail.distance ?? null,
+            duration_seconds: detail.time ? Math.round(detail.time / 10) : null,
+            workout_name: detail.workout_name ?? canonicalName,
+            canonical_name: canonicalName,
+            manual_rwn: detail.manual_rwn ?? null,
+            workout_type: detail.workout_type ?? null,
+        };
+
+        return scoreLogAgainstPlanWeek(trainingBlockWeekDays, event);
+    }, [canonicalName, detail, trainingBlockWeekDays]);
+
 
     // --- Early Returns (Conditionals) ---
     if (loading) return <div className="p-8 text-neutral-400">Loading workout details...</div>;
@@ -855,6 +891,41 @@ export const WorkoutDetail: React.FC = () => {
                                 <X size={16} />
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {trainingBlockDay && (
+                <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                        <div>
+                            <div className="flex items-center gap-2 mb-2">
+                                <CalendarCheck size={18} className={isTrainingBlockActive ? 'text-emerald-400' : 'text-neutral-500'} />
+                                <h3 className="text-sm font-semibold text-white">Training block</h3>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${isTrainingBlockActive ? 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20' : 'border-neutral-700 text-neutral-400 bg-neutral-950/60'}`}>
+                                    {isTrainingBlockActive ? 'Active' : 'Preview'}
+                                </span>
+                            </div>
+                            <p className="text-sm text-neutral-300">
+                                Week {trainingBlockDay.week_number} · {formatTrainingBlockWeekRange(trainingBlockWeekDays)}
+                            </p>
+                            {trainingBlockWeekMatch ? (
+                                <p className="text-sm text-neutral-400 mt-1">
+                                    Same-week plan match: <span className="text-white">{trainingBlockWeekMatch.match.planned_session_title}</span> · {trainingBlockWeekMatch.planned_day.day_of_week}
+                                </p>
+                            ) : (
+                                <p className="text-sm text-neutral-500 mt-1">No clear same-week plan match for this workout.</p>
+                            )}
+                            {trainingBlockWeekMatch && (
+                                <p className="text-xs text-neutral-500 mt-1">{trainingBlockWeekMatch.match.reason}</p>
+                            )}
+                        </div>
+                        <Link
+                            to="/training-block"
+                            className="inline-flex items-center justify-center px-3 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white transition-colors"
+                        >
+                            Open block
+                        </Link>
                     </div>
                 </div>
             )}

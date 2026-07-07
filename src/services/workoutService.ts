@@ -5,6 +5,23 @@ import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService
 import type { Database, Json } from '../types/database.types';
 
 type WorkoutLogRow = Database['public']['Tables']['workout_logs']['Row'];
+type WorkoutLogInsert = Database['public']['Tables']['workout_logs']['Insert'];
+
+export type ManualWorkoutLogMode = 'row' | 'cross_training' | 'strength' | 'support';
+
+export interface ManualWorkoutLogInput {
+    userId: string;
+    completedAt: string;
+    mode: ManualWorkoutLogMode;
+    manualRWN?: string | null;
+    distanceMeters?: number | null;
+    durationSeconds?: number | null;
+    perceivedExertion?: number | null;
+    notes?: string | null;
+    plannedWeekNumber?: number | null;
+    plannedDaySlot?: number | null;
+}
+
 
 interface WorkoutRawData extends Record<string, unknown> {
     group_assignment_id?: string;
@@ -48,6 +65,72 @@ const formatDurationSeconds = (durationSeconds?: number | null, durationMinutes?
 };
 
 
+function trimToNull(value: string | null | undefined): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+}
+
+function finitePositiveNumber(value: number | null | undefined): number | null {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function manualModeLabel(mode: ManualWorkoutLogMode): string {
+    const labels: Record<ManualWorkoutLogMode, string> = {
+        row: 'Manual rowing workout',
+        cross_training: 'Cross-training',
+        strength: 'Strength work',
+        support: 'Support work',
+    };
+    return labels[mode];
+}
+
+function buildManualNotes(input: ManualWorkoutLogInput): string | null {
+    const notes = trimToNull(input.notes);
+    const markers: string[] = [];
+
+    if (input.plannedDaySlot === 0 || input.plannedDaySlot) {
+        markers.push(`[tb:slot:${input.plannedDaySlot}]`);
+    }
+    if (input.mode === 'strength') {
+        markers.push('[tb:strength:completed]');
+    }
+
+    return [notes, ...markers].filter(Boolean).join(' ') || null;
+}
+
+export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): WorkoutLogInsert {
+    const supportsDistance = input.mode === 'row' || input.mode === 'cross_training';
+    const supportsRWN = input.mode === 'row' || input.mode === 'cross_training';
+    const manualRWN = supportsRWN ? trimToNull(input.manualRWN) : null;
+    const canonicalName = deriveCanonicalNameFromRWN(manualRWN);
+    const durationSeconds = finitePositiveNumber(input.durationSeconds);
+    const distanceMeters = supportsDistance ? finitePositiveNumber(input.distanceMeters) : null;
+    const perceivedExertion = finitePositiveNumber(input.perceivedExertion);
+    const modeLabel = manualModeLabel(input.mode);
+
+    return {
+        user_id: input.userId,
+        completed_at: input.completedAt,
+        source: 'manual',
+        workout_name: canonicalName || modeLabel,
+        workout_type: input.mode,
+        manual_rwn: manualRWN,
+        canonical_name: canonicalName,
+        canonical_signature: normalizeCanonicalName(canonicalName),
+        distance_meters: distanceMeters,
+        duration_seconds: durationSeconds,
+        duration_minutes: durationSeconds ? durationSeconds / 60 : null,
+        perceived_exertion: perceivedExertion,
+        notes: buildManualNotes(input),
+        raw_data: {
+            source: 'training_block_manual_entry',
+            mode: input.mode,
+            planned_week_number: input.plannedWeekNumber ?? null,
+            planned_day_slot: input.plannedDaySlot ?? null,
+        },
+    };
+}
+
 export function buildWorkoutNameUpdates(payload: { manualRWN?: string; isBenchmark?: boolean }): Record<string, unknown> {
     const updates: Record<string, unknown> = {};
 
@@ -73,7 +156,19 @@ export function buildWorkoutNameUpdates(payload: { manualRWN?: string; isBenchma
 export const workoutService = {
     // Sources visible to dashboard/analysis views
     // Includes ErgLink live uploads so coaching-related pages can surface them.
-    viewableSources: ['concept2', 'erg_link_live'] as const,
+    viewableSources: ['concept2', 'erg_link_live', 'manual'] as const,
+
+    createManualWorkoutLog: async (input: ManualWorkoutLogInput): Promise<WorkoutLogRow> => {
+        const payload = buildManualWorkoutLogInsert(input);
+        const { data, error } = await supabase
+            .from('workout_logs')
+            .insert(payload)
+            .select('*')
+            .single();
+
+        if (error) throw error;
+        return data as WorkoutLogRow;
+    },
 
     // Fetch recent workouts list (Dashboard)
     getRecentWorkouts: async (limit = 50, page = 0) => {

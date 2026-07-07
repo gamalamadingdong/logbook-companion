@@ -3751,6 +3751,337 @@ export type Database = {
           },
         ]
       }
+      training_block_enrollments: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          is_active: boolean
+          metadata: Json
+          org_id: string | null
+          start_date: string
+          status: string
+          team_id: string | null
+          template_id: string | null
+          template_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          org_id?: string | null
+          start_date: string
+          status?: string
+          team_id?: string | null
+          template_id?: string | null
+          template_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          org_id?: string | null
+          start_date?: string
+          status?: string
+          team_id?: string | null
+          template_id?: string | null
+          template_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_block_enrollments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_block_enrollments_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_block_enrollments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "training_block_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_block_log_reviews: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          id: string
+          key_session_credit: string | null
+          metadata: Json
+          notes: string | null
+          planned_day_slot: number | null
+          planned_session_key: string | null
+          planned_template_session_id: string | null
+          planned_week_number: number | null
+          status: string | null
+          strength_status: string | null
+          updated_at: string
+          user_id: string
+          workout_log_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          key_session_credit?: string | null
+          metadata?: Json
+          notes?: string | null
+          planned_day_slot?: number | null
+          planned_session_key?: string | null
+          planned_template_session_id?: string | null
+          planned_week_number?: number | null
+          status?: string | null
+          strength_status?: string | null
+          updated_at?: string
+          user_id: string
+          workout_log_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          key_session_credit?: string | null
+          metadata?: Json
+          notes?: string | null
+          planned_day_slot?: number | null
+          planned_session_key?: string | null
+          planned_template_session_id?: string | null
+          planned_week_number?: number | null
+          status?: string | null
+          strength_status?: string | null
+          updated_at?: string
+          user_id?: string
+          workout_log_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_block_log_reviews_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "training_block_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_block_log_reviews_planned_template_session_id_fkey"
+            columns: ["planned_template_session_id"]
+            isOneToOne: false
+            referencedRelation: "training_block_template_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_block_log_reviews_workout_log_id_fkey"
+            columns: ["workout_log_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_block_template_days: {
+        Row: {
+          category: string
+          created_at: string
+          day_of_week: string
+          day_slot: number
+          id: string
+          metadata: Json
+          planned_distance_meters: number
+          reference: Json | null
+          target_distance_meters: number
+          template_id: string
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          day_of_week: string
+          day_slot: number
+          id?: string
+          metadata?: Json
+          planned_distance_meters?: number
+          reference?: Json | null
+          target_distance_meters?: number
+          template_id: string
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          day_of_week?: string
+          day_slot?: number
+          id?: string
+          metadata?: Json
+          planned_distance_meters?: number
+          reference?: Json | null
+          target_distance_meters?: number
+          template_id?: string
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_block_template_days_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "training_block_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_block_template_sessions: {
+        Row: {
+          counts_toward_weekly_volume: boolean
+          created_at: string
+          expected_distance_meters: number | null
+          expected_duration_minutes: number | null
+          family: string
+          id: string
+          instructions: string[] | null
+          intervals: Json | null
+          is_key_session: boolean
+          metadata: Json
+          planned_rwn: string | null
+          role: string
+          session_key: string
+          sort_order: number
+          source: string
+          support_prescription: Json | null
+          target_split_seconds_per_500m: number | null
+          template_day_id: string
+          title: string
+          updated_at: string
+          workout_template_id: string | null
+        }
+        Insert: {
+          counts_toward_weekly_volume?: boolean
+          created_at?: string
+          expected_distance_meters?: number | null
+          expected_duration_minutes?: number | null
+          family: string
+          id?: string
+          instructions?: string[] | null
+          intervals?: Json | null
+          is_key_session?: boolean
+          metadata?: Json
+          planned_rwn?: string | null
+          role: string
+          session_key: string
+          sort_order?: number
+          source: string
+          support_prescription?: Json | null
+          target_split_seconds_per_500m?: number | null
+          template_day_id: string
+          title: string
+          updated_at?: string
+          workout_template_id?: string | null
+        }
+        Update: {
+          counts_toward_weekly_volume?: boolean
+          created_at?: string
+          expected_distance_meters?: number | null
+          expected_duration_minutes?: number | null
+          family?: string
+          id?: string
+          instructions?: string[] | null
+          intervals?: Json | null
+          is_key_session?: boolean
+          metadata?: Json
+          planned_rwn?: string | null
+          role?: string
+          session_key?: string
+          sort_order?: number
+          source?: string
+          support_prescription?: Json | null
+          target_split_seconds_per_500m?: number | null
+          template_day_id?: string
+          title?: string
+          updated_at?: string
+          workout_template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_block_template_sessions_template_day_id_fkey"
+            columns: ["template_day_id"]
+            isOneToOne: false
+            referencedRelation: "training_block_template_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_block_template_sessions_workout_template_id_fkey"
+            columns: ["workout_template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_block_templates: {
+        Row: {
+          created_at: string
+          default_start_date: string | null
+          description: string | null
+          duration_weeks: number
+          id: string
+          metadata: Json
+          name: string
+          source: string
+          status: string
+          template_key: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          default_start_date?: string | null
+          description?: string | null
+          duration_weeks: number
+          id?: string
+          metadata?: Json
+          name: string
+          source?: string
+          status?: string
+          template_key: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          default_start_date?: string | null
+          description?: string | null
+          duration_weeks?: number
+          id?: string
+          metadata?: Json
+          name?: string
+          source?: string
+          status?: string
+          template_key?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       workout_template_proposals: {
         Row: {
           admin_notified_at: string | null

@@ -1,35 +1,102 @@
 /**
  * Workout Structure Types
  *
- * Core RWN structure types are owned by @readyall/rwn and re-exported here.
- * App-specific types (WorkoutTemplate, library DTOs, proposals) are defined below.
+ * These are the app-facing RWN types. Keep them aligned with packages/rwn until
+ * the local package is wired as a workspace dependency.
  */
 
-// Import core RWN types for local use in this file
-import type {
-    WorkoutStructure,
-    SteadyStateStructure,
-    IntervalStructure,
-    VariableStructure,
-    IntervalStep,
-    RestStep,
-    WorkoutStep,
-    SessionExtension,
-    BlockType,
-} from '@readyall/rwn';
+export type WorkoutModality = 'row' | 'bike' | 'ski' | 'run' | 'cross' | 'other';
 
-// Re-export so existing consumers keep working
-export type {
-    WorkoutStructure,
-    SteadyStateStructure,
-    IntervalStructure,
-    VariableStructure,
-    IntervalStep,
-    RestStep,
-    WorkoutStep,
-    SessionExtension,
-    BlockType,
-};
+export type WorkoutStructure =
+    | SteadyStateStructure
+    | IntervalStructure
+    | VariableStructure;
+
+export interface SessionExtension {
+    kind: 'partner' | 'relay' | 'rotate' | 'circuit';
+    switch?: string;
+    on?: string;
+    off?: string;
+    leg?: number;
+    total?: number;
+    team_size?: number;
+    order?: string;
+    off_task?: string;
+    stations?: number;
+    rounds?: number;
+    plan?: string[];
+    items?: string[];
+}
+
+export type BlockType = 'warmup' | 'cooldown' | 'test' | 'main';
+
+export interface SteadyStateStructure {
+    type: 'steady_state';
+    modality?: WorkoutModality;
+    value: number;
+    unit: 'meters' | 'seconds' | 'calories';
+    target_rate?: number;
+    target_rate_max?: number;
+    target_pace?: string;
+    target_pace_max?: string;
+    blockType?: BlockType;
+    tags?: string[];
+    sessionExtension?: SessionExtension;
+    splitValue?: number;
+    splitUnit?: 'meters' | 'seconds';
+    subSegments?: WorkoutStep[];
+    description?: string;
+}
+
+export interface IntervalStructure {
+    type: 'interval';
+    modality?: WorkoutModality;
+    repeats: number;
+    work: IntervalStep;
+    rest: RestStep;
+    tags?: string[];
+    sessionExtension?: SessionExtension;
+}
+
+export interface VariableStructure {
+    type: 'variable';
+    modality?: WorkoutModality;
+    steps: WorkoutStep[];
+    tags?: string[];
+    sessionExtension?: SessionExtension;
+    description?: string;
+}
+
+export interface IntervalStep {
+    type: 'distance' | 'time' | 'calories';
+    value: number;
+    target_rate?: number;
+    target_rate_max?: number;
+    target_pace?: string;
+    target_pace_max?: string;
+    blockType?: BlockType;
+    tags?: string[];
+    description?: string;
+}
+
+export interface RestStep {
+    type: 'time';
+    value: number;
+}
+
+export interface WorkoutStep {
+    type: 'work' | 'rest';
+    modality?: WorkoutModality;
+    duration_type: 'distance' | 'time' | 'calories';
+    value: number;
+    target_rate?: number;
+    target_rate_max?: number;
+    target_pace?: string;
+    target_pace_max?: string;
+    blockType?: BlockType;
+    tags?: string[];
+    description?: string;
+}
 
 // ── App-Specific Types (not part of the RWN package) ──────────────────────
 export interface WorkoutTemplate {

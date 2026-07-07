@@ -23,6 +23,27 @@ function formatDistance(meters: number): string {
     return `${meters}m`;
 }
 
+function formatModalityPrefix(modality?: WorkoutStructure['modality']): string {
+    if (!modality || modality === 'row') return '';
+    return `${modality.charAt(0).toUpperCase()}${modality.slice(1)}: `;
+}
+
+function formatGuidance(step: {
+    target_rate?: number;
+    target_rate_max?: number;
+    target_pace?: string;
+    target_pace_max?: string;
+}): string {
+    const parts: string[] = [];
+    if (step.target_pace) {
+        parts.push(step.target_pace_max ? `${step.target_pace}..${step.target_pace_max}` : step.target_pace);
+    }
+    if (step.target_rate) {
+        parts.push(step.target_rate_max ? `r${step.target_rate}..${step.target_rate_max}` : `r${step.target_rate}`);
+    }
+    return parts.map((part) => `@${part}`).join('');
+}
+
 // Serialize a SessionExtension back to orchestration syntax
 function serializeSessionExtension(ext: SessionExtension, coreRWN: string): string {
     switch (ext.kind) {
@@ -71,22 +92,23 @@ export function structureToRWN(structure: WorkoutStructure): string {
         return serializeSessionExtension(structure.sessionExtension, coreRWN);
     }
 
-    return coreRWN;
+    const modalityPrefix = formatModalityPrefix(structure.modality);
+    return `${modalityPrefix}${coreRWN}`;
 }
 
 function structureToCoreRWN(structure: WorkoutStructure): string {
 
     if (structure.type === 'steady_state') {
-        const steadyStruct = structure as unknown as { blockType?: BlockType; value: number; unit: string; zone?: string; splitValue?: number; splitUnit?: string; subSegments?: { value: number; duration_type: string; target_rate?: number; target_rate_max?: number; target_pace?: string; target_pace_max?: string }[] };
+        const steadyStruct = structure as unknown as { blockType?: BlockType; value: number; unit: string; zone?: string; target_rate?: number; target_rate_max?: number; target_pace?: string; target_pace_max?: string; splitValue?: number; splitUnit?: string; subSegments?: { value: number; duration_type: string; target_rate?: number; target_rate_max?: number; target_pace?: string; target_pace_max?: string }[] };
         const prefix = getBlockTagPrefix(steadyStruct);
         
         let base: string;
         if (steadyStruct.unit === 'meters') {
             const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
-            base = `${prefix}${steadyStruct.value}m${zone}`;
+            base = `${prefix}${steadyStruct.value}m${zone}${formatGuidance(steadyStruct)}`;
         } else {
             const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
-            base = `${prefix}${formatTime(steadyStruct.value)}${zone}`;
+            base = `${prefix}${formatTime(steadyStruct.value)}${zone}${formatGuidance(steadyStruct)}`;
         }
 
         // Append sub-segments or split notation
@@ -94,8 +116,8 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
             const segs = steadyStruct.subSegments.map(s => {
                 const val = s.duration_type === 'distance' ? formatDistance(s.value) : formatTime(s.value);
                 const parts = [val];
-                if (s.target_rate) parts.push(`@r${s.target_rate}`);
                 if (s.target_pace) parts.push(`@${s.target_pace}`);
+                if (s.target_rate) parts.push(`@r${s.target_rate}`);
                 return parts.join('');
             });
             return `${base}[${segs.join(' + ')}]`;
@@ -113,9 +135,10 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
         const intervalStruct = structure as IntervalStructure;
         const prefix = getBlockTagPrefix(intervalStruct.work as unknown as { blockType?: BlockType });
         
-        const workPart = intervalStruct.work.type === 'distance'
+        const workBase = intervalStruct.work.type === 'distance'
             ? `${intervalStruct.work.value}m`
             : formatTime(intervalStruct.work.value);
+        const workPart = `${workBase}${formatGuidance(intervalStruct.work)}`;
         
         // Rest is always time-based on PM5
         const restPart = formatTime(intervalStruct.rest.value);

@@ -1,4 +1,5 @@
 /// <reference types="vitest" />
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { c2DataSaverPlugin } from './vite-plugins/c2-data-saver'
@@ -6,6 +7,11 @@ import { c2DataSaverPlugin } from './vite-plugins/c2-data-saver'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), c2DataSaverPlugin()],
+  resolve: {
+    alias: {
+      '@readyall/rwn': fileURLToPath(new URL('./packages/rwn/src/index.ts', import.meta.url)),
+    },
+  },
   build: {
     rollupOptions: {
       output: {

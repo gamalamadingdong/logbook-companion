@@ -5,6 +5,8 @@
  * RWN parser and consumed by serializers, renderers, and erg programming tools.
  */
 
+export type WorkoutModality = 'row' | 'bike' | 'ski' | 'run' | 'cross' | 'other';
+
 // Main discriminated union for workout structures
 export type WorkoutStructure =
     | SteadyStateStructure
@@ -33,7 +35,7 @@ export type BlockType = 'warmup' | 'cooldown' | 'test' | 'main';
 // Steady state: Just Row / Single Distance / Single Time / Single Calories
 export interface SteadyStateStructure {
     type: 'steady_state';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
+    modality?: WorkoutModality;
     value: number;
     unit: 'meters' | 'seconds' | 'calories';
     target_rate?: number;
@@ -46,12 +48,13 @@ export interface SteadyStateStructure {
     splitValue?: number;
     splitUnit?: 'meters' | 'seconds';
     subSegments?: WorkoutStep[];
+    description?: string;
 }
 
 // Fixed intervals: Repeating distance/time/calories with time-based rest
 export interface IntervalStructure {
     type: 'interval';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
+    modality?: WorkoutModality;
     repeats: number;
     work: IntervalStep;
     rest: RestStep;
@@ -62,7 +65,7 @@ export interface IntervalStructure {
 // Variable intervals: Complex/mixed patterns (pyramids, ladders, etc.)
 export interface VariableStructure {
     type: 'variable';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
+    modality?: WorkoutModality;
     steps: WorkoutStep[];
     tags?: string[];
     sessionExtension?: SessionExtension;
@@ -78,6 +81,7 @@ export interface IntervalStep {
     target_pace_max?: string;
     blockType?: BlockType;
     tags?: string[];
+    description?: string;
 }
 
 // Rest step (always time-based)
@@ -89,7 +93,7 @@ export interface RestStep {
 // Individual step in a variable workout
 export interface WorkoutStep {
     type: 'work' | 'rest';
-    modality?: 'row' | 'bike' | 'ski' | 'run' | 'other';
+    modality?: WorkoutModality;
     duration_type: 'distance' | 'time' | 'calories';
     value: number;
     target_rate?: number;
@@ -98,4 +102,5 @@ export interface WorkoutStep {
     target_pace_max?: string;
     blockType?: BlockType;
     tags?: string[];
+    description?: string;
 }

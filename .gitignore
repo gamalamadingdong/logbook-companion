@@ -29,3 +29,4 @@ scripts/*
 .env
 .env
 
+supabase/.temp/cli-latest

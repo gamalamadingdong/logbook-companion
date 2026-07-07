@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase, getUserGoals } from '../services/supabase';
 import type { UserGoal } from '../services/supabase';
 import { BaselineInput } from '../components/analytics/BaselineInput';
@@ -7,7 +8,7 @@ import { PRList } from '../components/analytics/PRList';
 import { classifyWorkout, ZONES, aggregateBucketsByZone, calculateZoneDistribution } from '../utils/zones';
 import type { TrainingZone } from '../utils/zones';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Line } from 'recharts';
-import { Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Activity, Ruler, Calendar, TrendingUp, TrendingDown, Minus, CalendarCheck } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -20,6 +21,15 @@ import { getUserBaseline2kWatts } from '../utils/paceCalculator';
 import { workoutService } from '../services/workoutService';
 import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
 import { getLinearRegressionStats } from '../utils/math';
+import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
+import { summarizeWeekProgress } from '../utils/trainingBlockCalculations';
+import {
+    formatTrainingBlockWeekRange,
+    getNearestTrainingBlockDay,
+    getTrainingBlockWeekDaysForDate,
+    readTrainingBlockActive,
+} from '../utils/trainingBlockStatus';
+import type { TrainingBlockActualLogEvent } from '../types/trainingBlock.types';
 
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { SplitVarianceChart } from '../components/analytics/SplitVarianceChart';
@@ -384,6 +394,30 @@ export const Analytics: React.FC = () => {
     const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutElapsedSeconds(w), 0);
     const totalWorkSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutWorkSeconds(w, baselineWatts), 0);
 
+    const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
+    const trainingBlockNow = useMemo(() => new Date(), []);
+    const trainingBlockDay = useMemo(() => getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+    const trainingBlockWeekDays = useMemo(() => getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+    const trainingBlockWeekSummary = useMemo(() => {
+        if (!trainingBlockDay) return null;
+        const events: TrainingBlockActualLogEvent[] = workouts.map((workout) => ({
+            workout_id: String(workout.id),
+            date: workout.completed_at,
+            source: workout.source === 'manual' ? 'manual' : 'concept2',
+            distance_meters: workout.distance_meters ?? null,
+            duration_seconds: workout.duration_seconds ?? (workout.duration_minutes ? Math.round(workout.duration_minutes * 60) : null),
+            workout_name: workout.workout_name ?? workout.canonical_name ?? null,
+            canonical_name: workout.canonical_name ?? null,
+            manual_rwn: workout.manual_rwn ?? null,
+            workout_type: workout.workout_type ?? null,
+        }));
+        return summarizeWeekProgress(ROWING_12_WEEK_TEMPLATE, events)
+            .find((week) => week.week_number === trainingBlockDay.week_number) ?? null;
+    }, [workouts, trainingBlockDay]);
+    const trainingBlockCoverage = trainingBlockWeekSummary
+        ? Math.min(100, Math.round(trainingBlockWeekSummary.target_coverage_ratio * 100))
+        : 0;
+
     if (loading) {
         return <AnalyticsSkeleton />;
     }
@@ -454,6 +488,40 @@ export const Analytics: React.FC = () => {
                                 ] : undefined}
                             />
                         )}
+
+                        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 text-sm text-neutral-400 mb-2">
+                                        <CalendarCheck size={18} className={isTrainingBlockActive ? 'text-emerald-400' : 'text-neutral-500'} />
+                                        <span>Training block context</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full border ${isTrainingBlockActive ? 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20' : 'border-neutral-700 text-neutral-400 bg-neutral-950/60'}`}>
+                                            {isTrainingBlockActive ? 'Active' : 'Preview'}
+                                        </span>
+                                    </div>
+                                    {trainingBlockDay ? (
+                                        <>
+                                            <p className="text-lg font-semibold text-white">
+                                                Week {trainingBlockDay.week_number} · {formatTrainingBlockWeekRange(trainingBlockWeekDays)}
+                                            </p>
+                                            <p className="text-sm text-neutral-400 mt-1">
+                                                {trainingBlockWeekSummary
+                                                    ? `${trainingBlockCoverage}% week coverage · ${trainingBlockWeekSummary.key_session_credits.earned}/${trainingBlockWeekSummary.key_session_credits.possible} key sessions`
+                                                    : 'No current week summary yet'}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-neutral-400">No training block selected.</p>
+                                    )}
+                                </div>
+                                <Link
+                                    to="/training-block"
+                                    className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white transition-colors"
+                                >
+                                    Open block
+                                </Link>
+                            </div>
+                        </div>
 
                         {/* Global Filter Bar & Stats */}
                         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-neutral-800 pb-6 mt-6">
