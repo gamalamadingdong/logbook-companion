@@ -20,6 +20,7 @@ export interface ManualWorkoutLogInput {
     notes?: string | null;
     plannedWeekNumber?: number | null;
     plannedDaySlot?: number | null;
+    trainingBlockQuickCompletionKey?: string | null;
 }
 
 
@@ -94,6 +95,9 @@ function buildManualNotes(input: ManualWorkoutLogInput): string | null {
     if (input.mode === 'strength') {
         markers.push('[tb:strength:completed]');
     }
+    if (input.trainingBlockQuickCompletionKey) {
+        markers.push(`[tb:quick:${input.trainingBlockQuickCompletionKey}]`);
+    }
 
     return [notes, ...markers].filter(Boolean).join(' ') || null;
 }
@@ -127,8 +131,22 @@ export function buildManualWorkoutLogInsert(input: ManualWorkoutLogInput): Worko
             mode: input.mode,
             planned_week_number: input.plannedWeekNumber ?? null,
             planned_day_slot: input.plannedDaySlot ?? null,
+            training_block_quick_completion_key: input.trainingBlockQuickCompletionKey ?? null,
         },
     };
+}
+
+
+
+export async function deleteManualWorkoutLog(workoutId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+        .from('workout_logs')
+        .delete()
+        .eq('id', workoutId)
+        .eq('user_id', userId)
+        .eq('source', 'manual');
+
+    if (error) throw error;
 }
 
 export function buildWorkoutNameUpdates(payload: { manualRWN?: string; isBenchmark?: boolean }): Record<string, unknown> {
@@ -169,6 +187,8 @@ export const workoutService = {
         if (error) throw error;
         return data as WorkoutLogRow;
     },
+
+    deleteManualWorkoutLog,
 
     // Fetch recent workouts list (Dashboard)
     getRecentWorkouts: async (limit = 50, page = 0) => {

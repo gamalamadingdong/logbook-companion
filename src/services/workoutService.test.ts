@@ -90,4 +90,21 @@ describe('buildManualWorkoutLogInsert', () => {
             notes: 'Push routine complete [tb:slot:2] [tb:strength:completed]',
         });
     });
+
+    it('marks quick training block completions so checkbox mistakes can be reversed', () => {
+        const insert = buildManualWorkoutLogInsert({
+            userId: 'user-1',
+            completedAt: '2026-07-08T16:00:00.000Z',
+            mode: 'strength',
+            notes: 'Strength (push) complete',
+            plannedWeekNumber: 1,
+            plannedDaySlot: 2,
+            trainingBlockQuickCompletionKey: 'strength-push',
+        });
+
+        expect(insert.notes).toBe('Strength (push) complete [tb:slot:2] [tb:strength:completed] [tb:quick:strength-push]');
+        expect(insert.raw_data).toMatchObject({
+            training_block_quick_completion_key: 'strength-push',
+        });
+    });
 });

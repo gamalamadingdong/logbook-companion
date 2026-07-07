@@ -1021,12 +1021,24 @@ export const TrainingBlock: React.FC = () => {
         }
     };
 
-    const isPlannedSessionComplete = (sessionId: string): boolean => {
-        return selectedDayLogs.some((log) => {
+    const getPlannedSessionCompletionLog = (sessionId: string): DayLogEvent | null => {
+        return selectedDayLogs.find((log) => {
             const match = scoreLogAgainstPlanDay(selectedDay, log);
             if (match.planned_session_id !== sessionId) return false;
             return match.relationship === 'satisfies' || match.relationship === 'support_only';
-        });
+        }) ?? null;
+    };
+
+    const isPlannedSessionComplete = (sessionId: string): boolean => {
+        return getPlannedSessionCompletionLog(sessionId) !== null;
+    };
+
+    const isQuickCompletionLog = (log: DayLogEvent, key: string, title: string): boolean => {
+        if (log.source !== 'manual') return false;
+        const notes = log.notes?.toLowerCase() ?? '';
+        const titleMarker = `${title} complete`.toLowerCase();
+        return notes.includes(`[tb:quick:${key.toLowerCase()}]`)
+            || (log.workout_type === 'strength' && notes.includes(titleMarker) && notes.includes('[tb:strength:completed]'));
     };
 
     const isSupportPrepComplete = selectedDayLogs.some((log) => {
@@ -1055,6 +1067,7 @@ export const TrainingBlock: React.FC = () => {
                 notes: `${options.title} complete`,
                 plannedWeekNumber: selectedDay.week_number,
                 plannedDaySlot: selectedDay.day_slot,
+                trainingBlockQuickCompletionKey: key,
             });
 
             setRawLogs((prev) => [
@@ -1068,6 +1081,37 @@ export const TrainingBlock: React.FC = () => {
             setQuickCompletionSavingKey(null);
         }
     };
+
+    const removeQuickCompletion = async (key: string, title: string) => {
+        if (!user?.id || !canCreateManualEntry) return;
+        const completionLog = getPlannedSessionCompletionLog(key);
+        if (!completionLog || !isQuickCompletionLog(completionLog, key, title)) {
+            setManualEntryError('This completion is tied to a workout log. Use the log review controls instead of deleting it from the checkbox.');
+            return;
+        }
+
+        setQuickCompletionSavingKey(key);
+        setManualEntryError(null);
+
+        try {
+            await workoutService.deleteManualWorkoutLog(completionLog.workout_id, user.id);
+            if (trainingBlockEnrollment) {
+                await deleteTrainingBlockLogReview(trainingBlockEnrollment.id, completionLog.workout_id).catch(() => undefined);
+            }
+            setRawLogs((prev) => prev.filter((log) => log.workout_id !== completionLog.workout_id));
+            setLogOverrides((prev) => {
+                const next = { ...prev };
+                delete next[completionLog.workout_id];
+                return next;
+            });
+        } catch (err) {
+            console.error('Failed to remove quick training block completion', err);
+            setManualEntryError('Could not remove the completion. Please try again.');
+        } finally {
+            setQuickCompletionSavingKey(null);
+        }
+    };
+
 
     useEffect(() => {
         if (!isTeamContext) {
@@ -1769,14 +1813,16 @@ export const TrainingBlock: React.FC = () => {
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={isPlannedSessionComplete(session.id)}
-                                                                        disabled={isPlannedSessionComplete(session.id) || quickCompletionSavingKey === session.id || !canCreateManualEntry}
-                                                                        onChange={() => {
-                                                                            if (!isPlannedSessionComplete(session.id)) {
+                                                                        disabled={quickCompletionSavingKey === session.id || !canCreateManualEntry}
+                                                                        onChange={(event) => {
+                                                                            if (event.target.checked) {
                                                                                 void saveQuickCompletion(session.id, {
                                                                                     mode: 'strength',
                                                                                     title: session.title,
                                                                                     durationMinutes: session.expected_duration_minutes ?? null,
                                                                                 });
+                                                                            } else {
+                                                                                void removeQuickCompletion(session.id, session.title);
                                                                             }
                                                                         }}
                                                                     />
