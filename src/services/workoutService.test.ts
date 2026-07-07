@@ -107,4 +107,22 @@ describe('buildManualWorkoutLogInsert', () => {
             training_block_quick_completion_key: 'strength-push',
         });
     });
+
+    it('marks support-prep quick completions without pretending they are strength work', () => {
+        const insert = buildManualWorkoutLogInsert({
+            userId: 'user-1',
+            completedAt: '2026-07-08T16:00:00.000Z',
+            mode: 'support',
+            notes: 'Support prep complete',
+            plannedWeekNumber: 1,
+            plannedDaySlot: 2,
+            trainingBlockQuickCompletionKey: 'support-prep',
+        });
+
+        expect(insert.notes).toBe('Support prep complete [tb:slot:2] [tb:quick:support-prep]');
+        expect(insert.workout_type).toBe('support');
+        expect(insert.raw_data).toMatchObject({
+            training_block_quick_completion_key: 'support-prep',
+        });
+    });
 });

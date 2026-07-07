@@ -170,6 +170,44 @@ describe('trainingBlockService builders', () => {
         });
     });
 
+    it('uses the persisted template default start date when no enrollment start is supplied', () => {
+        const plan = templateRowsToTrainingBlockPlan({
+            template: {
+                id: 'template-1',
+                template_key: 'rowing_12_week_2026_v1',
+                name: '12-week Pete Block',
+                description: null,
+                version: 1,
+                status: 'published',
+                source: 'logbook_companion',
+                duration_weeks: 12,
+                default_start_date: '2026-07-06',
+                metadata: {},
+                created_at: '2026-07-07T00:00:00Z',
+                updated_at: '2026-07-07T00:00:00Z',
+            },
+            days: [{
+                id: 'day-1',
+                template_id: 'template-1',
+                week_number: 1,
+                day_slot: 0,
+                day_of_week: 'Day 1',
+                category: 'erg',
+                planned_distance_meters: 0,
+                target_distance_meters: 50000,
+                reference: null,
+                metadata: {},
+                created_at: '2026-07-07T00:00:00Z',
+                updated_at: '2026-07-07T00:00:00Z',
+            }],
+            sessions: [],
+        });
+
+        expect(plan.start_date).toBe('2026-07-06');
+        expect(plan.days[0].date).toBe('2026-07-06');
+    });
+
+
     it('converts persisted review rows into the override shape used by matching', () => {
         const row = {
             status: 'swapped',

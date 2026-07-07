@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Flame, ListChecks, Plus, Power, Target, Users } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Flame, ListChecks, Plus, Power, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
 import { Badge } from '../components/ui';
@@ -1033,7 +1033,22 @@ export const TrainingBlock: React.FC = () => {
         return getPlannedSessionCompletionLog(sessionId) !== null;
     };
 
+    const isTrainingBlockQuickLog = (log: DayLogEvent): boolean => {
+        return log.source === 'manual' && (log.notes?.toLowerCase().includes('[tb:quick:') ?? false);
+    };
+
     const isQuickCompletionLog = (log: DayLogEvent, key: string, title: string): boolean => {
+        if (log.source !== 'manual') return false;
+        const notes = log.notes?.toLowerCase() ?? '';
+        const titleMarker = `${title} complete`.toLowerCase();
+        if (notes.includes(`[tb:quick:${key.toLowerCase()}]`)) return true;
+        if (key === 'support-prep') {
+            return notes.includes('support prep complete') || notes.includes('core complete') || notes.includes('mobility complete');
+        }
+        return log.workout_type === 'strength' && notes.includes(titleMarker) && notes.includes('[tb:strength:completed]');
+    };
+
+    const isRemovableQuickCompletionLog = (log: DayLogEvent, key: string, title: string): boolean => {
         if (log.source !== 'manual') return false;
         const notes = log.notes?.toLowerCase() ?? '';
         const titleMarker = `${title} complete`.toLowerCase();
@@ -1041,10 +1056,11 @@ export const TrainingBlock: React.FC = () => {
             || (log.workout_type === 'strength' && notes.includes(titleMarker) && notes.includes('[tb:strength:completed]'));
     };
 
-    const isSupportPrepComplete = selectedDayLogs.some((log) => {
-        const text = `${log.workout_name ?? ''} ${log.workout_type ?? ''} ${log.notes ?? ''}`.toLowerCase();
-        return text.includes('support prep complete') || text.includes('core complete') || text.includes('mobility complete');
-    });
+    const getSupportPrepCompletionLog = (): DayLogEvent | null => {
+        return selectedDayLogs.find((log) => isQuickCompletionLog(log, 'support-prep', 'Support prep')) ?? null;
+    };
+
+    const isSupportPrepComplete = getSupportPrepCompletionLog() !== null;
 
     const saveQuickCompletion = async (key: string, options: {
         mode: ManualWorkoutLogMode;
@@ -1084,8 +1100,10 @@ export const TrainingBlock: React.FC = () => {
 
     const removeQuickCompletion = async (key: string, title: string) => {
         if (!user?.id || !canCreateManualEntry) return;
-        const completionLog = getPlannedSessionCompletionLog(key);
-        if (!completionLog || !isQuickCompletionLog(completionLog, key, title)) {
+        const completionLog = key === 'support-prep'
+            ? getSupportPrepCompletionLog()
+            : getPlannedSessionCompletionLog(key);
+        if (!completionLog || !isRemovableQuickCompletionLog(completionLog, key, title)) {
             setManualEntryError('This completion is tied to a workout log. Use the log review controls instead of deleting it from the checkbox.');
             return;
         }
@@ -1111,6 +1129,35 @@ export const TrainingBlock: React.FC = () => {
             setQuickCompletionSavingKey(null);
         }
     };
+
+    const removeManualWorkoutLog = async (log: DayLogEvent) => {
+        if (!user?.id || log.source !== 'manual' || log.user_id !== user.id || isTeamContext) return;
+        const quickLog = isTrainingBlockQuickLog(log);
+        const confirmed = quickLog || window.confirm('Remove this manual workout log from your training history?');
+        if (!confirmed) return;
+
+        setQuickCompletionSavingKey(log.workout_id);
+        setManualEntryError(null);
+
+        try {
+            await workoutService.deleteManualWorkoutLog(log.workout_id, user.id);
+            if (trainingBlockEnrollment) {
+                await deleteTrainingBlockLogReview(trainingBlockEnrollment.id, log.workout_id).catch(() => undefined);
+            }
+            setRawLogs((prev) => prev.filter((entry) => entry.workout_id !== log.workout_id));
+            setLogOverrides((prev) => {
+                const next = { ...prev };
+                delete next[log.workout_id];
+                return next;
+            });
+        } catch (err) {
+            console.error('Failed to remove manual training block log', err);
+            setManualEntryError('Could not remove the manual log. Please try again.');
+        } finally {
+            setQuickCompletionSavingKey(null);
+        }
+    };
+
 
 
     useEffect(() => {
@@ -1342,15 +1389,15 @@ export const TrainingBlock: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                             <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Training block</p>
                             <Badge variant={isTrainingBlockActive ? 'success' : 'muted'} dot={isTrainingBlockActive}>
-                                {isTrainingBlockActive ? 'Active' : 'Preview'}
+                                {isTrainingBlockActive ? 'Active plan' : 'Paused'}
                             </Badge>
                         </div>
                         <h1 className="text-3xl font-bold text-white">{selectedPlanOption.label}</h1>
                         <p className="text-neutral-400 mt-2 max-w-3xl">
-                            Integrated plan view that matches Concept2 and manual workout logs to the planned same-week stimulus.
+                            Integrated plan view that matches Concept2 and manual workout logs to planned work in the same training week.
                             {isTrainingBlockActive
-                                ? ' Manual completion is available for non-C2 work and deliberate rowing backfill.'
-                                : ' Preview mode keeps the plan visible but disables completion and review writes.'}
+                                ? ' Quick checks create lightweight logs for support work; manual entry is for fuller details or deliberate rowing backfill.'
+                                : ' Paused mode keeps the plan visible but disables completion and review writes.'}
                         </p>
                         {isTeamContext && (
                             <p className="text-sm text-neutral-400 mt-3">
@@ -1386,7 +1433,7 @@ export const TrainingBlock: React.FC = () => {
                             aria-pressed={isTrainingBlockActive}
                         >
                             <Power size={16} />
-                            {isTrainingBlockActive ? 'Active' : 'Turn on'}
+                            {isTrainingBlockActive ? 'Active plan' : 'Turn on'}
                         </button>
                         {isTeamContext && (
                             <label className="inline-flex items-center gap-2 px-4 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-300">
@@ -1429,9 +1476,9 @@ export const TrainingBlock: React.FC = () => {
                     <Card variant="outlined" className="border-neutral-700 bg-neutral-900/40">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                                <p className="text-sm font-semibold text-white">Preview mode</p>
+                                <p className="text-sm font-semibold text-white">Paused plan</p>
                                 <p className="text-sm text-neutral-400 mt-1">
-                                    The block remains visible for planning, but manual completions and review overrides are disabled until it is active.
+                                    The block remains visible for planning, but quick checks, manual completions, and review overrides are disabled until it is active.
                                 </p>
                             </div>
                             <button
@@ -1728,7 +1775,7 @@ export const TrainingBlock: React.FC = () => {
                     <Card className="xl:col-span-2">
                         <CardHeader
                             title={`${selectedDay.day_of_week} · ${formatWeekday(selectedDay.date)}`}
-                            subtitle="Same-week logs can satisfy any matching plan slot in this week"
+                            subtitle="Workouts completed this week can count toward the matching planned session"
                             action={
                                 <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
                                     {statusLabel[selectedDaySummary.status]}
@@ -1829,6 +1876,9 @@ export const TrainingBlock: React.FC = () => {
                                                                     Done
                                                                 </label>
                                                             )}
+                                                            {session.workout_template_id && (
+                                                                <Badge variant="info">Library</Badge>
+                                                            )}
                                                             <Badge variant={session.is_key_session ? 'coaching' : 'muted'}>
                                                                 {sourceLabel[session.source]}
                                                             </Badge>
@@ -1893,13 +1943,15 @@ export const TrainingBlock: React.FC = () => {
                                                 <input
                                                     type="checkbox"
                                                     checked={isSupportPrepComplete}
-                                                    disabled={isSupportPrepComplete || quickCompletionSavingKey === 'support-prep' || !canCreateManualEntry}
-                                                    onChange={() => {
-                                                        if (!isSupportPrepComplete) {
+                                                    disabled={quickCompletionSavingKey === 'support-prep' || !canCreateManualEntry}
+                                                    onChange={(event) => {
+                                                        if (event.target.checked) {
                                                             void saveQuickCompletion('support-prep', {
                                                                 mode: 'support',
                                                                 title: 'Support prep',
                                                             });
+                                                        } else {
+                                                            void removeQuickCompletion('support-prep', 'Support prep');
                                                         }
                                                     }}
                                                 />
@@ -1941,8 +1993,8 @@ export const TrainingBlock: React.FC = () => {
                                     <form onSubmit={saveManualEntry} className="mb-4 rounded-lg border border-blue-500/30 bg-blue-950/10 p-3 space-y-3">
                                         <div className="flex flex-wrap items-start justify-between gap-2">
                                             <div>
-                                                <p className="text-sm font-medium text-white">Complete planned work</p>
-                                                <p className="text-xs text-neutral-500 mt-1">Use this for cross-training, strength, support work, or a deliberate rowing manual entry.</p>
+                                                <p className="text-sm font-medium text-white">Add a manual workout log</p>
+                                                <p className="text-xs text-neutral-500 mt-1">Use quick checks for simple support completion. Use this form when you want a fuller manual log; Concept2 sync remains preferred for rowing.</p>
                                             </div>
                                             <button type="button" onClick={() => setManualEntryOpen(false)} className="text-xs text-neutral-400 hover:text-white">
                                                 Cancel
@@ -1956,7 +2008,7 @@ export const TrainingBlock: React.FC = () => {
                                                     onChange={(event) => updateManualEntrySession(event.target.value)}
                                                     className="mt-1 w-full rounded bg-neutral-950 border border-neutral-800 text-xs text-white px-2 py-2"
                                                 >
-                                                    <option value="">Custom completion</option>
+                                                    <option value="">Custom manual log</option>
                                                     {selectedDay.sessions.map((session) => (
                                                         <option key={session.id} value={session.id}>{session.title}</option>
                                                     ))}
@@ -2068,7 +2120,7 @@ export const TrainingBlock: React.FC = () => {
                                             className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-500 text-white text-xs font-medium hover:bg-blue-400 disabled:opacity-60"
                                         >
                                             <CheckCircle2 size={14} />
-                                            {manualEntrySaving ? 'Saving...' : 'Save completion'}
+                                            {manualEntrySaving ? 'Saving...' : 'Save manual log'}
                                         </button>
                                     </form>
                                 )}
@@ -2080,6 +2132,8 @@ export const TrainingBlock: React.FC = () => {
                                             const tone = sourceTone[log.source];
                                             const logMatch = scoreLogAgainstPlanDay(selectedDay, log);
                                             const relationshipTone = assignmentRelationshipTone[logMatch.relationship];
+                                            const isQuickLog = isTrainingBlockQuickLog(log);
+                                            const canRemoveManualLog = !isTeamContext && log.source === 'manual' && log.user_id === user?.id;
 
                                             return (
                                                 <div
@@ -2092,9 +2146,26 @@ export const TrainingBlock: React.FC = () => {
                                                             <Badge variant={relationshipTone.variant} dot={relationshipTone.dot}>
                                                                 {relationshipTone.label}
                                                             </Badge>
+                                                            {log.source === 'manual' && (
+                                                                <Badge variant={isQuickLog ? 'info' : 'muted'}>
+                                                                    {isQuickLog ? 'Quick log' : 'Manual log'}
+                                                                </Badge>
+                                                            )}
                                                             <span className={`px-2 py-0.5 rounded-full text-xs ${tone.text} ${tone.bg}`}>
                                                                 {tone.label}
                                                             </span>
+                                                            {canRemoveManualLog && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void removeManualWorkoutLog(log)}
+                                                                    disabled={quickCompletionSavingKey === log.workout_id}
+                                                                    className="inline-flex items-center gap-1 rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:border-red-400/60 hover:text-red-200 disabled:opacity-50"
+                                                                    title="Remove this manual workout log"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                    Remove
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <p className="text-neutral-400 mt-1">
@@ -2109,7 +2180,7 @@ export const TrainingBlock: React.FC = () => {
                                                         Completed {log.rawDateLabel}{log.rawDateLabel !== selectedDay.date ? ` · matched ${formatPlanSlot(selectedDay.day_slot)} (${formatWeekday(selectedDay.date)})` : ''}
                                                     </p>
                                                     <p className="text-neutral-500 text-xs mt-1">
-                                                        {formatDuration(log.duration_seconds)} · {log.notes ? 'With notes' : 'No notes'}
+                                                        {formatDuration(log.duration_seconds)} · {isQuickLog ? 'Quick completion' : log.notes ? 'With notes' : 'No notes'}
                                                     </p>
                                                     {logMatch.planned_session_title && (
                                                         <p className="text-xs text-neutral-400 mt-2">
