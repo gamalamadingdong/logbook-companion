@@ -10,8 +10,13 @@ import { calculateCanonicalName, roundToStandardDistance } from '../utils/workou
 import { saveFilteredPRs } from '../utils/prDetection';
 import { matchWorkoutToTemplate } from '../utils/templateMatching';
 import { findMatchingWorkout, shouldUpgrade } from '../utils/reconciliation';
+import {
+    LAST_C2_SYNC_TIMESTAMP_KEY,
+    resolveConcept2SyncQueryParams,
+    type Concept2SyncRange,
+} from '../utils/concept2SyncRange';
 
-export type SyncRange = 'all' | 'season' | '30days' | 'custom';
+export type SyncRange = Concept2SyncRange;
 
 export interface SyncOptions {
     range: SyncRange;
@@ -19,7 +24,9 @@ export interface SyncOptions {
     endDate?: Date | null;
     forceResync?: boolean;
     machineTypes?: Record<string, boolean>;
-    skipIfRecent?: boolean; // New option
+    skipIfRecent?: boolean;
+    sinceLastSyncFallbackDays?: number;
+    sinceLastSyncOverlapDays?: number;
 }
 
 export const useConcept2Sync = () => {
@@ -93,7 +100,7 @@ export const useConcept2Sync = () => {
     const startSync = useCallback(async (options: SyncOptions = { range: '30days' }) => {
         // Smart Sync Throttling
         if (options.skipIfRecent) {
-            const lastSync = localStorage.getItem('last_c2_sync_timestamp');
+            const lastSync = localStorage.getItem(LAST_C2_SYNC_TIMESTAMP_KEY);
             if (lastSync) {
                 const diff = Date.now() - parseInt(lastSync, 10);
                 const oneHour = 60 * 60 * 1000;
@@ -154,23 +161,11 @@ export const useConcept2Sync = () => {
             // 2. Fetch C2 Workouts (Pagination Loop with Filters)
             setStatus('Fetching workout history from Concept2...');
 
-            // Calculate Date Params
-            const queryParams: Record<string, string> = {};
-            if (options.range === '30days') {
-                const d = new Date();
-                d.setDate(d.getDate() - 30);
-                queryParams.from = d.toISOString().split('T')[0];
-            } else if (options.range === 'season') {
-                const now = new Date();
-                const currentYear = now.getFullYear();
-                // Season starts May 1st. If before May, season started prev year.
-                const seasonStartYear = now.getMonth() < 4 ? currentYear - 1 : currentYear;
-                queryParams.from = `${seasonStartYear}-05-01`;
-            } else if (options.range === 'custom' && options.startDate && options.endDate) {
-                queryParams.from = options.startDate.toISOString().split('T')[0];
-                queryParams.to = options.endDate.toISOString().split('T')[0];
-            }
-            // 'all' sends no params
+            const queryParams = resolveConcept2SyncQueryParams(
+                options,
+                new Date(),
+                localStorage.getItem(LAST_C2_SYNC_TIMESTAMP_KEY)
+            );
 
             let allSummaries: C2Result[] = [];
             let page = 1;
@@ -194,7 +189,7 @@ export const useConcept2Sync = () => {
 
             if (allSummaries.length === 0) {
                 setStatus('No workouts found.');
-                localStorage.setItem('last_c2_sync_timestamp', Date.now().toString()); // Save even if 0 found, it was a success
+                localStorage.setItem(LAST_C2_SYNC_TIMESTAMP_KEY, Date.now().toString()); // Save even if 0 found, it was a success
                 setSyncing(false);
                 return;
             }
@@ -466,7 +461,7 @@ export const useConcept2Sync = () => {
             setStatus(`Success! Synced ${processed} new workouts (${skippedExisting} already existed${filterMsg}${failureMsg}).`);
 
             // SAVE LOCALSTORAGE TIMESTAMP
-            localStorage.setItem('last_c2_sync_timestamp', Date.now().toString());
+            localStorage.setItem(LAST_C2_SYNC_TIMESTAMP_KEY, Date.now().toString());
 
         } catch (err) {
             console.error(err);
