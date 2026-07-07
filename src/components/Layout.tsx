@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search } from 'lucide-react';
+import { CalendarDays, LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
@@ -63,6 +63,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/library', label: 'Library', icon: Library },
         { path: '/preferences', label: 'Settings', icon: Settings },
         { path: '/team-management', label: 'Team Management', icon: Users },
+        { path: '/training-block', label: 'Training Block', icon: CalendarDays },
         { path: '/docs', label: 'Documentation', icon: BookOpen },
         ...(isAdmin ? [
             { path: '/feedback', label: 'Feedback', icon: MessageSquare }

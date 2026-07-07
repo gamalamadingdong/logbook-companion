@@ -57,6 +57,7 @@ const MyTeamDashboard = lazyNamed(() => import('./pages/team/MyTeamDashboard'), 
 const MyScores = lazyNamed(() => import('./pages/team/MyScores'), 'MyScores');
 const MyTeamNotes = lazyNamed(() => import('./pages/team/MyTeamNotes'), 'MyTeamNotes');
 const MyTeamSettings = lazyNamed(() => import('./pages/team/MyTeamSettings'), 'MyTeamSettings');
+const TrainingBlock = lazyNamed(() => import('./pages/TrainingBlock'), 'TrainingBlock');
 const NotFound = lazyNamed(() => import('./pages/NotFound'), 'NotFound');
 
 const RouteLoadingScreen: React.FC = () => (
@@ -390,6 +391,30 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DownloadC2Data />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/training-block"
+            element={
+              <ProtectedRoute>
+                <TrainingBlock />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/team-management/training-block"
+            element={
+              <CoachRoute>
+                <TrainingBlock />
+              </CoachRoute>
+            }
+          />
+          <Route
+            path="/team/training-block"
+            element={
+              <ProtectedRoute>
+                <TrainingBlock />
               </ProtectedRoute>
             }
           />
