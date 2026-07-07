@@ -187,4 +187,35 @@ describe('validateTrainingBlockTemplate', () => {
         ]));
     });
 
+    it('warns when support work is linked to workout library templates', () => {
+        const plan = clonePlan();
+        const day = plan.days.find((entry) => entry.sessions.some((session) => session.source === 'strength'))!;
+        const session = day.sessions.find((entry) => entry.source === 'strength')!;
+        const linkedPlan: TrainingBlockPlan = {
+            ...plan,
+            days: plan.days.map((entry) => entry.date === day.date
+                ? {
+                    ...entry,
+                    sessions: entry.sessions.map((candidate) => candidate.id === session.id
+                        ? { ...candidate, workout_template_id: 'strength-library-template' }
+                        : candidate),
+                }
+                : entry),
+        };
+
+        const health = validateTrainingBlockTemplate(linkedPlan, {
+            linkedWorkoutTemplatesById: new Map([
+                ['strength-library-template', { id: 'strength-library-template', name: 'Pull strength', rwn: null }],
+            ]),
+        });
+
+        expect(health.issues).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                code: 'support_session_linked_to_workout_template',
+                severity: 'warning',
+                session_id: session.id,
+            }),
+        ]));
+    });
+
 });

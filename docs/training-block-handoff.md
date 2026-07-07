@@ -16,11 +16,11 @@ The intended product direction is:
 
 ## Current Implementation Status
 
-The current stopping point is a substantial frontend/local-model implementation. It has not introduced new database schema yet.
+The current stopping point is a persisted training block implementation with substantial frontend matching/review UX. Earlier local-only assumptions are obsolete: the repo now includes training block schema migrations and generated database types.
 
 Verification at this stopping point:
 
-- `npx vitest run src/data/rowingTrainingBlockTemplate.test.ts src/utils/trainingBlockCalculations.test.ts` passed.
+- Focused training block tests passed.
 - `npm run build` passed.
 
 Implemented:
@@ -42,7 +42,7 @@ Implemented:
   - week/day slot alignment
   - team assignment loading for the selected week
   - selected-day team prescriptions
-- Added local-only review overrides for logged workouts:
+- Added persistent review overrides for logged workouts, with local fallback when database persistence is unavailable:
   - status
   - key session credit
   - strength status
@@ -62,12 +62,9 @@ Product decisions reflected in the current code:
 - RWN should not be treated as solved for strength, stretching, mobility, and other support work yet.
 - Week number and day slot are the training-plan anchors; calendar dates define the week window.
 - Team and coach workflows are first-class, even though no one is actively using the old coaching/team feature yet.
-- Database persistence should wait until the matching/review model feels right.
+- Training block template/session persistence exists. Further schema changes should be conservative and driven by editing/customization requirements.
 
 Not implemented yet:
-
-- Persistent training block tables.
-- Persistent per-log training block review records.
 - Automatic creation of team assignments from the training block.
 - Assignment-to-plan matching beyond displaying team assignments beside plan days.
 - RWN support-work extensions for strength, core, stretching, and mobility.
@@ -88,7 +85,7 @@ Status: complete for the current stopping point.
 - Keep all planned rowing sessions represented as RWN strings.
 - Use Concept2/manual `workout_logs` as the source of actual work.
 - Summarize progress by week and by day slot.
-- Allow schedule shifting through slot-based alignment and local review overrides.
+- Allow schedule shifting through slot-based alignment and persisted review overrides, with local fallback when needed.
 - Surface strength/core/warm-up/stretching/flush guidance in the planned day view.
 
 ### Phase 2: Integrate Team And Coaching Context
@@ -175,13 +172,21 @@ Training block implication:
 
 ### Phase 4: Persist Training Block State
 
-Status: not started.
+Status: started.
 
-- Add schema for training block enrollment/instances.
-- Add schema for per-athlete plan-day review state.
-- Persist overrides currently stored in local storage.
+- Training block templates, template days, template sessions, enrollments, and log reviews exist.
+- Review overrides are persisted for enrolled users, with local fallback behavior.
 - Decide whether plan assignments are generated as `group_assignments`, linked to them, or represented as a separate plan-prescription layer.
 - Preserve compatibility with Concept2 sync by treating synced logs as actual work that can be matched or reviewed.
+
+Current template architecture decision:
+
+- Training blocks are schedules made from planned sessions.
+- Workout library templates are reusable workout definitions.
+- `training_block_template_sessions.workout_template_id` is optional and should be used as a reusable identity/matching anchor, not as the entire scheduled prescription.
+- Block sessions can still carry block-local `planned_rwn`, expected metrics, support prescriptions, instructions, role, family, and key-session flags.
+- Support work should remain structured `support_prescription` until RWN and/or the library model supports strength/core/mobility/stretching cleanly.
+- See `docs/training-block-template-architecture.md`.
 
 ### Phase 5: Planning And Authoring
 

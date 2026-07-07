@@ -104,6 +104,17 @@ function validateSession(
     }
 
     if (session.workout_template_id) {
+        if (SUPPORT_SOURCES.has(session.source)) {
+            addIssue(
+                issues,
+                'warning',
+                'support_session_linked_to_workout_template',
+                `Support session "${sessionLabel(session)}" links to a workout-library template before support work has a canonical library/RWN model.`,
+                day,
+                session,
+            );
+        }
+
         if (!linkedTemplate) {
             addIssue(
                 issues,

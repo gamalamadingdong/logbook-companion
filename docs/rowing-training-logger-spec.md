@@ -207,7 +207,7 @@ For Week 1 especially, Pete Plan workouts may be completed as structured aerobic
 
 ## 7. Data Model Direction
 
-The current implementation does not add training block database tables. It uses a local 12-week template and reads actual work from existing `workout_logs`.
+The current implementation now includes training block database tables for templates, template days, template sessions, user enrollments, and per-log review overrides. It still reads actual completed training from existing `workout_logs`.
 
 The intended model has four layers:
 
@@ -216,7 +216,15 @@ The intended model has four layers:
 3. Review state: status, key session credit, strength status, and explicit day-slot overrides for a log.
 4. Team planning context: existing `group_assignments`, shown beside the block so coaches can compare team-prescribed work with the block prescription.
 
-Review state is currently local-only. A future persistence phase should promote it into database records after the matching model is stable.
+Review state is persisted for enrolled users, with local fallback behavior when persistence is unavailable.
+
+Template architecture:
+
+- Training blocks are schedules made from planned sessions.
+- Workout library templates are reusable workout definitions.
+- A training block session may optionally reference `workout_templates.id` as a reusable identity and matching anchor.
+- A training block session still owns schedule-specific fields such as week/day slot, role, family, expected metrics, block-specific instructions, key-session status, and support prescription.
+- Strength/core/stretching/mobility should not be forced into workout-library/RWN linkage until those systems support support work cleanly.
 
 Each training day conceptually has planned fields, actual rowing fields, strength fields, and calculated fields.
 
@@ -543,7 +551,7 @@ Show:
 - planned sessions and support work
 - planned RWN for rowing prescriptions
 - matched Concept2/manual logs
-- local review overrides
+- persisted review overrides with local fallback
 - athlete filter in team contexts
 - team weekly athlete snapshot
 - team assignments for the selected week and selected day
@@ -886,11 +894,11 @@ The first usable Logbook Companion version should include:
 3. Concept2/manual log matching by week and day slot
 4. weekly summary
 5. visible strength/support work
-6. local review overrides
+6. persisted review overrides with local fallback
 7. team/coach scoped views
 8. team assignment visibility beside the block
 
-The current implementation covers most of this MVP. The next MVP gap is stronger matching/scoring between planned sessions, logs, and team assignments.
+The current implementation covers most of this MVP. The next MVP gap is editable/configurable template architecture and stronger assignment-to-plan matching.
 
 The current implementation does not yet satisfy canonical notation for strength/support sessions. Treat support-session RWN placeholders as a known gap. The next implementation phase should decide whether to extend `@readyall/rwn` first or temporarily make `planned_rwn` rowing-only.
 
@@ -902,8 +910,8 @@ Possible later additions:
 
 - simple charts
 - CSV export
-- persisted training block instances
-- persisted review state
+- editable custom training block templates
+- user-selectable training block library
 - RWN support-work notation for strength, core, stretching, and mobility
 - RWN `cross` modality for generic cross-training
 - auto-generation of team assignments from a block
@@ -957,16 +965,16 @@ The practical product goal is now:
 
 ### Current Repo Status
 
-As of July 7, 2026, the current implementation is a frontend/local-model training block feature with no new database schema.
+As of July 7, 2026, the current implementation includes training block schema, seeded persisted templates, enrollment state, persisted review overrides, and a frontend matching/review experience.
 
 Implemented:
 
-- A local 12-week rowing training block template.
+- A 12-week rowing training block template, with static fallback and database-backed persisted template support.
 - RWN generation/import through `@readyall/rwn` for planned rowing prescriptions.
 - Training block shared types.
 - Plan/log alignment helpers.
 - Weekly and daily summary helpers.
-- Training block tests for template and calculation behavior.
+- Training block tests for template, matching, calculation, validation, and persistence helper behavior.
 - A Training Block page for personal, team, and coach contexts.
 - Routes:
   - `/training-block`
@@ -977,12 +985,14 @@ Implemented:
 - Team weekly athlete snapshot.
 - Selected-week team assignment loading from `group_assignments`.
 - Display of team assignments beside the block plan.
-- Local review overrides for matched logs.
+- Persisted review overrides for matched logs, with local fallback.
+- Optional `training_block_template_sessions.workout_template_id` links to reusable workout-library templates.
+- Structured `support_prescription` for strength/support work.
 
 Not implemented yet:
 
-- Persistent training block instances or enrollment.
-- Persistent review/override records.
+- Editable custom training block templates.
+- User-selectable library of multiple persisted block templates.
 - Auto-generation of assignments from the training block.
 - Strong assignment-to-plan matching.
 - Pete Plan progression analytics.
@@ -997,11 +1007,11 @@ For detailed handoff and the active implementation plan, see `docs/training-bloc
 
 The active plan is:
 
-1. Stabilize the current local feature and keep tests/build clean.
-2. Tighten matching and scoring between planned sessions, Concept2/manual logs, and team assignments.
-3. Use RWN as the common structure for prescribed rowing sessions.
-4. Add persistence only after the matching model is clear.
-5. Expand into authoring, alternate blocks, and coach-driven plan assignment after the review model feels right.
+1. Keep the current persisted review/matching feature stable and build-clean.
+2. Preserve the hybrid template architecture: training blocks are schedules; workout templates are reusable workout definitions.
+3. Use optional `workout_template_id` links as matching/history anchors for reusable row/cross sessions.
+4. Keep support work in `support_prescription` until RWN/library support-work modeling is mature.
+5. Expand into editing, alternate blocks, and coach-driven plan assignment after the template architecture is stable.
 
 ## 28. Suggested Codex Prompt
 
@@ -1010,7 +1020,7 @@ Use this prompt after placing this file in the repository:
 ```text
 Read docs/rowing-training-logger-spec.md and docs/training-block-handoff.md before writing code.
 
-Continue from the current Logbook Companion training block implementation. Do not treat the spec as a standalone greenfield app. Prioritize Concept2 log matching, RWN prescription coverage, team/coaching integration, and a clear path from local review state to persisted training block state.
+Continue from the current Logbook Companion training block implementation. Do not treat the spec as a standalone greenfield app. Prioritize Concept2 log matching, RWN prescription coverage, team/coaching integration, and the hybrid template architecture where training blocks are schedules and workout templates are reusable workout definitions.
 
 First, inspect the current tests/build status and summarize the existing implementation. Then continue with the next phase of the active plan.
 ```
