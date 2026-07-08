@@ -8,6 +8,7 @@ import {
     getTrainingBlockLifecycleStatus,
     getTrainingBlockWeekDaysForDate,
     readTrainingBlockActive,
+    toTrainingBlockLocalDate,
     writeTrainingBlockActive,
 } from './trainingBlockStatus';
 
@@ -59,10 +60,15 @@ describe('trainingBlockStatus', () => {
         expect(formatTrainingBlockWeekRange(weekDays)).toBe('Jul 6 - Jul 12');
     });
 
+    it('keeps UTC-midnight workout dates on their written calendar date', () => {
+        expect(toTrainingBlockLocalDate('2026-07-08T00:00:00.000Z')).toBe('2026-07-08');
+        expect(toTrainingBlockLocalDate('2026-07-08T00:00:00+00:00')).toBe('2026-07-08');
+    });
+
     it('reports lifecycle status without persisting a schema-backed plan', () => {
         expect(getTrainingBlockLifecycleStatus(plan, '2026-07-01', true)).toBe('preview');
         expect(getTrainingBlockLifecycleStatus(plan, '2026-07-06', true)).toBe('active');
         expect(getTrainingBlockLifecycleStatus(plan, '2026-10-01', true)).toBe('complete');
-        expect(getTrainingBlockLifecycleStatus(plan, '2026-07-06', false)).toBe('inactive');
+        expect(getTrainingBlockLifecycleStatus(plan, '2026-07-06', false)).toBe('paused');
     });
 });

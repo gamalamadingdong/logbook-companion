@@ -16,6 +16,7 @@ import {
     type TrainingBlockAssignmentMatch,
     type TrainingBlockMatchingContext,
 } from './trainingBlockMatching';
+import { toTrainingBlockLocalDate } from './trainingBlockStatus';
 
 const DEFAULT_NO_LOG_STATUS: TrainingBlockWorkoutStatus = 'as_written';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,19 +44,7 @@ function toNumber(value: number | null | undefined): number {
 }
 
 function normalizeDate(value: string): string {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return value;
-    }
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-        return value.slice(0, 10);
-    }
-
-    const year = parsed.getFullYear();
-    const month = `${parsed.getMonth() + 1}`.padStart(2, '0');
-    const day = `${parsed.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return toTrainingBlockLocalDate(value);
 }
 
 function parseLocalDay(dateString: string): number {
@@ -402,8 +391,12 @@ export function plannedDistanceMetersForDay(day: TrainingBlockPlannedDay): numbe
     }, 0);
 }
 
+export function getTrainingBlockLogDistanceMeters(log: Pick<TrainingBlockActualLogEvent, 'distance_meters' | 'rest_distance_meters'>): number {
+    return toNumber(log.distance_meters) + toNumber(log.rest_distance_meters);
+}
+
 function getPrimaryDistanceFromLogs(logs: readonly TrainingBlockActualLogEvent[]): number {
-    return logs.reduce((sum, log) => sum + toNumber(log.distance_meters), 0);
+    return logs.reduce((sum, log) => sum + getTrainingBlockLogDistanceMeters(log), 0);
 }
 
 function getActualWeekVolumeMeters(
@@ -415,7 +408,7 @@ function getActualWeekVolumeMeters(
         .map(normalizeLog)
         .filter((log) => !isIgnoredLog(log))
         .filter((log) => resolveWeekNumber(plan.start_date, log.date) === weekNumber)
-        .reduce((sum, log) => sum + toNumber(log.distance_meters), 0);
+        .reduce((sum, log) => sum + getTrainingBlockLogDistanceMeters(log), 0);
 }
 
 function getLogStrengthStatus(logs: readonly TrainingBlockActualLogEvent[]): TrainingBlockStrengthStatus {
@@ -503,7 +496,7 @@ export function summarizeDayProgress(
     const keySessionCredit = deriveKeySessionCredit(day, countedLogs, plannedDistance, actualDistance, matchingContext);
     const strengthStatus = getLogStrengthStatus(countedLogs);
     const trainingLoad = countedLogs.reduce(
-        (sum, log) => sum + (calculateTrainingLoad(log.distance_meters, log.perceived_exertion) ?? 0),
+        (sum, log) => sum + (calculateTrainingLoad(getTrainingBlockLogDistanceMeters(log), log.perceived_exertion) ?? 0),
         0,
     );
 

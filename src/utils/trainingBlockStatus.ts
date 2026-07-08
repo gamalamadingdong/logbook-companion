@@ -31,8 +31,8 @@ export const TRAINING_BLOCK_PLAN_OPTIONS = [
     },
 ] as const;
 
-export type TrainingBlockPlanOptionId = typeof TRAINING_BLOCK_PLAN_OPTIONS[number]['id'];
-export type TrainingBlockLifecycleStatus = 'inactive' | 'preview' | 'active' | 'complete';
+export type TrainingBlockPlanOptionId = string;
+export type TrainingBlockLifecycleStatus = 'preview' | 'active' | 'complete' | 'paused';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -50,8 +50,8 @@ export function readSelectedTrainingBlockTemplate(): TrainingBlockPlanOptionId {
     if (typeof window === 'undefined') return ROWING_12_WEEK_TEMPLATE.template_id;
 
     const stored = window.localStorage.getItem(TRAINING_BLOCK_SELECTED_TEMPLATE_STORAGE_KEY);
-    const option = TRAINING_BLOCK_PLAN_OPTIONS.find((entry) => entry.id === stored && entry.enabled);
-    return option?.id ?? ROWING_12_WEEK_TEMPLATE.template_id;
+    if (stored) return stored;
+    return ROWING_12_WEEK_TEMPLATE.template_id;
 }
 
 export function writeSelectedTrainingBlockTemplate(value: TrainingBlockPlanOptionId): void {
@@ -60,11 +60,22 @@ export function writeSelectedTrainingBlockTemplate(value: TrainingBlockPlanOptio
 }
 
 export function toTrainingBlockLocalDate(dateInput: string | Date): string {
-    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-        return dateInput;
+    if (typeof dateInput === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+            return dateInput;
+        }
+
+        const utcMidnightDate = dateInput.match(/^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?(?:Z|\+00:00)$/);
+        if (utcMidnightDate) {
+            return utcMidnightDate[1];
+        }
     }
 
     const date = new Date(dateInput);
+    if (Number.isNaN(date.getTime())) {
+        return typeof dateInput === 'string' ? dateInput.slice(0, 10) : '';
+    }
+
     const year = date.getFullYear();
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
@@ -104,7 +115,7 @@ export function getTrainingBlockLifecycleStatus(
     dateInput: string | Date = new Date(),
     isActive = true,
 ): TrainingBlockLifecycleStatus {
-    if (!isActive) return 'inactive';
+    if (!isActive) return 'paused';
 
     const date = toTrainingBlockLocalDate(dateInput);
     if (date < plan.start_date) return 'preview';

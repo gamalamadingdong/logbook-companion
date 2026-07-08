@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     alignLogsToPlanDays,
     calculateTrainingLoad,
+    getTrainingBlockLogDistanceMeters,
     plannedDistanceMetersForDay,
     summarizeDayProgress,
     summarizeWeekProgress,
@@ -19,6 +20,12 @@ describe('trainingBlockCalculations', () => {
         expect(calculateTrainingLoad(10000, 0)).toBeNull();
     });
 
+
+    it('uses workout plus rest distance for training block volume', () => {
+        expect(getTrainingBlockLogDistanceMeters({ distance_meters: 4000, rest_distance_meters: 750 })).toBe(4750);
+        expect(getTrainingBlockLogDistanceMeters({ distance_meters: 2000, rest_distance_meters: null })).toBe(2000);
+    });
+
     it('summarizes a planned day with explicit log status and credit', () => {
         const plan = buildRowing12WeekPlan();
         const monday = plan.days[0];
@@ -28,6 +35,7 @@ describe('trainingBlockCalculations', () => {
                 date: monday.date,
                 source: 'concept2',
                 distance_meters: 10000,
+                rest_distance_meters: 500,
                 duration_seconds: 3600,
                 perceived_exertion: 7,
                 status: 'modified' as TrainingBlockWorkoutStatus,
@@ -40,11 +48,11 @@ describe('trainingBlockCalculations', () => {
 
         expect(summary.date).toBe(monday.date);
         expect(summary.planned_distance_meters).toBe(plannedDistanceMetersForDay(monday));
-        expect(summary.actual_distance_meters).toBe(10000);
+        expect(summary.actual_distance_meters).toBe(10500);
         expect(summary.status).toBe('modified');
         expect(summary.key_session_credit).toBe('partial');
         expect(summary.strength_status).toBe('completed');
-        expect(summary.training_load).toBe(70);
+        expect(summary.training_load).toBe(73.5);
         expect(summary.logged_session_count).toBe(1);
     });
 
@@ -210,6 +218,7 @@ describe('trainingBlockCalculations', () => {
                 workout_name: 'Intervals',
                 workout_type: 'FixedDistanceInterval',
                 distance_meters: 4000,
+                rest_distance_meters: 500,
             },
             {
                 workout_id: 'extra-off-prescription-volume',
@@ -218,6 +227,7 @@ describe('trainingBlockCalculations', () => {
                 workout_name: 'Easy bike plus mobility',
                 workout_type: 'cross_training',
                 distance_meters: 3000,
+                rest_distance_meters: 250,
             },
             {
                 workout_id: 'skipped-does-not-count',
@@ -232,9 +242,9 @@ describe('trainingBlockCalculations', () => {
 
         const [summary] = summarizeWeekProgress(plan, logs);
 
-        expect(summary.actual_distance_meters).toBe(7000);
-        expect(summary.delta_to_target_meters).toBe(7000 - summary.target_distance_meters);
-        expect(summary.target_coverage_ratio).toBe(7000 / summary.target_distance_meters);
+        expect(summary.actual_distance_meters).toBe(7750);
+        expect(summary.delta_to_target_meters).toBe(7750 - summary.target_distance_meters);
+        expect(summary.target_coverage_ratio).toBe(7750 / summary.target_distance_meters);
     });
 
     it('pins manually assigned logs to the selected planned session and ignores does-not-count logs', () => {

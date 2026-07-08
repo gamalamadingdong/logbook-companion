@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
     buildTrainingBlockEnrollmentInsert,
     buildTrainingBlockLogReviewUpsert,
+    computeTrainingBlockEndDate,
     reviewRowToOverride,
     templateRowsToTrainingBlockPlan,
     type TrainingBlockLogReviewRow,
 } from './trainingBlockService';
 
 describe('trainingBlockService builders', () => {
+    it('computes enrollment end dates from fixed template duration', () => {
+        expect(computeTrainingBlockEndDate('2026-08-03', 12)).toBe('2026-10-25');
+        expect(computeTrainingBlockEndDate('2026-08-05', 1)).toBe('2026-08-11');
+    });
+
     it('builds a personal enrollment insert without duplicating completed workouts', () => {
         expect(buildTrainingBlockEnrollmentInsert({
             userId: 'user-1',

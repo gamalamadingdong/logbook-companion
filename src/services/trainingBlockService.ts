@@ -67,6 +67,17 @@ export interface TrainingBlockTemplateSnapshot {
     sessions: TrainingBlockTemplateSessionRow[];
 }
 
+export interface PublishedTrainingBlockTemplateOption {
+    id: string;
+    template_key: TrainingBlockTemplateKey;
+    name: string;
+    description: string | null;
+    version: number;
+    source: string;
+    duration_weeks: number;
+    default_start_date: string | null;
+}
+
 const matchingContextCache = new Map<string, Promise<TrainingBlockMatchingContext>>();
 
 function getTemplateIdsFromPlan(plan: TrainingBlockPlan): string[] {
@@ -113,6 +124,10 @@ function addDaysIso(startDate: string, offsetDays: number): string {
     const mm = (date.getMonth() + 1).toString().padStart(2, '0');
     const dd = date.getDate().toString().padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
+}
+
+export function computeTrainingBlockEndDate(startDate: string, durationWeeks: number): string {
+    return addDaysIso(startDate, durationWeeks * 7 - 1);
 }
 
 function jsonObjectOrUndefined<T>(value: Database['public']['Tables']['training_block_templates']['Row']['metadata'] | null): T | undefined {
@@ -197,7 +212,7 @@ export function templateRowsToTrainingBlockPlan(
             };
         });
 
-    const endDate = addDaysIso(resolvedStartDate, snapshot.template.duration_weeks * 7 - 1);
+    const endDate = computeTrainingBlockEndDate(resolvedStartDate, snapshot.template.duration_weeks);
 
     return {
         template_id: snapshot.template.template_key as TrainingBlockTemplateKey,
@@ -249,6 +264,26 @@ export function reviewRowToOverride(row: TrainingBlockLogReviewRow): TrainingBlo
     if (row.planned_day_slot === 0 || row.planned_day_slot) override.planned_day_slot = row.planned_day_slot;
     if (row.planned_session_key) override.planned_session_key = row.planned_session_key;
     return override;
+}
+
+export async function getPublishedTrainingBlockTemplates(): Promise<PublishedTrainingBlockTemplateOption[]> {
+    const { data, error } = await supabase
+        .from('training_block_templates')
+        .select('id, template_key, name, description, version, source, duration_weeks, default_start_date')
+        .eq('status', 'published')
+        .order('name', { ascending: true });
+
+    if (error) throw error;
+    return (data ?? []).map((template) => ({
+        id: template.id,
+        template_key: template.template_key as TrainingBlockTemplateKey,
+        name: template.name,
+        description: template.description,
+        version: template.version,
+        source: template.source,
+        duration_weeks: template.duration_weeks,
+        default_start_date: template.default_start_date,
+    }));
 }
 
 export async function getTrainingBlockPlanFromDatabase(

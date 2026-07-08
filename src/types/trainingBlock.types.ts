@@ -4,7 +4,7 @@
  * persisted later when we add DB schemas.
  */
 
-export type TrainingBlockTemplateKey = 'rowing_12_week_2026_v1';
+export type TrainingBlockTemplateKey = string;
 
 export type TrainingBlockDayCategory = 'erg' | 'cross_training' | 'rest';
 
@@ -158,6 +158,7 @@ export interface TrainingBlockActualLogEvent {
     planned_day_key?: string;
     planned_session_key?: string | null;
     distance_meters?: number | null;
+    rest_distance_meters?: number | null;
     duration_seconds?: number | null;
     avg_split_500m?: number | null;
     perceived_exertion?: number | null;

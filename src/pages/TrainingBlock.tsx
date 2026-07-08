@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Flame, ListChecks, Plus, Power, Target, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
 import { Badge } from '../components/ui';
@@ -14,15 +14,17 @@ import {
     scoreAssignmentAgainstPlanWeek,
     toTrainingBlockActualLogEvent,
     scoreLogAgainstPlanDay,
-    scoreLogAgainstPlanWeek,
     type TrainingBlockAssignmentRelationship,
 } from '../utils/trainingBlockMatching';
 import {
     TRAINING_BLOCK_PLAN_OPTIONS,
+    getTrainingBlockLifecycleStatus,
     readSelectedTrainingBlockTemplate,
     readTrainingBlockActive,
+    toTrainingBlockLocalDate,
     writeSelectedTrainingBlockTemplate,
     writeTrainingBlockActive,
+    type TrainingBlockLifecycleStatus,
     type TrainingBlockPlanOptionId,
 } from '../utils/trainingBlockStatus';
 import {
@@ -54,13 +56,16 @@ import { formatSplit, parsePaceToSeconds } from '../utils/paceCalculator';
 import { formatDistanceMeters, formatSignedDistanceMeters } from '../utils/trainingBlockFormatting';
 import { workoutService, type ManualWorkoutLogMode } from '../services/workoutService';
 import {
+    computeTrainingBlockEndDate,
     deleteTrainingBlockLogReview,
     ensureTrainingBlockEnrollment,
+    getPublishedTrainingBlockTemplates,
     getTrainingBlockEnrollment,
     getTrainingBlockLogReviews,
     getTrainingBlockPlanFromDatabase,
     reviewRowToOverride,
     upsertTrainingBlockLogReview,
+    type PublishedTrainingBlockTemplateOption,
     type TrainingBlockEnrollmentRow,
 } from '../services/trainingBlockService';
 import type { TrainingBlockWorkoutStatus } from '../types/trainingBlock.types';
@@ -71,6 +76,7 @@ type TrainingBlockWorkoutLogRow = Pick<
     | 'id'
     | 'completed_at'
     | 'distance_meters'
+    | 'rest_distance_meters'
     | 'duration_seconds'
     | 'duration_minutes'
     | 'avg_split_500m'
@@ -112,7 +118,7 @@ const assignmentRelationshipTone: Record<TrainingBlockAssignmentRelationship, As
     modifies: { label: 'Modified', variant: 'warning', dot: true },
     conflicts: { label: 'Conflicts', variant: 'danger', dot: true },
     support_only: { label: 'Support work', variant: 'coaching', dot: true },
-    unmatched: { label: 'Unmatched', variant: 'muted', dot: false },
+    unmatched: { label: 'Extra effort', variant: 'muted', dot: false },
 };
 
 type WorkoutLogOverrides = Record<string, WorkoutLogOverride>;
@@ -252,19 +258,26 @@ function mergeWorkoutLogOverride(
 
 const STATIC_TRAINING_BLOCK_PLAN = ROWING_12_WEEK_TEMPLATE;
 
-function localDateString(dateInput: string | Date): string {
-    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-        return dateInput;
-    }
+const STATIC_TEMPLATE_OPTION: PublishedTrainingBlockTemplateOption = {
+    id: 'static-rowing-12-week-2026-v1',
+    template_key: ROWING_12_WEEK_TEMPLATE.template_id,
+    name: '12-week Pete Block',
+    description: 'Current integrated rowing block',
+    version: 1,
+    source: 'static_fallback',
+    duration_weeks: ROWING_12_WEEK_TEMPLATE.duration_weeks,
+    default_start_date: ROWING_12_WEEK_TEMPLATE.start_date,
+};
 
-    const date = new Date(dateInput);
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+function localDateString(dateInput: string | Date): string {
+    return toTrainingBlockLocalDate(dateInput);
 }
 
-
+function shiftLocalDateString(dateInput: string, days: number): string {
+    const date = new Date(`${dateInput}T12:00:00`);
+    date.setDate(date.getDate() + days);
+    return localDateString(date);
+}
 
 function formatDuration(seconds: number | null | undefined): string {
     if (!seconds || seconds <= 0) return '-';
@@ -295,6 +308,36 @@ function formatInputTime(value: string): string {
     if (Number.isNaN(parsed.getTime())) return '12:00';
     return `${parsed.getHours().toString().padStart(2, '0')}:${parsed.getMinutes().toString().padStart(2, '0')}`;
 }
+
+function getMondaySnappedDate(dateInput: string | Date = new Date()): string {
+    const date = typeof dateInput === 'string' ? new Date(`${dateInput}T12:00:00`) : new Date(dateInput);
+    const day = date.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + offset);
+    return localDateString(date);
+}
+
+function formatDateLabel(date: string): string {
+    return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+const lifecycleStatusLabel: Record<TrainingBlockLifecycleStatus, string> = {
+    preview: 'Preview',
+    active: 'Active',
+    complete: 'Complete',
+    paused: 'Paused',
+};
+
+const lifecycleStatusTone: Record<TrainingBlockLifecycleStatus, BadgeVariant> = {
+    preview: 'info',
+    active: 'success',
+    complete: 'coaching',
+    paused: 'muted',
+};
 
 
 function formatWeekday(date: string): string {
@@ -524,6 +567,7 @@ function mapLogs(logs: TrainingBlockWorkoutLogRow[], athleteNameByUserId: Map<st
             date: localDateString(log.completed_at),
             source: log.source,
             distance_meters: log.distance_meters ?? undefined,
+            rest_distance_meters: log.rest_distance_meters ?? undefined,
             duration_seconds: log.duration_seconds ?? undefined,
             duration_minutes: log.duration_minutes ?? undefined,
             avg_split_500m: log.avg_split_500m ?? undefined,
@@ -589,9 +633,40 @@ export const TrainingBlock: React.FC = () => {
     const [quickCompletionSavingKey, setQuickCompletionSavingKey] = useState<string | null>(null);
     const [isTrainingBlockActive, setTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
     const [selectedTemplateId, setSelectedTemplateId] = useState<TrainingBlockPlanOptionId>(() => readSelectedTrainingBlockTemplate());
+    const [publishedTemplates, setPublishedTemplates] = useState<PublishedTrainingBlockTemplateOption[]>([]);
+    const [templatesLoading, setTemplatesLoading] = useState(true);
+    const [setupOpen, setSetupOpen] = useState(false);
+    const [setupTemplateKey, setSetupTemplateKey] = useState<TrainingBlockTemplateKey>(() => readSelectedTrainingBlockTemplate());
+    const [setupStartDate, setSetupStartDate] = useState(() => getMondaySnappedDate());
+    const [setupSaving, setSetupSaving] = useState(false);
+    const [setupError, setSetupError] = useState<string | null>(null);
     const [trainingBlockEnrollment, setTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
     const { matchingContext, isLoading: linkedWorkoutTemplatesLoading } = useTrainingBlockMatchingContext(plan);
     const [reviewPersistenceMode, setReviewPersistenceMode] = useState<'loading' | 'database' | 'local'>('loading');
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadTemplates = async () => {
+            setTemplatesLoading(true);
+            try {
+                const templates = await getPublishedTrainingBlockTemplates();
+                if (cancelled) return;
+                setPublishedTemplates(templates);
+            } catch (error) {
+                console.error('Failed to load published training block templates; using static fallback', error);
+                if (!cancelled) setPublishedTemplates([]);
+            } finally {
+                if (!cancelled) setTemplatesLoading(false);
+            }
+        };
+
+        void loadTemplates();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -623,24 +698,27 @@ export const TrainingBlock: React.FC = () => {
             }
 
             try {
-                let enrollment = await getTrainingBlockEnrollment(user.id, selectedTemplateId as TrainingBlockTemplateKey);
+                const enrollment = await getTrainingBlockEnrollment(user.id, selectedTemplateId as TrainingBlockTemplateKey);
                 const planStartDate = enrollment?.start_date ?? fallbackPlan.start_date;
                 const persistedPlan = await loadPersistedPlan(planStartDate);
                 const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(planStartDate);
 
-                if (!enrollment) {
-                    enrollment = await ensureTrainingBlockEnrollment({
-                        userId: user.id,
-                        templateKey: selectedTemplateId as TrainingBlockTemplateKey,
-                        startDate: resolvedPlan.start_date,
-                        endDate: resolvedPlan.end_date,
-                        isActive: readTrainingBlockActive(true),
-                    });
-                }
                 if (cancelled) return;
 
                 setPlan(resolvedPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
+
+                if (!enrollment) {
+                    setTrainingBlockEnrollment(null);
+                    setTrainingBlockActive(false);
+                    setSetupOpen(true);
+                    setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
+                    setSetupStartDate(getMondaySnappedDate());
+                    setLogOverrides({});
+                    setReviewPersistenceMode('local');
+                    return;
+                }
+
                 setTrainingBlockEnrollment(enrollment);
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
@@ -758,8 +836,8 @@ export const TrainingBlock: React.FC = () => {
 
             try {
                 const athleteNameByUserId = new Map<string, string>();
-                const planWindowStart = `${plan.start_date}T00:00:00.000Z`;
-                const planWindowEnd = `${plan.end_date}T23:59:59.999Z`;
+                const planWindowStart = `${shiftLocalDateString(plan.start_date, -1)}T00:00:00.000Z`;
+                const planWindowEnd = `${shiftLocalDateString(plan.end_date, 1)}T23:59:59.999Z`;
 
                 if (isTeamContext) {
                     if (isCoachingLoading) {
@@ -803,7 +881,7 @@ export const TrainingBlock: React.FC = () => {
 
                     const { data, error: fetchError } = await supabase
                         .from('workout_logs')
-                        .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
+                        .select('id, completed_at, distance_meters, rest_distance_meters, duration_seconds, duration_minutes, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
                         .in('user_id', teamUserIds)
                         .gte('completed_at', planWindowStart)
                         .lte('completed_at', planWindowEnd)
@@ -826,7 +904,7 @@ export const TrainingBlock: React.FC = () => {
 
                 const { data, error: fetchError } = await supabase
                     .from('workout_logs')
-                    .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
+                    .select('id, completed_at, distance_meters, rest_distance_meters, duration_seconds, duration_minutes, avg_split_500m, perceived_exertion, source, workout_name, manual_rwn, canonical_name, template_id, notes, workout_type, user_id')
                     .eq('user_id', user.id)
                     .gte('completed_at', planWindowStart)
                     .lte('completed_at', planWindowEnd)
@@ -913,14 +991,28 @@ export const TrainingBlock: React.FC = () => {
     const selectedWeekStart = selectedWeekDays[0]?.date ?? selectedDay.date;
     const selectedWeekEnd = selectedWeekDays[selectedWeekDays.length - 1]?.date ?? selectedDay.date;
     const selectedDayKey = `${selectedDay.week_number}:${selectedDay.day_slot}`;
-    const selectedDayLogs = (alignedLogsByDay.get(selectedDayKey) ?? []) as DayLogEvent[];
-    const selectedDayLogMatches = useMemo(() => selectedDayLogs.map((log) => ({
+    const selectedDayAlignedLogs = (alignedLogsByDay.get(selectedDayKey) ?? []) as DayLogEvent[];
+    const selectedDayCalendarLogs = useMemo(() => {
+        return logs.filter((log) => log.rawDateLabel === selectedDay.date);
+    }, [logs, selectedDay.date]);
+    const selectedDayAlignedLogMatches = useMemo(() => selectedDayAlignedLogs.map((log) => ({
         log,
         match: scoreLogAgainstPlanDay(selectedDay, log, templateMatchingContext),
-    })), [selectedDay, selectedDayLogs, templateMatchingContext]);
+    })), [selectedDay, selectedDayAlignedLogs, templateMatchingContext]);
+    const calendarLogCountByDate = useMemo(() => {
+        const counts = new Map<string, number>();
+        logs.forEach((log) => {
+            counts.set(log.rawDateLabel, (counts.get(log.rawDateLabel) ?? 0) + 1);
+        });
+        return counts;
+    }, [logs]);
+    const selectedDayCalendarLogMatches = useMemo(() => selectedDayCalendarLogs.map((log) => ({
+        log,
+        match: scoreLogAgainstPlanDay(selectedDay, log, templateMatchingContext),
+    })), [selectedDay, selectedDayCalendarLogs, templateMatchingContext]);
     const matchedLogsBySessionId = useMemo(() => {
         const bySession = new Map<string, Array<{ log: DayLogEvent; match: ReturnType<typeof scoreLogAgainstPlanDay> }>>();
-        selectedDayLogMatches.forEach((entry) => {
+        selectedDayAlignedLogMatches.forEach((entry) => {
             if (entry.log.status === 'skipped') return;
             if (!entry.match.planned_session_id) return;
             if (entry.match.relationship !== 'satisfies' && entry.match.relationship !== 'support_only') return;
@@ -933,18 +1025,13 @@ export const TrainingBlock: React.FC = () => {
             }
         });
         return bySession;
-    }, [selectedDayLogMatches]);
-    const supportPrepLogMatches = selectedDayLogMatches.filter(({ log, match }) => {
+    }, [selectedDayAlignedLogMatches]);
+    const supportPrepLogMatches = selectedDayAlignedLogMatches.filter(({ log, match }) => {
         if (log.status === 'skipped') return false;
         if (match.planned_session_id) return false;
         return log.notes?.toLowerCase().includes('[tb:quick:support-prep]') ?? false;
     });
-    const selectedDayReviewLogEntries = selectedDayLogMatches.filter(({ log, match }) => {
-        if (log.status === 'skipped') return true;
-        if (!match.planned_session_id) return true;
-        return match.relationship !== 'satisfies' && match.relationship !== 'support_only';
-    });
-    const selectedWeekLogs = selectedWeekDays.flatMap((entry) => (alignedLogsByDay.get(`${entry.week_number}:${entry.day_slot}`) ?? []) as DayLogEvent[]);
+    const selectedDayLoggedWorkoutEntries = selectedDayCalendarLogMatches;
     const selectedReference = selectedDay.reference;
     const defaultManualSession = selectedDay.sessions.find((session) => session.source === 'cross_training')
         ?? selectedDay.sessions.find((session) => session.source === 'strength')
@@ -954,12 +1041,19 @@ export const TrainingBlock: React.FC = () => {
         ? manualModeForSession(defaultManualSession)
         : 'support';
     const defaultManualRWN = defaultManualSession?.planned_rwn ?? '';
-    const selectedPlanOption = TRAINING_BLOCK_PLAN_OPTIONS.find((option) => option.id === selectedTemplateId) ?? TRAINING_BLOCK_PLAN_OPTIONS[0];
+    const availableTemplates = publishedTemplates.length > 0 ? publishedTemplates : [STATIC_TEMPLATE_OPTION];
+    const selectedTemplate = availableTemplates.find((template) => template.template_key === selectedTemplateId) ?? STATIC_TEMPLATE_OPTION;
+    const setupTemplate = availableTemplates.find((template) => template.template_key === setupTemplateKey) ?? selectedTemplate ?? STATIC_TEMPLATE_OPTION;
+    const setupEndDate = computeTrainingBlockEndDate(setupStartDate, setupTemplate.duration_weeks);
+    const lifecycleStatus = trainingBlockEnrollment
+        ? getTrainingBlockLifecycleStatus(plan, new Date(), isTrainingBlockActive)
+        : 'preview';
+    const lifecycleBadgeVariant = lifecycleStatusTone[lifecycleStatus];
     const templateHealth = useMemo(() => validateTrainingBlockTemplate(plan, {
         source: planSource,
         linkedWorkoutTemplatesById: templateMatchingContext.linkedWorkoutTemplatesById ?? new Map(),
     }), [templateMatchingContext, plan, planSource]);
-    const canCreateManualEntry = isTrainingBlockActive && (!isTeamContext || selectedAthleteUserId === user?.id);
+    const canCreateManualEntry = Boolean(trainingBlockEnrollment) && isTrainingBlockActive && (!isTeamContext || selectedAthleteUserId === user?.id);
     const manualEntryUsesRWN = manualEntryForm.mode === 'row' || manualEntryForm.mode === 'cross_training';
     const manualEntryUsesDistance = manualEntryForm.mode === 'row' || manualEntryForm.mode === 'cross_training';
     const defaultRWNForManualMode = (mode: ManualWorkoutLogMode): string => {
@@ -1009,13 +1103,18 @@ export const TrainingBlock: React.FC = () => {
     };
 
     const updateTrainingBlockActive = (value: boolean) => {
+        if (value && !trainingBlockEnrollment) {
+            setSetupOpen(true);
+            return;
+        }
+
         setTrainingBlockActive(value);
         writeTrainingBlockActive(value);
         if (!value) {
             closeManualEntry();
         }
 
-        if (!user?.id) return;
+        if (!user?.id || !trainingBlockEnrollment) return;
 
         void ensureTrainingBlockEnrollment({
             userId: user.id,
@@ -1032,11 +1131,62 @@ export const TrainingBlock: React.FC = () => {
         });
     };
 
-    const updateSelectedTemplate = (value: TrainingBlockPlanOptionId) => {
-        const option = TRAINING_BLOCK_PLAN_OPTIONS.find((entry) => entry.id === value);
-        if (!option?.enabled) return;
-        setSelectedTemplateId(value);
-        writeSelectedTrainingBlockTemplate(value);
+    const openSetup = () => {
+        setSetupError(null);
+        setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
+        setSetupStartDate(trainingBlockEnrollment?.start_date ?? getMondaySnappedDate());
+        setSetupOpen(true);
+    };
+
+    const saveTrainingBlockSetup = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!user?.id) return;
+
+        const template = availableTemplates.find((entry) => entry.template_key === setupTemplateKey) ?? STATIC_TEMPLATE_OPTION;
+        const startDate = setupStartDate;
+
+        setSetupSaving(true);
+        setSetupError(null);
+
+        try {
+            const persistedPlan = await getTrainingBlockPlanFromDatabase(template.template_key, startDate).catch((error) => {
+                console.error('Failed to load selected training block template rows; falling back to static template', error);
+                return null;
+            });
+            if (!persistedPlan && template.template_key !== ROWING_12_WEEK_TEMPLATE.template_id) {
+                throw new Error(`No persisted training block template found for ${template.template_key}`);
+            }
+
+            const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(startDate);
+            const enrollment = await ensureTrainingBlockEnrollment({
+                userId: user.id,
+                templateKey: template.template_key,
+                templateId: template.source === 'static_fallback' ? null : template.id,
+                startDate: resolvedPlan.start_date,
+                endDate: resolvedPlan.end_date,
+                isActive: true,
+            });
+            const reviews = await getTrainingBlockLogReviews(enrollment.id);
+
+            setSelectedTemplateId(template.template_key);
+            writeSelectedTrainingBlockTemplate(template.template_key);
+            setPlan(resolvedPlan);
+            setPlanSource(persistedPlan ? 'database' : 'static');
+            setTrainingBlockEnrollment(enrollment);
+            setTrainingBlockActive(true);
+            writeTrainingBlockActive(true);
+            setLogOverrides(Object.fromEntries(
+                reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
+            ));
+            setReviewPersistenceMode('database');
+            setSelectedDate(getDefaultPlanDate(resolvedPlan));
+            setSetupOpen(false);
+        } catch (error) {
+            console.error('Failed to save training block setup', error);
+            setSetupError('Could not start this training block. Please try again.');
+        } finally {
+            setSetupSaving(false);
+        }
     };
 
     const updateManualEntryForm = <Key extends keyof ManualEntryFormState>(key: Key, value: ManualEntryFormState[Key]) => {
@@ -1145,7 +1295,7 @@ export const TrainingBlock: React.FC = () => {
     };
 
     const getPlannedSessionCompletionLog = (sessionId: string): DayLogEvent | null => {
-        return selectedDayLogs.find((log) => {
+        return selectedDayAlignedLogs.find((log) => {
             const match = scoreLogAgainstPlanDay(selectedDay, log, templateMatchingContext);
             if (match.planned_session_id !== sessionId) return false;
             return match.relationship === 'satisfies' || match.relationship === 'support_only';
@@ -1180,7 +1330,7 @@ export const TrainingBlock: React.FC = () => {
     };
 
     const getSupportPrepCompletionLog = (): DayLogEvent | null => {
-        return selectedDayLogs.find((log) => isQuickCompletionLog(log, 'support-prep', 'Support prep')) ?? null;
+        return selectedDayAlignedLogs.find((log) => isQuickCompletionLog(log, 'support-prep', 'Support prep')) ?? null;
     };
 
     const isSupportPrepComplete = getSupportPrepCompletionLog() !== null;
@@ -1444,19 +1594,6 @@ export const TrainingBlock: React.FC = () => {
         return selectedWeekAssignments.filter((assignment) => assignment.scheduled_date === selectedDay.date);
     }, [selectedDay.date, selectedWeekAssignments]);
 
-    const selectedWeekReviewLogs = useMemo(() => {
-        const byId = new Map<string, { log: DayLogEvent; weekMatch: ReturnType<typeof scoreLogAgainstPlanWeek> }>();
-        selectedWeekLogs.forEach((log) => {
-            if (byId.has(log.workout_id)) return;
-            const weekMatch = scoreLogAgainstPlanWeek(selectedWeekDays, log, templateMatchingContext);
-            const relationship = weekMatch?.match.relationship ?? 'unmatched';
-            if (relationship !== 'satisfies' && relationship !== 'support_only') {
-                byId.set(log.workout_id, { log, weekMatch });
-            }
-        });
-        return [...byId.values()];
-    }, [selectedWeekDays, selectedWeekLogs, templateMatchingContext]);
-
     const getReviewAssignmentValue = (log: DayLogEvent): string => {
         if (log.status === 'skipped') return DOES_NOT_COUNT_VALUE;
         if (!log.planned_session_key) return AUTO_OVERRIDE_VALUE;
@@ -1511,8 +1648,9 @@ export const TrainingBlock: React.FC = () => {
     const teamHomePath = pathname.startsWith('/team-management') ? '/team-management' : '/team';
     const teamSettingsPath = pathname.startsWith('/team-management') ? '/team-management/settings' : '/team/settings';
     const selectedWeekAssignmentCount = selectedWeekAssignments.length;
+    const formatLoggedWorkoutDistance = (log: DayLogEvent): string => formatDistanceMeters((log.distance_meters ?? 0) + (log.rest_distance_meters ?? 0));
 
-    if (authLoading || loading) {
+    if (authLoading || loading || templatesLoading) {
         return (
             <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-8 lg:p-10 font-sans">
                 <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
@@ -1550,16 +1688,16 @@ export const TrainingBlock: React.FC = () => {
                     <div>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                             <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Training block</p>
-                            <Badge variant={isTrainingBlockActive ? 'success' : 'muted'} dot={isTrainingBlockActive}>
-                                {isTrainingBlockActive ? 'Active plan' : 'Paused'}
+                            <Badge variant={trainingBlockEnrollment ? lifecycleBadgeVariant : 'warning'} dot={trainingBlockEnrollment ? lifecycleStatus === 'active' : false}>
+                                {trainingBlockEnrollment ? lifecycleStatusLabel[lifecycleStatus] : 'Setup needed'}
                             </Badge>
                         </div>
-                        <h1 className="text-3xl font-bold text-white">{selectedPlanOption.label}</h1>
+                        <h1 className="text-3xl font-bold text-white">{selectedTemplate.name}</h1>
                         <p className="text-neutral-400 mt-2 max-w-3xl">
                             Integrated plan view that matches Concept2 and manual workout logs to planned work in the same training week.
-                            {isTrainingBlockActive
+                            {trainingBlockEnrollment && isTrainingBlockActive
                                 ? ' Quick checks create lightweight logs for support work; manual entry is for fuller details or deliberate rowing backfill.'
-                                : ' Paused mode keeps the plan visible but disables completion and review writes.'}
+                                : ' Setup and paused mode keep the plan visible but disable completion and review writes.'}
                         </p>
                         {isTeamContext && (
                             <p className="text-sm text-neutral-400 mt-3">
@@ -1568,34 +1706,35 @@ export const TrainingBlock: React.FC = () => {
                         )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                        <label className="inline-flex items-center gap-2 px-3 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-300">
-                            <ListChecks size={16} />
-                            <span className="sr-only">Training block plan</span>
-                            <select
-                                value={selectedTemplateId}
-                                onChange={(event) => updateSelectedTemplate(event.target.value as TrainingBlockPlanOptionId)}
-                                className="bg-transparent border-none outline-none text-sm text-white"
-                                aria-label="Select training block plan"
-                            >
-                                {TRAINING_BLOCK_PLAN_OPTIONS.map((option) => (
-                                    <option key={option.id} value={option.id} disabled={!option.enabled}>
-                                        {option.label}{option.enabled ? '' : ' (later)'}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                        <div className="rounded-lg border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-300">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span className="font-medium text-white">{selectedTemplate.name}</span>
+                                <span>{formatDateLabel(plan.start_date)} - {formatDateLabel(plan.end_date)}</span>
+                                <Badge variant={trainingBlockEnrollment ? lifecycleBadgeVariant : 'warning'} size="sm">
+                                    {trainingBlockEnrollment ? lifecycleStatusLabel[lifecycleStatus] : 'Not started'}
+                                </Badge>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={openSetup}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
+                        >
+                            <Settings size={16} />
+                            Configure
+                        </button>
                         <button
                             type="button"
                             onClick={() => updateTrainingBlockActive(!isTrainingBlockActive)}
                             className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
-                                isTrainingBlockActive
+                                trainingBlockEnrollment && isTrainingBlockActive
                                     ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-200 hover:border-emerald-400/70'
                                     : 'border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white'
                             }`}
-                            aria-pressed={isTrainingBlockActive}
+                            aria-pressed={Boolean(trainingBlockEnrollment && isTrainingBlockActive)}
                         >
                             <Power size={16} />
-                            {isTrainingBlockActive ? 'Active plan' : 'Turn on'}
+                            {trainingBlockEnrollment && isTrainingBlockActive ? 'Active plan' : 'Turn on'}
                         </button>
                         {isTeamContext && (
                             <label className="inline-flex items-center gap-2 px-4 py-2 border border-neutral-700 rounded-lg text-sm text-neutral-300">
@@ -1634,7 +1773,84 @@ export const TrainingBlock: React.FC = () => {
                     </div>
                 </div>
 
-                {!isTrainingBlockActive && (
+                {setupOpen && (
+                    <Card variant="outlined" className="border-blue-500/30 bg-blue-950/10">
+                        <form onSubmit={saveTrainingBlockSetup} className="space-y-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-content-primary">Start a training block</p>
+                                    <p className="text-sm text-neutral-400 mt-1">Choose a published template and start date. Duration is fixed by the template.</p>
+                                </div>
+                                {trainingBlockEnrollment && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSetupOpen(false)}
+                                        className="text-sm text-neutral-400 hover:text-white"
+                                    >
+                                        Close
+                                    </button>
+                                )}
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                                <label className="text-xs text-neutral-400">
+                                    Template
+                                    <select
+                                        value={setupTemplateKey}
+                                        onChange={(event) => setSetupTemplateKey(event.target.value as TrainingBlockTemplateKey)}
+                                        className={fieldClass}
+                                    >
+                                        {availableTemplates.map((template) => (
+                                            <option key={template.template_key} value={template.template_key}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                        {TRAINING_BLOCK_PLAN_OPTIONS.filter((option) => !option.enabled).map((option) => (
+                                            <option key={option.id} value={option.id} disabled>
+                                                {option.label} (coming later)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="text-xs text-neutral-400">
+                                    Start date
+                                    <input
+                                        type="date"
+                                        value={setupStartDate}
+                                        onChange={(event) => setSetupStartDate(event.target.value)}
+                                        className={fieldClass}
+                                        required
+                                    />
+                                </label>
+                                <div className="rounded-lg border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-xs text-neutral-400">
+                                    <p className="uppercase tracking-wide text-neutral-500">Computed range</p>
+                                    <p className="mt-1 text-sm font-medium text-white">{formatDateLabel(setupStartDate)} - {formatDateLabel(setupEndDate)}</p>
+                                    <p className="mt-1">{setupTemplate.duration_weeks} weeks</p>
+                                </div>
+                            </div>
+                            {setupError && <p className="text-sm text-red-300">{setupError}</p>}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSetupStartDate(getMondaySnappedDate())}
+                                    className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                                >
+                                    <CalendarDays size={16} />
+                                    Snap to Monday
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={setupSaving}
+                                    className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Power size={16} />
+                                    {setupSaving ? 'Starting...' : 'Start block'}
+                                </button>
+                            </div>
+                        </form>
+                    </Card>
+                )}
+
+                {trainingBlockEnrollment && !isTrainingBlockActive && (
                     <Card variant="outlined" className="border-neutral-700 bg-neutral-900/40">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
@@ -1965,7 +2181,7 @@ export const TrainingBlock: React.FC = () => {
                                     const daySummary = daySummariesByDate.get(day.date) ?? summarizeDayProgress(day, [], templateMatchingContext);
                                     const isSelected = day.date === selectedDay.date;
                                     const style = statusTone[daySummary.status];
-                                    const dailyLogs = alignedLogsByDay.get(`${day.week_number}:${day.day_slot}`) ?? [];
+                                    const dailyLogCount = calendarLogCountByDate.get(day.date) ?? 0;
                                     const dayAssignments = assignmentsByDate.get(day.date) ?? [];
                                     return (
                                         <button
@@ -1988,7 +2204,7 @@ export const TrainingBlock: React.FC = () => {
                                                     </p>
                                                 </div>
                                                 <Badge variant={style.variant} size="sm" dot={style.dot}>
-                                                    {dailyLogs.length}
+                                                    {dailyLogCount}
                                                 </Badge>
                                             </div>
                                             <p className="mt-1 text-xs text-content-muted">
@@ -2026,7 +2242,7 @@ export const TrainingBlock: React.FC = () => {
                                 </div>
                                 <div>
                                     <p className="text-[11px] text-content-muted">Sessions</p>
-                                    <p className="font-semibold text-content-primary">{selectedDaySummary.logged_session_count}</p>
+                                    <p className="font-semibold text-content-primary">{selectedDayCalendarLogs.length}</p>
                                 </div>
                                 <div>
                                     <p className="text-[11px] text-content-muted">Key</p>
@@ -2035,7 +2251,7 @@ export const TrainingBlock: React.FC = () => {
                             </div>
                             <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-content-muted">
                                 <span><Flame size={12} className="inline-block mr-1 text-amber-400" />{dayLoad.toFixed(1)} load</span>
-                                <span>{selectedDayLogs.length} log{selectedDayLogs.length === 1 ? '' : 's'} today</span>
+                                <span>{selectedDayCalendarLogs.length} log{selectedDayCalendarLogs.length === 1 ? '' : 's'} today</span>
                             </div>
                         </div>
                     </div>
@@ -2051,7 +2267,7 @@ export const TrainingBlock: React.FC = () => {
                             </Badge>
                         }
                     />
-                        <div className={`grid grid-cols-1 gap-4 ${selectedDayReviewLogEntries.length === 0 && !manualEntryOpen ? 'lg:grid-cols-[minmax(0,1fr)_16rem]' : 'lg:grid-cols-[minmax(0,1fr)_22rem]'}`}>
+                        <div className={`grid grid-cols-1 gap-4 ${selectedDayLoggedWorkoutEntries.length === 0 && !manualEntryOpen ? 'lg:grid-cols-[minmax(0,1fr)_16rem]' : 'lg:grid-cols-[minmax(0,1fr)_22rem]'}`}>
                             {selectedDayAssignments.length > 0 && (
                                 <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 lg:col-span-2">
                                     <h3 className="text-sm font-semibold text-content-primary mb-3 flex items-center gap-2">
@@ -2175,7 +2391,7 @@ export const TrainingBlock: React.FC = () => {
                                                                                 Completed: {log.workout_name ?? 'Workout'}
                                                                             </p>
                                                                             <p className="text-[11px] text-content-secondary">
-                                                                                {formatDistanceMeters(log.distance_meters)} · {formatDuration(log.duration_seconds)}{log.avg_split_500m ? ` · ${formatSplit(log.avg_split_500m)}/500m` : ''}
+                                                                                {formatLoggedWorkoutDistance(log)} · {formatDuration(log.duration_seconds)}{log.avg_split_500m ? ` · ${formatSplit(log.avg_split_500m)}/500m` : ''}
                                                                             </p>
                                                                             <p className="text-[11px] text-content-muted mt-0.5">
                                                                                 {log.rawDateLabel !== selectedDay.date ? `Completed ${log.rawDateLabel}; counted toward ${formatPlanSlot(selectedDay.day_slot)} (${formatWeekday(selectedDay.date)}). ` : ''}{match.reason}
@@ -2319,7 +2535,7 @@ export const TrainingBlock: React.FC = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                                     <h3 className="text-sm font-semibold text-content-primary flex items-center gap-2">
                                         <CalendarDays size={16} className="text-blue-400" />
-                                        Review logs ({selectedDayReviewLogEntries.length})
+                                        Logged workouts ({selectedDayLoggedWorkoutEntries.length})
                                     </h3>
                                     <button
                                         type="button"
@@ -2480,11 +2696,11 @@ export const TrainingBlock: React.FC = () => {
                                         </button>
                                     </form>
                                 )}
-                                {selectedDayReviewLogEntries.length === 0 ? (
-                                    <p className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-xs text-content-secondary">All logged workouts for this day are attached to plan items above.</p>
+                                {selectedDayLoggedWorkoutEntries.length === 0 ? (
+                                    <p className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-xs text-content-secondary">No workouts logged for this day yet.</p>
                                 ) : (
                                     <div className="space-y-3">
-                                        {selectedDayReviewLogEntries.map(({ log, match: logMatch }) => {
+                                        {selectedDayLoggedWorkoutEntries.map(({ log, match: logMatch }) => {
                                             const tone = sourceTone[log.source];
                                             const relationshipTone = assignmentRelationshipTone[logMatch.relationship];
                                             const isQuickLog = isTrainingBlockQuickLog(log);
@@ -2536,7 +2752,7 @@ export const TrainingBlock: React.FC = () => {
                                                         </div>
                                                     </div>
                                                     <p className="text-content-secondary mt-1">
-                                                        {log.workout_type} · {formatDistanceMeters(log.distance_meters)} · RPE {log.perceived_exertion ?? '-'}
+                                                        {log.workout_type} · {formatLoggedWorkoutDistance(log)} · RPE {log.perceived_exertion ?? '-'}
                                                     </p>
                                                     {isTeamContext && (
                                                         <p className="text-content-muted text-xs mt-1">
@@ -2560,8 +2776,8 @@ export const TrainingBlock: React.FC = () => {
                                                     <div className={reviewControlSurfaceClass}>
                                                         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                                             <div>
-                                                                <p className="text-xs font-semibold text-content-primary">Review match</p>
-                                                                <p className="text-[11px] text-content-muted">Adjust how this log counts toward the selected week.</p>
+                                                                <p className="text-xs font-semibold text-content-primary">Optional match</p>
+                                                                <p className="text-[11px] text-content-muted">Leave extra work unmatched, or attach it to a planned session when it should count as one.</p>
                                                             </div>
                                                             <span className="text-[11px] text-content-muted">
                                                                 {log.status === 'skipped' ? 'Not counted' : logMatch.planned_session_title ?? 'Auto review'}
@@ -2569,14 +2785,14 @@ export const TrainingBlock: React.FC = () => {
                                                         </div>
 
                                                         <label className="mt-3 block text-xs text-content-muted">
-                                                            Match this log
+                                                            Count this log as
                                                             <select
                                                                 value={reviewAssignmentValue}
                                                                 disabled={!isTrainingBlockActive}
                                                                 onChange={(event) => applyReviewAssignmentValue(log, event.target.value)}
                                                                 className={fieldClass}
                                                             >
-                                                                <option value={AUTO_OVERRIDE_VALUE}>Auto match</option>
+                                                                <option value={AUTO_OVERRIDE_VALUE}>Extra / auto</option>
                                                                 <option value={DOES_NOT_COUNT_VALUE}>Does not count</option>
                                                                 {selectedWeekSessionOptions.map(({ day, session }) => (
                                                                     <option key={`${day.week_number}-${day.day_slot}-${session.id}`} value={`${day.day_slot}|${session.id}`}>
@@ -2692,41 +2908,7 @@ export const TrainingBlock: React.FC = () => {
                             </section>
                         </div>
 
-                        {selectedWeekReviewLogs.length > 0 && (
-                            <section className="mt-4 bg-amber-950/10 border border-amber-500/30 rounded-xl p-4">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <h3 className="text-sm font-semibold text-content-primary">Needs review this week</h3>
-                                    <span className="text-xs text-amber-200">{selectedWeekReviewLogs.length} log{selectedWeekReviewLogs.length === 1 ? '' : 's'}</span>
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                    {selectedWeekReviewLogs.map(({ log, weekMatch }) => {
-                                        const relationship = weekMatch?.match.relationship ?? 'unmatched';
-                                        const relationshipTone = assignmentRelationshipTone[relationship];
-                                        return (
-                                            <div key={`review-${log.workout_id}`} className="rounded-lg border border-border bg-surface-secondary px-3 py-2.5 text-sm">
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <p className="text-content-primary">{log.workout_name}</p>
-                                                    <Badge variant={relationshipTone.variant} dot={relationshipTone.dot}>{relationshipTone.label}</Badge>
-                                                </div>
-                                                <p className="text-xs text-content-muted mt-1">
-                                                    Completed {log.rawDateLabel} · {formatDistanceMeters(log.distance_meters)} · {formatDuration(log.duration_seconds)}
-                                                </p>
-                                                {weekMatch?.match.planned_session_title ? (
-                                                    <p className="text-xs text-content-secondary mt-1">
-                                                        Best week match: {weekMatch.match.planned_session_title} · {weekMatch.planned_day.day_of_week} {formatWeekday(weekMatch.planned_day.date)}
-                                                    </p>
-                                                ) : (
-                                                    <p className="text-xs text-content-muted mt-1">No clear same-week plan match.</p>
-                                                )}
-                                                {weekMatch?.match.reason && (
-                                                    <p className="text-xs text-content-muted mt-1">{weekMatch.match.reason}</p>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </section>
-                        )}
+
 
                 </Card>
             </div>
