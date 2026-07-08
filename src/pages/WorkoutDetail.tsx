@@ -21,16 +21,16 @@ import type { C2ResultDetail, C2Stroke, C2Interval, C2Split } from '../api/conce
 import type { WorkoutTemplate, WorkoutStructure } from '../types/workoutStructure.types';
 import { DEMO_WORKOUTS } from '../data/demoData';
 import { getUserBaseline2kWatts } from '../utils/paceCalculator';
+import { useTrainingBlockMatchingContext } from '../hooks/useTrainingBlockMatchingContext';
 import { toast } from 'sonner';
 import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
-import { scoreLogAgainstPlanWeek } from '../utils/trainingBlockMatching';
+import { scoreLogAgainstPlanWeek, toTrainingBlockActualLogEvent } from '../utils/trainingBlockMatching';
 import {
     formatTrainingBlockWeekRange,
     getNearestTrainingBlockDay,
     getTrainingBlockWeekDaysForDate,
     readTrainingBlockActive,
 } from '../utils/trainingBlockStatus';
-import type { TrainingBlockActualLogEvent } from '../types/trainingBlock.types';
 
 export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -459,31 +459,34 @@ export const WorkoutDetail: React.FC = () => {
     }, [visibleStrokes, buckets]);
 
     const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
+    const { matchingContext: trainingBlockMatchingContext } = useTrainingBlockMatchingContext(ROWING_12_WEEK_TEMPLATE);
     const trainingBlockDay = useMemo(() => {
         if (!detail?.date) return null;
         return getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, detail.date);
     }, [detail?.date]);
     const trainingBlockWeekDays = useMemo(() => {
         if (!detail?.date) return [];
-        return getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, detail.date);
+        return getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, detail?.date);
     }, [detail?.date]);
+
     const trainingBlockWeekMatch = useMemo(() => {
         if (!detail || trainingBlockWeekDays.length === 0) return null;
 
-        const event: TrainingBlockActualLogEvent = {
+        const event = toTrainingBlockActualLogEvent({
             workout_id: String(detail.id),
             date: detail.date,
-            source: (detail as { source?: string }).source === 'manual' ? 'manual' : 'concept2',
+            source: (detail as { source?: string | null }).source,
             distance_meters: detail.distance ?? null,
             duration_seconds: detail.time ? Math.round(detail.time / 10) : null,
             workout_name: detail.workout_name ?? canonicalName,
             canonical_name: canonicalName,
             manual_rwn: detail.manual_rwn ?? null,
+            template_id: detail.template_id ?? null,
             workout_type: detail.workout_type ?? null,
-        };
+        });
 
-        return scoreLogAgainstPlanWeek(trainingBlockWeekDays, event);
-    }, [canonicalName, detail, trainingBlockWeekDays]);
+        return scoreLogAgainstPlanWeek(trainingBlockWeekDays, event, trainingBlockMatchingContext);
+    }, [canonicalName, detail, trainingBlockWeekDays, trainingBlockMatchingContext]);
 
 
     // --- Early Returns (Conditionals) ---

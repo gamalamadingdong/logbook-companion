@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildRowing12WeekPlan } from '../data/rowingTrainingBlockTemplate';
-import { scoreAssignmentAgainstPlanDay, scoreAssignmentAgainstPlanWeek } from './trainingBlockMatching';
+import {
+    scoreAssignmentAgainstPlanDay,
+    scoreAssignmentAgainstPlanWeek,
+    scoreLogAgainstPlanDay,
+    toTrainingBlockActualLogEvent,
+} from './trainingBlockMatching';
 
 const plan = buildRowing12WeekPlan();
 
@@ -133,6 +138,68 @@ describe('trainingBlockMatching', () => {
     });
 
 
+    it('prefers exact workout-library template links over conflicting canonical names', () => {
+        const monday = {
+            ...plan.days[0],
+            sessions: plan.days[0].sessions.map((session, index) => index === 0
+                ? { ...session, workout_template_id: 'library-template-1' }
+                : session),
+        };
+        const match = scoreAssignmentAgainstPlanDay(monday, {
+            id: 'template-priority-match',
+            scheduled_date: monday.date,
+            title: 'Linked workout with stale canonical metadata',
+            template_id: 'library-template-1',
+            canonical_name: '4x1000m/5:00r',
+        });
+
+        expect(match.relationship).toBe('satisfies');
+        expect(match.planned_session_id).toBe('mon_8x500-primary');
+        expect(match.confidence).toBe(0.99);
+        expect(match.reason).toContain('workout-library template');
+    });
+    it('matches via linked template RWN when planned session has no block RWN', () => {
+        const monday = {
+            ...plan.days[0],
+            sessions: plan.days[0].sessions.map((session, index) => index === 0
+                ? {
+                    ...session,
+                    planned_rwn: undefined,
+                    workout_template_id: 'library-template-1',
+                }
+                : session,
+            ),
+        };
+        const match = scoreAssignmentAgainstPlanDay(
+            monday,
+            {
+                id: 'linked-library-only',
+                scheduled_date: monday.date,
+                title: 'Template-linked row',
+                template_id: 'library-template-1',
+                canonical_name: '8x500m/3:30r',
+            },
+            {
+                linkedWorkoutTemplatesById: new Map([
+                    [
+                        'library-template-1',
+                        {
+                            id: 'library-template-1',
+                            name: '8x500m interval',
+                            rwn: '8x500m/3:30r',
+                        },
+                    ],
+                ]),
+            },
+        );
+
+        expect(match.relationship).toBe('satisfies');
+        expect(match.planned_session_id).toBe('mon_8x500-primary');
+        expect(match.planned_session_title).toBe(monday.sessions[0].title);
+        expect(match.planned_session_title).not.toBe('8x500m interval');
+        expect(match.confidence).toBeGreaterThan(0.95);
+        expect(match.reason).toContain('library');
+    });
     it('finds the best assignment match within the selected training week', () => {
         const monday = plan.days[0];
         const tuesday = plan.days[1];
@@ -182,6 +249,24 @@ describe('trainingBlockMatching', () => {
         expect(match.relationship).toBe('support_only');
         expect(match.confidence).toBeGreaterThan(0.9);
     });
+
+    it('normalizes workout log sources before plan matching', () => {
+        const monday = plan.days[0];
+        const event = toTrainingBlockActualLogEvent({
+            workout_id: 'src-log',
+            date: monday.date,
+            source: 'erg_link_live',
+            canonical_name: '8x500m/3:30r',
+            workout_name: 'Link test row',
+            distance_meters: 2500,
+        });
+
+        const match = scoreLogAgainstPlanDay(monday, event);
+        expect(event.source).toBe('concept2');
+        expect(match.relationship).toBe('satisfies');
+        expect(match.planned_session_id).toBe('mon_8x500-primary');
+    });
+
 
     it('manual does-not-count review suppresses automatic matching', () => {
         const monday = plan.days[0];

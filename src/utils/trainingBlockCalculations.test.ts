@@ -150,6 +150,33 @@ describe('trainingBlockCalculations', () => {
         expect(mondaySummary.key_session_credit).toBe('yes');
     });
 
+    it('aligns a shifted modified rowing workout to the nearest same-week match', () => {
+        const plan = buildRowing12WeekPlan();
+        const monday = plan.days[0];
+        const friday = plan.days[4];
+        const logs: TrainingBlockActualLogEvent[] = [
+            {
+                workout_id: 'modified-shift-friday',
+                date: friday.date,
+                source: 'concept2',
+                canonical_name: '7x500m/2:00r',
+                workout_name: 'Modified intervals',
+                workout_type: 'FixedDistanceInterval',
+                distance_meters: 6000,
+            },
+        ];
+
+        const aligned = alignLogsToPlanDays(plan, logs, 'slot');
+        const fridayAligned = aligned.get(`${friday.week_number}:${friday.day_slot}`) ?? [];
+
+        expect(fridayAligned.map((event) => event.workout_id)).toContain('modified-shift-friday');
+
+        const fridaySummary = summarizeDayProgress(friday, fridayAligned);
+        expect(fridaySummary.status).toBe('modified');
+        expect(fridaySummary.logged_session_count).toBe(1);
+        expect(alignLogsToPlanDays(plan, logs, 'slot').get(`${monday.week_number}:${monday.day_slot}`)).toBeUndefined();
+    });
+
     it('matches manual RWN entries to the plan without requiring Concept2 data', () => {
         const plan = buildRowing12WeekPlan();
         const monday = plan.days[0];
@@ -168,6 +195,46 @@ describe('trainingBlockCalculations', () => {
         const summary = summarizeDayProgress(monday, logs);
         expect(summary.status).toBe('as_written');
         expect(summary.key_session_credit).toBe('yes');
+    });
+
+    it('counts all non-skipped same-week workout volume toward weekly target coverage', () => {
+        const plan = buildRowing12WeekPlan();
+        const monday = plan.days[0];
+        const sunday = plan.days[6];
+        const logs: TrainingBlockActualLogEvent[] = [
+            {
+                workout_id: 'planned-key-session',
+                date: monday.date,
+                source: 'concept2',
+                canonical_name: '8x500m/3:30r',
+                workout_name: 'Intervals',
+                workout_type: 'FixedDistanceInterval',
+                distance_meters: 4000,
+            },
+            {
+                workout_id: 'extra-off-prescription-volume',
+                date: sunday.date,
+                source: 'manual',
+                workout_name: 'Easy bike plus mobility',
+                workout_type: 'cross_training',
+                distance_meters: 3000,
+            },
+            {
+                workout_id: 'skipped-does-not-count',
+                date: sunday.date,
+                source: 'manual',
+                workout_name: 'Skipped extra row',
+                workout_type: 'row',
+                distance_meters: 2000,
+                status: 'skipped',
+            },
+        ];
+
+        const [summary] = summarizeWeekProgress(plan, logs);
+
+        expect(summary.actual_distance_meters).toBe(7000);
+        expect(summary.delta_to_target_meters).toBe(7000 - summary.target_distance_meters);
+        expect(summary.target_coverage_ratio).toBe(7000 / summary.target_distance_meters);
     });
 
     it('pins manually assigned logs to the selected planned session and ignores does-not-count logs', () => {

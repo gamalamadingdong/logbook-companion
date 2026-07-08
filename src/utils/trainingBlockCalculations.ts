@@ -10,7 +10,12 @@ import type {
     TrainingBlockWeekSummary,
     TrainingBlockWorkoutStatus,
 } from '../types/trainingBlock.types';
-import { rankTrainingBlockMatch, scoreLogAgainstPlanDay, type TrainingBlockAssignmentMatch } from './trainingBlockMatching';
+import {
+    rankTrainingBlockMatch,
+    scoreLogAgainstPlanDay,
+    type TrainingBlockAssignmentMatch,
+    type TrainingBlockMatchingContext,
+} from './trainingBlockMatching';
 
 const DEFAULT_NO_LOG_STATUS: TrainingBlockWorkoutStatus = 'as_written';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -138,7 +143,7 @@ function buildWeekBuckets(plan: TrainingBlockPlan): Map<number, WeekBuckets> {
             byDate: new Map([[day.date, bucket]]),
             bySlot: new Map([[day.day_slot, bucket]]),
             fillBySlot: new Map([[day.day_slot, 0]]),
-            fillLimitBySlot: new Map([[day.day_slot, Math.max(1, day.sessions.length)]]),
+            fillLimitBySlot: new Map([[day.day_slot, Math.max(1, day.sessions.length)]])
         });
     }
 
@@ -183,17 +188,41 @@ function findManualSessionBucket(
 function findStrongestMatchedBucket(
     plannedBuckets: WeekBuckets,
     log: TrainingBlockActualLogEvent,
+    matchingContext?: TrainingBlockMatchingContext,
 ): { bucket: PlanDayBucket; match: TrainingBlockAssignmentMatch } | null {
+    const logTimestamp = parseLocalDay(log.date);
+    const logTimestampIsFinite = Number.isFinite(logTimestamp);
+
     const matches = plannedBuckets.days
         .filter((bucket) => bucket.day.category !== 'rest')
         .map((bucket) => ({
             bucket,
-            match: scoreLogAgainstPlanDay(bucket.day, log),
+            match: scoreLogAgainstPlanDay(bucket.day, log, matchingContext),
         }))
-        .filter(({ match }) => (match.relationship === 'satisfies' && match.confidence >= 0.9) || match.relationship === 'support_only')
+        .filter(({ match }) => {
+            if (match.relationship === 'support_only') {
+                return true;
+            }
+
+            if (match.relationship === 'modifies' && match.confidence >= 0.6) {
+                return true;
+            }
+
+            return match.relationship === 'satisfies' && match.confidence >= 0.9;
+        })
         .sort((a, b) => {
             const diff = rankTrainingBlockMatch(b.match) - rankTrainingBlockMatch(a.match);
             if (diff !== 0) return diff;
+
+            if (logTimestampIsFinite) {
+                const aDate = parseLocalDay(a.bucket.day.date);
+                const bDate = parseLocalDay(b.bucket.day.date);
+                const aDistance = Number.isFinite(aDate) ? Math.abs(logTimestamp - aDate) : Number.POSITIVE_INFINITY;
+                const bDistance = Number.isFinite(bDate) ? Math.abs(logTimestamp - bDate) : Number.POSITIVE_INFINITY;
+                const dateDelta = aDistance - bDistance;
+                if (dateDelta !== 0) return dateDelta;
+            }
+
             return a.bucket.day.day_slot - b.bucket.day.day_slot;
         });
 
@@ -227,6 +256,7 @@ export function alignLogsToPlanDays(
     plan: TrainingBlockPlan,
     logs: readonly TrainingBlockActualLogEvent[] = [],
     mode: DayAlignmentMode = 'slot',
+    matchingContext?: TrainingBlockMatchingContext,
 ): Map<string, TrainingBlockActualLogEvent[]> {
     const bucketsByPlanDate = new Map<string, TrainingBlockActualLogEvent[]>();
     const weekBuckets = buildWeekBuckets(plan);
@@ -268,9 +298,9 @@ export function alignLogsToPlanDays(
         }
 
         const existingByDate = plannedBuckets.byDate.get(rawLog.date);
-        const strongestMatched = findStrongestMatchedBucket(plannedBuckets, rawLog);
+        const strongestMatched = findStrongestMatchedBucket(plannedBuckets, rawLog, matchingContext);
         const targetByMatch = strongestMatched && existingByDate
-            ? rankTrainingBlockMatch(strongestMatched.match) > rankTrainingBlockMatch(scoreLogAgainstPlanDay(existingByDate.day, rawLog))
+            ? rankTrainingBlockMatch(strongestMatched.match) > rankTrainingBlockMatch(scoreLogAgainstPlanDay(existingByDate.day, rawLog, matchingContext))
                 ? strongestMatched.bucket
                 : null
             : strongestMatched?.bucket ?? null;
@@ -376,6 +406,18 @@ function getPrimaryDistanceFromLogs(logs: readonly TrainingBlockActualLogEvent[]
     return logs.reduce((sum, log) => sum + toNumber(log.distance_meters), 0);
 }
 
+function getActualWeekVolumeMeters(
+    plan: TrainingBlockPlan,
+    logs: readonly TrainingBlockActualLogEvent[],
+    weekNumber: number,
+): number {
+    return logs
+        .map(normalizeLog)
+        .filter((log) => !isIgnoredLog(log))
+        .filter((log) => resolveWeekNumber(plan.start_date, log.date) === weekNumber)
+        .reduce((sum, log) => sum + toNumber(log.distance_meters), 0);
+}
+
 function getLogStrengthStatus(logs: readonly TrainingBlockActualLogEvent[]): TrainingBlockStrengthStatus {
     const strengthLog = logs.find((log) => log.strength_status);
     if (!strengthLog?.strength_status) return 'not_scheduled';
@@ -387,6 +429,7 @@ function deriveDayStatus(
     logs: readonly TrainingBlockActualLogEvent[],
     plannedDistance: number,
     actualDistance: number,
+    matchingContext?: TrainingBlockMatchingContext,
 ): TrainingBlockWorkoutStatus {
     if (day.category === 'rest') return 'as_written';
 
@@ -398,7 +441,7 @@ function deriveDayStatus(
 
     if (logs.length === 0) return DEFAULT_NO_LOG_STATUS;
 
-    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log));
+    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log, matchingContext));
     if (matches.some((match) => match.relationship === 'satisfies')) {
         return 'as_written';
     }
@@ -419,6 +462,7 @@ function deriveKeySessionCredit(
     logs: readonly TrainingBlockActualLogEvent[],
     plannedDistance: number,
     actualDistance: number,
+    matchingContext?: TrainingBlockMatchingContext,
 ): TrainingBlockKeySessionCredit {
     const explicitCredit = logs
         .map((log) => log.key_session_credit)
@@ -434,7 +478,7 @@ function deriveKeySessionCredit(
     if (actualDistance <= 0) return 'no';
 
     const keySessionIds = new Set(day.sessions.filter((session) => session.is_key_session).map((session) => session.id));
-    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log));
+    const matches = logs.map((log) => scoreLogAgainstPlanDay(day, log, matchingContext));
     if (matches.some((match) => match.relationship === 'satisfies' && match.planned_session_id && keySessionIds.has(match.planned_session_id))) {
         return 'yes';
     }
@@ -450,12 +494,13 @@ function deriveKeySessionCredit(
 export function summarizeDayProgress(
     day: TrainingBlockPlannedDay,
     logs: readonly TrainingBlockActualLogEvent[] = [],
+    matchingContext?: TrainingBlockMatchingContext,
 ): TrainingBlockDaySummary {
     const countedLogs = logs.filter((log) => !isIgnoredLog(log));
     const plannedDistance = plannedDistanceMetersForDay(day);
     const actualDistance = getPrimaryDistanceFromLogs(countedLogs);
-    const status = deriveDayStatus(day, countedLogs, plannedDistance, actualDistance);
-    const keySessionCredit = deriveKeySessionCredit(day, countedLogs, plannedDistance, actualDistance);
+    const status = deriveDayStatus(day, countedLogs, plannedDistance, actualDistance, matchingContext);
+    const keySessionCredit = deriveKeySessionCredit(day, countedLogs, plannedDistance, actualDistance, matchingContext);
     const strengthStatus = getLogStrengthStatus(countedLogs);
     const trainingLoad = countedLogs.reduce(
         (sum, log) => sum + (calculateTrainingLoad(log.distance_meters, log.perceived_exertion) ?? 0),
@@ -497,13 +542,14 @@ export function summarizeWeekProgress(
     plan: TrainingBlockPlan,
     logs: readonly TrainingBlockActualLogEvent[] = [],
     mode: DayAlignmentMode = 'slot',
+    matchingContext?: TrainingBlockMatchingContext,
 ): TrainingBlockWeekSummary[] {
-    const byDayKey = alignLogsToPlanDays(plan, logs, mode);
+    const byDayKey = alignLogsToPlanDays(plan, logs, mode, matchingContext);
 
     const summariesByWeek: Record<number, TrainingBlockDaySummary[]> = {};
     for (const day of plan.days) {
         const key = mode === 'slot' ? daySlotToKey(day.week_number, day.day_slot) : day.date;
-        const daySummary = summarizeDayProgress(day, byDayKey.get(key) ?? []);
+        const daySummary = summarizeDayProgress(day, byDayKey.get(key) ?? [], matchingContext);
         const byWeek = summariesByWeek[day.week_number];
         if (byWeek) {
             byWeek.push(daySummary);
@@ -519,7 +565,7 @@ export function summarizeWeekProgress(
             const daySummaries = summariesByWeek[weekNumber];
             const plannedDays = plan.days.filter((day) => day.week_number === weekNumber);
             const plannedDistance = daySummaries.reduce((sum, day) => sum + day.planned_distance_meters, 0);
-            const actualDistance = daySummaries.reduce((sum, day) => sum + day.actual_distance_meters, 0);
+            const actualDistance = getActualWeekVolumeMeters(plan, logs, weekNumber);
             const loggedSessionCount = daySummaries.reduce((sum, day) => sum + day.logged_session_count, 0);
             const completedDayCount = daySummaries.filter((day) => day.logged_session_count > 0).length;
             const plannedSessionCount = plannedDays.reduce((sum, day) => sum + day.sessions.length, 0);

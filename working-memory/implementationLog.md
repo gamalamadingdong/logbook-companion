@@ -4,6 +4,53 @@
 
 ---
 
+## Phase 83: Training block template architecture and matching cleanup (July 7-8, 2026)
+
+**Timeline**: July 7-8, 2026  
+**Status**: In Progress - architecture mostly wired, validation clean for focused slice
+
+### What Was Built
+
+- Added the training-block architecture decision in `docs/training-block-template-architecture.md`.
+- Added persisted training-block template/session support and DB-backed plan loading in `src/services/trainingBlockService.ts`.
+- Seeded `training_block_template_sessions` with optional `workout_template_id` links for reusable erg sessions while preserving block-local session fields.
+- Centralized linked-template matching context through `src/hooks/useTrainingBlockMatchingContext.ts` and cached `getTrainingBlockMatchingContext(plan)`.
+- Consolidated actual-log normalization in `src/utils/trainingBlockMatching.ts` via `toTrainingBlockActualLogEvent(...)` and `resolveWorkoutDurationSeconds(...)`.
+- Routed Dashboard, Analytics, WorkoutDetail, and TrainingBlock through shared training-block matching context and normalized actual-log events.
+- Added shared distance formatting in `src/utils/trainingBlockFormatting.ts` so DB/template values render as `4.5 km` instead of long decimal labels.
+- Standardized duration fallback behavior in `src/services/workoutService.ts`: prefer `duration_seconds`, fall back to rounded `duration_minutes * 60`.
+- Added regression tests for template-link priority, linked-template RWN fallback, distance formatting, duration fallback, and DB/static template parity.
+
+### Architecture Rules Now In Force
+
+- Training block sessions are scheduled prescriptions. They own week/day slot, family, role, expected metrics, key-session flags, instructions, and support prescriptions.
+- Workout library templates are reusable workout identities and matching anchors. A linked `workout_template_id` must not silently replace block-local session fields.
+- Matching priority is: explicit review/manual assignment, exact template link, RWN/canonical signature, same-week metric fallback, then manual review.
+- Support work remains `support_prescription` until RWN/library models can represent strength, core, mobility, and stretching cleanly.
+- Dashboard/Analytics/WorkoutDetail/TrainingBlock should not duplicate matching-context fetch logic or duration fallback logic.
+
+### Commit Trail Used For Context
+
+- `f30a99c` - initial training block handoff, static template, calculations, and UI.
+- `11098ad` - persisted training block/template seed work plus matching utilities across Dashboard, Analytics, TrainingBlock, WorkoutDetail.
+- `4b436ff` - manual quick-completion undo support.
+- `ff68564` - training block UX polish.
+- `aa88ebb` - matching/calculation cleanup and persisted enrollment/review support.
+- `5818eb8` - documented template architecture decision.
+
+### Current Validation
+
+- Focused tests passed for workout service, training-block formatting, calculations, matching, service builders, and template parity.
+- Production build passed.
+
+### Next Good Slice
+
+- Keep auditing for places that bypass `useTrainingBlockMatchingContext`, `toTrainingBlockActualLogEvent`, or `resolveWorkoutDurationSeconds`.
+- Tighten team assignment matching display, but keep it within the same matching context instead of creating a parallel matching path.
+- Do not add schema for authoring/custom blocks until matching and review semantics are stable.
+
+---
+
 ## Phase 78: Virtual Lineup Predictor + date-aware embedded Lineups (March 27, 2026)
 
 **Timeline**: March 27, 2026  
@@ -3738,3 +3785,35 @@ Examples:
 
 
 
+
+
+## Phase 84: Training Block Weekly Volume Semantics (Complete)
+
+**Date**: 2026-07-08  
+**Status**: Complete
+
+### What Changed
+- Weekly training-block actual volume is now calculated from all non-skipped workout logs whose completed date falls inside the training-block week.
+- Prescription matching/alignment still drives day/session completion, key-session credit, review state, and compliance status.
+- This intentionally separates total volume tracking from whether a workout matched the prescribed session. Extra same-week work counts toward target volume; skipped logs do not.
+
+### Validation
+- Added a regression test covering off-prescription same-week volume and skipped-log exclusion.
+- Passed focused training-block/service tests and production build.
+
+
+## Phase 85: Training Block Template-Link Hardening (Complete)
+
+**Date**: 2026-07-08  
+**Status**: Complete
+
+### What Changed
+- Added a migration to seed curated reusable workout templates for the active 12-week rowing block and backfill `training_block_template_sessions.workout_template_id` for reusable erg and RWN-supported cross-training sessions.
+- Kept the static TypeScript plan as a fallback/parity source; it cannot carry database workout-template UUIDs.
+- Added matched-completion review controls so an auto-matched workout can be reassigned or marked as not counting without waiting for it to appear in the review queue.
+- Dashboard and Analytics now pass template/source/RWN fields into the shared training-block event normalizer where available.
+- Team assignment semantics remain intentionally deferred until individual workout/template matching is stable.
+
+### Validation
+- Focused training-block/service tests passed: 6 files, 44 tests.
+- `npm run build` passed.

@@ -1,8 +1,10 @@
 import { supabase } from './supabase';
+import { formatKilometerLabel } from '../utils/trainingBlockFormatting';
 import type { Database } from '../types/database.types';
 import type {
     TrainingBlockLinkedWorkoutTemplate,
 } from '../utils/trainingBlockTemplateValidation';
+import type { TrainingBlockMatchingContext } from '../utils/trainingBlockMatching';
 import type {
     TrainingBlockDayCategory,
     TrainingBlockIntervalSpec,
@@ -65,6 +67,44 @@ export interface TrainingBlockTemplateSnapshot {
     sessions: TrainingBlockTemplateSessionRow[];
 }
 
+const matchingContextCache = new Map<string, Promise<TrainingBlockMatchingContext>>();
+
+function getTemplateIdsFromPlan(plan: TrainingBlockPlan): string[] {
+    return [...new Set(plan.days.flatMap((day) =>
+        day.sessions.map((session) => session.workout_template_id).filter((id): id is string => Boolean(id)),
+    ))];
+}
+
+function createMatchingContextCacheKey(plan: TrainingBlockPlan): string {
+    const templateIds = getTemplateIdsFromPlan(plan).slice().sort();
+    return templateIds.length > 0
+        ? templateIds.join("|")
+        : `template:${plan.template_id ?? "default"}:${plan.start_date}:${plan.end_date}`;
+}
+
+export async function getTrainingBlockMatchingContext(
+    plan: TrainingBlockPlan,
+): Promise<TrainingBlockMatchingContext> {
+    const cacheKey = createMatchingContextCacheKey(plan);
+    const existing = matchingContextCache.get(cacheKey);
+    if (existing) return existing;
+
+    const request = (async () => ({
+        linkedWorkoutTemplatesById: await getTrainingBlockLinkedWorkoutTemplates(getTemplateIdsFromPlan(plan)),
+    } as TrainingBlockMatchingContext))();
+
+    matchingContextCache.set(cacheKey, request);
+
+    try {
+        return await request;
+    } catch (error) {
+        matchingContextCache.delete(cacheKey);
+        throw error;
+    }
+}
+
+
+
 function addDaysIso(startDate: string, offsetDays: number): string {
     const [year, month, day] = startDate.split('-').map(Number);
     const date = new Date(year, (month ?? 1) - 1, day ?? 1);
@@ -83,6 +123,23 @@ function jsonObjectOrUndefined<T>(value: Database['public']['Tables']['training_
 
 function jsonArrayOrUndefined<T>(value: Database['public']['Tables']['training_block_templates']['Row']['metadata'] | null): T[] | undefined {
     return Array.isArray(value) ? value as T[] : undefined;
+}
+
+function numberOrUndefined(value: number | string | null): number | undefined {
+    if (value === null || value === undefined) return undefined;
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeTrainingBlockSessionTitle(
+    session: TrainingBlockTemplateSessionRow,
+    expectedDistanceMeters: number | undefined,
+): string {
+    if (session.family.startsWith('flush_') && expectedDistanceMeters !== undefined) {
+        return `Flush ${formatKilometerLabel(expectedDistanceMeters)}`;
+    }
+
+    return session.title;
 }
 
 export function templateRowsToTrainingBlockPlan(
@@ -104,23 +161,27 @@ export function templateRowsToTrainingBlockPlan(
             const offset = (day.week_number - 1) * 7 + day.day_slot;
             const daySessions = (sessionsByDay.get(day.id) ?? [])
                 .sort((a, b) => a.sort_order - b.sort_order || a.session_key.localeCompare(b.session_key))
-                .map((session): TrainingBlockPlannedSession => ({
-                    id: session.session_key,
-                    title: session.title,
-                    planned_rwn: session.planned_rwn ?? undefined,
-                    workout_template_id: session.workout_template_id,
-                    support_prescription: jsonObjectOrUndefined<TrainingBlockSupportPrescription>(session.support_prescription),
-                    family: session.family as TrainingBlockWorkoutFamily,
-                    role: session.role as TrainingBlockSessionRole,
-                    source: session.source as TrainingBlockSessionSource,
-                    expected_distance_meters: session.expected_distance_meters ?? undefined,
-                    expected_duration_minutes: session.expected_duration_minutes ?? undefined,
-                    target_split_seconds_per_500m: session.target_split_seconds_per_500m ?? undefined,
-                    intervals: jsonArrayOrUndefined<TrainingBlockIntervalSpec>(session.intervals),
-                    instructions: session.instructions ?? undefined,
-                    counts_toward_weekly_volume: session.counts_toward_weekly_volume,
-                    is_key_session: session.is_key_session,
-                }));
+                .map((session): TrainingBlockPlannedSession => {
+                    const expectedDistanceMeters = numberOrUndefined(session.expected_distance_meters);
+
+                    return {
+                        id: session.session_key,
+                        title: normalizeTrainingBlockSessionTitle(session, expectedDistanceMeters),
+                        planned_rwn: session.planned_rwn ?? undefined,
+                        workout_template_id: session.workout_template_id,
+                        support_prescription: jsonObjectOrUndefined<TrainingBlockSupportPrescription>(session.support_prescription),
+                        family: session.family as TrainingBlockWorkoutFamily,
+                        role: session.role as TrainingBlockSessionRole,
+                        source: session.source as TrainingBlockSessionSource,
+                        expected_distance_meters: expectedDistanceMeters,
+                        expected_duration_minutes: numberOrUndefined(session.expected_duration_minutes),
+                        target_split_seconds_per_500m: numberOrUndefined(session.target_split_seconds_per_500m),
+                        intervals: jsonArrayOrUndefined<TrainingBlockIntervalSpec>(session.intervals),
+                        instructions: session.instructions ?? undefined,
+                        counts_toward_weekly_volume: session.counts_toward_weekly_volume,
+                        is_key_session: session.is_key_session,
+                    };
+                });
 
             return {
                 date: addDaysIso(resolvedStartDate, offset),

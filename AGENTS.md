@@ -1,0 +1,1 @@
+/home/gamalamadingdong/apps/codex-config/instructions/global-instructions.md

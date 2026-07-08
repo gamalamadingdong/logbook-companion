@@ -1,6 +1,6 @@
 # Training Block Handoff
 
-Last updated: July 7, 2026
+Last updated: July 8, 2026
 
 ## Goal
 
@@ -63,9 +63,12 @@ Product decisions reflected in the current code:
 - Week number and day slot are the training-plan anchors; calendar dates define the week window.
 - Team and coach workflows are first-class, even though no one is actively using the old coaching/team feature yet.
 - Training block template/session persistence exists. Further schema changes should be conservative and driven by editing/customization requirements.
+- The current 12-week block loads from persisted template rows when available, with `workout_template_id` links for reusable rowing and RWN-supported cross-training sessions seeded through curated `workout_templates`. The static TypeScript plan remains a fallback/parity source and does not carry database UUIDs.
+- Weekly total volume is date-based and counts all non-skipped same-week workout volume. Prescription completion remains match/review based.
 
 Not implemented yet:
 - Automatic creation of team assignments from the training block.
+- Team assignment semantics for training blocks. This is intentionally deferred until individual workout/template matching is stable.
 - Assignment-to-plan matching beyond displaying team assignments beside plan days.
 - RWN support-work extensions for strength, core, stretching, and mobility.
 - Rich Pete Plan progress screen.
@@ -151,7 +154,7 @@ Recommendation:
 
 Possible RWN extension shape:
 
-- Add `cross`, `strength`, `mobility`, `stretching`, and `core` to supported modalities.
+- Strength, mobility, stretching, and core remain the missing first-class modalities for support-work modeling. Cross-training is already represented with `Cross: 60:00` for the current block.
 - Add support block types or tags for `strength`, `mobility`, `stretching`, and `core`.
 - Add a structured circuit/exercise representation that can preserve:
   - exercise name
@@ -166,7 +169,7 @@ Possible RWN extension shape:
 Training block implication:
 
 - The current `strength_pull: '30:00'` and `strength_push: '30:00'` entries are placeholders.
-- The current generic cross-training prescription should eventually become something like `Cross: 60:00` rather than `60:00` or `Other: 60:00`.
+- The current generic cross-training prescription now uses `Cross: 60:00`; keep that path for simple RWN-supported cross-training.
 - Before Phase 3 matching treats support sessions as canonical, either update RWN or make `planned_rwn` rowing-only and add a separate structured support prescription field.
 - Preferred path: update RWN so support work can still use the same parser/serializer/rendering package.
 

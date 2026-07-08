@@ -12,8 +12,10 @@ import { splitToWatts } from '../utils/zones';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { SectionError } from '../components/SectionError';
 import { OnboardingWizard } from '../components/OnboardingWizard';
+import { useTrainingBlockMatchingContext } from '../hooks/useTrainingBlockMatchingContext';
 import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
 import { summarizeWeekProgress } from '../utils/trainingBlockCalculations';
+import { toTrainingBlockActualLogEvent } from '../utils/trainingBlockMatching';
 import {
     formatTrainingBlockWeekRange,
     getNearestTrainingBlockDay,
@@ -111,25 +113,29 @@ export const Dashboard: React.FC = () => {
     }, [userProfile, userGoals]);
 
     const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
+    const { matchingContext: trainingBlockMatchingContext } = useTrainingBlockMatchingContext(ROWING_12_WEEK_TEMPLATE);
     const trainingBlockNow = useMemo(() => new Date(), []);
     const trainingBlockDay = useMemo(() => getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
     const trainingBlockWeekDays = useMemo(() => getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+
     const trainingBlockWeekSummary = useMemo(() => {
         if (!trainingBlockDay) return null;
-        const events: TrainingBlockActualLogEvent[] = statsHistory.map((workout) => ({
+        const events: TrainingBlockActualLogEvent[] = statsHistory.map((workout) => toTrainingBlockActualLogEvent({
             workout_id: String(workout.id),
             date: workout.completed_at,
-            source: workout.source === 'manual' ? 'manual' : 'concept2',
+            source: workout.source,
             distance_meters: workout.distance_meters ?? null,
-            duration_seconds: workout.duration_seconds ?? (workout.duration_minutes ? Math.round(workout.duration_minutes * 60) : null),
+            duration_seconds: workout.duration_seconds,
+            duration_minutes: workout.duration_minutes ?? null,
             workout_name: workout.workout_name ?? workout.canonical_name ?? null,
             canonical_name: workout.canonical_name ?? null,
             manual_rwn: workout.manual_rwn ?? null,
+            template_id: workout.template_id ?? null,
             workout_type: workout.workout_type ?? null,
         }));
-        return summarizeWeekProgress(ROWING_12_WEEK_TEMPLATE, events)
+        return summarizeWeekProgress(ROWING_12_WEEK_TEMPLATE, events, 'slot', trainingBlockMatchingContext)
             .find((week) => week.week_number === trainingBlockDay.week_number) ?? null;
-    }, [statsHistory, trainingBlockDay]);
+    }, [statsHistory, trainingBlockDay, trainingBlockMatchingContext]);
 
     const trainingBlockCoverage = trainingBlockWeekSummary
         ? Math.min(100, Math.round(trainingBlockWeekSummary.target_coverage_ratio * 100))

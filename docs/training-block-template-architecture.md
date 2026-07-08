@@ -1,6 +1,6 @@
 # Training Block Template Architecture
 
-Last updated: July 7, 2026
+Last updated: July 8, 2026
 
 ## Decision
 
@@ -13,6 +13,19 @@ This gives us a hybrid model:
 - Use workout library templates when a planned session is a reusable row/cross workout with history and trend value.
 - Keep block-local fields for schedule-specific prescription details such as week, day slot, expected meters, target intensity, notes, and key-session status.
 - Keep support work as structured training-block support prescription until RWN and/or the library model can represent strength, core, mobility, and stretching cleanly.
+
+## Current Implementation
+
+The active 12-week rowing block is implemented as a persisted training-block template when database rows are available. Its scheduled sessions are loaded from `training_block_template_days` and `training_block_template_sessions`, not only from the static TypeScript fallback.
+
+Reusable rowing and RWN-supported cross-training prescriptions are seeded into `workout_templates` and linked back through `training_block_template_sessions.workout_template_id`. Strength, mobility, core, and stretching remain block-local for now. Those links are used as matching anchors ahead of RWN/canonical fallback matching.
+
+The static `src/data/rowingTrainingBlockTemplate.ts` plan remains a no-database fallback and parity source. It intentionally cannot contain real `workout_templates.id` values, because those UUIDs are environment data. If the app falls back to the static plan, matching still works through block-local RWN/canonical fields, but exact template-ID matching requires the persisted template rows.
+
+Weekly volume and prescription compliance are intentionally separate:
+
+- Weekly actual volume is date-based: all non-skipped workouts completed inside the training-block week count toward target volume.
+- Day/session completion is match-based: template/RWN/metric matching and review overrides decide whether a workout satisfies, modifies, supports, or misses a prescription.
 
 ## Source Of Truth
 

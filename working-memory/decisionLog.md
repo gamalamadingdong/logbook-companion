@@ -4,6 +4,64 @@
 
 ---
 
+## ADR-025: Training block sessions own prescriptions; workout templates are matching anchors
+
+**Date**: July 7, 2026  
+**Status**: Accepted  
+**Author**: User + AI Assistant
+
+### Context
+
+The 12-week rowing training block moved from a local/static feature toward persisted training-block templates and sessions. At the same time, Logbook Companion already has `workout_templates` for reusable workout definitions, history, trends, and matching. The risk was collapsing these into one concept and losing block-specific schedule meaning.
+
+### Decision
+
+Use a hybrid model:
+
+1. `training_block_template_sessions` remain the scheduled prescription.
+2. `workout_templates` remain reusable workout definitions.
+3. `training_block_template_sessions.workout_template_id` is optional and acts as a reusable identity/matching anchor, not the entire training-block session.
+4. Block-local fields such as week/day slot, expected meters, target intensity, support prescription, role, family, instructions, and key-session status remain authoritative for the scheduled session.
+5. Support work stays in structured `support_prescription` until RWN and/or the library model supports strength, core, mobility, and stretching as first-class prescriptions.
+
+### Matching Priority
+
+Training-block matching should prefer:
+
+1. explicit review/manual assignment,
+2. exact `workout_template_id` / `template_id` match,
+3. RWN/canonical signature match,
+4. same-week metric fallback,
+5. manual review.
+
+### Rationale
+
+- Preserves the schedule-specific meaning of a training block.
+- Lets reusable library workouts power history, trends, and exact matching without owning plan scheduling.
+- Avoids forcing strength/support prescriptions into weak placeholder RWN strings.
+- Keeps future editable/custom blocks possible without silently rewriting copied block-local fields when a linked library template changes.
+
+### Consequences
+
+**Positive**:
+- Exact template links can improve matching confidence.
+- DB-backed training-block sessions can still preserve plan-specific instructions and expected metrics.
+- Dashboard, Analytics, WorkoutDetail, and TrainingBlock can share matching context rather than loading linked templates separately.
+
+**Negative**:
+- The model has two related template concepts that must be kept distinct in code and UI.
+- Linked-template drift needs warnings/review behavior rather than automatic mutation.
+- Support work remains less canonical until RWN/library support improves.
+
+### Implementation Notes
+
+- Architecture source: `docs/training-block-template-architecture.md`.
+- Shared context: `src/hooks/useTrainingBlockMatchingContext.ts` and `getTrainingBlockMatchingContext(plan)`.
+- Shared normalization: `toTrainingBlockActualLogEvent(...)` and `resolveWorkoutDurationSeconds(...)`.
+- Regression tests now cover exact template-link priority and linked-template RWN matching without replacing block-local session identity.
+
+---
+
 ## ADR-024: Concept2 dashboard username emphasis is presentation-only
 
 **Date**: June 15, 2026
@@ -1119,3 +1177,11 @@ Use Capacitor to wrap web app as native mobile app instead of React Native.
 ### Implementation Notes
 [Any specific details about how this was implemented]
 ```
+
+
+## ADR-026: Training Block Volume, Matching, and Template-Link Boundaries
+
+**Date**: 2026-07-08  
+**Decision**: Weekly volume is date-based, prescription compliance is match/review based, and the active 12-week block should use persisted `workout_template_id` links for reusable workouts when database migrations are applied. The static plan remains a fallback and parity source only.
+
+**Rationale**: Extra same-week training should count toward total volume even when it does not satisfy a prescribed session. Exact template links improve matching and history continuity, but support/team-assignment semantics should not be forced into the template model before individual workout matching is stable.

@@ -162,7 +162,11 @@ session_seed AS (
   UNION ALL
 
   SELECT d.id, 2, ('flush-' || d.week_number),
-    ('Flush ' || ((CASE WHEN d.week_number = 4 THEN 3000 WHEN d.week_number = 12 THEN 6000 ELSE 4500 END)::numeric / 1000)::text || 'k'),
+    CASE
+      WHEN d.week_number = 4 THEN 'Flush 3 km'
+      WHEN d.week_number = 12 THEN 'Flush 6 km'
+      ELSE 'Flush 4.5 km'
+    END,
     CASE WHEN d.week_number = 4 THEN '3000m' WHEN d.week_number = 12 THEN '6000m' ELSE '4500m' END,
     NULL::jsonb,
     CASE WHEN d.week_number = 4 THEN 'flush_min_3k' WHEN d.week_number = 12 THEN 'flush_full_6k' ELSE 'flush_standard_4to5k' END,

@@ -1,6 +1,7 @@
 import {
     parseLocalDate,
 } from '../utils/dateUtils';
+import { formatKilometerLabel } from '../utils/trainingBlockFormatting';
 import { parseRWN, structureToRWN } from '@readyall/rwn';
 
 import type {
@@ -247,6 +248,8 @@ function buildIntervalsSession(params: {
     };
 }
 
+
+
 function buildFlushSession(weekNumber: number): TrainingBlockPlannedSession {
     const flushMeters = WEEK_FLUSH_BY_WEEK[weekNumber] ?? 4500;
     const flushFamily = weekNumber === 4
@@ -257,13 +260,14 @@ function buildFlushSession(weekNumber: number): TrainingBlockPlannedSession {
 
     return {
         id: `flush-${weekNumber}`,
-        title: `Flush ${flushMeters / 1000}k`,
+        title: `Flush ${formatKilometerLabel(flushMeters)}`,
         planned_rwn: resolvePlannedRWN(flushFamily),
         family: flushFamily,
         role: 'supplemental',
         source: 'erg',
         expected_distance_meters: flushMeters,
         counts_toward_weekly_volume: true,
+        is_key_session: false,
         instructions: ['No sprinting; keep the pacing conversational.'],
     };
 }
@@ -281,6 +285,7 @@ function buildSteadySession(distanceMeters: number, role: TrainingBlockSessionRo
         expected_duration_minutes: 50,
         target_split_seconds_per_500m: 130,
         counts_toward_weekly_volume: true,
+        is_key_session: false,
         instructions: [
             'Zone 2 focus.',
             'Keep transitions calm and smooth.',
@@ -314,6 +319,7 @@ function buildCrossSession(): TrainingBlockPlannedSession {
         source: 'cross_training',
         expected_duration_minutes: 60,
         counts_toward_weekly_volume: false,
+        is_key_session: false,
         instructions: ['Bike, ski, run, or general aerobic conditioning.'],
     };
 }
@@ -329,6 +335,7 @@ function buildStrengthSession(kind: 'pull' | 'push'): TrainingBlockPlannedSessio
         support_prescription: buildStrengthSupportPrescription(kind),
         instructions: [isPull ? 'Keep low to moderate load' : 'Keep movement quality high'],
         counts_toward_weekly_volume: false,
+        is_key_session: false,
     };
 }
 

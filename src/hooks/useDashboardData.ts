@@ -114,7 +114,7 @@ export const useDashboardData = () => {
         try {
             const { data, error: histErr } = await supabase
                 .from('workout_logs')
-                .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, watts, avg_split_500m')
+                .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, watts, avg_split_500m, source, workout_name, canonical_name, manual_rwn, workout_type, template_id')
                 .eq('user_id', user.id)
                 .gte('completed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 

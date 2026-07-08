@@ -151,13 +151,36 @@ describe('trainingBlockService builders', () => {
                     created_at: '2026-07-07T00:00:00Z',
                     updated_at: '2026-07-07T00:00:00Z',
                 },
+                {
+                    id: 'session-3',
+                    template_day_id: 'day-1',
+                    session_key: 'flush-1',
+                    title: 'Flush 4.5000000000000000k',
+                    planned_rwn: '4500m',
+                    workout_template_id: null,
+                    support_prescription: null,
+                    family: 'flush_standard_4to5k',
+                    role: 'supplemental',
+                    source: 'erg',
+                    expected_distance_meters: 4500,
+                    expected_duration_minutes: null,
+                    target_split_seconds_per_500m: null,
+                    intervals: null,
+                    instructions: ['Easy'],
+                    counts_toward_weekly_volume: true,
+                    is_key_session: false,
+                    sort_order: 3,
+                    metadata: {},
+                    created_at: '2026-07-07T00:00:00Z',
+                    updated_at: '2026-07-07T00:00:00Z',
+                },
             ],
         }, '2026-08-03');
 
         expect(plan.start_date).toBe('2026-08-03');
         expect(plan.end_date).toBe('2026-10-25');
         expect(plan.days.map((day) => day.date)).toEqual(['2026-08-03', '2026-08-04']);
-        expect(plan.days[0].sessions.map((session) => session.id)).toEqual(['mon-primary', 'strength-pull']);
+        expect(plan.days[0].sessions.map((session) => session.id)).toEqual(['mon-primary', 'strength-pull', 'flush-1']);
         expect(plan.days[0].sessions[0]).toMatchObject({
             planned_rwn: '8x500m/3:30r',
             workout_template_id: 'template-workout-1',
@@ -167,6 +190,10 @@ describe('trainingBlockService builders', () => {
         expect(plan.days[0].sessions[1].support_prescription).toMatchObject({
             kind: 'strength',
             title: 'Strength (pull)',
+        });
+        expect(plan.days[0].sessions[2]).toMatchObject({
+            title: 'Flush 4.5 km',
+            expected_distance_meters: 4500,
         });
     });
 

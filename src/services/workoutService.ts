@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { C2Interval, C2ResultDetail, C2Stroke } from '../api/concept2.types';
 import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, normalizeCanonicalName } from '../utils/workoutCanonical';
+import { resolveWorkoutDurationSeconds } from '../utils/trainingBlockMatching';
 import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService';
 import type { Database, Json } from '../types/database.types';
 
@@ -48,25 +49,34 @@ function hasWorkoutIntervals(raw: WorkoutRawData | null): raw is WorkoutRawData 
     return Array.isArray(raw?.workout?.intervals);
 }
 
-const formatDurationSeconds = (durationSeconds?: number | null, durationMinutes?: number | null) => {
-    if (durationSeconds && durationSeconds > 0) {
-        const hours = Math.floor(durationSeconds / 3600);
-        const minutes = Math.floor((durationSeconds % 3600) / 60);
-        const seconds = Math.floor(durationSeconds % 60);
+export const formatWorkoutDurationSeconds = (durationSeconds?: number | null, durationMinutes?: number | null) => {
+    const resolvedSeconds = resolveWorkoutDurationSeconds({
+        duration_seconds: durationSeconds,
+        duration_minutes: durationMinutes,
+    });
 
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
+    if (!resolvedSeconds) return '-';
 
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const roundedSeconds = Math.round(resolvedSeconds);
+    const hours = Math.floor(roundedSeconds / 3600);
+    const minutes = Math.floor((roundedSeconds % 3600) / 60);
+    const seconds = roundedSeconds % 60;
+
+    if (hours > 0) {
+        return hours + ':' + minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
     }
 
-    if (durationMinutes && durationMinutes > 0) {
-        return `${durationMinutes}m`;
-    }
-
-    return '-';
+    return minutes + ':' + seconds.toString().padStart(2, '0');
 };
+
+function formatCanonicalDuration(durationSeconds?: number | null, durationMinutes?: number | null): string {
+    const resolvedSeconds = resolveWorkoutDurationSeconds({
+        duration_seconds: durationSeconds,
+        duration_minutes: durationMinutes,
+    });
+
+    return resolvedSeconds ? formatWorkoutDurationSeconds(resolvedSeconds) : '0:00';
+}
 
 
 function trimToNull(value: string | null | undefined): string | null {
@@ -290,32 +300,24 @@ export const workoutService = {
             // Fallbacks — workout_name holds C2 workout_type (e.g. 'FixedDistanceSplits') due to column swap in DB
             if (!canonicalName) {
                 if (log.workout_name === 'FixedDistanceSplits' || log.workout_name === 'FixedDistanceNoSplits') canonicalName = `${log.distance_meters ?? 0}m`;
-                else if (log.workout_name === 'FixedTimeSplits' || log.workout_name === 'FixedTimeNoSplits') canonicalName = `${Math.round(log.duration_minutes ?? 0)}:00`;
+                else if (log.workout_name === 'FixedTimeSplits' || log.workout_name === 'FixedTimeNoSplits') canonicalName = formatCanonicalDuration(log.duration_seconds, log.duration_minutes);
                 else if (log.workout_name === 'JustRow') canonicalName = 'Just Row';
                 else canonicalName = log.workout_name;
             }
 
-            // Format Time from DB duration_seconds
-            let timeFormatted = raw?.time_formatted;
-            if (!timeFormatted && log.duration_seconds) {
-                const totalSeconds = log.duration_seconds;
-                const hours = Math.floor(totalSeconds / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = (totalSeconds % 60).toFixed(1);
-                timeFormatted = hours > 0
-                    ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(4, '0')}`
-                    : `${minutes}:${seconds.toString().padStart(4, '0')}`;
-            }
-
-            const durationMinutes = log.duration_minutes ?? 0;
+            const durationSeconds = resolveWorkoutDurationSeconds({
+                duration_seconds: log.duration_seconds,
+                duration_minutes: log.duration_minutes,
+            });
+            const timeFormatted = raw?.time_formatted ?? formatWorkoutDurationSeconds(log.duration_seconds, log.duration_minutes);
 
             return {
                 id: log.external_id ?? log.id, // Use C2 ID for compatibility when present
                 db_id: log.id, // Keep internal DB ID accessible
                 date: log.completed_at,
                 distance: log.distance_meters ?? 0,
-                time: log.duration_seconds ? log.duration_seconds * 10 : (durationMinutes * 600),
-                time_formatted: timeFormatted || `${durationMinutes}m`,
+                time: durationSeconds ? durationSeconds * 10 : 0,
+                time_formatted: timeFormatted,
                 type: log.workout_type,
                 name: canonicalName,
                 watts: log.watts ?? undefined,
@@ -360,7 +362,8 @@ export const workoutService = {
                 workout_name: canonicalName, // Inject Canonical Name for UI consistency
                 template_id: data.template_id, // Include linked template ID
                 manual_rwn: data.manual_rwn, // Include manual RWN override
-                is_benchmark: data.is_benchmark // Include benchmark flag
+                is_benchmark: data.is_benchmark, // Include benchmark flag
+                source: data.source
             } as C2ResultDetail;
         }
 
@@ -456,7 +459,7 @@ export const workoutService = {
             date: log.completed_at,
             watts: log.watts,
             distance: log.distance_meters,
-            time: log.duration_seconds || (log.duration_minutes * 60),
+            time: resolveWorkoutDurationSeconds({ duration_seconds: log.duration_seconds, duration_minutes: log.duration_minutes }) ?? 0,
             avg_split: log.avg_split_500m
         }));
     },
@@ -510,7 +513,7 @@ export const workoutService = {
             date: log.completed_at,
             name: log.canonical_name || log.workout_name,
             distance: log.distance_meters,
-            time_formatted: formatDurationSeconds(log.duration_seconds, log.duration_minutes),
+            time_formatted: formatWorkoutDurationSeconds(log.duration_seconds, log.duration_minutes),
             manual_rwn: log.manual_rwn
         }));
     },
@@ -623,7 +626,7 @@ export const workoutService = {
             name: log.canonical_name || log.workout_name,
             type: log.workout_name, // Map to workout_name because that holds the C2 type (JustRow, etc)
             distance: log.distance_meters,
-            time: log.duration_seconds || (log.duration_minutes * 60),
+            time: resolveWorkoutDurationSeconds({ duration_seconds: log.duration_seconds, duration_minutes: log.duration_minutes }) ?? 0,
             watts: log.watts,
             rate: log.average_stroke_rate,
             hr: log.average_heart_rate,

@@ -3,6 +3,20 @@
 > Last updated: July 22, 2025
 
 ## Current Focus
+
+## Current Focus Update - July 8, 2026
+
+Training block work is currently centered on the template-based architecture documented in `docs/training-block-template-architecture.md`:
+
+- Training block sessions are scheduled prescriptions; workout library templates are reusable identity and matching anchors.
+- Optional `training_block_template_sessions.workout_template_id` links should improve exact matching and history/trend continuity without replacing block-local session fields.
+- Matching priority is explicit review/manual assignment, exact template link, RWN/canonical signature, same-week metric fallback, then manual review.
+- Support work remains `support_prescription` until RWN/library support for strength/core/mobility/stretching is first-class.
+- Recent cleanup centralized matching context in `useTrainingBlockMatchingContext`, actual-log normalization in `toTrainingBlockActualLogEvent`, duration fallback in `resolveWorkoutDurationSeconds`, and distance display in `trainingBlockFormatting`.
+- Next work should continue auditing for duplicate matching-context loading or duration/distance fallback logic before adding authoring/custom-block schema.
+- July 8 follow-up: the next training-block slice added seeded rowing and RWN-supported cross-training workout-template anchors for the active 12-week block, matched-completion review controls, and Dashboard/Analytics template metadata propagation. Team assignment semantics remain deferred.
+
+
 - The coaching `Schedule -> Lineups` surface now includes:
   - a date-aware embedded Lineups scope toggle (`In Focus` vs `All Saved`)
   - a new **Lineup Score** panel on saved crew records

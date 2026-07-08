@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildManualWorkoutLogInsert, buildManualWorkoutLogUpdate, buildWorkoutNameUpdates } from './workoutService';
+import { buildManualWorkoutLogInsert, buildManualWorkoutLogUpdate, buildWorkoutNameUpdates, formatWorkoutDurationSeconds } from './workoutService';
 
 describe('buildWorkoutNameUpdates', () => {
     it('normalizes a manual RWN override into canonical matching metadata', () => {
@@ -26,6 +26,14 @@ describe('buildWorkoutNameUpdates', () => {
     });
 });
 
+
+describe('formatWorkoutDurationSeconds', () => {
+    it('prefers duration_seconds and falls back to rounded duration_minutes', () => {
+        expect(formatWorkoutDurationSeconds(1800, 31)).toBe('30:00');
+        expect(formatWorkoutDurationSeconds(null, 30.5)).toBe('30:30');
+        expect(formatWorkoutDurationSeconds(undefined, undefined)).toBe('-');
+    });
+});
 
 describe('buildManualWorkoutLogInsert', () => {
     it('creates canonical metadata for deliberate manual rowing entries', () => {

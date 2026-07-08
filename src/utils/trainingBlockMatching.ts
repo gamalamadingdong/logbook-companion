@@ -4,6 +4,7 @@ import type { TrainingBlockActualLogEvent, TrainingBlockPlannedDay, TrainingBloc
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 import { normalizeForMatching } from './workoutNormalization';
 import { canonicalSignatureFromCanonicalName, deriveCanonicalNameFromRWN, deriveCanonicalNameFromStructure } from './workoutCanonical';
+import type { TrainingBlockLinkedWorkoutTemplate } from './trainingBlockTemplateValidation';
 
 export type TrainingBlockAssignmentRelationship =
     | 'satisfies'
@@ -31,6 +32,46 @@ export interface TrainingBlockMatchCandidate {
 }
 
 export type TrainingBlockAssignmentCandidate = TrainingBlockMatchCandidate;
+
+export interface TrainingBlockActualLogEventSeed extends Omit<TrainingBlockActualLogEvent, 'source'> {
+    source?: string | null;
+    duration_minutes?: number | null;
+}
+
+export interface WorkoutDurationSeed {
+    duration_seconds?: number | null;
+    duration_minutes?: number | null;
+}
+
+export function resolveWorkoutDurationSeconds(seed: WorkoutDurationSeed): number | null {
+    const seconds = seed.duration_seconds;
+    if (seconds && Number.isFinite(seconds) && seconds > 0) {
+        return seconds;
+    }
+
+    const minutes = seed.duration_minutes;
+    if (minutes && Number.isFinite(minutes) && minutes > 0) {
+        return Math.round(minutes * 60);
+    }
+
+    return null;
+}
+
+export interface TrainingBlockMatchingContext {
+    linkedWorkoutTemplatesById?: ReadonlyMap<string, TrainingBlockLinkedWorkoutTemplate>;
+}
+
+function normalizeLogSource(source?: string | null): TrainingBlockActualLogEvent['source'] {
+    return source === 'manual' ? 'manual' : 'concept2';
+}
+
+export function toTrainingBlockActualLogEvent(seed: TrainingBlockActualLogEventSeed): TrainingBlockActualLogEvent {
+    return {
+        ...seed,
+        duration_seconds: resolveWorkoutDurationSeconds(seed),
+        source: normalizeLogSource(seed.source),
+    };
+}
 
 export interface TrainingBlockAssignmentMatch {
     relationship: TrainingBlockAssignmentRelationship;
@@ -141,6 +182,24 @@ function assignmentRWNInfos(assignment: TrainingBlockMatchCandidate): ParsedRWNI
     });
 }
 
+function sessionRWNInfos(
+    session: TrainingBlockPlannedSession,
+    linkedTemplate?: TrainingBlockLinkedWorkoutTemplate | null,
+): ParsedRWNInfo[] {
+    const candidates = [
+        parseRWNInfo(session.planned_rwn),
+        parseRWNInfo(linkedTemplate?.rwn),
+        canonicalNameInfo(linkedTemplate?.canonical_name),
+    ];
+
+    const seen = new Set<string>();
+    return candidates.filter((candidate): candidate is ParsedRWNInfo => {
+        if (!candidate || seen.has(candidate.canonical)) return false;
+        seen.add(candidate.canonical);
+        return true;
+    });
+}
+
 function assignmentText(assignment: TrainingBlockMatchCandidate): string {
     return `${assignment.title ?? ''} ${assignment.workout_type ?? ''} ${assignment.canonical_name ?? ''} ${assignment.manual_rwn ?? ''} ${assignment.notes ?? ''}`.toLowerCase();
 }
@@ -174,13 +233,11 @@ function scoreTemplateLinkSession(
     };
 }
 
-function scoreRWNSession(
+function scoreRWNSessionAgainstPlanInfo(
     session: TrainingBlockPlannedSession,
     assignmentInfo: ParsedRWNInfo,
+    plannedInfo: ParsedRWNInfo,
 ): TrainingBlockAssignmentMatch | null {
-    const plannedInfo = parseRWNInfo(session.planned_rwn);
-    if (!plannedInfo) return null;
-
     if (assignmentInfo.canonical === plannedInfo.canonical) {
         const metricOnly = assignmentInfo.origin === 'metric';
         return {
@@ -239,6 +296,24 @@ function scoreRWNSession(
     return null;
 }
 
+function scoreRWNSession(
+    session: TrainingBlockPlannedSession,
+    assignmentInfo: ParsedRWNInfo,
+    plannedInfos: ParsedRWNInfo[],
+): TrainingBlockAssignmentMatch | null {
+    let best: TrainingBlockAssignmentMatch | null = null;
+
+    for (const plannedInfo of plannedInfos) {
+        const match = scoreRWNSessionAgainstPlanInfo(session, assignmentInfo, plannedInfo);
+        if (!match) continue;
+        if (!best || rankTrainingBlockMatch(match) > rankTrainingBlockMatch(best)) {
+            best = match;
+        }
+    }
+
+    return best;
+}
+
 export function rankTrainingBlockMatch(match: TrainingBlockAssignmentMatch): number {
     const relationshipRank: Record<TrainingBlockAssignmentRelationship, number> = {
         satisfies: 5,
@@ -253,6 +328,7 @@ export function rankTrainingBlockMatch(match: TrainingBlockAssignmentMatch): num
 export function scoreCandidateAgainstPlanDay(
     day: TrainingBlockPlannedDay,
     assignment: TrainingBlockMatchCandidate,
+    context: TrainingBlockMatchingContext = {},
 ): TrainingBlockAssignmentMatch {
     if (assignment.status === 'skipped') {
         return {
@@ -288,11 +364,16 @@ export function scoreCandidateAgainstPlanDay(
     const matches: TrainingBlockAssignmentMatch[] = [];
 
     for (const session of day.sessions) {
+        const plannedTemplate = session.workout_template_id
+            ? context.linkedWorkoutTemplatesById?.get(session.workout_template_id)
+            : null;
+        const plannedInfos = sessionRWNInfos(session, plannedTemplate);
+
         const templateLinkMatch = scoreTemplateLinkSession(session, assignment);
         if (templateLinkMatch) matches.push(templateLinkMatch);
 
         for (const assignmentInfo of assignmentInfos) {
-            const match = scoreRWNSession(session, assignmentInfo);
+            const match = scoreRWNSession(session, assignmentInfo, plannedInfos);
             if (match) matches.push(match);
         }
 
@@ -331,13 +412,14 @@ export function scoreCandidateAgainstPlanDay(
 export function scoreCandidateAgainstPlanWeek(
     days: readonly TrainingBlockPlannedDay[],
     candidate: TrainingBlockMatchCandidate,
+    context: TrainingBlockMatchingContext = {},
 ): TrainingBlockWeekMatch | null {
     const matches = days
         .filter((day) => day.category !== 'rest')
         .map((day) => ({
             planned_day: day,
             planned_day_key: `${day.week_number}:${day.day_slot}`,
-            match: scoreCandidateAgainstPlanDay(day, candidate),
+            match: scoreCandidateAgainstPlanDay(day, candidate, context),
         }))
         .filter(({ match }) => match.relationship !== 'unmatched' && match.relationship !== 'conflicts')
         .sort((a, b) => {
@@ -352,56 +434,62 @@ export function scoreCandidateAgainstPlanWeek(
 export function scoreAssignmentAgainstPlanWeek(
     days: readonly TrainingBlockPlannedDay[],
     assignment: TrainingBlockAssignmentCandidate,
+    context?: TrainingBlockMatchingContext,
 ): TrainingBlockWeekMatch | null {
-    return scoreCandidateAgainstPlanWeek(days, assignment);
+    return scoreCandidateAgainstPlanWeek(days, assignment, context);
 }
 
 export function scoreAssignmentAgainstPlanDay(
     day: TrainingBlockPlannedDay,
     assignment: TrainingBlockAssignmentCandidate,
+    context?: TrainingBlockMatchingContext,
 ): TrainingBlockAssignmentMatch {
-    return scoreCandidateAgainstPlanDay(day, assignment);
+    return scoreCandidateAgainstPlanDay(day, assignment, context);
 }
 
 
 export function scoreLogAgainstPlanWeek(
     days: readonly TrainingBlockPlannedDay[],
-    log: TrainingBlockActualLogEvent,
+    log: TrainingBlockActualLogEventSeed,
+    context?: TrainingBlockMatchingContext,
 ): TrainingBlockWeekMatch | null {
+    const normalizedLog = toTrainingBlockActualLogEvent(log);
     return scoreCandidateAgainstPlanWeek(days, {
-        id: log.workout_id,
-        scheduled_date: log.date,
-        title: log.workout_name,
-        canonical_name: log.canonical_name,
-        manual_rwn: log.manual_rwn,
-        template_id: log.template_id,
-        workout_type: log.workout_type,
-        distance_meters: log.distance_meters,
-        duration_seconds: log.duration_seconds,
-        source: log.source,
-        notes: log.notes,
-        status: log.status,
-        planned_session_key: log.planned_session_key,
-    });
+        id: normalizedLog.workout_id,
+        scheduled_date: normalizedLog.date,
+        title: normalizedLog.workout_name,
+        canonical_name: normalizedLog.canonical_name,
+        manual_rwn: normalizedLog.manual_rwn,
+        template_id: normalizedLog.template_id,
+        workout_type: normalizedLog.workout_type,
+        distance_meters: normalizedLog.distance_meters,
+        duration_seconds: normalizedLog.duration_seconds,
+        source: normalizedLog.source,
+        notes: normalizedLog.notes,
+        status: normalizedLog.status,
+        planned_session_key: normalizedLog.planned_session_key,
+    }, context);
 }
 
 export function scoreLogAgainstPlanDay(
     day: TrainingBlockPlannedDay,
-    log: TrainingBlockActualLogEvent,
+    log: TrainingBlockActualLogEventSeed,
+    context?: TrainingBlockMatchingContext,
 ): TrainingBlockAssignmentMatch {
+    const normalizedLog = toTrainingBlockActualLogEvent(log);
     return scoreCandidateAgainstPlanDay(day, {
-        id: log.workout_id,
-        scheduled_date: log.date,
-        title: log.workout_name,
-        canonical_name: log.canonical_name,
-        manual_rwn: log.manual_rwn,
-        template_id: log.template_id,
-        workout_type: log.workout_type,
-        distance_meters: log.distance_meters,
-        duration_seconds: log.duration_seconds,
-        source: log.source,
-        notes: log.notes,
-        status: log.status,
-        planned_session_key: log.planned_session_key,
-    });
+        id: normalizedLog.workout_id,
+        scheduled_date: normalizedLog.date,
+        title: normalizedLog.workout_name,
+        canonical_name: normalizedLog.canonical_name,
+        manual_rwn: normalizedLog.manual_rwn,
+        template_id: normalizedLog.template_id,
+        workout_type: normalizedLog.workout_type,
+        distance_meters: normalizedLog.distance_meters,
+        duration_seconds: normalizedLog.duration_seconds,
+        source: normalizedLog.source,
+        notes: normalizedLog.notes,
+        status: normalizedLog.status,
+        planned_session_key: normalizedLog.planned_session_key,
+    }, context);
 }
