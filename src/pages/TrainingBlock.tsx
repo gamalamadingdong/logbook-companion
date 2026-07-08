@@ -2113,18 +2113,18 @@ export const TrainingBlock: React.FC = () => {
                             <p className="mt-0.5 text-[11px] text-content-muted">{selectedWeekSummary ? `${formatSignedDistanceMeters(selectedWeekSummary.delta_to_target_meters)} vs target` : '-'}</p>
                         </div>
                         <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
-                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Sessions</p>
+                            <p className="text-[11px] uppercase tracking-wide text-content-muted">Plan-counted sessions</p>
                             <p className="mt-1 text-xl font-semibold text-content-primary">
                                 {selectedWeekSummary?.logged_session_count ?? 0}/{selectedWeekSummary?.planned_session_count ?? 0}
                             </p>
-                            <p className="mt-0.5 text-[11px] text-content-muted">Logged / planned</p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Matched logs / planned</p>
                         </div>
                         <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
                             <p className="text-[11px] uppercase tracking-wide text-content-muted">Days logged</p>
                             <p className="mt-1 text-xl font-semibold text-content-primary">
                                 {selectedWeekSummary?.completed_day_count ?? 0}/7
                             </p>
-                            <p className="mt-0.5 text-[11px] text-content-muted">Matched by day</p>
+                            <p className="mt-0.5 text-[11px] text-content-muted">Plan-counted days</p>
                         </div>
                         <div className="rounded-lg border border-border bg-surface-secondary p-2.5">
                             <p className="text-[11px] uppercase tracking-wide text-content-muted">Key sessions</p>
@@ -2237,11 +2237,11 @@ export const TrainingBlock: React.FC = () => {
                                     <p className="font-semibold text-content-primary">{formatDistanceMeters(selectedDay.planned_distance_meters)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[11px] text-content-muted">Actual</p>
+                                    <p className="text-[11px] text-content-muted">Plan-counted</p>
                                     <p className="font-semibold text-content-primary">{formatDistanceMeters(dayActualDistance)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[11px] text-content-muted">Sessions</p>
+                                    <p className="text-[11px] text-content-muted">Calendar logs</p>
                                     <p className="font-semibold text-content-primary">{selectedDayCalendarLogs.length}</p>
                                 </div>
                                 <div>
@@ -2541,7 +2541,7 @@ export const TrainingBlock: React.FC = () => {
                                         type="button"
                                         onClick={openManualEntry}
                                         disabled={!canCreateManualEntry}
-                                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-blue-400/70 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-surface-secondary px-3 py-2 text-xs font-medium text-content-primary hover:border-blue-400/70 disabled:cursor-not-allowed disabled:opacity-50"
                                         title={isTrainingBlockActive ? (canCreateManualEntry ? 'Add a manual completion' : 'Manual entries can only be created for your own account') : 'Activate the training block to add completions'}
                                     >
                                         <Plus size={13} />
@@ -2731,7 +2731,7 @@ export const TrainingBlock: React.FC = () => {
                                                                     type="button"
                                                                     onClick={() => openManualLogEdit(log)}
                                                                     disabled={quickCompletionSavingKey === log.workout_id}
-                                                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-primary hover:border-blue-400/60 hover:text-blue-600 dark:hover:text-blue-200 disabled:opacity-50"
+                                                                    className="inline-flex min-h-9 items-center gap-1 rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs text-content-primary hover:border-blue-400/60 hover:text-blue-600 dark:hover:text-blue-200 disabled:opacity-50"
                                                                     title="Edit this manual workout log"
                                                                 >
                                                                     Edit
@@ -2742,7 +2742,7 @@ export const TrainingBlock: React.FC = () => {
                                                                     type="button"
                                                                     onClick={() => void removeManualWorkoutLog(log)}
                                                                     disabled={quickCompletionSavingKey === log.workout_id}
-                                                                    className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-primary hover:border-red-400/60 hover:text-red-600 dark:hover:text-red-200 disabled:opacity-50"
+                                                                    className="inline-flex min-h-9 items-center gap-1 rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs text-content-primary hover:border-red-400/60 hover:text-red-600 dark:hover:text-red-200 disabled:opacity-50"
                                                                     title="Remove this manual workout log"
                                                                 >
                                                                     <Trash2 size={12} />

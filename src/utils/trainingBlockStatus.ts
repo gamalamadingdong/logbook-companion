@@ -12,18 +12,6 @@ export const TRAINING_BLOCK_PLAN_OPTIONS = [
         enabled: true,
     },
     {
-        id: 'base_building_preview',
-        label: 'Base building',
-        description: 'Coming later',
-        enabled: false,
-    },
-    {
-        id: 'two_k_prep_preview',
-        label: '2k prep',
-        description: 'Coming later',
-        enabled: false,
-    },
-    {
         id: 'custom_block_preview',
         label: 'Custom block',
         description: 'Coming later',
