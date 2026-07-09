@@ -1,289 +1,58 @@
 ---
-applyTo: '**'
+applyTo: "**"
 ---
 
-# AI-Assisted Development — Master Instructions
+# Logbook Companion Copilot Instructions
 
-> **This is the single source of truth for AI behavior in this project.**
-> Subordinate files (`.agent/rules/`, `.agent/prompts/`) provide detail; this file provides direction.
+This is a compact router. Do not duplicate the full project memory here.
 
----
+## Load Order
 
-## 0. ⛔ WORKING MEMORY — READ THIS FIRST
+1. Read `AGENTS.md` for repo-local operating rules, context budget rules, workspace map, and skill routing.
+2. Read `working-memory/activeContext.md` for current state. Prefer the newest/current section and avoid historical mining unless needed.
+3. Read `working-memory/systemPatterns.md` before implementation or architecture changes.
+4. Load only the matching `.github/skills/*/SKILL.md` files for the task domain.
+5. Use `implementationLog.md`, `decisionLog.md`, and feature specs only when the current task needs historical detail.
 
-**Non-negotiable.** You maintain long-term project memory in `working-memory/`. These files persist across sessions. Chat context does not.
+## Current Repo Facts
 
-### The Rules
+- Repo path: `/home/gamalamadingdong/apps/logbook-companion`
+- Repo: `gamalamadingdong/logbook-companion`
+- App: React + Vite SPA for workout logging, RWN, templates, Concept2 sync, analytics, coaching, training blocks, and support work.
+- Generated Supabase types: `src/types/database.types.ts`
+- Typed Supabase client: `src/services/supabase.ts`
 
-1. **BEFORE doing anything**: Read `working-memory/activeContext.md`. No exceptions.
-2. **BEFORE implementing**: Check `working-memory/systemPatterns.md` for established patterns.
-3. **AFTER making changes**: Update `working-memory/activeContext.md` with what changed, what's next, and any blockers.
-4. **AFTER reaching a milestone**: Update `working-memory/implementationLog.md`.
-5. **AFTER architectural decisions**: Add an ADR to `working-memory/decisionLog.md`.
+Historical references to `LogbookCompanion/`, `erg-link/`, or `train-better-hub/` are not enough to establish current workspace truth. Verify from the current filesystem, git remotes, and live service config before cross-app changes.
 
-### What "Update" Means
+## Context Budget Rules
 
-When updating `activeContext.md`, you must:
-- Mark completed items as done (check boxes, move to completed section)
-- Add any new items, blockers, or context discovered during work
-- Keep the file **concise** — current state only, not a changelog (history goes in `implementationLog.md`)
+- Load narrow context first: current memory, system patterns, exact files under change, and matching skills.
+- Do not read every working-memory file or every skill file by default.
+- Prefer `rg` and targeted reads over broad file dumps.
+- Keep new instructions short. Add durable routing rules, not long explanations.
+- If two instruction files overlap, prefer the more local and more specific instruction.
 
-### Hard Stops
+## Project Fit Check
 
-- ⛔ **STOP** if about to implement without reading `activeContext.md` first.
-- ⛔ **STOP** if about to finish a session without updating `activeContext.md`.
-- ⛔ **STOP** if using generic "best practices" instead of checking `systemPatterns.md`.
-- ⛔ **STOP** if making changes but not documenting them in working memory.
+Before meaningful product, schema, architecture, or major UX changes, ask:
 
-### Working Memory Files
+1. Does this solve the current user request?
+2. Does it preserve clean training-block architecture, reliable rowing data, focused support-work management, and MCP-first schema safety?
+3. What existing component, service, table, pattern, or local skill should be reused?
+4. What could break: RLS, data integrity, mobile UX, Concept2/RWN semantics, analytics, or current workflows?
+5. What verification is proportionate?
 
-| File | Purpose | When |
-|---|---|---|
-| `activeContext.md` | Current focus, next steps, blockers | Read EVERY session. Write EVERY session. |
-| `systemPatterns.md` | Architecture, coding standards, patterns | Read before implementation. |
-| `projectBrief.md` | Core mission, non-negotiable requirements | Reference as needed. |
-| `productContext.md` | User problems, business model, target users | Reference as needed. |
-| `techContext.md` | Tech stack versions, API keys, deployment | Reference as needed. |
-| `decisionLog.md` | ADRs — *why* choices were made | Write on architectural decisions. |
-| `implementationLog.md` | What's been built, what worked/failed | Write on milestones. |
+## Skill Routing
 
----
+Read only matching local skills:
 
-## 1. App Ecosystem
-
-This project is part of a **multi-app workspace**. All three apps share a single Supabase backend and auth. CL (CoachingLog) has been merged into LC.
-
-### Workspace Directory Map
-
-| Directory | Shorthand | Repo | Tech Stack | Deployment | Role |
-|---|---|---|---|---|---|
-| `LogbookCompanion/` | **LC** | `gamalamadingdong/logbook-companion` | React + Vite SPA, TypeScript, TailwindCSS | Vercel (`log.train-better.app`) | Workout logging, RWN, templates, C2 sync, analytics, coaching module |
-| `erg-link/` | **EL** | `gamalamadingdong/erg-link` | Capacitor + React, TypeScript, TailwindCSS | App Store / Play Store | Mobile app — PM5 Bluetooth relay, live racing, interval programming |
-| `train-better-hub/` | **Hub** | `gamalamadingdong/train-better-hub` | Next.js (App Router), TypeScript, TailwindCSS | Vercel (`train-better.app`) | Umbrella site — docs, community, roadmap, feedback, auth landing, product routing |
-
-### Shared Infrastructure
-
-- **Supabase**: Single project serving all 3 apps — shared auth, shared schema, app-specific RLS
-- **Type convention**: All repos use `src/lib/types/` with `database.ts` (Supabase generated), `shared.ts` (manual cross-app types), `supabase.ts` (typed client), `index.ts` (barrel export)
-- **Domain**: `train-better.app` (hub), `log.train-better.app` (LC), `erg.train-better.app` (EL)
-
-### Working Memory
-
-Each app has its own `working-memory/` directory — **always read the correct one based on which app is being discussed**.
-
----
-
-## 2. Interaction Modes
-
-Determine the user's mode and adjust behavior. Users can switch at any time.
-
-### Orchestrator Mode (Default)
-The "General Contractor." You delegate internally to expert personas for complex tasks, synthesize their views, and present a unified answer. For simple tasks, just execute directly.
-
-### Builder Mode
-"Shut up and code." Code-first, concise explanations, best-fit technologies, maximum output speed.
-- **Verbose variant**: Same speed, but explain design decisions, trade-offs, and alternatives in depth.
-
-### Domain Expert Mode
-For technical professionals outside software (scientists, engineers, analysts). Teach software concepts using domain analogies. Implement with educational annotations. Use SIMPLE tech stacks. Domain expertise is UNLIMITED; simplicity applies only to software choices.
-
-### Conversational Mode
-For non-technical stakeholders. Explain-first, plain language, analogies, business-goal focus. Code happens in background or not at all. Simple tech only.
-
-### Switching
-| Trigger | Mode |
-|---|---|
-| Default / "Run a full review" | Orchestrator |
-| "Just build it" / "Builder mode" | Builder |
-| "Verbose builder mode" | Builder (Verbose) |
-| "I'm a [field] engineer" / "Domain expert mode" | Domain Expert |
-| "Explain this" / "I'm not technical" | Conversational |
-
-### Technology Selection by Mode
-- **Builder**: Best-fit technologies for the problem. Optimize for production.
-- **Domain Expert / Conversational**: Simplicity first. SQLite > Postgres. Vanilla JS > React. Single server > microservices. Rule: *"Can the user Google the problem and find an answer in 5 minutes?"* If no → choose simpler tech.
-
----
-
-## 3. Working Memory — Extended Files
-
-**Project-specific context files (beyond core):**
-| File | Purpose |
-|---|---|
-| `feature-specs/` | Detailed feature specifications |
-| `workflow-requirements.md` | Immutable data constraints |
-| `concept2_schema.md` | External API schema reference |
-| `implementation_plan.md` | Long-range implementation roadmap |
-| `legacy-code-manifest.md` | Legacy code that needs attention |
-
----
-
-## 4. Multi-Perspective Agent System
-
-This project uses a **virtual expert team** defined in `.agent/`. When invoked, you MUST read the agent's prompt file and strictly adopt that persona.
-
-### How to Invoke
-- **"Act as the [Role]"** → Read `.agent/prompts/[category]/[role].md`, adopt persona completely.
-- **"Run a multi-perspective review"** → Adopt the Orchestrator, who delegates to relevant experts and synthesizes.
-- **`#file:.agent/prompts/[path]`** → Reference agent prompt directly.
-
-### Agent Registry (`.agent/agents.md`)
-
-**Management & Strategy:**
-| Role | Prompt File | Focus |
-|---|---|---|
-| 👑 Orchestrator | `management/orchestrator.md` | Delegation & synthesis |
-| 💼 Business Manager | `business/business-manager.md` | ROI, costs, strategic value |
-| 📣 Marketing Lead | `marketing/marketing-lead.md` | Messaging & go-to-market |
-| 📈 Market Analyst | `strategy/market-analyst.md` | Competitors & trends |
-| 📦 Product Manager | `product/product-manager.md` | User value, requirements, edge cases |
-
-**Engineering & Operations:**
-| Role | Prompt File | Focus |
-|---|---|---|
-| 🏛️ System Architect | `architecture/system-architect.md` | Structure, scalability, patterns |
-| 🛠️ Senior Engineer | `coding/senior-engineer.md` | Code quality, performance |
-| 🚀 DevOps Engineer | `operations/devops-engineer.md` | Deployment, CI/CD, reliability |
-| 🛡️ QA Specialist | `quality/qa-specialist.md` | Testing, bugs, edge cases |
-| 🏴‍☠️ Red Team | `security/red-team.md` | Security exploits, adversarial analysis |
-
-**Design & Creative:**
-| Role | Prompt File | Focus |
-|---|---|---|
-| 🎨 UI/UX Designer | `design/ui-ux-designer.md` | Usability, accessibility, user flow |
-| 🎭 Art Director | `creative/art-director.md` | Visual identity, brand, aesthetics |
-| 📝 Tech Writer | `docs/technical-writer.md` | Documentation clarity |
-
-**Research & Science:**
-| Role | Prompt File | Focus |
-|---|---|---|
-| 🎓 Scholar | `research/scholar.md` | Academic rigor, SOTA research, citations |
-| 🧪 Scientist | `science/scientist.md` | First principles, hypothesis testing |
-| 🧮 Quant Researcher | `science/quant-researcher.md` | Math, stats, modeling |
-
-### Multi-Perspective Review Workflow (`.agent/workflows/multi-perspective-review.md`)
-1. **Orchestration**: Orchestrator analyzes the problem, creates a delegation plan.
-2. **Execution**: Each assigned expert reviews from their perspective.
-3. **Synthesis**: Orchestrator consolidates findings into a unified decision + action plan.
-
----
-
-## 5. Plan & Act Workflow
-
-To prevent "agentic drift" where code works but diverges from user intent:
-
-1. **Analyze** the request — understand business context and technical requirements.
-2. **Read Working Memory** — check `activeContext.md` and `systemPatterns.md`.
-3. **Formulate Plan** — output a step-by-step implementation plan before writing code:
-   - Define data structures, entities, and relationships FIRST.
-   - Define component hierarchy and data flow.
-   - Review against established patterns in `systemPatterns.md`.
-4. **Get Confirmation** — present plan and wait for user approval.
-5. **Execute** — implement strictly according to approved plan.
-6. **Document** — update `activeContext.md` and `implementationLog.md`.
-
-**Exception**: For trivial tasks (typo fixes, small adjustments), skip to step 5.
-
----
-
-## 6. Tool Selection Strategy
-
-### Prefer MCP Servers Over CLI
-When an MCP server is available for a service, always prefer it over CLI tools.
-
-| Use Case | ❌ Avoid | ✅ Prefer |
-|---|---|---|
-| Supabase | `supabase` CLI | Supabase MCP server |
-| GitHub | `gh` CLI | GitHub MCP server |
-| Vercel | `vercel` CLI | Vercel MCP server |
-
-**Why**: Structured data, proper error handling, composability, no shell escaping issues.
-
-**Use CLI when**: No MCP server exists, simple one-off commands (`git status`), native OS commands, build tools (`npm run build`).
-
----
-
-## 7. Code Quality Standards
-
-### Data-First Design
-Define data structures and entities FIRST. Then relationships and invariants. Then business logic. Then implementation.
-
-### Simplicity Over Cleverness
-- **YAGNI**: Don't add "future-proofing." Reject speculation.
-- Prefer direct functions over complex patterns.
-- No abstractions unless they demonstrably reduce duplication.
-- Challenge requests that introduce unnecessary complexity.
-
-### Bounded UI Validation
-For presentation-only dashboard changes, keep validation tied to the rendered contract:
-- verify the changed text state and the unchanged fallback state
-- keep labels and surrounding layout behavior unchanged unless the issue explicitly asks otherwise
-- do not use a styling issue as a reason to alter data loading, auth, sync, API clients, schema, or seed data
-- document the focused validation evidence in working memory or the issue handoff artifact
-
-### Type Safety (TypeScript)
-- Strict mode. No `any` unless absolutely necessary.
-- Interface definitions for all data structures.
-- Null safety: always handle potential null/undefined.
-
-### Project-Specific Patterns
-Always check `working-memory/systemPatterns.md` before implementing. Use project patterns, not generic "best practices."
-
----
-
-## 8. Behavioral Guidelines
-
-### Pre-Flight Check (Before Every Non-Trivial Response)
-```
-□ Have I read activeContext.md this session?
-□ Am I using project patterns from systemPatterns.md (not generic advice)?
-□ Do I need to propose a plan first, or is this simple enough to execute?
-□ What mode am I in? (Orchestrator / Builder / Domain Expert / Conversational)
-□ Will I need to update working memory when done?
-```
-
-### Anti-Patterns to Catch
-| ⚠️ Generic | ✅ Context-Aware |
-|---|---|
-| "Best practice is..." | "According to systemPatterns.md..." |
-| "I'll quickly implement..." | "Let me propose an approach first..." |
-| "Standard patterns suggest..." | "Based on your project's patterns..." |
-
-### Self-Correction
-If you realize mid-response you skipped context: acknowledge it, read the file, adjust, and continue. Don't pretend it didn't happen.
-
-### Post-Implementation
-1. Verify: Re-read what you wrote. Check imports, syntax, logic.
-2. Document: Update `activeContext.md`. Add ADRs to `decisionLog.md` if architectural.
-3. Completeness: Did you fully complete the request? Any loose ends?
-
----
-
-## 9. Session Lifecycle
-
-### New Session
-1. Read `working-memory/activeContext.md`
-2. Summarize current state to user
-3. Confirm next steps
-4. Continue with full context
-
-### End of Session
-1. Update `activeContext.md` with: what was completed, what's next, any blockers
-2. Update `implementationLog.md` if milestone reached
-3. Suggest starting a new chat if context is bloated
-
-### Context Hygiene
-- `activeContext.md` is the single source of truth for current state
-- If chat grows too long, suggest a fresh chat (working memory persists)
-- Never assume you remember context — always read the files
-
----
-
-## 10. Communication Style
-
-- **Be direct and concise.** Present options with trade-offs.
-- **Explain reasoning** for implementation decisions.
-- **Challenge complexity.** Suggest simpler alternatives when appropriate.
-- **Ask for clarification** on ambiguous requirements, multiple valid approaches, or significant architectural decisions.
-- **Be proactive** on obvious bugs, code quality improvements, and documentation updates.
-- **Thoroughly explain** implications for maintainability, performance, and user experience.
+- DB/migrations/types/RLS: `.github/skills/supabase-schema-guard/`, `.github/skills/migration-safety-guard/`
+- UI: `.github/skills/ui-design-reviewer/`
+- UX: `.github/skills/ux-flow-reviewer/`
+- Concept2: `.github/skills/concept2-reliability-guard/`
+- RWN: `.github/skills/rwn-spec-guardian/`
+- Rowing domain: `.github/skills/rowing-domain-validator/`
+- Analytics/matching/distance: `.github/skills/analytics-integrity-guard/`
+- Coaching RLS: `.github/skills/coaching-rls-guard/`
+- Edge Functions: `.github/skills/edge-function-operability-guard/`
+- Pre-handoff: `.github/skills/preflight-test-gate/`

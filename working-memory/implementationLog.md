@@ -3817,3 +3817,24 @@ Examples:
 ### Validation
 - Focused training-block/service tests passed: 6 files, 44 tests.
 - `npm run build` passed.
+
+## Phase 86: Support Work Library And Instruction Cleanup (Complete)
+
+**Date**: 2026-07-09  
+**Status**: Complete
+
+### What Changed
+- Added a user-owned support-work library slice for managing reusable strength, core, mobility, stretching, and other support-work templates without turning it into a general workout builder.
+- Added and applied the support-library migration, regenerated Supabase database types, and wired the service, route, navigation, and page surface.
+- Cleaned AI instruction files: corrected the local workspace map, removed nonexistent .agent references, pointed repo instructions at .github/skills, added a Project Fit Check, and fixed the Supabase schema skill type path.
+- Replaced AGENTS.md symlink with a repo-local file so Logbook-specific instructions are scoped to this repo; removed the Logbook-specific local skill routing from the shared global codex-config instructions.
+
+### Validation
+- Live schema migration and RLS were verified through Supabase MCP.
+- `npm run types:supabase` passed.
+- `npm run build` passed.
+- `npm run lint` passed with existing warnings only.
+- Focused training-block tests passed.
+- Repo-local Copilot instruction mirrors are byte-for-byte identical.
+
+- Follow-up context hygiene pass compacted `AGENTS.md`, both Copilot instruction files, and `working-memory/activeContext.md` so future sessions load routing rules and current state instead of duplicated historical context.

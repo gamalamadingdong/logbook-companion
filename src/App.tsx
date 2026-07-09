@@ -49,6 +49,7 @@ const TemplateLibrary = lazyNamed(() => import('./pages/TemplateLibrary'), 'Temp
 const TemplateDetail = lazyNamed(() => import('./pages/TemplateDetail'), 'TemplateDetail');
 const TemplateProposalPage = lazyNamed(() => import('./pages/TemplateProposalPage'), 'TemplateProposalPage');
 const TemplateProposalReview = lazyNamed(() => import('./pages/TemplateProposalReview'), 'TemplateProposalReview');
+const SupportWorkLibrary = lazyNamed(() => import('./pages/SupportWorkLibrary'), 'SupportWorkLibrary');
 const Documentation = lazyNamed(() => import('./pages/Documentation'), 'Documentation');
 const DownloadC2Data = lazy(() => import('./pages/DownloadC2Data'));
 const ResetPassword = lazyNamed(() => import('./pages/ResetPassword'), 'ResetPassword');
@@ -378,6 +379,14 @@ const AppContent: React.FC = () => {
           />
           <Route path="/templates/*" element={<TemplateRedirect />} />
           <Route path="/workout-library" element={<Navigate to="/library" replace />} />
+          <Route
+            path="/support-work"
+            element={
+              <ProtectedRoute>
+                <SupportWorkLibrary />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/docs"
             element={

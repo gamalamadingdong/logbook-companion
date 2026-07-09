@@ -2865,6 +2865,7 @@ export type Database = {
           default_reps: string | null
           default_sets: number | null
           equipment: string[]
+          exercise_key: string | null
           id: string
           metadata: Json
           movement_pattern: string | null
@@ -2872,6 +2873,8 @@ export type Database = {
           status: string
           tags: string[]
           updated_at: string
+          user_id: string | null
+          visibility: string
         }
         Insert: {
           category: string
@@ -2882,6 +2885,7 @@ export type Database = {
           default_reps?: string | null
           default_sets?: number | null
           equipment?: string[]
+          exercise_key?: string | null
           id?: string
           metadata?: Json
           movement_pattern?: string | null
@@ -2889,6 +2893,8 @@ export type Database = {
           status?: string
           tags?: string[]
           updated_at?: string
+          user_id?: string | null
+          visibility?: string
         }
         Update: {
           category?: string
@@ -2899,6 +2905,7 @@ export type Database = {
           default_reps?: string | null
           default_sets?: number | null
           equipment?: string[]
+          exercise_key?: string | null
           id?: string
           metadata?: Json
           movement_pattern?: string | null
@@ -2906,6 +2913,8 @@ export type Database = {
           status?: string
           tags?: string[]
           updated_at?: string
+          user_id?: string | null
+          visibility?: string
         }
         Relationships: []
       }
@@ -2993,6 +3002,8 @@ export type Database = {
           template_key: string
           title: string
           updated_at: string
+          user_id: string | null
+          visibility: string
         }
         Insert: {
           created_at?: string
@@ -3008,6 +3019,8 @@ export type Database = {
           template_key: string
           title: string
           updated_at?: string
+          user_id?: string | null
+          visibility?: string
         }
         Update: {
           created_at?: string
@@ -3023,6 +3036,8 @@ export type Database = {
           template_key?: string
           title?: string
           updated_at?: string
+          user_id?: string | null
+          visibility?: string
         }
         Relationships: []
       }
