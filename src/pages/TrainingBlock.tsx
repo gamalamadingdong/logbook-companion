@@ -471,7 +471,7 @@ function parseLogMarkerOverrides(notes: string | null | undefined): WorkoutLogOv
 
     const override: WorkoutLogOverride = {};
 
-    const markerRegex = /\[tb:(status|key|strength|day|slot|session):\s*([a-z0-9_\/-]+)\]/gi;
+    const markerRegex = /\[tb:(status|key|strength|day|slot|session):\s*([a-z0-9_/-]+)\]/gi;
     const matches = [...notes.matchAll(markerRegex)];
 
     const statusMap: Record<string, TrainingBlockWorkoutStatus> = {

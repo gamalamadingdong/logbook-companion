@@ -116,7 +116,7 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
         const description = linkedTemplate?.description
             ?? primarySession?.instructions?.[0]
             ?? primarySession?.planned_rwn
-            ?? "Follow today\'s scheduled training block work.";
+            ?? "Follow today's scheduled training block work.";
         const expectedDistance = trainingBlockRecommendation.day.target_distance_meters || primarySession?.expected_distance_meters;
         const expectedDuration = primarySession?.expected_duration_minutes;
 
