@@ -20,7 +20,7 @@ export const TRAINING_BLOCK_PLAN_OPTIONS = [
 ] as const;
 
 export type TrainingBlockPlanOptionId = string;
-export type TrainingBlockLifecycleStatus = 'preview' | 'active' | 'complete' | 'paused';
+export type TrainingBlockLifecycleStatus = 'preview' | 'scheduled' | 'active' | 'complete' | 'paused';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

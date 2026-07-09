@@ -37,6 +37,30 @@ describe('trainingBlockService builders', () => {
         });
     });
 
+    it('builds a scheduled enrollment insert without marking it active', () => {
+        expect(buildTrainingBlockEnrollmentInsert({
+            userId: 'user-1',
+            templateKey: 'intermediate_2k_8_week_v1',
+            templateId: 'template-2',
+            startDate: '2026-10-26',
+            endDate: '2026-12-20',
+            isActive: false,
+            status: 'scheduled',
+        })).toMatchObject({
+            user_id: 'user-1',
+            template_id: 'template-2',
+            template_key: 'intermediate_2k_8_week_v1',
+            start_date: '2026-10-26',
+            end_date: '2026-12-20',
+            is_active: false,
+            status: 'scheduled',
+            metadata: {
+                source: 'training_block_enrollment',
+            },
+        });
+    });
+
+
     it('builds a log review upsert keyed to an existing workout log', () => {
         expect(buildTrainingBlockLogReviewUpsert({
             enrollmentId: 'enrollment-1',

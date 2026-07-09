@@ -18,7 +18,6 @@ import {
 } from '../utils/trainingBlockMatching';
 import {
     TRAINING_BLOCK_PLAN_OPTIONS,
-    getTrainingBlockLifecycleStatus,
     readSelectedTrainingBlockTemplate,
     readTrainingBlockActive,
     toTrainingBlockLocalDate,
@@ -57,6 +56,7 @@ import { formatDistanceMeters, formatSignedDistanceMeters } from '../utils/train
 import { workoutService, type ManualWorkoutLogMode } from '../services/workoutService';
 import {
     computeTrainingBlockEndDate,
+    createTrainingBlockEnrollment,
     deleteTrainingBlockLogReview,
     ensureTrainingBlockEnrollment,
     getPublishedTrainingBlockTemplates,
@@ -327,6 +327,7 @@ function formatDateLabel(date: string): string {
 
 const lifecycleStatusLabel: Record<TrainingBlockLifecycleStatus, string> = {
     preview: 'Preview',
+    scheduled: 'Scheduled',
     active: 'Active',
     complete: 'Complete',
     paused: 'Paused',
@@ -334,6 +335,7 @@ const lifecycleStatusLabel: Record<TrainingBlockLifecycleStatus, string> = {
 
 const lifecycleStatusTone: Record<TrainingBlockLifecycleStatus, BadgeVariant> = {
     preview: 'info',
+    scheduled: 'info',
     active: 'success',
     complete: 'coaching',
     paused: 'muted',
@@ -344,6 +346,7 @@ function getEnrollmentLifecycleStatus(
     dateInput: string | Date = new Date(),
 ): TrainingBlockLifecycleStatus {
     if (!enrollment.is_active) {
+        if (enrollment.status === 'scheduled') return 'scheduled';
         return enrollment.status === 'completed' ? 'complete' : 'paused';
     }
 
@@ -651,9 +654,11 @@ export const TrainingBlock: React.FC = () => {
     const [setupOpen, setSetupOpen] = useState(false);
     const [setupTemplateKey, setSetupTemplateKey] = useState<TrainingBlockTemplateKey>(() => readSelectedTrainingBlockTemplate());
     const [setupStartDate, setSetupStartDate] = useState(() => getMondaySnappedDate());
+    const [setupIntent, setSetupIntent] = useState<'activate' | 'schedule'>('activate');
     const [setupSaving, setSetupSaving] = useState(false);
     const [setupError, setSetupError] = useState<string | null>(null);
     const [trainingBlockEnrollment, setTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
+    const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
     const [trainingBlockEnrollments, setTrainingBlockEnrollments] = useState<TrainingBlockEnrollmentRow[]>([]);
     const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
     const [resumeEnrollmentId, setResumeEnrollmentId] = useState<string | null>(null);
@@ -709,6 +714,7 @@ export const TrainingBlock: React.FC = () => {
                 setPlan(persistedPlan ?? fallbackPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
                 setTrainingBlockEnrollment(null);
+                setSelectedEnrollmentId(null);
                 setTrainingBlockEnrollments([]);
                 setLogOverrides({});
                 setReviewPersistenceMode('local');
@@ -721,9 +727,12 @@ export const TrainingBlock: React.FC = () => {
             try {
                 const enrollments = await getTrainingBlockEnrollments(user.id);
                 const selectedKey = selectedTemplateId as TrainingBlockTemplateKey;
+                const selectedById = selectedEnrollmentId
+                    ? enrollments.find((entry) => entry.id === selectedEnrollmentId) ?? null
+                    : null;
                 const selectedEnrollment = enrollments.find((entry) => entry.template_key === selectedKey) ?? null;
                 const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
-                const enrollment = selectedEnrollment ?? activeEnrollment;
+                const enrollment = selectedById ?? selectedEnrollment ?? activeEnrollment;
                 const effectiveTemplateKey = (enrollment?.template_key ?? selectedKey) as TrainingBlockTemplateKey;
                 const planStartDate = enrollment?.start_date ?? fallbackPlan.start_date;
                 const persistedPlan = await loadPersistedPlan(effectiveTemplateKey, planStartDate);
@@ -744,6 +753,7 @@ export const TrainingBlock: React.FC = () => {
 
                 if (!enrollment) {
                     setTrainingBlockEnrollment(null);
+                    setSelectedEnrollmentId(null);
                     setTrainingBlockActive(false);
                     setSetupOpen(true);
                     setSetupTemplateKey(effectiveTemplateKey);
@@ -754,6 +764,7 @@ export const TrainingBlock: React.FC = () => {
                 }
 
                 setTrainingBlockEnrollment(enrollment);
+                setSelectedEnrollmentId(enrollment.id);
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
 
@@ -772,6 +783,7 @@ export const TrainingBlock: React.FC = () => {
                 setPlan(fallbackPlan);
                 setPlanSource('static');
                 setTrainingBlockEnrollment(null);
+                setSelectedEnrollmentId(null);
                 setTrainingBlockEnrollments([]);
                 setReviewPersistenceMode('local');
 
@@ -798,7 +810,7 @@ export const TrainingBlock: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [selectedTemplateId, user?.id]);
+    }, [selectedEnrollmentId, selectedTemplateId, user?.id]);
 
     useEffect(() => {
         if (plan.days.some((day) => day.date === selectedDate)) return;
@@ -1081,11 +1093,13 @@ export const TrainingBlock: React.FC = () => {
     const availableTemplates = publishedTemplates.length > 0 ? publishedTemplates : [STATIC_TEMPLATE_OPTION];
     const selectedTemplate = availableTemplates.find((template) => template.template_key === selectedTemplateId) ?? STATIC_TEMPLATE_OPTION;
     const setupTemplate = availableTemplates.find((template) => template.template_key === setupTemplateKey) ?? selectedTemplate ?? STATIC_TEMPLATE_OPTION;
+    const activePersonalEnrollment = trainingBlockEnrollments.find((entry) => entry.is_active) ?? null;
+    const nextBlockStartDate = activePersonalEnrollment ? shiftLocalDateString(activePersonalEnrollment.end_date, 1) : null;
     const setupEndDate = computeTrainingBlockEndDate(setupStartDate, setupTemplate.duration_weeks);
     const templateNameByKey = new Map(availableTemplates.map((template) => [template.template_key, template.name]));
     const getTemplateName = (templateKey: string): string => templateNameByKey.get(templateKey as TrainingBlockTemplateKey) ?? templateKey;
     const lifecycleStatus = trainingBlockEnrollment
-        ? getTrainingBlockLifecycleStatus(plan, new Date(), isTrainingBlockActive)
+        ? getEnrollmentLifecycleStatus(trainingBlockEnrollment)
         : 'preview';
     const lifecycleBadgeVariant = lifecycleStatusTone[lifecycleStatus];
     const templateHealth = useMemo(() => validateTrainingBlockTemplate(plan, {
@@ -1158,11 +1172,13 @@ export const TrainingBlock: React.FC = () => {
         void ensureTrainingBlockEnrollment({
             userId: user.id,
             templateKey: selectedTemplateId as TrainingBlockTemplateKey,
+            enrollmentId: trainingBlockEnrollment.id,
             startDate: plan.start_date,
             endDate: plan.end_date,
             isActive: value,
         }).then(async (enrollment) => {
             setTrainingBlockEnrollment(enrollment);
+            setSelectedEnrollmentId(enrollment.id);
             setTrainingBlockEnrollments(await getTrainingBlockEnrollments(user.id));
             setReviewPersistenceMode('database');
         }).catch((error) => {
@@ -1173,6 +1189,7 @@ export const TrainingBlock: React.FC = () => {
 
     const openSetup = () => {
         setSetupError(null);
+        setSetupIntent('activate');
         setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
         setSetupStartDate(trainingBlockEnrollment?.start_date ?? getMondaySnappedDate());
         setSetupOpen(true);
@@ -1181,6 +1198,7 @@ export const TrainingBlock: React.FC = () => {
     const viewTrainingBlockEnrollment = (enrollment: TrainingBlockEnrollmentRow) => {
         setSetupOpen(false);
         setHistoryError(null);
+        setSelectedEnrollmentId(enrollment.id);
         setSelectedTemplateId(enrollment.template_key);
         writeSelectedTrainingBlockTemplate(enrollment.template_key);
     };
@@ -1206,9 +1224,11 @@ export const TrainingBlock: React.FC = () => {
                 userId: user.id,
                 templateKey,
                 templateId: enrollment.template_id,
+                enrollmentId: enrollment.id,
                 startDate: enrollment.start_date,
                 endDate: enrollment.end_date,
                 isActive: true,
+                status: 'active',
             });
             const [reviews, enrollments] = await Promise.all([
                 getTrainingBlockLogReviews(updatedEnrollment.id),
@@ -1220,6 +1240,7 @@ export const TrainingBlock: React.FC = () => {
             setPlan(resolvedPlan);
             setPlanSource(persistedPlan ? 'database' : 'static');
             setTrainingBlockEnrollment(updatedEnrollment);
+            setSelectedEnrollmentId(updatedEnrollment.id);
             setTrainingBlockEnrollments(enrollments);
             setTrainingBlockActive(true);
             writeTrainingBlockActive(true);
@@ -1243,11 +1264,23 @@ export const TrainingBlock: React.FC = () => {
 
         const template = availableTemplates.find((entry) => entry.template_key === setupTemplateKey) ?? STATIC_TEMPLATE_OPTION;
         const startDate = setupStartDate;
+        const today = toTrainingBlockLocalDate(new Date());
+        const activeEnrollment = trainingBlockEnrollments.find((entry) => entry.is_active) ?? null;
 
         setSetupSaving(true);
         setSetupError(null);
 
         try {
+            if (setupIntent === 'schedule') {
+                if (startDate <= today) {
+                    throw new Error('scheduled_start_not_future');
+                }
+
+                if (activeEnrollment && startDate <= activeEnrollment.end_date) {
+                    throw new Error('scheduled_start_overlaps_active');
+                }
+            }
+
             const persistedPlan = await getTrainingBlockPlanFromDatabase(template.template_key, startDate).catch((error) => {
                 console.error('Failed to load selected training block template rows; falling back to static template', error);
                 return null;
@@ -1257,27 +1290,45 @@ export const TrainingBlock: React.FC = () => {
             }
 
             const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(startDate);
-            const enrollment = await ensureTrainingBlockEnrollment({
+            const enrollmentInput = {
                 userId: user.id,
                 templateKey: template.template_key,
                 templateId: template.source === 'static_fallback' ? null : template.id,
                 startDate: resolvedPlan.start_date,
                 endDate: resolvedPlan.end_date,
-                isActive: true,
-            });
+            };
+            const enrollment = setupIntent === 'schedule'
+                ? await createTrainingBlockEnrollment({
+                    ...enrollmentInput,
+                    isActive: false,
+                    status: 'scheduled',
+                })
+                : await ensureTrainingBlockEnrollment({
+                    ...enrollmentInput,
+                    isActive: true,
+                    status: 'active',
+                });
             const [reviews, enrollments] = await Promise.all([
                 getTrainingBlockLogReviews(enrollment.id),
                 getTrainingBlockEnrollments(user.id),
             ]);
+
+            setTrainingBlockEnrollments(enrollments);
+
+            if (setupIntent === 'schedule' && activeEnrollment) {
+                setSelectedEnrollmentId(activeEnrollment.id);
+                setSetupOpen(false);
+                return;
+            }
 
             setSelectedTemplateId(template.template_key);
             writeSelectedTrainingBlockTemplate(template.template_key);
             setPlan(resolvedPlan);
             setPlanSource(persistedPlan ? 'database' : 'static');
             setTrainingBlockEnrollment(enrollment);
-            setTrainingBlockEnrollments(enrollments);
-            setTrainingBlockActive(true);
-            writeTrainingBlockActive(true);
+            setSelectedEnrollmentId(enrollment.id);
+            setTrainingBlockActive(enrollment.is_active);
+            writeTrainingBlockActive(enrollment.is_active);
             setLogOverrides(Object.fromEntries(
                 reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
             ));
@@ -1286,11 +1337,20 @@ export const TrainingBlock: React.FC = () => {
             setSetupOpen(false);
         } catch (error) {
             console.error('Failed to save training block setup', error);
-            setSetupError('Could not start this training block. Please try again.');
+            if (error instanceof Error && error.message === 'scheduled_start_not_future') {
+                setSetupError('Scheduled blocks need a future start date. Choose a date after today.');
+            } else if (error instanceof Error && error.message === 'scheduled_start_overlaps_active') {
+                setSetupError('Schedule the next block after your current active block ends, or activate it now to replace the current block.');
+            } else {
+                setSetupError(setupIntent === 'schedule'
+                    ? 'Could not schedule this training block. Please try again.'
+                    : 'Could not start this training block. Please try again.');
+            }
         } finally {
             setSetupSaving(false);
         }
     };
+
 
     const updateManualEntryForm = <Key extends keyof ManualEntryFormState>(key: Key, value: ManualEntryFormState[Key]) => {
         setManualEntryForm((prev) => ({ ...prev, [key]: value }));
@@ -1930,6 +1990,31 @@ export const TrainingBlock: React.FC = () => {
                                     <p className="mt-1">{setupTemplate.duration_weeks} weeks</p>
                                 </div>
                             </div>
+                            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+                                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Setup action</p>
+                                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSetupIntent('activate')}
+                                        className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${setupIntent === 'activate'
+                                            ? 'border-emerald-500 bg-emerald-500/10 text-white'
+                                            : 'border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white'}`}
+                                    >
+                                        <span className="block font-medium">Activate now</span>
+                                        <span className="mt-1 block text-xs text-neutral-400">Makes this your current block and pauses other active personal blocks.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSetupIntent('schedule')}
+                                        className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${setupIntent === 'schedule'
+                                            ? 'border-blue-500 bg-blue-500/10 text-white'
+                                            : 'border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white'}`}
+                                    >
+                                        <span className="block font-medium">Schedule for later</span>
+                                        <span className="mt-1 block text-xs text-neutral-400">Saves a future block without changing your current active block.</span>
+                                    </button>
+                                </div>
+                            </div>
                             {setupError && <p className="text-sm text-red-300">{setupError}</p>}
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
@@ -1940,13 +2025,26 @@ export const TrainingBlock: React.FC = () => {
                                     <CalendarDays size={16} />
                                     Snap to Monday
                                 </button>
+                                {nextBlockStartDate && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSetupIntent('schedule');
+                                            setSetupStartDate(nextBlockStartDate);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                                    >
+                                        <CalendarDays size={16} />
+                                        After current block
+                                    </button>
+                                )}
                                 <button
                                     type="submit"
                                     disabled={setupSaving}
                                     className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     <Power size={16} />
-                                    {setupSaving ? 'Starting...' : 'Start block'}
+                                    {setupSaving ? (setupIntent === 'schedule' ? 'Scheduling...' : 'Starting...') : (setupIntent === 'schedule' ? 'Schedule block' : 'Start block')}
                                 </button>
                             </div>
                         </form>
@@ -1958,7 +2056,7 @@ export const TrainingBlock: React.FC = () => {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <p className="text-sm font-semibold text-content-primary">Your training blocks</p>
-                                <p className="text-sm text-neutral-400 mt-1">View or resume a saved block without changing its original dates.</p>
+                                <p className="text-sm text-neutral-400 mt-1">View, activate, or resume saved blocks without changing their original dates.</p>
                             </div>
                             {enrollmentsLoading && <p className="text-xs text-neutral-500">Loading...</p>}
                         </div>
@@ -2003,7 +2101,7 @@ export const TrainingBlock: React.FC = () => {
                                                         className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                                                     >
                                                         <Power size={14} />
-                                                        {isResumeSaving ? 'Resuming...' : 'Resume'}
+                                                        {isResumeSaving ? (enrollment.status === 'scheduled' ? 'Activating...' : 'Resuming...') : (enrollment.status === 'scheduled' ? 'Activate' : 'Resume')}
                                                     </button>
                                                 )}
                                             </div>
@@ -2019,9 +2117,11 @@ export const TrainingBlock: React.FC = () => {
                     <Card variant="outlined" className="border-neutral-700 bg-neutral-900/40">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                                <p className="text-sm font-semibold text-content-primary">Paused plan</p>
+                                <p className="text-sm font-semibold text-content-primary">{trainingBlockEnrollment.status === 'scheduled' ? 'Scheduled plan' : 'Paused plan'}</p>
                                 <p className="text-sm text-neutral-400 mt-1">
-                                    The block remains visible for planning, but quick checks, manual completions, and review overrides are disabled until it is active.
+                                    {trainingBlockEnrollment.status === 'scheduled'
+                                        ? 'This block is scheduled for later. It remains visible for planning, but quick checks, manual completions, and review overrides are disabled until it is active.'
+                                        : 'The block remains visible for planning, but quick checks, manual completions, and review overrides are disabled until it is active.'}
                                 </p>
                             </div>
                             <button
@@ -2030,7 +2130,7 @@ export const TrainingBlock: React.FC = () => {
                                 className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500"
                             >
                                 <Power size={16} />
-                                Activate block
+                                {trainingBlockEnrollment.status === 'scheduled' ? 'Activate now' : 'Activate block'}
                             </button>
                         </div>
                     </Card>

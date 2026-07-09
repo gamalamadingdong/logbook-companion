@@ -30,6 +30,7 @@ export type TrainingBlockEnrollmentInsert = Database['public']['Tables']['traini
 export type TrainingBlockLogReviewRow = Database['public']['Tables']['training_block_log_reviews']['Row'];
 export type TrainingBlockLogReviewInsert = Database['public']['Tables']['training_block_log_reviews']['Insert'];
 export type TrainingBlockLogReviewUpdate = Database['public']['Tables']['training_block_log_reviews']['Update'];
+export type TrainingBlockEnrollmentStatus = 'draft' | 'scheduled' | 'active' | 'paused' | 'completed' | 'archived';
 
 export interface EnsureTrainingBlockEnrollmentInput {
     userId: string;
@@ -38,6 +39,8 @@ export interface EnsureTrainingBlockEnrollmentInput {
     endDate: string;
     isActive: boolean;
     templateId?: string | null;
+    status?: TrainingBlockEnrollmentStatus;
+    enrollmentId?: string | null;
 }
 
 export interface BuildTrainingBlockLogReviewInput {
@@ -224,6 +227,8 @@ export function templateRowsToTrainingBlockPlan(
 }
 
 export function buildTrainingBlockEnrollmentInsert(input: EnsureTrainingBlockEnrollmentInput): TrainingBlockEnrollmentInsert {
+    const status = input.status ?? (input.isActive ? 'active' : 'paused');
+
     return {
         user_id: input.userId,
         template_id: input.templateId ?? null,
@@ -231,7 +236,7 @@ export function buildTrainingBlockEnrollmentInsert(input: EnsureTrainingBlockEnr
         start_date: input.startDate,
         end_date: input.endDate,
         is_active: input.isActive,
-        status: input.isActive ? 'active' : 'paused',
+        status,
         metadata: {
             source: 'training_block_enrollment',
         },
@@ -381,6 +386,23 @@ export async function getTrainingBlockEnrollment(
     return data ?? null;
 }
 
+async function getTrainingBlockEnrollmentById(
+    userId: string,
+    enrollmentId: string,
+): Promise<TrainingBlockEnrollmentRow | null> {
+    const { data, error } = await supabase
+        .from('training_block_enrollments')
+        .select('*')
+        .eq('id', enrollmentId)
+        .eq('user_id', userId)
+        .is('team_id', null)
+        .is('org_id', null)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data ?? null;
+}
+
 export async function getTrainingBlockEnrollments(userId: string): Promise<TrainingBlockEnrollmentRow[]> {
     const { data, error } = await supabase
         .from('training_block_enrollments')
@@ -389,16 +411,16 @@ export async function getTrainingBlockEnrollments(userId: string): Promise<Train
         .is('team_id', null)
         .is('org_id', null)
         .order('is_active', { ascending: false })
+        .order('start_date', { ascending: true })
         .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data ?? [];
 }
 
-export async function ensureTrainingBlockEnrollment(
+export async function createTrainingBlockEnrollment(
     input: EnsureTrainingBlockEnrollmentInput,
 ): Promise<TrainingBlockEnrollmentRow> {
-    const existing = await getTrainingBlockEnrollment(input.userId, input.templateKey);
     const templateId = input.templateId ?? await getTrainingBlockTemplateId(input.templateKey);
 
     if (input.isActive) {
@@ -407,8 +429,41 @@ export async function ensureTrainingBlockEnrollment(
             .update({ is_active: false, status: 'paused' })
             .eq('user_id', input.userId)
             .is('team_id', null)
-            .is('org_id', null)
-            .neq('template_key', input.templateKey);
+            .is('org_id', null);
+    }
+
+    const { data, error } = await supabase
+        .from('training_block_enrollments')
+        .insert(buildTrainingBlockEnrollmentInsert({ ...input, templateId }))
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function ensureTrainingBlockEnrollment(
+    input: EnsureTrainingBlockEnrollmentInput,
+): Promise<TrainingBlockEnrollmentRow> {
+    const existing = input.enrollmentId
+        ? await getTrainingBlockEnrollmentById(input.userId, input.enrollmentId)
+        : await getTrainingBlockEnrollment(input.userId, input.templateKey);
+    const templateId = input.templateId ?? await getTrainingBlockTemplateId(input.templateKey);
+
+    if (input.isActive) {
+        let deactivateQuery = supabase
+            .from('training_block_enrollments')
+            .update({ is_active: false, status: 'paused' })
+            .eq('user_id', input.userId)
+            .is('team_id', null)
+            .is('org_id', null);
+
+        if (existing) {
+            deactivateQuery = deactivateQuery.neq('id', existing.id);
+        }
+
+        const { error } = await deactivateQuery;
+        if (error) throw error;
     }
 
     if (existing) {
@@ -419,7 +474,7 @@ export async function ensureTrainingBlockEnrollment(
                 start_date: input.startDate,
                 end_date: input.endDate,
                 is_active: input.isActive,
-                status: input.isActive ? 'active' : 'paused',
+                status: input.status ?? (input.isActive ? 'active' : 'paused'),
             })
             .eq('id', existing.id)
             .select('*')
