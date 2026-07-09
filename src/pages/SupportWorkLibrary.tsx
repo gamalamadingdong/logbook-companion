@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Copy, Dumbbell, Edit3, Layers3, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, Copy, Dumbbell, Edit3, Layers3, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, Button, Card, CardHeader, EmptyState, Input, Modal, Select } from '../components/ui';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../services/supabase';
 import {
     deleteSupportExercise,
     deleteSupportSessionTemplate,
@@ -32,6 +33,8 @@ const difficulties: Array<{ value: SupportDifficulty; label: string }> = [
     { value: 'intermediate', label: 'Intermediate' },
     { value: 'advanced', label: 'Advanced' },
 ];
+
+const ALWAYS_AVAILABLE_EQUIPMENT = new Set(['bodyweight', 'none']);
 
 type TemplateExerciseForm = {
     exerciseId: string;
@@ -80,6 +83,155 @@ function optionalNumber(value: string): number | null {
     if (!value.trim()) return null;
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeEquipment(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+function normalizeEquipmentList(values: readonly string[] | null | undefined): string[] {
+    return [...new Set((values ?? [])
+        .map((value) => normalizeEquipment(value))
+        .filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseSupportWorkPreferences(preferences: unknown): {
+    availableEquipment: string[];
+    showCompatibleOnly: boolean;
+} {
+    const base = isRecord(preferences) ? preferences : {};
+    const supportWork = isRecord(base.support_work) ? base.support_work : {};
+    return {
+        availableEquipment: normalizeEquipmentList(
+            Array.isArray(supportWork.available_equipment)
+                ? supportWork.available_equipment.filter((value): value is string => typeof value === 'string')
+                : ['bodyweight'],
+        ),
+        showCompatibleOnly: supportWork.show_compatible_only === true,
+    };
+}
+
+function profilePreferencePayload(
+    preferences: unknown,
+    patch: {
+        availableEquipment?: string[];
+        showCompatibleOnly?: boolean;
+    },
+) {
+    const base = isRecord(preferences) ? { ...preferences } : {};
+    const supportWork = isRecord(base.support_work) ? { ...base.support_work } : {};
+
+    if (patch.availableEquipment) {
+        supportWork.available_equipment = patch.availableEquipment;
+    }
+    if (typeof patch.showCompatibleOnly === 'boolean') {
+        supportWork.show_compatible_only = patch.showCompatibleOnly;
+    }
+
+    return {
+        ...base,
+        support_work: supportWork,
+    };
+}
+
+function getRequiredEquipment(exercise: SupportExerciseRow): string[] {
+    if (!isRecord(exercise.metadata)) return [];
+    const rawRequired = exercise.metadata.support_work_required_equipment;
+    if (!Array.isArray(rawRequired)) return [];
+    return normalizeEquipmentList(
+        rawRequired
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => normalizeEquipment(value)),
+    );
+}
+
+function getSupportWorkFamily(exercise: SupportExerciseRow): string {
+    if (isRecord(exercise.metadata) && typeof exercise.metadata.support_work_family === 'string') {
+        return exercise.metadata.support_work_family.trim().toLowerCase();
+    }
+    return [exercise.category, exercise.movement_pattern ?? 'general']
+        .join(':')
+        .trim()
+        .toLowerCase();
+}
+
+function getExerciseCompatibility(exercise: SupportExerciseRow, availableSet: Set<string>) {
+    const required = getRequiredEquipment(exercise);
+    if (required.length > 0) {
+        const missing = required.filter((item) => !availableSet.has(item));
+        return {
+            compatible: missing.length === 0,
+            strict: true,
+            missing,
+            details: required.join(', '),
+        };
+    }
+
+    const equipment = normalizeEquipmentList(exercise.equipment);
+    if (equipment.length === 0) {
+        return {
+            compatible: true,
+            strict: false,
+            missing: [],
+            details: 'No listed equipment',
+        };
+    }
+
+    if (equipment.some((item) => ALWAYS_AVAILABLE_EQUIPMENT.has(item))) {
+        return {
+            compatible: true,
+            strict: false,
+            missing: equipment.filter((item) => !ALWAYS_AVAILABLE_EQUIPMENT.has(item) && !availableSet.has(item)),
+            details: equipment.join(', '),
+        };
+    }
+
+    const missing = equipment.filter((item) => !availableSet.has(item));
+    return {
+        compatible: missing.length < equipment.length,
+        strict: false,
+        missing,
+        details: equipment.join(', '),
+    };
+}
+
+function arraysEqual(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) return false;
+    return left.every((value, index) => value === right[index]);
+}
+
+function findCompatibleAlternatives(
+    exercise: SupportExerciseRow,
+    all: SupportExerciseRow[],
+    availableSet: Set<string>,
+): SupportExerciseRow[] {
+    const sourceFamily = getSupportWorkFamily(exercise);
+    const sourceEquipment = normalizeEquipmentList(exercise.equipment).join('|');
+
+    return all
+        .filter((candidate) => candidate.id !== exercise.id && candidate.category === exercise.category)
+        .filter((candidate) => getExerciseCompatibility(candidate, availableSet).compatible)
+        .map((candidate) => {
+            const candidateFamily = getSupportWorkFamily(candidate);
+            const candidateEquipment = normalizeEquipmentList(candidate.equipment).join('|');
+            const sameFamily = candidateFamily === sourceFamily;
+            const sameMovement = candidate.movement_pattern === exercise.movement_pattern;
+            const differentEquipment = candidateEquipment !== sourceEquipment;
+
+            const score = (sameFamily ? 0 : 20)
+                + (sameMovement ? 0 : 10)
+                + (differentEquipment ? 0 : 5);
+
+            return { candidate, score };
+        })
+        .sort((left, right) => left.score - right.score || left.candidate.name.localeCompare(right.candidate.name))
+        .map((item) => item.candidate)
+        .slice(0, 2);
 }
 
 function newExerciseForm(): ExerciseFormState {
@@ -171,7 +323,7 @@ function toTemplateExerciseInput(row: TemplateExerciseForm, index: number): Save
 }
 
 export const SupportWorkLibrary: React.FC = () => {
-    const { user } = useAuth();
+    const { user, profile, refreshProfile } = useAuth();
     const [library, setLibrary] = useState<SupportLibrary>({ exercises: [], sessionTemplates: [] });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -183,6 +335,10 @@ export const SupportWorkLibrary: React.FC = () => {
     const [exerciseForm, setExerciseForm] = useState<ExerciseFormState | null>(null);
     const [templateFormError, setTemplateFormError] = useState<string | null>(null);
     const [exerciseFormError, setExerciseFormError] = useState<string | null>(null);
+    const [savingSupportPrefs, setSavingSupportPrefs] = useState(false);
+
+    const [availableEquipment, setAvailableEquipment] = useState<string[]>(['bodyweight']);
+    const [showCompatibleOnly, setShowCompatibleOnly] = useState(false);
 
     const loadLibrary = useCallback(async () => {
         setLoading(true);
@@ -201,13 +357,68 @@ export const SupportWorkLibrary: React.FC = () => {
         void loadLibrary();
     }, [loadLibrary]);
 
-    const personalExerciseCount = library.exercises.filter((exercise) => exercise.user_id).length;
-    const personalTemplateCount = library.sessionTemplates.filter((template) => template.user_id).length;
+    const persistedPreferences = parseSupportWorkPreferences(profile?.preferences);
+    const availableSet = useMemo(() => new Set([ ...new Set(['bodyweight', ...availableEquipment]) ]), [availableEquipment]);
+
+    const equipmentOptions = useMemo(() => {
+        const values = new Set<string>(['bodyweight']);
+        library.exercises.forEach((exercise) => {
+            exercise.equipment.forEach((value) => {
+                const normalized = normalizeEquipment(value);
+                if (normalized) {
+                    values.add(normalized);
+                }
+            });
+        });
+        return [...values].sort((a, b) => a.localeCompare(b));
+    }, [library.exercises]);
+
+    const exerciseCompatibilityRows = useMemo(() => library.exercises.map((exercise) => {
+        const compatibility = getExerciseCompatibility(exercise, availableSet);
+        return {
+            exercise,
+            compatibility,
+            alternatives: compatibility.compatible
+                ? []
+                : findCompatibleAlternatives(exercise, library.exercises, availableSet),
+        };
+    }), [availableSet, library.exercises]);
+
+    const templateCompatibilityRows = useMemo(() => library.sessionTemplates.map((template) => {
+        const rowCompat = template.exercises.map((row) => {
+            if (!row.exercise) {
+                return {
+                    row,
+                    compatible: false,
+                    compatibility: {
+                        compatible: false,
+                        strict: false,
+                        missing: ['Exercise missing'],
+                        details: 'Exercise unavailable',
+                    },
+                };
+            }
+            const compatibility = getExerciseCompatibility(row.exercise, availableSet);
+            return {
+                row,
+                compatible: compatibility.compatible,
+                compatibility,
+            };
+        });
+
+        return {
+            template,
+            rowCompat,
+            compatible: rowCompat.every((item) => item.compatibility.compatible),
+        };
+    }), [availableSet, library.sessionTemplates]);
 
     const filteredTemplates = useMemo(() => {
         const query = search.trim().toLowerCase();
-        return library.sessionTemplates.filter((template) => {
+        return templateCompatibilityRows.filter((item) => {
+            const template = item.template;
             if (kindFilter !== 'all' && template.kind !== kindFilter) return false;
+            if (showCompatibleOnly && !item.compatible) return false;
             if (!query) return true;
             const haystack = [
                 template.title,
@@ -218,12 +429,14 @@ export const SupportWorkLibrary: React.FC = () => {
             ].join(' ').toLowerCase();
             return haystack.includes(query);
         });
-    }, [kindFilter, library.sessionTemplates, search]);
+    }, [search, kindFilter, showCompatibleOnly, templateCompatibilityRows]);
 
     const filteredExercises = useMemo(() => {
         const query = search.trim().toLowerCase();
-        return library.exercises.filter((exercise) => {
+        return exerciseCompatibilityRows.filter((item) => {
+            const exercise = item.exercise;
             if (kindFilter !== 'all' && exercise.category !== kindFilter) return false;
+            if (showCompatibleOnly && !item.compatibility.compatible) return false;
             if (!query) return true;
             const haystack = [
                 exercise.name,
@@ -234,7 +447,70 @@ export const SupportWorkLibrary: React.FC = () => {
             ].join(' ').toLowerCase();
             return haystack.includes(query);
         });
-    }, [kindFilter, library.exercises, search]);
+    }, [search, kindFilter, showCompatibleOnly, exerciseCompatibilityRows]);
+
+    const personalExerciseCount = library.exercises.filter((exercise) => exercise.user_id).length;
+    const personalTemplateCount = library.sessionTemplates.filter((template) => template.user_id).length;
+
+    useEffect(() => {
+        setAvailableEquipment((prev) => (
+            arraysEqual(prev, persistedPreferences.availableEquipment) ? prev : persistedPreferences.availableEquipment
+        ));
+        setShowCompatibleOnly((prev) => (
+            prev === persistedPreferences.showCompatibleOnly ? prev : persistedPreferences.showCompatibleOnly
+        ));
+    }, [persistedPreferences.availableEquipment, persistedPreferences.showCompatibleOnly]);
+
+    const persistPreferences = useCallback(async (patch: {
+        availableEquipment?: string[];
+        showCompatibleOnly?: boolean;
+    }) => {
+        if (!user?.id || !profile) return;
+
+        setSavingSupportPrefs(true);
+        try {
+            const nextPreferences = profilePreferencePayload(profile.preferences, {
+                availableEquipment: patch.availableEquipment,
+                showCompatibleOnly: patch.showCompatibleOnly,
+            });
+
+            const { error } = await supabase.from('user_profiles').update({
+                preferences: nextPreferences,
+            }).eq('user_id', user.id);
+
+            if (error) throw error;
+            await refreshProfile();
+            toast.success('Support equipment preferences saved.');
+        } catch (err) {
+            console.error('Failed to save support-work preferences', err);
+            toast.error('Could not save support preferences.');
+        } finally {
+            setSavingSupportPrefs(false);
+        }
+    }, [profile, refreshProfile, user]);
+
+    const toggleCompatibleMode = useCallback(async () => {
+        const next = !showCompatibleOnly;
+        setShowCompatibleOnly(next);
+        await persistPreferences({
+            showCompatibleOnly: next,
+            availableEquipment,
+        });
+    }, [availableEquipment, persistPreferences, showCompatibleOnly]);
+
+    const toggleEquipment = useCallback(async (value: string) => {
+        const normalized = normalizeEquipment(value);
+        if (!normalized) return;
+        const next = new Set(availableEquipment);
+        if (next.has(normalized)) {
+            next.delete(normalized);
+        } else {
+            next.add(normalized);
+        }
+        const nextList = normalizeEquipmentList([...next]);
+        setAvailableEquipment(nextList);
+        await persistPreferences({ availableEquipment: nextList, showCompatibleOnly });
+    }, [availableEquipment, persistPreferences, showCompatibleOnly]);
 
     const canEdit = (ownerUserId: string | null): boolean => Boolean(user?.id && ownerUserId === user.id);
 
@@ -242,6 +518,7 @@ export const SupportWorkLibrary: React.FC = () => {
         event.preventDefault();
         if (!user?.id || !exerciseForm) return;
         setExerciseFormError(null);
+
         if (!exerciseForm.name.trim()) {
             setExerciseFormError('Exercise name is required.');
             return;
@@ -277,6 +554,7 @@ export const SupportWorkLibrary: React.FC = () => {
         event.preventDefault();
         if (!user?.id || !templateForm) return;
         setTemplateFormError(null);
+
         if (!templateForm.title.trim()) {
             setTemplateFormError('Session title is required.');
             return;
@@ -463,6 +741,42 @@ export const SupportWorkLibrary: React.FC = () => {
                             <option key={kind.value} value={kind.value}>{kind.label}</option>
                         ))}
                     </select>
+                    <label className="relative inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-content-primary hover:border-accent-primary sm:w-auto">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={showCompatibleOnly}
+                            onChange={toggleCompatibleMode}
+                            aria-label="Show compatible only"
+                            disabled={savingSupportPrefs}
+                        />
+                        <SlidersHorizontal size={16} className="text-content-muted" />
+                        <span className={showCompatibleOnly ? 'text-content-primary' : 'text-content-muted'}>Compatible only</span>
+                    </label>
+                </div>
+                <div className="mt-3">
+                    <p className="mb-2 text-xs text-content-muted">
+                        Select the equipment you can use. Landmine exercises can enforce strict requirements through exercise metadata.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {equipmentOptions.map((item) => {
+                            const selected = availableSet.has(item);
+                            return (
+                                <button
+                                    type="button"
+                                    key={item}
+                                    onClick={() => void toggleEquipment(item)}
+                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${selected ? 'border-indigo-400 bg-indigo-500/15 text-indigo-300' : 'border-border bg-surface-secondary text-content-muted'}`}
+                                    disabled={savingSupportPrefs}
+                                >
+                                    {item}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {savingSupportPrefs ? (
+                        <p className="mt-2 text-xs text-content-muted">Saving preferences...</p>
+                    ) : null}
                 </div>
             </Card>
 
@@ -482,8 +796,10 @@ export const SupportWorkLibrary: React.FC = () => {
             ) : activeTab === 'sessions' ? (
                 filteredTemplates.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        {filteredTemplates.map((template) => {
+                        {filteredTemplates.map((item) => {
+                            const template = item.template;
                             const editable = canEdit(template.user_id);
+                            const incompatibles = item.rowCompat.filter((row) => !row.compatibility.compatible);
                             return (
                                 <Card key={template.id}>
                                     <CardHeader
@@ -492,6 +808,9 @@ export const SupportWorkLibrary: React.FC = () => {
                                         action={
                                             <div className="flex flex-wrap justify-end gap-1.5">
                                                 <Badge variant={template.user_id ? 'coaching' : 'success'}>{template.user_id ? 'Mine' : 'Standard'}</Badge>
+                                                <Badge variant={item.compatible ? 'success' : 'warning'}>
+                                                    {item.compatible ? 'Compatible' : `${incompatibles.length} incompatible`}
+                                                </Badge>
                                                 <Badge variant="muted">{supportKinds.find((kind) => kind.value === template.kind)?.label ?? template.kind}</Badge>
                                             </div>
                                         }
@@ -499,16 +818,29 @@ export const SupportWorkLibrary: React.FC = () => {
                                     {template.description && (
                                         <p className="mb-3 text-sm text-content-muted">{template.description}</p>
                                     )}
+                                    {!item.compatible && (
+                                        <Card className="mb-3 border-amber-500/40 bg-amber-500/10">
+                                            <p className="text-xs text-amber-300">
+                                                <strong>Equipment mismatch:</strong> {incompatibles.length} exercise{incompatibles.length === 1 ? '' : 's'} need alternate options or equipment in profile.
+                                            </p>
+                                        </Card>
+                                    )}
                                     <div className="space-y-2">
-                                        {template.exercises.map((row) => (
-                                            <div key={row.id} className="rounded-lg border border-border bg-surface-secondary px-3 py-2">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <p className="text-sm font-medium text-content-primary">{row.exercise?.name ?? 'Support exercise'}</p>
-                                                    <span className="text-xs text-content-muted">#{row.sort_order}</span>
+                                        {item.rowCompat.map((row) => (
+                                            <div key={row.row.id} className="rounded-lg border border-border bg-surface-secondary px-3 py-2">
+                                                <div className="mb-1 flex items-start justify-between gap-3">
+                                                    <p className="text-sm font-medium text-content-primary">{row.row.exercise?.name ?? 'Support exercise'}</p>
+                                                    <div className="flex items-center gap-1 text-xs text-content-muted">#{row.row.sort_order}</div>
                                                 </div>
-                                                <p className="mt-1 text-xs text-content-muted">
-                                                    {[row.sets ? `${row.sets} sets` : '', row.reps, row.duration_seconds ? `${row.duration_seconds}s` : '', row.load_prescription].filter(Boolean).join(' · ') || 'Prescription details optional'}
-                                                </p>
+                                                {row.row.exercise ? (
+                                                    <p className="text-xs text-content-muted">
+                                                        {row.compatibility.compatible
+                                                            ? `Compatible (${row.compatibility.details})`
+                                                            : `Missing: ${row.compatibility.missing.join(', ') || row.compatibility.details}`}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-xs text-red-300">Exercise no longer available.</p>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -549,14 +881,20 @@ export const SupportWorkLibrary: React.FC = () => {
                 )
             ) : filteredExercises.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredExercises.map((exercise) => {
+                    {filteredExercises.map((entry) => {
+                        const exercise = entry.exercise;
                         const editable = canEdit(exercise.user_id);
                         return (
                             <Card key={exercise.id}>
                                 <CardHeader
                                     title={exercise.name}
                                     subtitle={[exercise.movement_pattern, exercise.default_sets ? `${exercise.default_sets} sets` : '', exercise.default_reps].filter(Boolean).join(' · ') || 'No default prescription'}
-                                    action={<Badge variant={exercise.user_id ? 'coaching' : 'success'}>{exercise.user_id ? 'Mine' : 'Standard'}</Badge>}
+                                    action={
+                                        <div className="flex items-center gap-1.5">
+                                            <Badge variant={exercise.user_id ? 'coaching' : 'success'}>{exercise.user_id ? 'Mine' : 'Standard'}</Badge>
+                                            <Badge variant={entry.compatibility.compatible ? 'success' : 'warning'}>{entry.compatibility.compatible ? 'Compatible' : 'Needs equipment'}</Badge>
+                                        </div>
+                                    }
                                 />
                                 <div className="flex flex-wrap gap-1.5">
                                     <Badge variant="muted">{supportKinds.find((kind) => kind.value === exercise.category)?.label ?? exercise.category}</Badge>
@@ -566,6 +904,26 @@ export const SupportWorkLibrary: React.FC = () => {
                                 </div>
                                 {exercise.cues.length > 0 && (
                                     <p className="mt-3 text-xs text-content-muted">{exercise.cues[0]}</p>
+                                )}
+                                <p className="mt-2 text-xs text-content-muted">
+                                    {entry.compatibility.compatible
+                                        ? `Compatible (${entry.compatibility.details})`
+                                        : `Missing: ${entry.compatibility.missing.join(', ') || entry.compatibility.details}`}
+                                </p>
+                                {!entry.compatibility.compatible && (
+                                    <Card className="mt-2 border-amber-500/40 bg-amber-500/10 p-2">
+                                        <p className="flex items-center gap-1.5 text-xs text-amber-200">
+                                            <AlertTriangle size={14} />
+                                            {entry.compatibility.strict
+                                                ? 'Requires strict equipment set. Update available equipment or choose a substitute.'
+                                                : 'Try a compatible substitute from the same category:'}
+                                        </p>
+                                        {entry.alternatives.length > 0 ? (
+                                            <p className="mt-1 text-xs text-amber-200">
+                                                {entry.alternatives.map((replacement) => replacement.name).join(', ')}
+                                            </p>
+                                        ) : null}
+                                    </Card>
                                 )}
                                 {editable && (
                                     <div className="mt-4 flex justify-end gap-2">

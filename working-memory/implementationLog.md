@@ -4,6 +4,53 @@
 
 ---
 
+## Phase 85: Support work equipment compatibility and alternatives (July 9, 2026)
+
+**Timeline**: July 9, 2026
+**Status**: Complete
+
+### What Was Built
+
+- Added equipment-aware support-work filtering and persisted support-work equipment preferences in `src/pages/SupportWorkLibrary.tsx`.
+- Added strict required-equipment metadata migrations for canonical Landmine Press and Weighted Pull-Up.
+- Added lightweight `support_work_family` metadata for 55 canonical support exercises so incompatible exercises can suggest two family-ranked compatible alternatives.
+
+### Why This Shape Won
+
+- Avoids a large gym taxonomy while still handling common equipment access differences.
+- Keeps strict equipment only for exercises where the named movement truly requires that equipment.
+- Uses metadata to tune substitutions without adding new tables or changing support-work ownership/RLS.
+
+### Validation
+
+- `npm run build` passed.
+- Supabase MCP applied and verified live migrations: `set_landmine_press_required_equipment`, `set_strict_required_equipment_for_weighted_pull_up`, and `set_support_work_alternative_families`.
+- MCP verification confirmed `Landmine Press` and `Weighted Pull-Up` required equipment metadata and 55 family-tagged canonical support exercises.
+
+---
+
+## Phase 84: Support work library production fix and seed follow-up (July 9, 2026)
+
+**Timeline**: July 9, 2026
+**Status**: ✅ Complete
+
+### What Was Built
+
+- Added `<meta name="mobile-web-app-capable" content="yes" />` to `index.html` to align mobile web app metadata.
+- Fixed Vercel rewrite rules in `vercel.json` so `/assets/:path*` requests are not rewritten to `index.html`, preventing JS chunks from being served as HTML.
+- Recorded support-work library seed expansion (`supabase/migrations/20260709190000_seed_expanded_support_work_library.sql`) in working-memory for next-session continuity.
+
+### Why This Shape Won
+
+- Scoped the production fix to routing only so data and support-work behavior remained unchanged.
+- Preserved SPA fallback for non-asset routes while restoring correct static file serving for assets.
+
+### Outcome
+
+- Production script MIME failures were resolved with a deployment routing adjustment.
+- Current-state context now reflects these changes for the next session handoff.
+
+---
 ## Phase 83: Training block template architecture and matching cleanup (July 7-8, 2026)
 
 **Timeline**: July 7-8, 2026  
