@@ -1,22 +1,33 @@
 
 import React, { useEffect, useState } from 'react';
-import { Zap, TrendingUp, Info, RefreshCw } from "lucide-react";
+import { CalendarCheck, Info, RefreshCw, TrendingUp, Zap } from "lucide-react";
 import { getWorkoutTemplates } from '../../services/supabase';
 import type { WorkoutTemplate, WorkoutLog, UserGoal, UserProfile } from '../../services/supabase';
+import type { TrainingBlockPlannedDay, TrainingBlockPlannedSession } from '../../types/trainingBlock.types';
 import { getSuggestedWorkout } from '../../utils/recommendationEngine';
 
 import { supabase } from '../../services/supabase';
+
+interface TrainingBlockDailyRecommendation {
+    day: TrainingBlockPlannedDay;
+    sessions: readonly TrainingBlockPlannedSession[];
+    templateName?: string | null;
+}
 
 interface TrainingSuggestionsWidgetProps {
     recentWorkouts: WorkoutLog[];
     userGoals: UserGoal[];
     userProfile?: UserProfile | null;
+    trainingBlockRecommendation?: TrainingBlockDailyRecommendation | null;
+    suppressGenericRecommendation?: boolean;
 }
 
 export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps> = ({
     recentWorkouts,
     userGoals,
-    userProfile
+    userProfile,
+    trainingBlockRecommendation,
+    suppressGenericRecommendation = false
 }) => {
     const [loading, setLoading] = useState(true);
     const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -84,17 +95,96 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
 
     // Initial Suggestion Generation
     useEffect(() => {
+        if (trainingBlockRecommendation || suppressGenericRecommendation) return;
         if (!loading && templates.length > 0 && !suggestion) {
             generateSuggestion();
         }
-    }, [loading, templates, recentWorkouts, userGoals, userProfile]);
+    }, [loading, templates, recentWorkouts, userGoals, userProfile, trainingBlockRecommendation, suppressGenericRecommendation]);
 
     const handleRefresh = () => {
         generateSuggestion(true);
     };
 
-    if (loading) {
-        // ... (loading state remains)
+    if (trainingBlockRecommendation) {
+        const primarySession = trainingBlockRecommendation.sessions.find((session) => session.source === 'erg' && session.role === 'primary')
+            ?? trainingBlockRecommendation.sessions.find((session) => session.source === 'erg')
+            ?? trainingBlockRecommendation.sessions[0];
+        const linkedTemplate = primarySession?.workout_template_id
+            ? templates.find((entry) => entry.id === primarySession.workout_template_id)
+            : null;
+        const trainingZone = linkedTemplate?.training_zone ?? null;
+        const description = linkedTemplate?.description
+            ?? primarySession?.instructions?.[0]
+            ?? primarySession?.planned_rwn
+            ?? "Follow today\'s scheduled training block work.";
+        const expectedDistance = trainingBlockRecommendation.day.target_distance_meters || primarySession?.expected_distance_meters;
+        const expectedDuration = primarySession?.expected_duration_minutes;
+
+        return (
+            <div className="bg-gradient-to-br from-white to-neutral-50 dark:from-neutral-900 dark:to-neutral-950 border border-blue-500/25 shadow-sm rounded-xl relative overflow-hidden group">
+                <div className="absolute -right-6 -top-6 text-blue-500/5 rotate-12 pointer-events-none transition-transform group-hover:scale-110 duration-700">
+                    <CalendarCheck size={140} />
+                </div>
+
+                <div className="p-6 pb-2 relative z-10">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full">
+                                    Training Block Today
+                                </span>
+                                {trainingZone && (
+                                    <span className="bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-[10px] font-medium px-2 py-0.5 rounded-full border border-neutral-200 dark:border-neutral-700">
+                                        {trainingZone}
+                                    </span>
+                                )}
+                            </div>
+                            <h3 className="text-lg font-bold flex items-center gap-2 text-neutral-900 dark:text-white">
+                                {linkedTemplate?.name ?? primarySession?.title ?? 'Training block workout'}
+                            </h3>
+                            <p className="flex items-center gap-1 text-xs mt-1 text-blue-600 dark:text-blue-300 font-medium">
+                                <TrendingUp size={12} />
+                                Week {trainingBlockRecommendation.day.week_number} · {trainingBlockRecommendation.day.day_of_week}
+                                {trainingBlockRecommendation.templateName ? ` · ${trainingBlockRecommendation.templateName}` : ''}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 pt-2 relative z-10">
+                    <div className="space-y-4">
+                        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                            {description}
+                        </p>
+
+                        {primarySession?.planned_rwn && (
+                            <div className="rounded-lg border border-neutral-200 bg-neutral-100 p-3 dark:border-neutral-700 dark:bg-neutral-800">
+                                <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                                    <Info size={12} />
+                                    RWN
+                                </div>
+                                <p className="font-mono text-sm text-neutral-900 dark:text-white">{primarySession.planned_rwn}</p>
+                            </div>
+                        )}
+
+                        {(expectedDistance || expectedDuration) && (
+                            <div className="flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                {expectedDistance ? <span>{expectedDistance.toLocaleString()}m planned</span> : null}
+                                {expectedDuration ? <span>{expectedDuration} min expected</span> : null}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading || suppressGenericRecommendation) {
+        return (
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-6 text-neutral-500 text-sm">
+                Loading today's workout...
+            </div>
+        );
     }
 
     if (!suggestion) {

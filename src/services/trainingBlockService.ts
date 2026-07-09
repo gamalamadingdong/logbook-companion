@@ -16,6 +16,7 @@ import type {
     TrainingBlockSessionRole,
     TrainingBlockSessionSource,
     TrainingBlockStrengthStatus,
+    TrainingBlockSupportCompletionStatus,
     TrainingBlockSupportPrescription,
     TrainingBlockTemplateKey,
     TrainingBlockWorkoutFamily,
@@ -31,6 +32,15 @@ export type TrainingBlockLogReviewRow = Database['public']['Tables']['training_b
 export type TrainingBlockLogReviewInsert = Database['public']['Tables']['training_block_log_reviews']['Insert'];
 export type TrainingBlockLogReviewUpdate = Database['public']['Tables']['training_block_log_reviews']['Update'];
 export type TrainingBlockEnrollmentStatus = 'draft' | 'scheduled' | 'active' | 'paused' | 'completed' | 'archived';
+
+type TrainingBlockSupportCompletionGeneratedRow = Database['public']['Tables']['training_block_support_completions']['Row'];
+type TrainingBlockSupportCompletionGeneratedInsert = Database['public']['Tables']['training_block_support_completions']['Insert'];
+export type TrainingBlockSupportCompletionRow = Omit<TrainingBlockSupportCompletionGeneratedRow, 'status'> & {
+    status: TrainingBlockSupportCompletionStatus;
+};
+export type TrainingBlockSupportCompletionInsert = Omit<TrainingBlockSupportCompletionGeneratedInsert, 'status'> & {
+    status: TrainingBlockSupportCompletionStatus;
+};
 
 export interface EnsureTrainingBlockEnrollmentInput {
     userId: string;
@@ -56,6 +66,22 @@ export interface BuildTrainingBlockLogReviewInput {
     notes?: string | null;
 }
 
+export interface BuildTrainingBlockSupportCompletionInput {
+    enrollmentId: string;
+    userId: string;
+    templateSessionId?: string | null;
+    plannedWeekNumber: number;
+    plannedDaySlot: number;
+    plannedSessionKey: string;
+    scheduledDate: string;
+    supportSessionTemplateId?: string | null;
+    status: TrainingBlockSupportCompletionStatus;
+    minutesCompleted?: number | null;
+    perceivedExertion?: number | null;
+    painFlag?: boolean;
+    notes?: string | null;
+}
+
 export interface TrainingBlockReviewOverride {
     status?: TrainingBlockWorkoutStatus;
     key_session_credit?: TrainingBlockKeySessionCredit;
@@ -64,10 +90,15 @@ export interface TrainingBlockReviewOverride {
     planned_session_key?: string;
 }
 
+export type TrainingBlockTemplateSessionWithSupport = TrainingBlockTemplateSessionRow & {
+    resolved_support_prescription?: TrainingBlockSupportPrescription;
+    support_session_template_id?: string | null;
+};
+
 export interface TrainingBlockTemplateSnapshot {
     template: TrainingBlockTemplateRow;
     days: TrainingBlockTemplateDayRow[];
-    sessions: TrainingBlockTemplateSessionRow[];
+    sessions: TrainingBlockTemplateSessionWithSupport[];
 }
 
 export interface PublishedTrainingBlockTemplateOption {
@@ -149,6 +180,111 @@ function numberOrUndefined(value: number | string | null): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+type SupportSessionTemplateRecord = Pick<Database['public']['Tables']['support_session_templates']['Row'],
+    'id' | 'template_key' | 'title' | 'kind' | 'description' | 'estimated_duration_minutes' | 'difficulty' | 'focus' | 'instructions'
+>;
+
+type SupportSessionTemplateExerciseRecord = Pick<Database['public']['Tables']['support_session_template_exercises']['Row'],
+    'support_session_template_id' | 'exercise_id' | 'sort_order' | 'sets' | 'reps' | 'duration_seconds' | 'rest_seconds' | 'load_prescription' | 'side' | 'notes' | 'alternatives'
+>;
+
+type SupportExerciseRecord = Pick<Database['public']['Tables']['support_exercises']['Row'], 'id' | 'name' | 'category'>;
+
+function supportTemplateIdForSession(session: TrainingBlockTemplateSessionRow): string | null {
+    return session.support_session_template_id ?? null;
+}
+
+function normalizeSupportKind(kind: string): TrainingBlockSupportPrescription['kind'] {
+    if (kind === 'strength' || kind === 'core' || kind === 'stretching' || kind === 'mobility' || kind === 'prehab' || kind === 'recovery') {
+        return kind;
+    }
+    return 'strength';
+}
+
+function normalizeSupportSide(side: string | null): 'left' | 'right' | 'both' | 'per_side' | 'alternating' | undefined {
+    if (side === 'left' || side === 'right' || side === 'both' || side === 'per_side' || side === 'alternating') return side;
+    return undefined;
+}
+
+async function hydrateSupportPrescriptions(
+    sessions: TrainingBlockTemplateSessionRow[],
+): Promise<TrainingBlockTemplateSessionWithSupport[]> {
+    const supportTemplateIds = [...new Set(sessions.map(supportTemplateIdForSession).filter((id): id is string => Boolean(id)))];
+    if (supportTemplateIds.length === 0) return sessions;
+
+    const { data: templatesData, error: templatesError } = await supabase.from('support_session_templates')
+        .select('id, template_key, title, kind, description, estimated_duration_minutes, difficulty, focus, instructions')
+        .in('id', supportTemplateIds);
+
+    if (templatesError) throw templatesError;
+
+    const { data: exerciseRowsData, error: exerciseRowsError } = await supabase.from('support_session_template_exercises')
+        .select('support_session_template_id, exercise_id, sort_order, sets, reps, duration_seconds, rest_seconds, load_prescription, side, notes, alternatives')
+        .in('support_session_template_id', supportTemplateIds)
+        .order('sort_order', { ascending: true });
+
+    if (exerciseRowsError) throw exerciseRowsError;
+
+    const templateRecords = (templatesData ?? []) as SupportSessionTemplateRecord[];
+    const exerciseRows = (exerciseRowsData ?? []) as SupportSessionTemplateExerciseRecord[];
+    const exerciseIds = [...new Set(exerciseRows.map((row) => row.exercise_id))];
+
+    const exerciseRecordsById = new Map<string, SupportExerciseRecord>();
+    if (exerciseIds.length > 0) {
+        const { data: exercisesData, error: exercisesError } = await supabase.from('support_exercises')
+            .select('id, name, category')
+            .in('id', exerciseIds);
+
+        if (exercisesError) throw exercisesError;
+        ((exercisesData ?? []) as SupportExerciseRecord[]).forEach((exercise) => {
+            exerciseRecordsById.set(exercise.id, exercise);
+        });
+    }
+
+    const exerciseRowsByTemplateId = new Map<string, SupportSessionTemplateExerciseRecord[]>();
+    exerciseRows.forEach((row) => {
+        const rows = exerciseRowsByTemplateId.get(row.support_session_template_id) ?? [];
+        rows.push(row);
+        exerciseRowsByTemplateId.set(row.support_session_template_id, rows);
+    });
+
+    const prescriptionsByTemplateId = new Map<string, TrainingBlockSupportPrescription>();
+    templateRecords.forEach((template) => {
+        const rows = (exerciseRowsByTemplateId.get(template.id) ?? [])
+            .slice()
+            .sort((a, b) => a.sort_order - b.sort_order);
+
+        prescriptionsByTemplateId.set(template.id, {
+            kind: normalizeSupportKind(template.kind),
+            title: template.title,
+            focus: template.focus ?? undefined,
+            exercises: rows.map((row) => {
+                const exercise = exerciseRecordsById.get(row.exercise_id);
+                return {
+                    name: exercise?.name ?? 'Support exercise',
+                    sets: numberOrUndefined(row.sets),
+                    reps: row.reps ?? undefined,
+                    duration_seconds: numberOrUndefined(row.duration_seconds),
+                    side: normalizeSupportSide(row.side),
+                    rest_seconds: numberOrUndefined(row.rest_seconds),
+                    intensity: row.load_prescription ?? undefined,
+                    alternatives: jsonArrayOrUndefined<string>(row.alternatives),
+                    notes: row.notes?.join(' ') || undefined,
+                };
+            }),
+            notes: template.instructions ?? undefined,
+        });
+    });
+
+    return sessions.map((session) => {
+        const supportTemplateId = supportTemplateIdForSession(session);
+        const resolved = supportTemplateId ? prescriptionsByTemplateId.get(supportTemplateId) : undefined;
+        return resolved
+            ? { ...session, support_session_template_id: supportTemplateId, resolved_support_prescription: resolved }
+            : { ...session, support_session_template_id: supportTemplateId };
+    });
+}
+
 function normalizeTrainingBlockSessionTitle(
     session: TrainingBlockTemplateSessionRow,
     expectedDistanceMeters: number | undefined,
@@ -165,7 +301,7 @@ export function templateRowsToTrainingBlockPlan(
     startDate?: string | null,
 ): TrainingBlockPlan {
     const resolvedStartDate = startDate ?? snapshot.template.default_start_date ?? addDaysIso(new Date().toISOString().slice(0, 10), 0);
-    const sessionsByDay = new Map<string, TrainingBlockTemplateSessionRow[]>();
+    const sessionsByDay = new Map<string, TrainingBlockTemplateSessionWithSupport[]>();
 
     snapshot.sessions.forEach((session) => {
         const sessions = sessionsByDay.get(session.template_day_id) ?? [];
@@ -187,7 +323,8 @@ export function templateRowsToTrainingBlockPlan(
                         title: normalizeTrainingBlockSessionTitle(session, expectedDistanceMeters),
                         planned_rwn: session.planned_rwn ?? undefined,
                         workout_template_id: session.workout_template_id,
-                        support_prescription: jsonObjectOrUndefined<TrainingBlockSupportPrescription>(session.support_prescription),
+                        support_session_template_id: supportTemplateIdForSession(session),
+                        support_prescription: session.resolved_support_prescription ?? jsonObjectOrUndefined<TrainingBlockSupportPrescription>(session.support_prescription),
                         family: session.family as TrainingBlockWorkoutFamily,
                         role: session.role as TrainingBlockSessionRole,
                         source: session.source as TrainingBlockSessionSource,
@@ -323,10 +460,12 @@ export async function getTrainingBlockPlanFromDatabase(
 
     if (sessionsError) throw sessionsError;
 
+    const hydratedSessions = await hydrateSupportPrescriptions(sessions ?? []);
+
     return templateRowsToTrainingBlockPlan({
         template,
         days,
-        sessions: sessions ?? [],
+        sessions: hydratedSessions,
     }, startDate);
 }
 
@@ -442,6 +581,18 @@ export async function createTrainingBlockEnrollment(
     return data;
 }
 
+export async function deleteTrainingBlockEnrollment(userId: string, enrollmentId: string): Promise<void> {
+    const { error } = await supabase
+        .from('training_block_enrollments')
+        .delete()
+        .eq('id', enrollmentId)
+        .eq('user_id', userId)
+        .is('team_id', null)
+        .is('org_id', null);
+
+    if (error) throw error;
+}
+
 export async function ensureTrainingBlockEnrollment(
     input: EnsureTrainingBlockEnrollmentInput,
 ): Promise<TrainingBlockEnrollmentRow> {
@@ -502,6 +653,69 @@ export async function getTrainingBlockLogReviews(enrollmentId: string): Promise<
 
     if (error) throw error;
     return data ?? [];
+}
+
+export function buildTrainingBlockSupportCompletionUpsert(
+    input: BuildTrainingBlockSupportCompletionInput,
+): TrainingBlockSupportCompletionInsert {
+    return {
+        enrollment_id: input.enrollmentId,
+        user_id: input.userId,
+        template_session_id: input.templateSessionId ?? null,
+        planned_week_number: input.plannedWeekNumber,
+        planned_day_slot: input.plannedDaySlot,
+        planned_session_key: input.plannedSessionKey,
+        scheduled_date: input.scheduledDate,
+        support_session_template_id: input.supportSessionTemplateId ?? null,
+        status: input.status,
+        minutes_completed: input.minutesCompleted ?? null,
+        perceived_exertion: input.perceivedExertion ?? null,
+        pain_flag: input.painFlag ?? false,
+        notes: input.notes ?? null,
+        metadata: {
+            source: 'training_block_support_completion',
+        },
+    };
+}
+
+export async function getTrainingBlockSupportCompletions(enrollmentId: string): Promise<TrainingBlockSupportCompletionRow[]> {
+    const { data, error } = await supabase.from('training_block_support_completions')
+        .select('*')
+        .eq('enrollment_id', enrollmentId);
+
+    if (error) throw error;
+    return (data ?? []) as TrainingBlockSupportCompletionRow[];
+}
+
+export async function upsertTrainingBlockSupportCompletion(
+    input: BuildTrainingBlockSupportCompletionInput,
+): Promise<TrainingBlockSupportCompletionRow> {
+    const payload = buildTrainingBlockSupportCompletionUpsert(input);
+    const { data, error } = await supabase.from('training_block_support_completions')
+        .upsert(payload, {
+            onConflict: 'enrollment_id,planned_week_number,planned_day_slot,planned_session_key',
+        })
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data as TrainingBlockSupportCompletionRow;
+}
+
+export async function deleteTrainingBlockSupportCompletion(
+    enrollmentId: string,
+    plannedWeekNumber: number,
+    plannedDaySlot: number,
+    plannedSessionKey: string,
+): Promise<void> {
+    const { error } = await supabase.from('training_block_support_completions')
+        .delete()
+        .eq('enrollment_id', enrollmentId)
+        .eq('planned_week_number', plannedWeekNumber)
+        .eq('planned_day_slot', plannedDaySlot)
+        .eq('planned_session_key', plannedSessionKey);
+
+    if (error) throw error;
 }
 
 export async function upsertTrainingBlockLogReview(input: BuildTrainingBlockLogReviewInput): Promise<TrainingBlockLogReviewRow> {

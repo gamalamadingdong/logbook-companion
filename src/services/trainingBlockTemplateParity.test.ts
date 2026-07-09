@@ -58,6 +58,7 @@ function buildPersistedSnapshotFromPlan(plan: TrainingBlockPlan): {
             planned_rwn: session.planned_rwn ?? null,
             workout_template_id: session.workout_template_id ?? null,
             support_prescription: session.support_prescription ? toJson(session.support_prescription) : null,
+            support_session_template_id: session.support_session_template_id ?? null,
             family: session.family,
             role: session.role,
             source: session.source,

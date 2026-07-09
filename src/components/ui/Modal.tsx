@@ -15,6 +15,8 @@ interface ModalProps {
   children: React.ReactNode;
   /** Size variant */
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  /** Placement variant. mobile-sheet anchors to the bottom on phones and centers on larger screens. */
+  placement?: 'center' | 'mobile-sheet';
   /** Whether clicking backdrop closes modal */
   closeOnBackdrop?: boolean;
   /** Whether pressing Escape closes modal */
@@ -40,6 +42,7 @@ export function Modal({
   description,
   children,
   size = 'md',
+  placement = 'center',
   closeOnBackdrop = true,
   closeOnEscape = true,
   footer,
@@ -119,9 +122,16 @@ export function Modal({
 
   if (!open) return null;
 
+  const containerClass = placement === 'mobile-sheet'
+    ? 'fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4 animate-in fade-in duration-150'
+    : 'fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150';
+  const panelShapeClass = placement === 'mobile-sheet'
+    ? 'rounded-t-xl sm:rounded-xl max-h-[92vh] sm:max-h-[90vh]'
+    : 'rounded-xl max-h-[90vh]';
+
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+      className={containerClass}
       aria-hidden="true"
     >
       {/* Backdrop */}
@@ -141,9 +151,9 @@ export function Modal({
         onKeyDown={handleKeyDown}
         className={`
           relative z-10 w-full ${sizeClasses[size]}
-          bg-surface-card border border-border rounded-xl shadow-xl
+          bg-surface-card border border-border shadow-xl
           animate-in fade-in zoom-in-95 duration-150
-          max-h-[90vh] flex flex-col
+          flex flex-col ${panelShapeClass}
           focus:outline-none
           ${className}
         `}

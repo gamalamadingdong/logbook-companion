@@ -12,14 +12,14 @@ export type TrainingBlockSessionSource = 'erg' | 'cross_training' | 'strength' |
 
 export type TrainingBlockSessionRole = 'primary' | 'supplemental' | 'warmup' | 'cooldown' | 'strength';
 
-export type TrainingBlockSupportKind = 'strength' | 'core' | 'stretching' | 'mobility';
+export type TrainingBlockSupportKind = 'strength' | 'core' | 'stretching' | 'mobility' | 'prehab' | 'recovery';
 
 export interface TrainingBlockSupportExercisePrescription {
     name: string;
     sets?: number;
     reps?: string;
     duration_seconds?: number;
-    side?: 'left' | 'right' | 'both' | 'per_side';
+    side?: 'left' | 'right' | 'both' | 'per_side' | 'alternating';
     rest_seconds?: number;
     intensity?: string;
     alternatives?: readonly string[];
@@ -74,6 +74,8 @@ export type TrainingBlockStrengthStatus =
     | 'not_scheduled'
     | 'not_started';
 
+export type TrainingBlockSupportCompletionStatus = 'completed' | 'modified' | 'partial' | 'skipped';
+
 export type TrainingBlockWorkoutLogSource = 'concept2' | 'manual';
 
 export interface TrainingBlockIntervalSpec {
@@ -89,6 +91,7 @@ export interface TrainingBlockPlannedSession {
     title: string;
     planned_rwn?: string;
     workout_template_id?: string | null;
+    support_session_template_id?: string | null;
     support_prescription?: TrainingBlockSupportPrescription;
     family: TrainingBlockWorkoutFamily;
     role: TrainingBlockSessionRole;

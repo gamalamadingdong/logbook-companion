@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
-import { Badge } from '../components/ui';
+import { Badge, Modal } from '../components/ui';
 import { buildRowing12WeekPlan, ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
 import {
     alignLogsToPlanDays,
@@ -40,8 +40,10 @@ import type {
     TrainingBlockDaySummary,
     TrainingBlockKeySessionCredit,
     TrainingBlockReferenceContent,
+    TrainingBlockPlannedSession,
     TrainingBlockReferenceRoutine,
     TrainingBlockSessionSource,
+    TrainingBlockSupportCompletionStatus,
     TrainingBlockWeekSummary,
     TrainingBlockStrengthStatus,
     TrainingBlockTemplateKey,
@@ -57,16 +59,21 @@ import { workoutService, type ManualWorkoutLogMode } from '../services/workoutSe
 import {
     computeTrainingBlockEndDate,
     createTrainingBlockEnrollment,
+    deleteTrainingBlockEnrollment,
     deleteTrainingBlockLogReview,
+    deleteTrainingBlockSupportCompletion,
     ensureTrainingBlockEnrollment,
     getPublishedTrainingBlockTemplates,
     getTrainingBlockEnrollments,
     getTrainingBlockLogReviews,
     getTrainingBlockPlanFromDatabase,
+    getTrainingBlockSupportCompletions,
     reviewRowToOverride,
     upsertTrainingBlockLogReview,
+    upsertTrainingBlockSupportCompletion,
     type PublishedTrainingBlockTemplateOption,
     type TrainingBlockEnrollmentRow,
+    type TrainingBlockSupportCompletionRow,
 } from '../services/trainingBlockService';
 import type { TrainingBlockWorkoutStatus } from '../types/trainingBlock.types';
 
@@ -122,6 +129,27 @@ const assignmentRelationshipTone: Record<TrainingBlockAssignmentRelationship, As
 };
 
 type WorkoutLogOverrides = Record<string, WorkoutLogOverride>;
+type SupportCompletionMap = Record<string, TrainingBlockSupportCompletionRow>;
+type SupportCompletionFormState = {
+    status: TrainingBlockSupportCompletionStatus;
+    minutesCompleted: string;
+    perceivedExertion: string;
+    painFlag: boolean;
+    notes: string;
+};
+type SupportCompletionEditorState = {
+    session: TrainingBlockPlannedSession;
+    form: SupportCompletionFormState;
+};
+type SupportCompletionTarget = {
+    plannedSessionKey: string;
+    supportSessionTemplateId?: string | null;
+    status: TrainingBlockSupportCompletionStatus;
+    minutesCompleted?: number | null;
+    perceivedExertion?: number | null;
+    painFlag?: boolean;
+    notes?: string | null;
+};
 type ManualEntryFormState = {
     mode: ManualWorkoutLogMode;
     plannedSessionId: string;
@@ -154,6 +182,20 @@ const fieldClass = 'mt-1 h-9 w-full rounded-md border border-border bg-surface-c
 const manualFieldClass = 'mt-1 w-full rounded-md border border-border bg-surface-card px-2 py-2 text-xs text-content-primary outline-none focus:border-blue-400/70';
 const AUTO_OVERRIDE_VALUE = 'AUTO_OVERRIDE';
 const DOES_NOT_COUNT_VALUE = 'DOES_NOT_COUNT';
+
+const supportCompletionOptions: Array<{ value: TrainingBlockSupportCompletionStatus; label: string }> = [
+    { value: 'completed', label: 'Done' },
+    { value: 'modified', label: 'Modified' },
+    { value: 'partial', label: 'Partial' },
+    { value: 'skipped', label: 'Skipped' },
+];
+
+const supportCompletionTone: Record<TrainingBlockSupportCompletionStatus, { label: string; variant: BadgeVariant }> = {
+    completed: { label: 'Done', variant: 'success' },
+    modified: { label: 'Modified', variant: 'warning' },
+    partial: { label: 'Partial', variant: 'warning' },
+    skipped: { label: 'Skipped', variant: 'muted' },
+};
 
 const overrideStatusOptions: Array<{
     value: TrainingBlockWorkoutStatus;
@@ -207,6 +249,23 @@ const manualModeOptions: Array<{ value: ManualWorkoutLogMode; label: string }> =
     { value: 'support', label: 'Core / mobility / other support' },
     { value: 'row', label: 'Rowing manual entry' },
 ];
+
+function emptySupportCompletionForm(
+    status: TrainingBlockSupportCompletionStatus = 'completed',
+    completion?: TrainingBlockSupportCompletionRow | null,
+): SupportCompletionFormState {
+    return {
+        status: completion?.status ?? status,
+        minutesCompleted: completion?.minutes_completed ? String(completion.minutes_completed) : '',
+        perceivedExertion: completion?.perceived_exertion ? String(completion.perceived_exertion) : '',
+        painFlag: completion?.pain_flag ?? false,
+        notes: completion?.notes ?? '',
+    };
+}
+
+function supportCompletionKey(weekNumber: number, daySlot: number, sessionKey: string): string {
+    return `${weekNumber}:${daySlot}:${sessionKey}`;
+}
 
 function emptyManualEntryForm(date: string, mode: ManualWorkoutLogMode, rwn = '', plannedSessionId = ''): ManualEntryFormState {
     return {
@@ -634,6 +693,8 @@ export const TrainingBlock: React.FC = () => {
     const [athleteOptions, setAthleteOptions] = useState<TeamAthleteOption[]>([]);
     const [selectedAthleteUserId, setSelectedAthleteUserId] = useState<string>('team_all');
     const [loading, setLoading] = useState(true);
+    const [hasLoadedLogs, setHasLoadedLogs] = useState(false);
+    const [hasLoadedEnrollment, setHasLoadedEnrollment] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
     const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>([]);
@@ -646,6 +707,8 @@ export const TrainingBlock: React.FC = () => {
     const [manualEntryForm, setManualEntryForm] = useState<ManualEntryFormState>(() => emptyManualEntryForm(getDefaultPlanDate(STATIC_TRAINING_BLOCK_PLAN), 'cross_training'));
     const [manualEntrySaving, setManualEntrySaving] = useState(false);
     const [manualEntryError, setManualEntryError] = useState<string | null>(null);
+    const [supportCompletions, setSupportCompletions] = useState<SupportCompletionMap>({});
+    const [supportCompletionEditor, setSupportCompletionEditor] = useState<SupportCompletionEditorState | null>(null);
     const [quickCompletionSavingKey, setQuickCompletionSavingKey] = useState<string | null>(null);
     const [isTrainingBlockActive, setTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
     const [selectedTemplateId, setSelectedTemplateId] = useState<TrainingBlockPlanOptionId>(() => readSelectedTrainingBlockTemplate());
@@ -662,6 +725,7 @@ export const TrainingBlock: React.FC = () => {
     const [trainingBlockEnrollments, setTrainingBlockEnrollments] = useState<TrainingBlockEnrollmentRow[]>([]);
     const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
     const [resumeEnrollmentId, setResumeEnrollmentId] = useState<string | null>(null);
+    const [removingEnrollmentId, setRemovingEnrollmentId] = useState<string | null>(null);
     const [historyError, setHistoryError] = useState<string | null>(null);
     const { matchingContext, isLoading: linkedWorkoutTemplatesLoading } = useTrainingBlockMatchingContext(plan);
     const [reviewPersistenceMode, setReviewPersistenceMode] = useState<'loading' | 'database' | 'local'>('loading');
@@ -717,8 +781,10 @@ export const TrainingBlock: React.FC = () => {
                 setSelectedEnrollmentId(null);
                 setTrainingBlockEnrollments([]);
                 setLogOverrides({});
+                setSupportCompletions({});
                 setReviewPersistenceMode('local');
                 setOverridesLoaded(true);
+                setHasLoadedEnrollment(true);
                 return;
             }
 
@@ -732,7 +798,7 @@ export const TrainingBlock: React.FC = () => {
                     : null;
                 const selectedEnrollment = enrollments.find((entry) => entry.template_key === selectedKey) ?? null;
                 const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
-                const enrollment = selectedById ?? selectedEnrollment ?? activeEnrollment;
+                const enrollment = selectedById ?? activeEnrollment ?? selectedEnrollment ?? enrollments[0] ?? null;
                 const effectiveTemplateKey = (enrollment?.template_key ?? selectedKey) as TrainingBlockTemplateKey;
                 const planStartDate = enrollment?.start_date ?? fallbackPlan.start_date;
                 const persistedPlan = await loadPersistedPlan(effectiveTemplateKey, planStartDate);
@@ -759,20 +825,32 @@ export const TrainingBlock: React.FC = () => {
                     setSetupTemplateKey(effectiveTemplateKey);
                     setSetupStartDate(getMondaySnappedDate());
                     setLogOverrides({});
+                    setSupportCompletions({});
                     setReviewPersistenceMode('local');
                     return;
                 }
 
                 setTrainingBlockEnrollment(enrollment);
-                setSelectedEnrollmentId(enrollment.id);
+                if (selectedEnrollmentId !== enrollment.id) {
+                    setSelectedEnrollmentId(enrollment.id);
+                }
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
 
-                const reviews = await getTrainingBlockLogReviews(enrollment.id);
+                const [reviews, completions] = await Promise.all([
+                    getTrainingBlockLogReviews(enrollment.id),
+                    getTrainingBlockSupportCompletions(enrollment.id),
+                ]);
                 if (cancelled) return;
 
                 setLogOverrides(Object.fromEntries(
                     reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
+                ));
+                setSupportCompletions(Object.fromEntries(
+                    completions.map((completion) => [
+                        supportCompletionKey(completion.planned_week_number, completion.planned_day_slot, completion.planned_session_key),
+                        completion,
+                    ]),
                 ));
                 setReviewPersistenceMode('database');
             } catch (error) {
@@ -785,6 +863,7 @@ export const TrainingBlock: React.FC = () => {
                 setTrainingBlockEnrollment(null);
                 setSelectedEnrollmentId(null);
                 setTrainingBlockEnrollments([]);
+                setSupportCompletions({});
                 setReviewPersistenceMode('local');
 
                 if (typeof window !== 'undefined') {
@@ -801,6 +880,7 @@ export const TrainingBlock: React.FC = () => {
                 if (!cancelled) {
                     setEnrollmentsLoading(false);
                     setOverridesLoaded(true);
+                    setHasLoadedEnrollment(true);
                 }
             }
         };
@@ -874,9 +954,14 @@ export const TrainingBlock: React.FC = () => {
     };
 
     useEffect(() => {
+        let cancelled = false;
+
         if (!user?.id) {
             setRawLogs([]);
-            return;
+            setHasLoadedLogs(true);
+            return () => {
+                cancelled = true;
+            };
         }
 
         const loadLogs = async () => {
@@ -890,7 +975,7 @@ export const TrainingBlock: React.FC = () => {
 
                 if (isTeamContext) {
                     if (isCoachingLoading) {
-                        setLoading(false);
+                        if (!cancelled) setLoading(false);
                         return;
                     }
 
@@ -919,12 +1004,14 @@ export const TrainingBlock: React.FC = () => {
                         if (a.teamName.toLowerCase() > b.teamName.toLowerCase()) return 1;
                         return a.name.localeCompare(b.name);
                     });
-                    setAthleteOptions(athleteList);
+                    if (!cancelled) setAthleteOptions(athleteList);
 
                     const teamUserIds = athleteList.map((athlete) => athlete.userId);
                     if (teamUserIds.length === 0) {
-                        setAthleteOptions([]);
-                        setRawLogs([]);
+                        if (!cancelled) {
+                            setAthleteOptions([]);
+                            setRawLogs([]);
+                        }
                         return;
                     }
 
@@ -947,7 +1034,7 @@ export const TrainingBlock: React.FC = () => {
                         return date >= plan.start_date && date <= plan.end_date;
                     });
 
-                    setRawLogs(mapLogs(inWindow, athleteNameByUserId));
+                    if (!cancelled) setRawLogs(mapLogs(inWindow, athleteNameByUserId));
                     return;
                 }
 
@@ -970,17 +1057,26 @@ export const TrainingBlock: React.FC = () => {
                     return date >= plan.start_date && date <= plan.end_date;
                 });
 
-                setRawLogs(mapLogs(inWindow, athleteNameByUserId));
+                if (!cancelled) setRawLogs(mapLogs(inWindow, athleteNameByUserId));
             } catch (err) {
                 console.error('Failed to load training block logs', err);
-                setError('Could not load your recent workouts. Please refresh and try again.');
-                setRawLogs([]);
+                if (!cancelled) {
+                    setError('Could not load your recent workouts. Please refresh and try again.');
+                    setRawLogs([]);
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                    setHasLoadedLogs(true);
+                }
             }
         };
 
         loadLogs();
+
+        return () => {
+            cancelled = true;
+        };
     }, [isTeamContext, isCoachingLoading, scopedTeamIds.join(','), user?.id, scopedTeams, plan.start_date, plan.end_date]);
 
     const logs = useMemo(() => {
@@ -1080,7 +1176,7 @@ export const TrainingBlock: React.FC = () => {
         if (match.planned_session_id) return false;
         return log.notes?.toLowerCase().includes('[tb:quick:support-prep]') ?? false;
     });
-    const selectedDayLoggedWorkoutEntries = selectedDayCalendarLogMatches;
+    const selectedDayLoggedWorkoutEntries = selectedDayCalendarLogMatches.filter(({ log }) => !(log.source === 'manual' && (log.notes?.toLowerCase().includes('[tb:quick:') ?? false)));
     const selectedReference = selectedDay.reference;
     const defaultManualSession = selectedDay.sessions.find((session) => session.source === 'cross_training')
         ?? selectedDay.sessions.find((session) => session.source === 'strength')
@@ -1203,6 +1299,50 @@ export const TrainingBlock: React.FC = () => {
         writeSelectedTrainingBlockTemplate(enrollment.template_key);
     };
 
+    const removeTrainingBlockEnrollment = async (enrollment: TrainingBlockEnrollmentRow) => {
+        if (!user?.id) return;
+
+        const confirmed = window.confirm('Remove this training block enrollment? This removes the block schedule, review decisions, and support completion checks for this block. It will not delete workout logs.');
+        if (!confirmed) return;
+
+        setRemovingEnrollmentId(enrollment.id);
+        setHistoryError(null);
+
+        try {
+            await deleteTrainingBlockEnrollment(user.id, enrollment.id);
+            const enrollments = await getTrainingBlockEnrollments(user.id);
+            setTrainingBlockEnrollments(enrollments);
+
+            if (trainingBlockEnrollment?.id !== enrollment.id) {
+                return;
+            }
+
+            const nextEnrollment = enrollments.find((entry) => entry.is_active) ?? enrollments[0] ?? null;
+            if (nextEnrollment) {
+                setSelectedEnrollmentId(nextEnrollment.id);
+                setSelectedTemplateId(nextEnrollment.template_key);
+                writeSelectedTrainingBlockTemplate(nextEnrollment.template_key);
+                return;
+            }
+
+            setTrainingBlockEnrollment(null);
+            setSelectedEnrollmentId(null);
+            setTrainingBlockActive(false);
+            writeTrainingBlockActive(false);
+            setLogOverrides({});
+            setSupportCompletions({});
+            setReviewPersistenceMode('local');
+            setSetupOpen(true);
+            setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
+            setSetupStartDate(getMondaySnappedDate());
+        } catch (error) {
+            console.error('Failed to remove training block enrollment', error);
+            setHistoryError('Could not remove this training block. Please try again.');
+        } finally {
+            setRemovingEnrollmentId(null);
+        }
+    };
+
     const resumeTrainingBlockEnrollment = async (enrollment: TrainingBlockEnrollmentRow) => {
         if (!user?.id) return;
 
@@ -1230,8 +1370,9 @@ export const TrainingBlock: React.FC = () => {
                 isActive: true,
                 status: 'active',
             });
-            const [reviews, enrollments] = await Promise.all([
+            const [reviews, completions, enrollments] = await Promise.all([
                 getTrainingBlockLogReviews(updatedEnrollment.id),
+                getTrainingBlockSupportCompletions(updatedEnrollment.id),
                 getTrainingBlockEnrollments(user.id),
             ]);
 
@@ -1246,6 +1387,12 @@ export const TrainingBlock: React.FC = () => {
             writeTrainingBlockActive(true);
             setLogOverrides(Object.fromEntries(
                 reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
+            ));
+            setSupportCompletions(Object.fromEntries(
+                completions.map((completion) => [
+                    supportCompletionKey(completion.planned_week_number, completion.planned_day_slot, completion.planned_session_key),
+                    completion,
+                ]),
             ));
             setReviewPersistenceMode('database');
             setSelectedDate(getDefaultPlanDate(resolvedPlan));
@@ -1308,8 +1455,9 @@ export const TrainingBlock: React.FC = () => {
                     isActive: true,
                     status: 'active',
                 });
-            const [reviews, enrollments] = await Promise.all([
+            const [reviews, completions, enrollments] = await Promise.all([
                 getTrainingBlockLogReviews(enrollment.id),
+                getTrainingBlockSupportCompletions(enrollment.id),
                 getTrainingBlockEnrollments(user.id),
             ]);
 
@@ -1331,6 +1479,12 @@ export const TrainingBlock: React.FC = () => {
             writeTrainingBlockActive(enrollment.is_active);
             setLogOverrides(Object.fromEntries(
                 reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
+            ));
+            setSupportCompletions(Object.fromEntries(
+                completions.map((completion) => [
+                    supportCompletionKey(completion.planned_week_number, completion.planned_day_slot, completion.planned_session_key),
+                    completion,
+                ]),
             ));
             setReviewPersistenceMode('database');
             setSelectedDate(getDefaultPlanDate(resolvedPlan));
@@ -1465,8 +1619,15 @@ export const TrainingBlock: React.FC = () => {
         }) ?? null;
     };
 
-    const isPlannedSessionComplete = (sessionId: string): boolean => {
-        return getPlannedSessionCompletionLog(sessionId) !== null;
+    const getSupportCompletion = (plannedSessionKey: string): TrainingBlockSupportCompletionRow | null => {
+        return supportCompletions[supportCompletionKey(selectedDay.week_number, selectedDay.day_slot, plannedSessionKey)] ?? null;
+    };
+
+    const getSupportCompletionStatus = (plannedSessionKey: string): TrainingBlockSupportCompletionStatus | null => {
+        const completion = getSupportCompletion(plannedSessionKey);
+        if (completion) return completion.status;
+        if (plannedSessionKey === 'support-prep') return getSupportPrepCompletionLog() ? 'completed' : null;
+        return getPlannedSessionCompletionLog(plannedSessionKey) ? 'completed' : null;
     };
 
     const isTrainingBlockQuickLog = (log: DayLogEvent): boolean => {
@@ -1484,87 +1645,110 @@ export const TrainingBlock: React.FC = () => {
         return log.workout_type === 'strength' && notes.includes(titleMarker) && notes.includes('[tb:strength:completed]');
     };
 
-    const isRemovableQuickCompletionLog = (log: DayLogEvent, key: string, title: string): boolean => {
-        if (log.source !== 'manual') return false;
-        const notes = log.notes?.toLowerCase() ?? '';
-        const titleMarker = `${title} complete`.toLowerCase();
-        return notes.includes(`[tb:quick:${key.toLowerCase()}]`)
-            || (log.workout_type === 'strength' && notes.includes(titleMarker) && notes.includes('[tb:strength:completed]'));
-    };
-
     const getSupportPrepCompletionLog = (): DayLogEvent | null => {
         return selectedDayAlignedLogs.find((log) => isQuickCompletionLog(log, 'support-prep', 'Support prep')) ?? null;
     };
 
-    const isSupportPrepComplete = getSupportPrepCompletionLog() !== null;
+    const isSupportPrepComplete = Boolean(getSupportCompletionStatus('support-prep'));
 
-    const saveQuickCompletion = async (key: string, options: {
-        mode: ManualWorkoutLogMode;
-        title: string;
-        manualRWN?: string | null;
-        durationMinutes?: number | null;
-    }) => {
-        if (!user?.id || !canCreateManualEntry) return;
+    const saveSupportCompletion = async (target: SupportCompletionTarget): Promise<boolean> => {
+        if (!user?.id || !canCreateManualEntry || !trainingBlockEnrollment) return false;
 
-        setQuickCompletionSavingKey(key);
+        setQuickCompletionSavingKey(target.plannedSessionKey);
         setManualEntryError(null);
 
         try {
-            const inserted = await workoutService.createManualWorkoutLog({
+            const saved = await upsertTrainingBlockSupportCompletion({
+                enrollmentId: trainingBlockEnrollment.id,
                 userId: user.id,
-                completedAt: formatInputDateTime(selectedDay.date, '12:00'),
-                mode: options.mode,
-                manualRWN: options.manualRWN ?? null,
-                durationSeconds: options.durationMinutes ? Math.round(options.durationMinutes * 60) : null,
-                notes: `${options.title} complete`,
+                templateSessionId: null,
                 plannedWeekNumber: selectedDay.week_number,
                 plannedDaySlot: selectedDay.day_slot,
-                plannedSessionKey: selectedDay.sessions.some((session) => session.id === key) ? key : null,
-                trainingBlockQuickCompletionKey: key,
+                plannedSessionKey: target.plannedSessionKey,
+                scheduledDate: selectedDay.date,
+                supportSessionTemplateId: target.supportSessionTemplateId ?? null,
+                status: target.status,
+                minutesCompleted: target.minutesCompleted ?? null,
+                perceivedExertion: target.perceivedExertion ?? null,
+                painFlag: target.painFlag ?? false,
+                notes: target.notes ?? null,
             });
 
-            setRawLogs((prev) => [
-                ...mapLogs([inserted as TrainingBlockWorkoutLogRow], new Map()),
+            setSupportCompletions((prev) => ({
                 ...prev,
-            ]);
+                [supportCompletionKey(saved.planned_week_number, saved.planned_day_slot, saved.planned_session_key)]: saved,
+            }));
+            return true;
         } catch (err) {
-            console.error('Failed to save quick training block completion', err);
-            setManualEntryError('Could not save the completion. Please try the manual form instead.');
+            console.error('Failed to save support completion', err);
+            setManualEntryError('Could not save the support completion. Please try again.');
+            return false;
         } finally {
             setQuickCompletionSavingKey(null);
         }
     };
 
-    const removeQuickCompletion = async (key: string, title: string) => {
-        if (!user?.id || !canCreateManualEntry) return;
-        const completionLog = key === 'support-prep'
-            ? getSupportPrepCompletionLog()
-            : getPlannedSessionCompletionLog(key);
-        if (!completionLog || !isRemovableQuickCompletionLog(completionLog, key, title)) {
-            setManualEntryError('This completion is tied to a workout log. Use the log review controls instead of deleting it from the checkbox.');
-            return;
-        }
+    const removeSupportCompletion = async (plannedSessionKey: string) => {
+        if (!user?.id || !canCreateManualEntry || !trainingBlockEnrollment) return;
 
-        setQuickCompletionSavingKey(key);
+        setQuickCompletionSavingKey(plannedSessionKey);
         setManualEntryError(null);
 
         try {
-            await workoutService.deleteManualWorkoutLog(completionLog.workout_id, user.id);
-            if (trainingBlockEnrollment) {
-                await deleteTrainingBlockLogReview(trainingBlockEnrollment.id, completionLog.workout_id).catch(() => undefined);
-            }
-            setRawLogs((prev) => prev.filter((log) => log.workout_id !== completionLog.workout_id));
-            setLogOverrides((prev) => {
+            await deleteTrainingBlockSupportCompletion(
+                trainingBlockEnrollment.id,
+                selectedDay.week_number,
+                selectedDay.day_slot,
+                plannedSessionKey,
+            );
+            setSupportCompletions((prev) => {
                 const next = { ...prev };
-                delete next[completionLog.workout_id];
+                delete next[supportCompletionKey(selectedDay.week_number, selectedDay.day_slot, plannedSessionKey)];
                 return next;
             });
         } catch (err) {
-            console.error('Failed to remove quick training block completion', err);
-            setManualEntryError('Could not remove the completion. Please try again.');
+            console.error('Failed to remove support completion', err);
+            setManualEntryError('Could not clear the support completion. Please try again.');
         } finally {
             setQuickCompletionSavingKey(null);
         }
+    };
+
+    const openSupportCompletionEditor = (session: TrainingBlockPlannedSession, status: TrainingBlockSupportCompletionStatus = 'modified') => {
+        const completion = getSupportCompletion(session.id);
+        setSupportCompletionEditor({
+            session,
+            form: emptySupportCompletionForm(status, completion),
+        });
+    };
+
+    const closeSupportCompletionEditor = () => {
+        setSupportCompletionEditor(null);
+    };
+
+    const updateSupportCompletionForm = <Key extends keyof SupportCompletionFormState>(key: Key, value: SupportCompletionFormState[Key]) => {
+        setSupportCompletionEditor((prev) => prev
+            ? { ...prev, form: { ...prev.form, [key]: value } }
+            : prev);
+    };
+
+    const saveSupportCompletionEditor = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!supportCompletionEditor) return;
+
+        const minutesCompleted = parseOptionalPositiveNumber(supportCompletionEditor.form.minutesCompleted);
+        const perceivedExertion = parseOptionalPositiveNumber(supportCompletionEditor.form.perceivedExertion);
+
+        const saved = await saveSupportCompletion({
+            plannedSessionKey: supportCompletionEditor.session.id,
+            supportSessionTemplateId: supportCompletionEditor.session.support_session_template_id ?? null,
+            status: supportCompletionEditor.form.status,
+            minutesCompleted: minutesCompleted ? Math.round(minutesCompleted) : null,
+            perceivedExertion: perceivedExertion ? Math.round(perceivedExertion) : null,
+            painFlag: supportCompletionEditor.form.painFlag,
+            notes: supportCompletionEditor.form.notes.trim() || null,
+        });
+        if (saved) closeSupportCompletionEditor();
     };
 
     const removeManualWorkoutLog = async (log: DayLogEvent) => {
@@ -1813,7 +1997,7 @@ export const TrainingBlock: React.FC = () => {
     const selectedWeekAssignmentCount = selectedWeekAssignments.length;
     const formatLoggedWorkoutDistance = (log: DayLogEvent): string => formatDistanceMeters((log.distance_meters ?? 0) + (log.rest_distance_meters ?? 0));
 
-    if (authLoading || loading || templatesLoading) {
+    if (authLoading || templatesLoading || !hasLoadedEnrollment || (!hasLoadedLogs && loading)) {
         return (
             <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-8 lg:p-10 font-sans">
                 <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
@@ -2067,6 +2251,7 @@ export const TrainingBlock: React.FC = () => {
                                     const enrollmentLifecycle = getEnrollmentLifecycleStatus(enrollment);
                                     const isCurrentEnrollment = trainingBlockEnrollment?.id === enrollment.id;
                                     const isResumeSaving = resumeEnrollmentId === enrollment.id;
+                                    const isRemoving = removingEnrollmentId === enrollment.id;
 
                                     return (
                                         <div key={enrollment.id} className="flex flex-col gap-3 bg-neutral-950/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2097,13 +2282,22 @@ export const TrainingBlock: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => void resumeTrainingBlockEnrollment(enrollment)}
-                                                        disabled={Boolean(resumeEnrollmentId)}
+                                                        disabled={Boolean(resumeEnrollmentId) || Boolean(removingEnrollmentId)}
                                                         className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                                                     >
                                                         <Power size={14} />
                                                         {isResumeSaving ? (enrollment.status === 'scheduled' ? 'Activating...' : 'Resuming...') : (enrollment.status === 'scheduled' ? 'Activate' : 'Resume')}
                                                     </button>
                                                 )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void removeTrainingBlockEnrollment(enrollment)}
+                                                    disabled={Boolean(resumeEnrollmentId) || Boolean(removingEnrollmentId)}
+                                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-200 hover:border-red-400 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    <Trash2 size={14} />
+                                                    {isRemoving ? 'Removing...' : 'Remove'}
+                                                </button>
                                             </div>
                                         </div>
                                     );
@@ -2605,27 +2799,51 @@ export const TrainingBlock: React.FC = () => {
                                                     <div className="flex items-start justify-between gap-3">
                                                         <p className="font-medium text-content-primary">{session.title}</p>
                                                         <div className="flex flex-wrap items-center justify-end gap-2">
-                                                            {(session.source === 'strength') && (
-                                                                <label className="inline-flex items-center gap-1.5 text-xs text-content-secondary">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isPlannedSessionComplete(session.id)}
-                                                                        disabled={quickCompletionSavingKey === session.id || !canCreateManualEntry}
-                                                                        onChange={(event) => {
-                                                                            if (event.target.checked) {
-                                                                                void saveQuickCompletion(session.id, {
-                                                                                    mode: 'strength',
-                                                                                    title: session.title,
-                                                                                    durationMinutes: session.expected_duration_minutes ?? null,
-                                                                                });
-                                                                            } else {
-                                                                                void removeQuickCompletion(session.id, session.title);
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    Done
-                                                                </label>
-                                                            )}
+                                                            {(session.source === 'strength') && (() => {
+                                                                const supportStatus = getSupportCompletionStatus(session.id);
+                                                                const completionTone = supportStatus ? supportCompletionTone[supportStatus] : null;
+                                                                const saving = quickCompletionSavingKey === session.id;
+
+                                                                return (
+                                                                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                                                        {completionTone && (
+                                                                            <Badge variant={completionTone.variant} size="sm" dot={supportStatus !== 'skipped'}>
+                                                                                {completionTone.label}
+                                                                            </Badge>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={saving || !canCreateManualEntry}
+                                                                            onClick={() => void saveSupportCompletion({
+                                                                                plannedSessionKey: session.id,
+                                                                                supportSessionTemplateId: session.support_session_template_id ?? null,
+                                                                                status: 'completed',
+                                                                            })}
+                                                                            className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-emerald-400/60 hover:text-emerald-600 dark:hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                        >
+                                                                            Done
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={saving || !canCreateManualEntry}
+                                                                            onClick={() => openSupportCompletionEditor(session, supportStatus ?? 'modified')}
+                                                                            className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-blue-400/60 hover:text-blue-600 dark:hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                        >
+                                                                            Details
+                                                                        </button>
+                                                                        {supportStatus && (
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={saving || !canCreateManualEntry}
+                                                                                onClick={() => void removeSupportCompletion(session.id)}
+                                                                                className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-red-400/60 hover:text-red-600 dark:hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                            >
+                                                                                Clear
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             {session.workout_template_id && (
                                                                 <Badge variant="info">Library</Badge>
                                                             )}
@@ -2754,24 +2972,51 @@ export const TrainingBlock: React.FC = () => {
                                     <div className="mt-4 pt-3 border-t border-border">
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                                             <p className="text-xs uppercase tracking-wide text-content-muted">Support prep</p>
-                                            <label className="inline-flex items-center gap-1.5 text-xs text-content-secondary">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSupportPrepComplete}
+                                            <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                                {(() => {
+                                                    const supportPrepStatus = getSupportCompletionStatus('support-prep');
+                                                    const completionTone = supportPrepStatus ? supportCompletionTone[supportPrepStatus] : null;
+                                                    return completionTone ? (
+                                                        <Badge variant={completionTone.variant} size="sm" dot={supportPrepStatus !== 'skipped'}>
+                                                            {completionTone.label}
+                                                        </Badge>
+                                                    ) : null;
+                                                })()}
+                                                <button
+                                                    type="button"
                                                     disabled={quickCompletionSavingKey === 'support-prep' || !canCreateManualEntry}
-                                                    onChange={(event) => {
-                                                        if (event.target.checked) {
-                                                            void saveQuickCompletion('support-prep', {
-                                                                mode: 'support',
-                                                                title: 'Support prep',
-                                                            });
-                                                        } else {
-                                                            void removeQuickCompletion('support-prep', 'Support prep');
-                                                        }
-                                                    }}
-                                                />
-                                                Done
-                                            </label>
+                                                    onClick={() => void saveSupportCompletion({
+                                                        plannedSessionKey: 'support-prep',
+                                                        supportSessionTemplateId: null,
+                                                        status: 'completed',
+                                                    })}
+                                                    className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-emerald-400/60 hover:text-emerald-600 dark:hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    Done
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={quickCompletionSavingKey === 'support-prep' || !canCreateManualEntry}
+                                                    onClick={() => void saveSupportCompletion({
+                                                        plannedSessionKey: 'support-prep',
+                                                        supportSessionTemplateId: null,
+                                                        status: 'skipped',
+                                                    })}
+                                                    className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-amber-400/60 hover:text-amber-600 dark:hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    Skip
+                                                </button>
+                                                {isSupportPrepComplete && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={quickCompletionSavingKey === 'support-prep' || !canCreateManualEntry}
+                                                        onClick={() => void removeSupportCompletion('support-prep')}
+                                                        className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-content-primary hover:border-red-400/60 hover:text-red-600 dark:hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
                                             {formatReferenceList(selectedReference.warmup, 'Warm-up')}
@@ -2789,7 +3034,7 @@ export const TrainingBlock: React.FC = () => {
                                         )}
                                     </div>
                                 )}
-                                {selectedReference && selectedReference.routines.length === 0 && selectedDay.sessions.every((session) => session.source !== 'strength') && (
+                                {selectedReference && (selectedReference.routines?.length ?? 0) === 0 && selectedDay.sessions.every((session) => session.source !== 'strength') && (
                                     <p className="mt-4 text-[11px] text-content-muted">
                                         This day has support prep and no scheduled strength slot.
                                     </p>
@@ -3177,6 +3422,100 @@ export const TrainingBlock: React.FC = () => {
 
                 </Card>
             </div>
+
+            <Modal
+                open={Boolean(supportCompletionEditor)}
+                onClose={closeSupportCompletionEditor}
+                title="Support details"
+                description={supportCompletionEditor?.session.title}
+                size="md"
+                placement="mobile-sheet"
+            >
+                {supportCompletionEditor && (
+                    <form onSubmit={saveSupportCompletionEditor} className="space-y-4">
+                        <label className="block text-xs font-medium text-content-muted">
+                            Status
+                            <select
+                                value={supportCompletionEditor.form.status}
+                                onChange={(event) => updateSupportCompletionForm('status', event.target.value as TrainingBlockSupportCompletionStatus)}
+                                className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface-card px-3 py-2 text-sm text-content-primary outline-none focus:border-blue-400/70"
+                            >
+                                {supportCompletionOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <label className="block text-xs font-medium text-content-muted">
+                                Minutes completed
+                                <input
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={supportCompletionEditor.form.minutesCompleted}
+                                    onChange={(event) => updateSupportCompletionForm('minutesCompleted', event.target.value)}
+                                    placeholder="30"
+                                    className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface-card px-3 py-2 text-sm text-content-primary outline-none focus:border-blue-400/70"
+                                />
+                            </label>
+                            <label className="block text-xs font-medium text-content-muted">
+                                RPE
+                                <input
+                                    inputMode="numeric"
+                                    value={supportCompletionEditor.form.perceivedExertion}
+                                    onChange={(event) => updateSupportCompletionForm('perceivedExertion', event.target.value)}
+                                    placeholder="1-10"
+                                    className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface-card px-3 py-2 text-sm text-content-primary outline-none focus:border-blue-400/70"
+                                />
+                            </label>
+                        </div>
+
+                        <label className="flex min-h-11 items-start gap-2 rounded-md border border-border bg-surface-secondary px-3 py-2 text-sm text-content-secondary">
+                            <input
+                                type="checkbox"
+                                checked={supportCompletionEditor.form.painFlag}
+                                onChange={(event) => updateSupportCompletionForm('painFlag', event.target.checked)}
+                                className="mt-1"
+                            />
+                            <span>Flag pain or discomfort</span>
+                        </label>
+
+                        <label className="block text-xs font-medium text-content-muted">
+                            Notes
+                            <textarea
+                                value={supportCompletionEditor.form.notes}
+                                onChange={(event) => updateSupportCompletionForm('notes', event.target.value)}
+                                rows={4}
+                                className="mt-1 w-full rounded-md border border-border bg-surface-card px-3 py-2 text-sm text-content-primary outline-none focus:border-blue-400/70"
+                            />
+                        </label>
+
+                        {manualEntryError && (
+                            <p className="flex items-start gap-2 text-xs text-red-300">
+                                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                                {manualEntryError}
+                            </p>
+                        )}
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                onClick={closeSupportCompletionEditor}
+                                className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-surface-secondary px-4 py-2 text-sm font-medium text-content-primary hover:border-blue-400/60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={quickCompletionSavingKey === supportCompletionEditor.session.id}
+                                className="inline-flex min-h-11 items-center justify-center rounded-md bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {quickCompletionSavingKey === supportCompletionEditor.session.id ? 'Saving...' : 'Save support'}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
         </div>
     );
 };

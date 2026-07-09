@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildTrainingBlockEnrollmentInsert,
     buildTrainingBlockLogReviewUpsert,
+    buildTrainingBlockSupportCompletionUpsert,
     computeTrainingBlockEndDate,
     reviewRowToOverride,
     templateRowsToTrainingBlockPlan,
@@ -88,6 +89,41 @@ describe('trainingBlockService builders', () => {
         });
     });
 
+    it('builds support completion upserts without creating workout log data', () => {
+        expect(buildTrainingBlockSupportCompletionUpsert({
+            enrollmentId: 'enrollment-1',
+            userId: 'user-1',
+            templateSessionId: 'template-session-1',
+            plannedWeekNumber: 1,
+            plannedDaySlot: 0,
+            plannedSessionKey: 'strength-pull',
+            scheduledDate: '2026-07-06',
+            supportSessionTemplateId: 'support-template-1',
+            status: 'modified',
+            minutesCompleted: 28,
+            perceivedExertion: 6,
+            painFlag: true,
+            notes: 'Swapped deadlift for RDL.',
+        })).toMatchObject({
+            enrollment_id: 'enrollment-1',
+            user_id: 'user-1',
+            template_session_id: 'template-session-1',
+            planned_week_number: 1,
+            planned_day_slot: 0,
+            planned_session_key: 'strength-pull',
+            scheduled_date: '2026-07-06',
+            support_session_template_id: 'support-template-1',
+            status: 'modified',
+            minutes_completed: 28,
+            perceived_exertion: 6,
+            pain_flag: true,
+            notes: 'Swapped deadlift for RDL.',
+            metadata: {
+                source: 'training_block_support_completion',
+            },
+        });
+    });
+
     it('maps persisted template rows into the existing in-memory plan shape', () => {
         const plan = templateRowsToTrainingBlockPlan({
             template: {
@@ -142,7 +178,15 @@ describe('trainingBlockService builders', () => {
                     title: 'Strength (pull)',
                     planned_rwn: null,
                     workout_template_id: null,
-                    support_prescription: { kind: 'strength', title: 'Strength (pull)' },
+                    support_prescription: { kind: 'strength', title: 'Legacy Strength (pull)' },
+                    support_session_template_id: 'support-template-pull',
+                    resolved_support_prescription: {
+                        kind: 'strength',
+                        title: 'Strength (pull)',
+                        focus: ['Back'],
+                        exercises: [{ name: 'Deadlift or Romanian Deadlift', sets: 4, reps: '6-8' }],
+                        notes: ['1-2 reps in reserve.'],
+                    },
                     family: 'strength_pull',
                     role: 'strength',
                     source: 'strength',
@@ -166,6 +210,7 @@ describe('trainingBlockService builders', () => {
                     planned_rwn: '8x500m/3:30r',
                     workout_template_id: 'template-workout-1',
                     support_prescription: null,
+                    support_session_template_id: null,
                     family: 'mon_8x500',
                     role: 'primary',
                     source: 'erg',
@@ -189,6 +234,7 @@ describe('trainingBlockService builders', () => {
                     planned_rwn: '4500m',
                     workout_template_id: null,
                     support_prescription: null,
+                    support_session_template_id: null,
                     family: 'flush_standard_4to5k',
                     role: 'supplemental',
                     source: 'erg',
@@ -217,9 +263,13 @@ describe('trainingBlockService builders', () => {
             family: 'mon_8x500',
             is_key_session: true,
         });
-        expect(plan.days[0].sessions[1].support_prescription).toMatchObject({
-            kind: 'strength',
-            title: 'Strength (pull)',
+        expect(plan.days[0].sessions[1]).toMatchObject({
+            support_session_template_id: 'support-template-pull',
+            support_prescription: {
+                kind: 'strength',
+                title: 'Strength (pull)',
+                exercises: [{ name: 'Deadlift or Romanian Deadlift', sets: 4, reps: '6-8' }],
+            },
         });
         expect(plan.days[0].sessions[2]).toMatchObject({
             title: 'Flush 4.5 km',

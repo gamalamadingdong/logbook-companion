@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { RecentWorkouts } from '../components/RecentWorkouts';
@@ -13,16 +13,20 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { SectionError } from '../components/SectionError';
 import { OnboardingWizard } from '../components/OnboardingWizard';
 import { useTrainingBlockMatchingContext } from '../hooks/useTrainingBlockMatchingContext';
-import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
+import { buildRowing12WeekPlan, ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
 import { summarizeWeekProgress } from '../utils/trainingBlockCalculations';
 import { toTrainingBlockActualLogEvent } from '../utils/trainingBlockMatching';
 import {
     formatTrainingBlockWeekRange,
     getNearestTrainingBlockDay,
     getTrainingBlockWeekDaysForDate,
-    readTrainingBlockActive,
 } from '../utils/trainingBlockStatus';
-import type { TrainingBlockActualLogEvent } from '../types/trainingBlock.types';
+import type { TrainingBlockActualLogEvent, TrainingBlockPlan } from '../types/trainingBlock.types';
+import {
+    getTrainingBlockEnrollments,
+    getTrainingBlockPlanFromDatabase,
+    type TrainingBlockEnrollmentRow,
+} from '../services/trainingBlockService';
 
 const DashboardSkeleton: React.FC = () => (
     <div className="min-h-screen bg-neutral-900 text-white p-8" aria-busy="true" role="status">
@@ -112,14 +116,77 @@ export const Dashboard: React.FC = () => {
         return 200;
     }, [userProfile, userGoals]);
 
-    const [isTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
-    const { matchingContext: trainingBlockMatchingContext } = useTrainingBlockMatchingContext(ROWING_12_WEEK_TEMPLATE);
+    const [activeTrainingBlockEnrollment, setActiveTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
+    const [trainingBlockPlan, setTrainingBlockPlan] = useState<TrainingBlockPlan | null>(null);
+    const [trainingBlockLoading, setTrainingBlockLoading] = useState(true);
     const trainingBlockNow = useMemo(() => new Date(), []);
-    const trainingBlockDay = useMemo(() => getNearestTrainingBlockDay(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
-    const trainingBlockWeekDays = useMemo(() => getTrainingBlockWeekDaysForDate(ROWING_12_WEEK_TEMPLATE, trainingBlockNow), [trainingBlockNow]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadActiveTrainingBlock = async () => {
+            setTrainingBlockLoading(true);
+
+            if (!user?.id || isGuest) {
+                setActiveTrainingBlockEnrollment(null);
+                setTrainingBlockPlan(null);
+                setTrainingBlockLoading(false);
+                return;
+            }
+
+            try {
+                const enrollments = await getTrainingBlockEnrollments(user.id);
+                const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
+
+                if (!activeEnrollment) {
+                    if (!cancelled) {
+                        setActiveTrainingBlockEnrollment(null);
+                        setTrainingBlockPlan(null);
+                    }
+                    return;
+                }
+
+                const persistedPlan = await getTrainingBlockPlanFromDatabase(
+                    activeEnrollment.template_key,
+                    activeEnrollment.start_date,
+                ).catch((error) => {
+                    console.error('Failed to load active training block plan for dashboard; falling back to static template', error);
+                    return null;
+                });
+                const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(activeEnrollment.start_date);
+
+                if (!cancelled) {
+                    setActiveTrainingBlockEnrollment(activeEnrollment);
+                    setTrainingBlockPlan(resolvedPlan);
+                }
+            } catch (error) {
+                console.error('Failed to load active training block for dashboard', error);
+                if (!cancelled) {
+                    setActiveTrainingBlockEnrollment(null);
+                    setTrainingBlockPlan(null);
+                }
+            } finally {
+                if (!cancelled) {
+                    setTrainingBlockLoading(false);
+                }
+            }
+        };
+
+        void loadActiveTrainingBlock();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id, isGuest]);
+
+    const effectiveTrainingBlockPlan = trainingBlockPlan ?? ROWING_12_WEEK_TEMPLATE;
+    const isTrainingBlockActive = Boolean(activeTrainingBlockEnrollment);
+    const { matchingContext: trainingBlockMatchingContext } = useTrainingBlockMatchingContext(effectiveTrainingBlockPlan);
+    const trainingBlockDay = useMemo(() => trainingBlockPlan ? getNearestTrainingBlockDay(trainingBlockPlan, trainingBlockNow) : null, [trainingBlockPlan, trainingBlockNow]);
+    const trainingBlockWeekDays = useMemo(() => trainingBlockPlan ? getTrainingBlockWeekDaysForDate(trainingBlockPlan, trainingBlockNow) : [], [trainingBlockPlan, trainingBlockNow]);
 
     const trainingBlockWeekSummary = useMemo(() => {
-        if (!trainingBlockDay) return null;
+        if (!trainingBlockDay || !trainingBlockPlan) return null;
         const events: TrainingBlockActualLogEvent[] = statsHistory.map((workout) => toTrainingBlockActualLogEvent({
             workout_id: String(workout.id),
             date: workout.completed_at,
@@ -133,9 +200,23 @@ export const Dashboard: React.FC = () => {
             template_id: workout.template_id ?? null,
             workout_type: workout.workout_type ?? null,
         }));
-        return summarizeWeekProgress(ROWING_12_WEEK_TEMPLATE, events, 'slot', trainingBlockMatchingContext)
+        return summarizeWeekProgress(trainingBlockPlan, events, 'slot', trainingBlockMatchingContext)
             .find((week) => week.week_number === trainingBlockDay.week_number) ?? null;
-    }, [statsHistory, trainingBlockDay, trainingBlockMatchingContext]);
+    }, [statsHistory, trainingBlockDay, trainingBlockMatchingContext, trainingBlockPlan]);
+
+    const trainingBlockDailyRecommendation = useMemo(() => {
+        if (!activeTrainingBlockEnrollment || !trainingBlockPlan) return null;
+        const today = getNearestTrainingBlockDay(trainingBlockPlan, trainingBlockNow);
+        if (!today) return null;
+        if (today.date < activeTrainingBlockEnrollment.start_date || today.date > activeTrainingBlockEnrollment.end_date) return null;
+        const sessions = today.sessions.filter((session) => session.source !== 'rest');
+        if (sessions.length === 0) return null;
+        return {
+            day: today,
+            sessions,
+            templateName: activeTrainingBlockEnrollment.template_key,
+        };
+    }, [activeTrainingBlockEnrollment, trainingBlockPlan, trainingBlockNow]);
 
     const trainingBlockCoverage = trainingBlockWeekSummary
         ? Math.min(100, Math.round(trainingBlockWeekSummary.target_coverage_ratio * 100))
@@ -255,7 +336,9 @@ export const Dashboard: React.FC = () => {
                                         {isTrainingBlockActive ? 'Active' : 'Preview'}
                                     </span>
                                 </div>
-                                {trainingBlockDay ? (
+                                {trainingBlockLoading ? (
+                                    <p className="text-sm text-neutral-400">Loading active training block...</p>
+                                ) : trainingBlockDay ? (
                                     <div>
                                         <p className="text-xl font-semibold text-white">
                                             Week {trainingBlockDay.week_number} · {formatTrainingBlockWeekRange(trainingBlockWeekDays)}
@@ -267,7 +350,7 @@ export const Dashboard: React.FC = () => {
                                         </p>
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-neutral-400">No training block selected.</p>
+                                    <p className="text-sm text-neutral-400">No active training block.</p>
                                 )}
                             </div>
                             <Link
@@ -315,6 +398,8 @@ export const Dashboard: React.FC = () => {
                                     recentWorkouts={recentWorkouts}
                                     userGoals={userGoals}
                                     userProfile={userProfile}
+                                    trainingBlockRecommendation={trainingBlockDailyRecommendation}
+                                    suppressGenericRecommendation={trainingBlockLoading}
                                 />
                             )}
                         </>
