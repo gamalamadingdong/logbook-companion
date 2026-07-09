@@ -381,6 +381,20 @@ export async function getTrainingBlockEnrollment(
     return data ?? null;
 }
 
+export async function getTrainingBlockEnrollments(userId: string): Promise<TrainingBlockEnrollmentRow[]> {
+    const { data, error } = await supabase
+        .from('training_block_enrollments')
+        .select('*')
+        .eq('user_id', userId)
+        .is('team_id', null)
+        .is('org_id', null)
+        .order('is_active', { ascending: false })
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
 export async function ensureTrainingBlockEnrollment(
     input: EnsureTrainingBlockEnrollmentInput,
 ): Promise<TrainingBlockEnrollmentRow> {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
 import { Badge } from '../components/ui';
@@ -60,7 +60,7 @@ import {
     deleteTrainingBlockLogReview,
     ensureTrainingBlockEnrollment,
     getPublishedTrainingBlockTemplates,
-    getTrainingBlockEnrollment,
+    getTrainingBlockEnrollments,
     getTrainingBlockLogReviews,
     getTrainingBlockPlanFromDatabase,
     reviewRowToOverride,
@@ -339,6 +339,19 @@ const lifecycleStatusTone: Record<TrainingBlockLifecycleStatus, BadgeVariant> = 
     paused: 'muted',
 };
 
+function getEnrollmentLifecycleStatus(
+    enrollment: TrainingBlockEnrollmentRow,
+    dateInput: string | Date = new Date(),
+): TrainingBlockLifecycleStatus {
+    if (!enrollment.is_active) {
+        return enrollment.status === 'completed' ? 'complete' : 'paused';
+    }
+
+    const today = toTrainingBlockLocalDate(dateInput);
+    if (today < enrollment.start_date) return 'preview';
+    if (today > enrollment.end_date) return 'complete';
+    return 'active';
+}
 
 function formatWeekday(date: string): string {
     const parts = localDateString(date);
@@ -641,6 +654,10 @@ export const TrainingBlock: React.FC = () => {
     const [setupSaving, setSetupSaving] = useState(false);
     const [setupError, setSetupError] = useState<string | null>(null);
     const [trainingBlockEnrollment, setTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
+    const [trainingBlockEnrollments, setTrainingBlockEnrollments] = useState<TrainingBlockEnrollmentRow[]>([]);
+    const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
+    const [resumeEnrollmentId, setResumeEnrollmentId] = useState<string | null>(null);
+    const [historyError, setHistoryError] = useState<string | null>(null);
     const { matchingContext, isLoading: linkedWorkoutTemplatesLoading } = useTrainingBlockMatchingContext(plan);
     const [reviewPersistenceMode, setReviewPersistenceMode] = useState<'loading' | 'database' | 'local'>('loading');
 
@@ -673,11 +690,12 @@ export const TrainingBlock: React.FC = () => {
 
         const loadEnrollmentAndOverrides = async () => {
             setOverridesLoaded(false);
+            setHistoryError(null);
             const fallbackPlan = buildRowing12WeekPlan();
 
-            const loadPersistedPlan = async (startDate: string) => {
+            const loadPersistedPlan = async (templateKey: TrainingBlockTemplateKey, startDate: string) => {
                 try {
-                    return await getTrainingBlockPlanFromDatabase(selectedTemplateId as TrainingBlockTemplateKey, startDate);
+                    return await getTrainingBlockPlanFromDatabase(templateKey, startDate);
                 } catch (error) {
                     console.error('Failed to load training block template rows; falling back to static template', error);
                     return null;
@@ -685,25 +703,41 @@ export const TrainingBlock: React.FC = () => {
             };
 
             if (!user?.id) {
-                const persistedPlan = await loadPersistedPlan(fallbackPlan.start_date);
+                const persistedPlan = await loadPersistedPlan(selectedTemplateId as TrainingBlockTemplateKey, fallbackPlan.start_date);
                 if (cancelled) return;
 
                 setPlan(persistedPlan ?? fallbackPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
                 setTrainingBlockEnrollment(null);
+                setTrainingBlockEnrollments([]);
                 setLogOverrides({});
                 setReviewPersistenceMode('local');
                 setOverridesLoaded(true);
                 return;
             }
 
+            setEnrollmentsLoading(true);
+
             try {
-                const enrollment = await getTrainingBlockEnrollment(user.id, selectedTemplateId as TrainingBlockTemplateKey);
+                const enrollments = await getTrainingBlockEnrollments(user.id);
+                const selectedKey = selectedTemplateId as TrainingBlockTemplateKey;
+                const selectedEnrollment = enrollments.find((entry) => entry.template_key === selectedKey) ?? null;
+                const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
+                const enrollment = selectedEnrollment ?? activeEnrollment;
+                const effectiveTemplateKey = (enrollment?.template_key ?? selectedKey) as TrainingBlockTemplateKey;
                 const planStartDate = enrollment?.start_date ?? fallbackPlan.start_date;
-                const persistedPlan = await loadPersistedPlan(planStartDate);
+                const persistedPlan = await loadPersistedPlan(effectiveTemplateKey, planStartDate);
                 const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(planStartDate);
 
                 if (cancelled) return;
+
+                setTrainingBlockEnrollments(enrollments);
+
+                if (effectiveTemplateKey !== selectedKey) {
+                    setSelectedTemplateId(effectiveTemplateKey);
+                    writeSelectedTrainingBlockTemplate(effectiveTemplateKey);
+                    setSetupTemplateKey(effectiveTemplateKey);
+                }
 
                 setPlan(resolvedPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
@@ -712,7 +746,7 @@ export const TrainingBlock: React.FC = () => {
                     setTrainingBlockEnrollment(null);
                     setTrainingBlockActive(false);
                     setSetupOpen(true);
-                    setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
+                    setSetupTemplateKey(effectiveTemplateKey);
                     setSetupStartDate(getMondaySnappedDate());
                     setLogOverrides({});
                     setReviewPersistenceMode('local');
@@ -734,9 +768,11 @@ export const TrainingBlock: React.FC = () => {
                 console.error('Failed to load training block enrollment or reviews; falling back to local overrides', error);
                 if (cancelled) return;
 
+                setHistoryError('Could not load your training block history.');
                 setPlan(fallbackPlan);
                 setPlanSource('static');
                 setTrainingBlockEnrollment(null);
+                setTrainingBlockEnrollments([]);
                 setReviewPersistenceMode('local');
 
                 if (typeof window !== 'undefined') {
@@ -751,6 +787,7 @@ export const TrainingBlock: React.FC = () => {
                 }
             } finally {
                 if (!cancelled) {
+                    setEnrollmentsLoading(false);
                     setOverridesLoaded(true);
                 }
             }
@@ -1045,6 +1082,8 @@ export const TrainingBlock: React.FC = () => {
     const selectedTemplate = availableTemplates.find((template) => template.template_key === selectedTemplateId) ?? STATIC_TEMPLATE_OPTION;
     const setupTemplate = availableTemplates.find((template) => template.template_key === setupTemplateKey) ?? selectedTemplate ?? STATIC_TEMPLATE_OPTION;
     const setupEndDate = computeTrainingBlockEndDate(setupStartDate, setupTemplate.duration_weeks);
+    const templateNameByKey = new Map(availableTemplates.map((template) => [template.template_key, template.name]));
+    const getTemplateName = (templateKey: string): string => templateNameByKey.get(templateKey as TrainingBlockTemplateKey) ?? templateKey;
     const lifecycleStatus = trainingBlockEnrollment
         ? getTrainingBlockLifecycleStatus(plan, new Date(), isTrainingBlockActive)
         : 'preview';
@@ -1122,8 +1161,9 @@ export const TrainingBlock: React.FC = () => {
             startDate: plan.start_date,
             endDate: plan.end_date,
             isActive: value,
-        }).then((enrollment) => {
+        }).then(async (enrollment) => {
             setTrainingBlockEnrollment(enrollment);
+            setTrainingBlockEnrollments(await getTrainingBlockEnrollments(user.id));
             setReviewPersistenceMode('database');
         }).catch((error) => {
             console.error('Failed to persist training block active state', error);
@@ -1136,6 +1176,65 @@ export const TrainingBlock: React.FC = () => {
         setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
         setSetupStartDate(trainingBlockEnrollment?.start_date ?? getMondaySnappedDate());
         setSetupOpen(true);
+    };
+
+    const viewTrainingBlockEnrollment = (enrollment: TrainingBlockEnrollmentRow) => {
+        setSetupOpen(false);
+        setHistoryError(null);
+        setSelectedTemplateId(enrollment.template_key);
+        writeSelectedTrainingBlockTemplate(enrollment.template_key);
+    };
+
+    const resumeTrainingBlockEnrollment = async (enrollment: TrainingBlockEnrollmentRow) => {
+        if (!user?.id) return;
+
+        setResumeEnrollmentId(enrollment.id);
+        setHistoryError(null);
+
+        try {
+            const templateKey = enrollment.template_key as TrainingBlockTemplateKey;
+            const persistedPlan = await getTrainingBlockPlanFromDatabase(templateKey, enrollment.start_date).catch((error) => {
+                console.error('Failed to load selected training block template rows while resuming; falling back to static template', error);
+                return null;
+            });
+            if (!persistedPlan && templateKey !== ROWING_12_WEEK_TEMPLATE.template_id) {
+                throw new Error(`No persisted training block template found for ${templateKey}`);
+            }
+
+            const resolvedPlan = persistedPlan ?? buildRowing12WeekPlan(enrollment.start_date);
+            const updatedEnrollment = await ensureTrainingBlockEnrollment({
+                userId: user.id,
+                templateKey,
+                templateId: enrollment.template_id,
+                startDate: enrollment.start_date,
+                endDate: enrollment.end_date,
+                isActive: true,
+            });
+            const [reviews, enrollments] = await Promise.all([
+                getTrainingBlockLogReviews(updatedEnrollment.id),
+                getTrainingBlockEnrollments(user.id),
+            ]);
+
+            setSelectedTemplateId(templateKey);
+            writeSelectedTrainingBlockTemplate(templateKey);
+            setPlan(resolvedPlan);
+            setPlanSource(persistedPlan ? 'database' : 'static');
+            setTrainingBlockEnrollment(updatedEnrollment);
+            setTrainingBlockEnrollments(enrollments);
+            setTrainingBlockActive(true);
+            writeTrainingBlockActive(true);
+            setLogOverrides(Object.fromEntries(
+                reviews.map((review) => [review.workout_log_id, reviewRowToOverride(review)]),
+            ));
+            setReviewPersistenceMode('database');
+            setSelectedDate(getDefaultPlanDate(resolvedPlan));
+            setSetupOpen(false);
+        } catch (error) {
+            console.error('Failed to resume training block enrollment', error);
+            setHistoryError('Could not resume this training block.');
+        } finally {
+            setResumeEnrollmentId(null);
+        }
     };
 
     const saveTrainingBlockSetup = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1166,13 +1265,17 @@ export const TrainingBlock: React.FC = () => {
                 endDate: resolvedPlan.end_date,
                 isActive: true,
             });
-            const reviews = await getTrainingBlockLogReviews(enrollment.id);
+            const [reviews, enrollments] = await Promise.all([
+                getTrainingBlockLogReviews(enrollment.id),
+                getTrainingBlockEnrollments(user.id),
+            ]);
 
             setSelectedTemplateId(template.template_key);
             writeSelectedTrainingBlockTemplate(template.template_key);
             setPlan(resolvedPlan);
             setPlanSource(persistedPlan ? 'database' : 'static');
             setTrainingBlockEnrollment(enrollment);
+            setTrainingBlockEnrollments(enrollments);
             setTrainingBlockActive(true);
             writeTrainingBlockActive(true);
             setLogOverrides(Object.fromEntries(
@@ -1847,6 +1950,68 @@ export const TrainingBlock: React.FC = () => {
                                 </button>
                             </div>
                         </form>
+                    </Card>
+                )}
+
+                {!isTeamContext && (trainingBlockEnrollments.length > 0 || enrollmentsLoading || historyError) && (
+                    <Card variant="outlined" className="border-neutral-800 bg-neutral-900/30">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-content-primary">Your training blocks</p>
+                                <p className="text-sm text-neutral-400 mt-1">View or resume a saved block without changing its original dates.</p>
+                            </div>
+                            {enrollmentsLoading && <p className="text-xs text-neutral-500">Loading...</p>}
+                        </div>
+                        {historyError && <p className="mt-3 text-sm text-red-300">{historyError}</p>}
+                        {trainingBlockEnrollments.length > 0 && (
+                            <div className="mt-4 divide-y divide-neutral-800 overflow-hidden rounded-lg border border-neutral-800">
+                                {trainingBlockEnrollments.map((enrollment) => {
+                                    const enrollmentLifecycle = getEnrollmentLifecycleStatus(enrollment);
+                                    const isCurrentEnrollment = trainingBlockEnrollment?.id === enrollment.id;
+                                    const isResumeSaving = resumeEnrollmentId === enrollment.id;
+
+                                    return (
+                                        <div key={enrollment.id} className="flex flex-col gap-3 bg-neutral-950/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="truncate text-sm font-medium text-white">{getTemplateName(enrollment.template_key)}</p>
+                                                    <Badge variant={lifecycleStatusTone[enrollmentLifecycle]} size="sm" dot={enrollmentLifecycle === 'active'}>
+                                                        {lifecycleStatusLabel[enrollmentLifecycle]}
+                                                    </Badge>
+                                                    {isCurrentEnrollment && <span className="text-xs text-neutral-500">Current view</span>}
+                                                </div>
+                                                <p className="mt-1 text-xs text-neutral-400">
+                                                    {formatDateLabel(enrollment.start_date)} - {formatDateLabel(enrollment.end_date)}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {!isCurrentEnrollment && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => viewTrainingBlockEnrollment(enrollment)}
+                                                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:border-neutral-500 hover:text-white"
+                                                    >
+                                                        <Eye size={14} />
+                                                        View
+                                                    </button>
+                                                )}
+                                                {!enrollment.is_active && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void resumeTrainingBlockEnrollment(enrollment)}
+                                                        disabled={Boolean(resumeEnrollmentId)}
+                                                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    >
+                                                        <Power size={14} />
+                                                        {isResumeSaving ? 'Resuming...' : 'Resume'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </Card>
                 )}
 
