@@ -13,6 +13,7 @@ import {
     Users,
     FilePlus,
     Link as LinkIcon,
+    Dumbbell,
     Search,
 } from 'lucide-react';
 
@@ -78,7 +79,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
                             <PaletteItem icon={Home} label="Dashboard" onSelect={() => go('/')} />
                             <PaletteItem icon={TrendingUp} label="Analytics" onSelect={() => go('/analytics')} />
                             <PaletteItem icon={Database} label="Sync Data" onSelect={() => go('/sync')} />
-                            <PaletteItem icon={Library} label="Workout Library" onSelect={() => go('/library')} />
+                            <PaletteItem icon={Library} label="Training Library" onSelect={() => go('/library')} />
+                            <PaletteItem icon={Dumbbell} label="Strength & Mobility" onSelect={() => go('/library/strength-mobility')} />
                             <PaletteItem icon={Settings} label="Preferences" onSelect={() => go('/preferences')} />
                             <PaletteItem icon={BookOpen} label="Documentation" onSelect={() => go('/docs')} />
                             {isCoach && (

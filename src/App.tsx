@@ -377,16 +377,17 @@ const AppContent: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/templates/*" element={<TemplateRedirect />} />
-          <Route path="/workout-library" element={<Navigate to="/library" replace />} />
           <Route
-            path="/support-work"
+            path="/library/strength-mobility"
             element={
               <ProtectedRoute>
                 <SupportWorkLibrary />
               </ProtectedRoute>
             }
           />
+          <Route path="/templates/*" element={<TemplateRedirect />} />
+          <Route path="/workout-library" element={<Navigate to="/library" replace />} />
+          <Route path="/support-work" element={<Navigate to="/library/strength-mobility" replace />} />
           <Route
             path="/docs"
             element={

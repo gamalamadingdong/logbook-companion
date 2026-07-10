@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Copy, Dumbbell, Edit3, Layers3, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, Button, Card, CardHeader, EmptyState, Input, Modal, Select } from '../components/ui';
+import { TrainingLibraryTabs } from '../components/TrainingLibraryTabs';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../services/supabase';
 import {
@@ -405,7 +406,7 @@ export const SupportWorkLibrary: React.FC = () => {
             setLibrary(await fetchSupportLibrary());
         } catch (err) {
             console.error('Failed to load support library', err);
-            setError('Could not load support work. Try refreshing the page.');
+            setError('Could not load strength and mobility sessions. Try refreshing the page.');
         } finally {
             setLoading(false);
         }
@@ -730,13 +731,9 @@ export const SupportWorkLibrary: React.FC = () => {
         <div className="mx-auto max-w-7xl p-4 sm:p-6">
             <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <div className="mb-2 flex items-center gap-2 text-sm text-content-muted">
-                        <Dumbbell size={16} className="text-indigo-400" />
-                        Support Library
-                    </div>
-                    <h1 className="text-2xl font-bold tracking-tight text-content-primary">Support Work</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-content-primary">Training Library</h1>
                     <p className="mt-1 max-w-3xl text-sm text-content-muted">
-                        Manage strength, core, mobility, stretching, prehab, and recovery sessions separately from rowing workout templates.
+                        Build strength, core, mobility, prehab, and recovery sessions alongside rowing workouts.
                     </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -747,6 +744,10 @@ export const SupportWorkLibrary: React.FC = () => {
                         Session
                     </Button>
                 </div>
+            </div>
+
+            <div className="mb-6">
+                <TrainingLibraryTabs activeMode="strength-mobility" />
             </div>
 
             <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -771,7 +772,7 @@ export const SupportWorkLibrary: React.FC = () => {
                             type="button"
                             onClick={() => setActiveTab('sessions')}
                             aria-pressed={activeTab === 'sessions'}
-                            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${activeTab === 'sessions' ? 'bg-surface-card text-content-primary shadow-sm' : 'text-content-muted hover:text-content-primary'}`}
+                            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card sm:flex-none ${activeTab === 'sessions' ? 'bg-surface-card text-content-primary shadow-sm' : 'text-content-muted hover:text-content-primary'}`}
                         >
                             Sessions
                         </button>
@@ -779,7 +780,7 @@ export const SupportWorkLibrary: React.FC = () => {
                             type="button"
                             onClick={() => setActiveTab('exercises')}
                             aria-pressed={activeTab === 'exercises'}
-                            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${activeTab === 'exercises' ? 'bg-surface-card text-content-primary shadow-sm' : 'text-content-muted hover:text-content-primary'}`}
+                            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card sm:flex-none ${activeTab === 'exercises' ? 'bg-surface-card text-content-primary shadow-sm' : 'text-content-muted hover:text-content-primary'}`}
                         >
                             Exercises
                         </button>
@@ -789,23 +790,23 @@ export const SupportWorkLibrary: React.FC = () => {
                         <input
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            aria-label="Search support work"
-                            placeholder="Search support work..."
-                            className="min-h-11 w-full rounded-lg border border-border bg-surface-secondary py-2 pl-10 pr-3 text-sm text-content-primary outline-none focus:border-accent-primary"
+                            aria-label="Search strength and mobility sessions"
+                            placeholder="Search strength and mobility..."
+                            className="min-h-11 w-full rounded-lg border border-border bg-surface-secondary py-2 pl-10 pr-3 text-sm text-content-primary outline-none focus:border-accent-primary focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
                         />
                     </div>
                     <select
                         value={kindFilter}
                         onChange={(event) => setKindFilter(event.target.value as 'all' | SupportKind)}
-                        aria-label="Filter support work by type"
-                        className="min-h-11 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-content-primary outline-none focus:border-accent-primary"
+                        aria-label="Filter strength and mobility by type"
+                        className="min-h-11 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-content-primary outline-none focus:border-accent-primary focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
                     >
                         <option value="all">All types</option>
                         {supportKinds.map((kind) => (
                             <option key={kind.value} value={kind.value}>{kind.label}</option>
                         ))}
                     </select>
-                    <label className="relative inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-content-primary hover:border-accent-primary sm:w-auto">
+                    <label className="relative inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3 text-sm text-content-primary hover:border-accent-primary focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 focus-within:ring-offset-surface-card sm:w-auto">
                         <input
                             type="checkbox"
                             className="sr-only peer"
@@ -847,7 +848,7 @@ export const SupportWorkLibrary: React.FC = () => {
                                     type="button"
                                     key={item}
                                     onClick={() => void toggleEquipment(item)}
-                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card ${selected ? 'border-indigo-400 bg-indigo-500/15 text-indigo-300' : 'border-border bg-surface-secondary text-content-muted'}`}
+                                    className={`min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card ${selected ? 'border-accent-coaching bg-accent-coaching text-white' : 'border-border bg-surface-secondary text-content-muted'}`}
                                     disabled={savingSupportPrefs}
                                 >
                                     {item}
@@ -872,7 +873,7 @@ export const SupportWorkLibrary: React.FC = () => {
 
             {loading ? (
                 <Card>
-                    <EmptyState title="Loading support work..." description="Fetching standard and personal support templates." />
+                    <EmptyState title="Loading strength and mobility..." description="Fetching standard and personal sessions." />
                 </Card>
             ) : activeTab === 'sessions' ? (
                 filteredTemplates.length > 0 ? (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Check, X, Edit, Filter, Plus, Trash2, Play, Library, ShieldCheck, Sparkles, FilePlus2 } from 'lucide-react';
 import { EmptyState } from '../components/ui';
+import { TrainingLibraryTabs } from '../components/TrainingLibraryTabs';
 import { fetchOwnedTemplateIds, fetchTemplates, deleteTemplate } from '../services/templateService';
 import type { WorkoutTemplateListItem, WorkoutTemplateTier } from '../types/workoutStructure.types';
 import { TemplateEditor } from '../components/TemplateEditor';
@@ -177,14 +178,15 @@ export const TemplateLibrary: React.FC = () => {
 
     return (
         <div className="p-6 max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6 flex flex-col gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Workout Library</h1>
+                    <h1 className="text-2xl font-bold text-white">Training Library</h1>
                     <p className="text-neutral-400 text-sm mt-1">
-                        Publicly browse the standard and community workout library, or propose a new workout for review.
+                        Find reusable rowing workouts and strength and mobility sessions for your training.
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <TrainingLibraryTabs activeMode="rowing" />
+                <div className="flex flex-wrap items-center gap-3">
                     {isAdmin && selectedIds.size > 0 && (
                         <button
                             onClick={handleBulkDelete}
