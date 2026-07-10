@@ -34,7 +34,55 @@ const difficulties: Array<{ value: SupportDifficulty; label: string }> = [
     { value: 'advanced', label: 'Advanced' },
 ];
 
-const ALWAYS_AVAILABLE_EQUIPMENT = new Set(['bodyweight', 'none']);
+const ALWAYS_AVAILABLE_EQUIPMENT = new Set(['bodyweight', 'none', 'wall', 'doorway']);
+
+const EQUIPMENT_ALIASES: Record<string, string[]> = {
+    dumbbell: ['dumbbells', 'light dumbbell', 'light dumbbells'],
+    dumbbells: ['dumbbell', 'light dumbbell', 'light dumbbells'],
+    'light dumbbell': ['dumbbell', 'dumbbells', 'light dumbbells'],
+    'light dumbbells': ['dumbbell', 'dumbbells', 'light dumbbell'],
+    kettlebell: ['kettlebells'],
+    kettlebells: ['kettlebell'],
+};
+
+const equipmentProfiles = [
+    {
+        label: 'Bodyweight',
+        equipment: ['bodyweight'],
+    },
+    {
+        label: 'Home weights',
+        equipment: ['bodyweight', 'band', 'bench', 'box', 'dumbbells', 'kettlebells'],
+    },
+    {
+        label: 'Full gym',
+        equipment: [
+            'ab wheel',
+            'bar',
+            'barbell',
+            'band',
+            'bench',
+            'bike',
+            'bodyweight',
+            'box',
+            'cable',
+            'doorway',
+            'dumbbells',
+            'foam roller',
+            'kettlebells',
+            'lacrosse ball',
+            'landmine',
+            'machine',
+            'pull-up bar',
+            'sled',
+            'stability ball',
+            'step',
+            'trap bar',
+            'wall',
+            'weight',
+        ],
+    },
+];
 
 type TemplateExerciseForm = {
     exerciseId: string;
@@ -94,6 +142,16 @@ function normalizeEquipmentList(values: readonly string[] | null | undefined): s
         .map((value) => normalizeEquipment(value))
         .filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
+}
+
+function expandEquipmentAliases(values: readonly string[]): string[] {
+    const expanded = new Set<string>();
+    normalizeEquipmentList(values).forEach((item) => {
+        expanded.add(item);
+        (EQUIPMENT_ALIASES[item] ?? []).forEach((alias) => expanded.add(alias));
+    });
+    ALWAYS_AVAILABLE_EQUIPMENT.forEach((item) => expanded.add(item));
+    return normalizeEquipmentList([...expanded]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -358,7 +416,7 @@ export const SupportWorkLibrary: React.FC = () => {
     }, [loadLibrary]);
 
     const persistedPreferences = parseSupportWorkPreferences(profile?.preferences);
-    const availableSet = useMemo(() => new Set([ ...new Set(['bodyweight', ...availableEquipment]) ]), [availableEquipment]);
+    const availableSet = useMemo(() => new Set(expandEquipmentAliases(availableEquipment)), [availableEquipment]);
 
     const equipmentOptions = useMemo(() => {
         const values = new Set<string>(['bodyweight']);
@@ -511,6 +569,12 @@ export const SupportWorkLibrary: React.FC = () => {
         setAvailableEquipment(nextList);
         await persistPreferences({ availableEquipment: nextList, showCompatibleOnly });
     }, [availableEquipment, persistPreferences, showCompatibleOnly]);
+
+    const applyEquipmentProfile = useCallback(async (profileEquipment: string[]) => {
+        const nextList = normalizeEquipmentList(profileEquipment);
+        setAvailableEquipment(nextList);
+        await persistPreferences({ availableEquipment: nextList, showCompatibleOnly });
+    }, [persistPreferences, showCompatibleOnly]);
 
     const canEdit = (ownerUserId: string | null): boolean => Boolean(user?.id && ownerUserId === user.id);
 
@@ -756,8 +820,25 @@ export const SupportWorkLibrary: React.FC = () => {
                 </div>
                 <div className="mt-3">
                     <p className="mb-2 text-xs text-content-muted">
-                        Select the equipment you can use. Landmine exercises can enforce strict requirements through exercise metadata.
+                        Pick a starting profile, then adjust individual equipment if needed. Compatibility uses strict requirements only for movements that truly need specific gear.
                     </p>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        {equipmentProfiles.map((profileOption) => {
+                            const selected = arraysEqual(availableEquipment, normalizeEquipmentList(profileOption.equipment));
+                            return (
+                                <Button
+                                    type="button"
+                                    key={profileOption.label}
+                                    variant={selected ? 'coaching' : 'secondary'}
+                                    size="sm"
+                                    onClick={() => void applyEquipmentProfile(profileOption.equipment)}
+                                    disabled={savingSupportPrefs}
+                                >
+                                    {profileOption.label}
+                                </Button>
+                            );
+                        })}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                         {equipmentOptions.map((item) => {
                             const selected = availableSet.has(item);
@@ -766,7 +847,7 @@ export const SupportWorkLibrary: React.FC = () => {
                                     type="button"
                                     key={item}
                                     onClick={() => void toggleEquipment(item)}
-                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${selected ? 'border-indigo-400 bg-indigo-500/15 text-indigo-300' : 'border-border bg-surface-secondary text-content-muted'}`}
+                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card ${selected ? 'border-indigo-400 bg-indigo-500/15 text-indigo-300' : 'border-border bg-surface-secondary text-content-muted'}`}
                                     disabled={savingSupportPrefs}
                                 >
                                     {item}
@@ -819,11 +900,11 @@ export const SupportWorkLibrary: React.FC = () => {
                                         <p className="mb-3 text-sm text-content-muted">{template.description}</p>
                                     )}
                                     {!item.compatible && (
-                                        <Card className="mb-3 border-amber-500/40 bg-amber-500/10">
+                                        <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
                                             <p className="text-xs text-amber-300">
                                                 <strong>Equipment mismatch:</strong> {incompatibles.length} exercise{incompatibles.length === 1 ? '' : 's'} need alternate options or equipment in profile.
                                             </p>
-                                        </Card>
+                                        </div>
                                     )}
                                     <div className="space-y-2">
                                         {item.rowCompat.map((row) => (
@@ -911,19 +992,19 @@ export const SupportWorkLibrary: React.FC = () => {
                                         : `Missing: ${entry.compatibility.missing.join(', ') || entry.compatibility.details}`}
                                 </p>
                                 {!entry.compatibility.compatible && (
-                                    <Card className="mt-2 border-amber-500/40 bg-amber-500/10 p-2">
+                                    <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2">
                                         <p className="flex items-center gap-1.5 text-xs text-amber-200">
                                             <AlertTriangle size={14} />
                                             {entry.compatibility.strict
                                                 ? 'Requires strict equipment set. Update available equipment or choose a substitute.'
-                                                : 'Try a compatible substitute from the same category:'}
+                                                : 'Suggested swaps:'}
                                         </p>
                                         {entry.alternatives.length > 0 ? (
                                             <p className="mt-1 text-xs text-amber-200">
                                                 {entry.alternatives.map((replacement) => replacement.name).join(', ')}
                                             </p>
                                         ) : null}
-                                    </Card>
+                                    </div>
                                 )}
                                 {editable && (
                                     <div className="mt-4 flex justify-end gap-2">
