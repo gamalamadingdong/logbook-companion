@@ -15,7 +15,7 @@ export interface PowerBucket {
  * Canonical formula lives in paceCalculator.ts.
  */
 export const paceToWatts = (paceVal: number): number => {
-    if (paceVal <= 0) return 0;
+    if (!Number.isFinite(paceVal) || paceVal <= 0) return 0;
     return Math.round(calculateWattsFromSplit(paceVal / 10));
 };
 
