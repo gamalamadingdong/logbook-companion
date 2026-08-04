@@ -23,6 +23,21 @@ function formatDistance(meters: number): string {
     return `${meters}m`;
 }
 
+function formatCalories(calories: number): string {
+    return `${calories}c`;
+}
+
+function formatDuration(value: number, type?: string): string {
+    if (type === 'distance') return formatDistance(value);
+    if (type === 'calories') return formatCalories(value);
+    return formatTime(value);
+}
+
+function formatOptionalDuration(value: number | undefined, type?: string): string | null {
+    if (typeof value !== 'number') return null;
+    return formatDuration(value, type);
+}
+
 function formatModalityPrefix(modality?: WorkoutStructure['modality']): string {
     if (!modality || modality === 'row') return '';
     return `${modality.charAt(0).toUpperCase()}${modality.slice(1)}: `;
@@ -135,15 +150,14 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
         const intervalStruct = structure as IntervalStructure;
         const prefix = getBlockTagPrefix(intervalStruct.work as unknown as { blockType?: BlockType });
         
-        const workBase = intervalStruct.work.type === 'distance'
-            ? `${intervalStruct.work.value}m`
-            : formatTime(intervalStruct.work.value);
+        const workBase = formatDuration(intervalStruct.work.value, intervalStruct.work.type);
         const workPart = `${workBase}${formatGuidance(intervalStruct.work)}`;
         
-        // Rest is always time-based on PM5
-        const restPart = formatTime(intervalStruct.rest.value);
+        const restPart = formatOptionalDuration(intervalStruct.rest.value, intervalStruct.rest.type);
         
-        return `${prefix}${intervalStruct.repeats}x${workPart}/${restPart}r`;
+        return restPart
+            ? `${prefix}${intervalStruct.repeats}x${workPart}/${restPart}r`
+            : `${prefix}${intervalStruct.repeats}x${workPart}`;
     }
 
     if (structure.type === 'variable') {
@@ -156,9 +170,7 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
             const stepPrefix = getBlockTagPrefix(step);
             
             if (step.type === 'work') {
-                let workStr = step.duration_type === 'distance'
-                    ? `${step.value}m`
-                    : formatTime(step.value);
+                let workStr = formatDuration(step.value, step.duration_type);
                 
                 // Only add prefix if it changed from previous block
                 if (stepPrefix && stepPrefix !== currentPrefix) {
@@ -169,20 +181,18 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
                 // Check if next step is rest to form "work/rest" pair
                 if (i + 1 < varStruct.steps.length && varStruct.steps[i + 1].type === 'rest') {
                     const restStep = varStruct.steps[i + 1];
-                    const restStr = restStep.duration_type === 'distance'
-                        ? `${restStep.value}m`
-                        : formatTime(restStep.value);
-                    parts.push(`${workStr}/${restStr}r`);
+                    const restStr = formatOptionalDuration(restStep.value, restStep.duration_type);
+                    parts.push(restStr ? `${workStr}/${restStr}r` : workStr);
                     i++; // Skip the rest step since we consumed it
                 } else {
                     parts.push(workStr);
                 }
             } else if (step.type === 'rest') {
                 // Standalone rest (not part of work/rest pair)
-                const restStr = step.duration_type === 'distance'
-                    ? `${step.value}m`
-                    : formatTime(step.value);
-                parts.push(`${restStr}r`);
+                const restStr = formatOptionalDuration(step.value, step.duration_type);
+                if (restStr) {
+                    parts.push(`${restStr}r`);
+                }
             }
         }
         

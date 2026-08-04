@@ -57,6 +57,40 @@ describe('structureToRWN', () => {
             const serialized = structureToRWN(structure!);
             expect(serialized).toBe('3x10:00/2:00r');
         });
+
+        it('serializes calorie intervals', () => {
+            const structure = {
+                type: 'interval',
+                repeats: 4,
+                work: {
+                    type: 'calories',
+                    value: 12,
+                },
+                rest: {
+                    type: 'time',
+                    value: 60,
+                },
+            };
+
+            expect(structureToRWN(structure)).toBe('4x12c/1:00r');
+        });
+
+        it('omits undefined interval rest instead of serializing it', () => {
+            const structure = {
+                type: 'interval',
+                repeats: 4,
+                work: {
+                    type: 'distance',
+                    value: 500,
+                },
+                rest: {
+                    type: 'time',
+                    value: undefined,
+                },
+            };
+
+            expect(structureToRWN(structure)).toBe('4x500m');
+        });
     });
 
     describe('variable / compound', () => {
