@@ -27,6 +27,12 @@ describe('powerBucketing', () => {
             expect(paceToWatts(-100)).toBe(0);
         });
 
+        it('returns zero for non-finite input', () => {
+            expect(paceToWatts(Number.NaN)).toBe(0);
+            expect(paceToWatts(Number.POSITIVE_INFINITY)).toBe(0);
+            expect(paceToWatts(Number.NEGATIVE_INFINITY)).toBe(0);
+        });
+
         it('rounds result to integer', () => {
             const watts = paceToWatts(1179); // 1:57.9
             expect(Number.isInteger(watts)).toBe(true);
