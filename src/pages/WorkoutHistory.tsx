@@ -10,10 +10,306 @@ import { ZONES, splitToWatts } from '../utils/zones';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 import { toast } from 'sonner';
 
+export interface WorkoutHistoryRow {
+    id: string;
+    date: string;
+    watts: number;
+    avg_split: number;
+    distance: number;
+    time: number;
+    db_id?: string;
+}
+
+export interface WorkoutHistoryStats {
+    best: number;
+    average: number;
+    trend: number;
+}
+
+export const getWorkoutHistoryStats = (history: WorkoutHistoryRow[]): WorkoutHistoryStats => {
+    const watts = history.map((row) => row.watts);
+    const totalWatts = watts.reduce((sum, value) => sum + value, 0);
+
+    return {
+        best: Math.max(...watts),
+        average: Math.round(totalWatts / history.length),
+        trend: history[0].watts - history[history.length - 1].watts,
+    };
+};
+
+interface WorkoutHistoryContentProps {
+    history: WorkoutHistoryRow[];
+    baselineWatts: number | null;
+    workoutName: string;
+    setShowTemplateLinking: React.Dispatch<React.SetStateAction<boolean>>;
+    setLoadingTemplates: React.Dispatch<React.SetStateAction<boolean>>;
+    setAvailableTemplates: React.Dispatch<React.SetStateAction<Array<{
+        id: string;
+        name: string;
+        rwn: string | null;
+        workout_type: string;
+        training_zone: string | null;
+        workout_structure: WorkoutStructure | null;
+        is_steady_state: boolean;
+        is_interval: boolean;
+        estimated_duration: number | null;
+        distance: number | null;
+    }>>>;
+}
+
+export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
+    history,
+    baselineWatts,
+    workoutName,
+    setShowTemplateLinking,
+    setLoadingTemplates,
+    setAvailableTemplates,
+}) => {
+    const stats = getWorkoutHistoryStats(history);
+
+    // Format Data for Chart (oldest to newest for left-to-right progression)
+    const chartData = [...history].reverse().map(h => ({
+        date: new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }),
+        watts: h.watts,
+        split: h.avg_split, // Seconds per 500m
+        dateObj: new Date(h.date) // For sorting if needed
+    }));
+
+    return (
+        <div className="min-h-screen bg-neutral-950 p-6 md:p-12 font-sans text-white pb-24">
+            <div className="max-w-5xl mx-auto space-y-8">
+                {/* Header */}
+                <div className="space-y-4">
+                    <Link to="/analytics" className="inline-flex items-center text-neutral-400 hover:text-white transition-colors group">
+                        <ArrowLeft size={18} className="mr-2 group-hover:-translate-x-1 transition-transform" />
+                        <span className="font-medium">Back to Analytics</span>
+                    </Link>
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white tracking-tight">
+                                History: <span className="text-emerald-500">{workoutName}</span>
+                            </h1>
+                            <p className="text-neutral-500 mt-1">
+                                {history.length} attempts
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                setShowTemplateLinking(true);
+                                setLoadingTemplates(true);
+                                try {
+                                    const { data, error } = await supabase
+                                        .from('workout_templates')
+                                        .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
+                                        .eq('workout_type', 'erg')
+                                        .order('name', { ascending: true });
+
+                                    if (error) throw error;
+                                    setAvailableTemplates(data || []);
+                                } catch (err) {
+                                    console.error('Failed to load templates:', err);
+                                } finally {
+                                    setLoadingTemplates(false);
+                                }
+                            }}
+                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                            <LinkIcon size={16} />
+                            Link Template to All
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
+                        <p className="text-sm font-medium text-neutral-400">Best</p>
+                        <p className="mt-2 text-3xl font-bold text-emerald-400">{stats.best}w</p>
+                    </div>
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
+                        <p className="text-sm font-medium text-neutral-400">Average</p>
+                        <p className="mt-2 text-3xl font-bold text-white">{stats.average}w</p>
+                    </div>
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
+                        <p className="text-sm font-medium text-neutral-400">Trend</p>
+                        <p className={`mt-2 text-3xl font-bold ${stats.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {stats.trend >= 0 ? '+' : ''}{stats.trend}w
+                        </p>
+                    </div>
+                </div>
+
+                {/* Progress Chart */}
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[400px]">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mb-6">
+                        <Activity size={18} className="text-blue-400" />
+                        Progress (Watts)
+                    </h3>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                            <XAxis
+                                dataKey="date"
+                                stroke="#525252"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+
+                            {/* Training Zone Thresholds */}
+                            {baselineWatts && ZONES.slice(0, 4).map((zone) => {
+                                const thresholdWatts = Math.round(baselineWatts * zone.maxPct);
+                                const nextZone = ZONES.find(z => z.minPct === zone.maxPct);
+                                const label = nextZone ? nextZone.id : 'Max';
+
+                                return (
+                                    <ReferenceLine
+                                        key={zone.id}
+                                        yAxisId="left"
+                                        y={thresholdWatts}
+                                        stroke={nextZone?.color || zone.color}
+                                        strokeDasharray="3 3"
+                                        strokeOpacity={0.5}
+                                    >
+                                        <Label
+                                            value={label}
+                                            position="insideTopRight"
+                                            fill={nextZone?.color || zone.color}
+                                            fontSize={10}
+                                            offset={10}
+                                        />
+                                    </ReferenceLine>
+                                );
+                            })}
+                            {/* Left Y-Axis (Watts) */}
+                            <YAxis
+                                yAxisId="left"
+                                stroke="#34d399"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                                domain={['dataMin - 10', 'auto']}
+                                label={{ value: 'Watts', angle: -90, position: 'insideLeft', fill: '#34d399', fontSize: 10 }}
+                            />
+                            {/* Right Y-Axis (Split) - Inverted so faster is "higher" visually? No, standard is clearer for dual axis usually. */}
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                stroke="#3b82f6"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                                reversed={true}
+                                domain={['dataMin - 5', 'dataMax + 5']}
+                                label={{ value: 'Split / 500m', angle: 90, position: 'insideRight', fill: '#3b82f6', fontSize: 10 }}
+                                tickFormatter={(val) => {
+                                    const m = Math.floor(val / 60);
+                                    const s = (val % 60).toFixed(0);
+                                    return `${m}:${s.padStart(2, '0')}`;
+                                }}
+                            />
+                            <Legend />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
+                                itemStyle={{ color: '#fff' }}
+                                formatter={(value: number | string | undefined, name: string | undefined) => {
+                                    if (value === undefined || value === null) return ['-', name || ''];
+                                    if (name === 'split') {
+                                        const m = Math.floor(Number(value) / 60);
+                                        const s = (Number(value) % 60).toFixed(1);
+                                        return [`${m}:${s.padStart(4, '0')}`, 'Pace'];
+                                    }
+                                    return [`${value}w`, 'Watts'];
+                                }}
+                            />
+                            <Line
+                                yAxisId="left"
+                                type="monotone"
+                                dataKey="watts"
+                                name="watts"
+                                stroke="#34d399"
+                                strokeWidth={3}
+                                dot={{ fill: '#34d399', r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                            <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="split"
+                                name="split"
+                                stroke="#60a5fa"
+                                strokeWidth={3}
+                                dot={{ fill: '#60a5fa', r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+
+                {/* List of Attempts */}
+                <div className="bg-neutral-900/30 border border-neutral-800 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
+                            <tr>
+                                <th className="p-4 pl-6">Date</th>
+                                <th className="p-4">Result</th>
+                                <th className="p-4">Watts</th>
+                                <th className="p-4">Pace</th>
+                                <th className="p-4 pr-6"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-800/50">
+                            {history.map((h) => {
+
+                                return (
+                                    <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
+                                        <td className="p-4 pl-6 text-white font-medium">
+                                            {/* Date */}
+                                            {new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </td>
+                                        <td className="p-4 text-neutral-300 font-mono">
+                                            {/* Result: Matches Detail Header format */}
+                                            {h.distance}m / {(() => {
+                                                const totalSeconds = h.time;
+                                                const m = Math.floor(totalSeconds / 60);
+                                                const s = (totalSeconds % 60).toFixed(1);
+                                                return `${m}:${s.padStart(4, '0')}`;
+                                            })()}
+                                        </td>
+                                        <td className="p-4 text-emerald-400 font-bold font-mono">
+                                            {h.watts}w
+                                        </td>
+                                        <td className="p-4 text-blue-400 font-mono">
+                                            {/* Pace: h.avg_split is in SECONDS per 500m */}
+                                            {(() => {
+                                                const val = h.avg_split || 0;
+                                                const m = Math.floor(val / 60);
+                                                const s = (val % 60).toFixed(1);
+                                                return `${m}:${s.padStart(4, '0')}`;
+                                            })()}/500m
+                                        </td>
+                                        <td className="p-4 pr-6 text-right">
+                                            <Link
+                                                to={`/workout/${h.id}`}
+                                                className="text-neutral-500 hover:text-white transition-colors text-xs border border-neutral-800 hover:border-neutral-600 rounded px-2 py-1"
+                                            >
+                                                View
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    );
+};
+
 export const WorkoutHistory: React.FC = () => {
     const { name } = useParams<{ name: string }>();
     const { user } = useAuth();
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<WorkoutHistoryRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [baselineWatts, setBaselineWatts] = useState<number | null>(null);
 
@@ -113,224 +409,16 @@ export const WorkoutHistory: React.FC = () => {
         </div>
     );
 
-    // Format Data for Chart (oldest to newest for left-to-right progression)
-    const chartData = [...history].reverse().map(h => ({
-        date: new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }),
-        watts: h.watts,
-        split: h.avg_split, // Seconds per 500m
-        dateObj: new Date(h.date) // For sorting if needed
-    }));
-
     return (
-        <div className="min-h-screen bg-neutral-950 p-6 md:p-12 font-sans text-white pb-24">
-            <div className="max-w-5xl mx-auto space-y-8">
-                {/* Header */}
-                <div className="space-y-4">
-                    <Link to="/analytics" className="inline-flex items-center text-neutral-400 hover:text-white transition-colors group">
-                        <ArrowLeft size={18} className="mr-2 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-medium">Back to Analytics</span>
-                    </Link>
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold text-white tracking-tight">
-                                History: <span className="text-emerald-500">{workoutName}</span>
-                            </h1>
-                            <p className="text-neutral-500 mt-1">
-                                {history.length} attempts
-                            </p>
-                        </div>
-                        <button
-                            onClick={async () => {
-                                setShowTemplateLinking(true);
-                                setLoadingTemplates(true);
-                                try {
-                                    const { data, error } = await supabase
-                                        .from('workout_templates')
-                                        .select('id, name, rwn, workout_type, training_zone, workout_structure, is_steady_state, is_interval, estimated_duration, distance')
-                                        .eq('workout_type', 'erg')
-                                        .order('name', { ascending: true });
-
-                                    if (error) throw error;
-                                    setAvailableTemplates(data || []);
-                                } catch (err) {
-                                    console.error('Failed to load templates:', err);
-                                } finally {
-                                    setLoadingTemplates(false);
-                                }
-                            }}
-                            className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
-                        >
-                            <LinkIcon size={16} />
-                            Link Template to All
-                        </button>
-                    </div>
-                </div>
-
-                {/* Progress Chart */}
-                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[400px]">
-                    <h3 className="text-lg font-semibold flex items-center gap-2 mb-6">
-                        <Activity size={18} className="text-blue-400" />
-                        Progress (Watts)
-                    </h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                            <XAxis
-                                dataKey="date"
-                                stroke="#525252"
-                                fontSize={12}
-                                tickLine={false}
-                                axisLine={false}
-                            />
-
-                            {/* Training Zone Thresholds */}
-                            {baselineWatts && ZONES.slice(0, 4).map((zone) => {
-                                const thresholdWatts = Math.round(baselineWatts * zone.maxPct);
-                                const nextZone = ZONES.find(z => z.minPct === zone.maxPct);
-                                const label = nextZone ? nextZone.id : 'Max';
-
-                                return (
-                                    <ReferenceLine
-                                        key={zone.id}
-                                        yAxisId="left"
-                                        y={thresholdWatts}
-                                        stroke={nextZone?.color || zone.color}
-                                        strokeDasharray="3 3"
-                                        strokeOpacity={0.5}
-                                    >
-                                        <Label
-                                            value={label}
-                                            position="insideTopRight"
-                                            fill={nextZone?.color || zone.color}
-                                            fontSize={10}
-                                            offset={10}
-                                        />
-                                    </ReferenceLine>
-                                );
-                            })}
-                            {/* Left Y-Axis (Watts) */}
-                            <YAxis
-                                yAxisId="left"
-                                stroke="#34d399"
-                                fontSize={12}
-                                tickLine={false}
-                                axisLine={false}
-                                domain={['dataMin - 10', 'auto']}
-                                label={{ value: 'Watts', angle: -90, position: 'insideLeft', fill: '#34d399', fontSize: 10 }}
-                            />
-                            {/* Right Y-Axis (Split) - Inverted so faster is "higher" visually? No, standard is clearer for dual axis usually. */}
-                            <YAxis
-                                yAxisId="right"
-                                orientation="right"
-                                stroke="#3b82f6"
-                                fontSize={12}
-                                tickLine={false}
-                                axisLine={false}
-                                reversed={true}
-                                domain={['dataMin - 5', 'dataMax + 5']}
-                                label={{ value: 'Split / 500m', angle: 90, position: 'insideRight', fill: '#3b82f6', fontSize: 10 }}
-                                tickFormatter={(val) => {
-                                    const m = Math.floor(val / 60);
-                                    const s = (val % 60).toFixed(0);
-                                    return `${m}:${s.padStart(2, '0')}`;
-                                }}
-                            />
-                            <Legend />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
-                                itemStyle={{ color: '#fff' }}
-                                formatter={(value: any, name: string | undefined) => {
-                                    if (value === undefined || value === null) return ['-', name || ''];
-                                    if (name === 'split') {
-                                        const m = Math.floor(Number(value) / 60);
-                                        const s = (Number(value) % 60).toFixed(1);
-                                        return [`${m}:${s.padStart(4, '0')}`, 'Pace'];
-                                    }
-                                    return [`${value}w`, 'Watts'];
-                                }}
-                            />
-                            <Line
-                                yAxisId="left"
-                                type="monotone"
-                                dataKey="watts"
-                                name="watts"
-                                stroke="#34d399"
-                                strokeWidth={3}
-                                dot={{ fill: '#34d399', r: 4 }}
-                                activeDot={{ r: 6 }}
-                            />
-                            <Line
-                                yAxisId="right"
-                                type="monotone"
-                                dataKey="split"
-                                name="split"
-                                stroke="#60a5fa"
-                                strokeWidth={3}
-                                dot={{ fill: '#60a5fa', r: 4 }}
-                                activeDot={{ r: 6 }}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* List of Attempts */}
-                <div className="bg-neutral-900/30 border border-neutral-800 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
-                            <tr>
-                                <th className="p-4 pl-6">Date</th>
-                                <th className="p-4">Result</th>
-                                <th className="p-4">Watts</th>
-                                <th className="p-4">Pace</th>
-                                <th className="p-4 pr-6"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-800/50">
-                            {history.map((h) => {
-
-                                return (
-                                    <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
-                                        <td className="p-4 pl-6 text-white font-medium">
-                                            {/* Date */}
-                                            {new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </td>
-                                        <td className="p-4 text-neutral-300 font-mono">
-                                            {/* Result: Matches Detail Header format */}
-                                            {h.distance}m / {(() => {
-                                                const totalSeconds = h.time;
-                                                const m = Math.floor(totalSeconds / 60);
-                                                const s = (totalSeconds % 60).toFixed(1);
-                                                return `${m}:${s.padStart(4, '0')}`;
-                                            })()}
-                                        </td>
-                                        <td className="p-4 text-emerald-400 font-bold font-mono">
-                                            {h.watts}w
-                                        </td>
-                                        <td className="p-4 text-blue-400 font-mono">
-                                            {/* Pace: h.avg_split is in SECONDS per 500m */}
-                                            {(() => {
-                                                const val = h.avg_split || 0;
-                                                const m = Math.floor(val / 60);
-                                                const s = (val % 60).toFixed(1);
-                                                return `${m}:${s.padStart(4, '0')}`;
-                                            })()}/500m
-                                        </td>
-                                        <td className="p-4 pr-6 text-right">
-                                            <Link
-                                                to={`/workout/${h.id}`}
-                                                className="text-neutral-500 hover:text-white transition-colors text-xs border border-neutral-800 hover:border-neutral-600 rounded px-2 py-1"
-                                            >
-                                                View
-                                            </Link>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-
-            </div>
+        <>
+            <WorkoutHistoryContent
+                history={history}
+                baselineWatts={baselineWatts}
+                workoutName={workoutName}
+                setShowTemplateLinking={setShowTemplateLinking}
+                setLoadingTemplates={setLoadingTemplates}
+                setAvailableTemplates={setAvailableTemplates}
+            />
 
             {/* Template Linking Modal */}
             {showTemplateLinking && (
@@ -476,6 +564,6 @@ export const WorkoutHistory: React.FC = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 };
