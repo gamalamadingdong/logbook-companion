@@ -73,8 +73,9 @@ export function calculateSplitFromWatts(watts: number): number {
  * Format split time in MM:SS.s format
  */
 export function formatSplit(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = (seconds % 60).toFixed(1);
+    const roundedSeconds = Math.round(seconds * 10) / 10;
+    const mins = Math.floor(roundedSeconds / 60);
+    const secs = (roundedSeconds - mins * 60).toFixed(1);
     return `${mins}:${secs.padStart(4, '0')}`;
 }
 
