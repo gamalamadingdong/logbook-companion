@@ -79,6 +79,11 @@ describe('paceCalculator', () => {
             expect(formatSplit(120)).toBe('2:00.0');
         });
 
+        it('carries rollover into minutes when fractional seconds round to the next minute', () => {
+            expect(formatSplit(59.98)).toBe('1:00.0');
+            expect(formatSplit(119.98)).toBe('2:00.0');
+        });
+
         it('formats 105.5 seconds as 1:45.5', () => {
             expect(formatSplit(105.5)).toBe('1:45.5');
         });
