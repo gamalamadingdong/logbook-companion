@@ -121,6 +121,9 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
         if (steadyStruct.unit === 'meters') {
             const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
             base = `${prefix}${steadyStruct.value}m${zone}${formatGuidance(steadyStruct)}`;
+        } else if (steadyStruct.unit === 'calories') {
+            const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
+            base = `${prefix}${formatCalories(steadyStruct.value)}${zone}${formatGuidance(steadyStruct)}`;
         } else {
             const zone = steadyStruct.zone ? `@${steadyStruct.zone}` : '';
             base = `${prefix}${formatTime(steadyStruct.value)}${zone}${formatGuidance(steadyStruct)}`;
@@ -170,7 +173,7 @@ function structureToCoreRWN(structure: WorkoutStructure): string {
             const stepPrefix = getBlockTagPrefix(step);
             
             if (step.type === 'work') {
-                let workStr = formatDuration(step.value, step.duration_type);
+                let workStr = `${formatDuration(step.value, step.duration_type)}${formatGuidance(step)}`;
                 
                 // Only add prefix if it changed from previous block
                 if (stepPrefix && stepPrefix !== currentPrefix) {

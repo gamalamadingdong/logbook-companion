@@ -2,6 +2,40 @@ import { describe, it, expect } from 'vitest';
 import { parseRWN } from '../parser';
 import { structureToRWN } from '../serializer';
 
+const specSectionThreeAndFourExamples = [
+    '2000m',
+    '5k',
+    '5km',
+    '30:00',
+    '300cal',
+    '4x2000m/...r',
+    '10x500m/...r',
+    '(2000m + 1000m + 500m) / 3:00r',
+    '30:00@r20',
+    '8x500m/1:00r@r32',
+    '60:00@18..22spm',
+    '4x2000m/5:00r@r24..28',
+    '20:00@22-24spm',
+    '2000m@1:45',
+    '10x500m@2k/3:00r',
+    '5000m@2k+10',
+    '4x1000m/3:30r@1:50',
+    '60:00@2:05..2:10',
+    '8x500m@1:48..1:52/3:00r',
+    '8x500m@2k-1..2k-5/3:00r',
+    '60:00@2:05-2:10',
+    '3x20:00/2:00r@UT2',
+    '10x1:00/1:00r@AN',
+    '0:30@open',
+    '500m@open',
+    '10x(2:30@r24..26 + 0:30@open)/30sr',
+    '30:00@UT2@r20',
+    '5000m@2k+5@r28',
+    '8x500m/1:00r@1:50@r32',
+    '60:00@r18..22@UT2',
+    '4x2000m/5:00r@2k@r24..28',
+] as const;
+
 /**
  * Round-trip tests: parse → serialize → parse
  * The serialized output should re-parse to an equivalent structure.
@@ -148,6 +182,18 @@ describe('structureToRWN', () => {
                     expect(structure2!.value).toBe(structure1!.value);
                     expect(structure2!.unit).toBe(structure1!.unit);
                 }
+            });
+        }
+    });
+
+    describe('spec examples round-trip', () => {
+        for (const rwn of specSectionThreeAndFourExamples) {
+            it(`round-trips "${rwn}" from RWN_spec sections 3-4`, () => {
+                const parsed = parseRWN(rwn);
+                expect(parsed).not.toBeNull();
+
+                const roundTripped = parseRWN(structureToRWN(parsed!));
+                expect(roundTripped).toEqual(parsed);
             });
         }
     });
