@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { EmptyState } from '../components/ui';
-import { WorkoutHistoryContent, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
+import { WorkoutHistoryContent, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
 
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -58,7 +58,99 @@ describe('getWorkoutHistoryStats', () => {
   });
 });
 
+describe('getWorkoutHistoryPbAttemptId', () => {
+  it('returns the highest-watts attempt id', () => {
+    expect(getWorkoutHistoryPbAttemptId(sampleHistory)).toBe('latest');
+  });
+
+  it('breaks watts ties by the most recent attempt date', () => {
+    const tiedHistory: WorkoutHistoryRow[] = [
+      { id: 'most-recent-pb', date: '2026-08-03T00:00:00.000Z', watts: 310, avg_split: 108.1, distance: 2000, time: 433.7 },
+      { id: 'older-max', date: '2026-08-02T00:00:00.000Z', watts: 310, avg_split: 108.8, distance: 2000, time: 436.0 },
+      { id: 'lower', date: '2026-08-01T00:00:00.000Z', watts: 295, avg_split: 110.5, distance: 2000, time: 439.1 },
+    ];
+
+    expect(getWorkoutHistoryPbAttemptId(tiedHistory)).toBe('most-recent-pb');
+  });
+
+  it('returns the only attempt id for a single-attempt history', () => {
+    const singleAttemptHistory: WorkoutHistoryRow[] = [
+      { id: 'only', date: '2026-08-03T00:00:00.000Z', watts: 305, avg_split: 109.2, distance: 2000, time: 437.5 },
+    ];
+
+    expect(getWorkoutHistoryPbAttemptId(singleAttemptHistory)).toBe('only');
+  });
+});
+
 describe('WorkoutHistoryContent', () => {
+  it('shows a PB badge on the single highest-watts attempt row only', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={sampleHistory}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('310w');
+    expect(markup).toContain('PB');
+    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup.indexOf('310w')).toBeLessThan(markup.indexOf('PB'));
+  });
+
+  it('breaks watts ties by marking only the most recent max-watts attempt as PB', () => {
+    const tiedHistory: WorkoutHistoryRow[] = [
+      { id: 'most-recent-pb', date: '2026-08-03T00:00:00.000Z', watts: 310, avg_split: 108.1, distance: 2000, time: 433.7 },
+      { id: 'older-max', date: '2026-08-02T00:00:00.000Z', watts: 310, avg_split: 108.8, distance: 2000, time: 436.0 },
+      { id: 'lower', date: '2026-08-01T00:00:00.000Z', watts: 295, avg_split: 110.5, distance: 2000, time: 439.1 },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={tiedHistory}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup).toContain('310w');
+    expect(markup.indexOf('310w')).toBeLessThan(markup.indexOf('PB'));
+  });
+
+  it('marks the only attempt as PB in a single-attempt history', () => {
+    const singleAttemptHistory: WorkoutHistoryRow[] = [
+      { id: 'only', date: '2026-08-03T00:00:00.000Z', watts: 305, avg_split: 109.2, distance: 2000, time: 437.5 },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={singleAttemptHistory}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('305w');
+    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup.indexOf('305w')).toBeLessThan(markup.indexOf('PB'));
+  });
+
   it('renders the stat tiles before the progress chart', () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>

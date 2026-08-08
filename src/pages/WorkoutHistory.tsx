@@ -26,6 +26,24 @@ export interface WorkoutHistoryStats {
     trend: number;
 }
 
+export const getWorkoutHistoryPbAttemptId = (history: WorkoutHistoryRow[]): string | null => {
+    if (history.length === 0) {
+        return null;
+    }
+
+    return history.reduce((bestRow, row) => {
+        if (row.watts > bestRow.watts) {
+            return row;
+        }
+
+        if (row.watts < bestRow.watts) {
+            return bestRow;
+        }
+
+        return new Date(row.date).getTime() > new Date(bestRow.date).getTime() ? row : bestRow;
+    }).id;
+};
+
 export const getWorkoutHistoryStats = (history: WorkoutHistoryRow[]): WorkoutHistoryStats => {
     const watts = history.map((row) => row.watts);
     const totalWatts = watts.reduce((sum, value) => sum + value, 0);
@@ -66,6 +84,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
     setAvailableTemplates,
 }) => {
     const stats = getWorkoutHistoryStats(history);
+    const pbAttemptId = getWorkoutHistoryPbAttemptId(history);
 
     // Format Data for Chart (oldest to newest for left-to-right progression)
     const chartData = [...history].reverse().map(h => ({
@@ -258,6 +277,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                         </thead>
                         <tbody className="divide-y divide-neutral-800/50">
                             {history.map((h) => {
+                                const isPersonalBest = h.id === pbAttemptId;
 
                                 return (
                                     <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
@@ -275,7 +295,14 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                                             })()}
                                         </td>
                                         <td className="p-4 text-emerald-400 font-bold font-mono">
-                                            {h.watts}w
+                                            <div className="flex items-center gap-2">
+                                                <span>{h.watts}w</span>
+                                                {isPersonalBest && (
+                                                    <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+                                                        PB
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-4 text-blue-400 font-mono">
                                             {/* Pace: h.avg_split is in SECONDS per 500m */}
