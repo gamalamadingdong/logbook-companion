@@ -176,6 +176,24 @@ describe('WorkoutHistoryContent', () => {
     expect(markup.indexOf('Trend')).toBeLessThan(markup.indexOf('Progress (Watts)'));
   });
 
+  it('renders the best and average watt paces beneath their values', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={sampleHistory}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('1:44.1/500m');
+    expect(markup).toContain('1:45.9/500m');
+  });
+
   it('leaves the empty-state copy unchanged for the no-history path', () => {
     const markup = renderToStaticMarkup(
       <div className="min-h-screen bg-neutral-950 p-12">

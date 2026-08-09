@@ -6,7 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { workoutService } from '../services/workoutService';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { ZONES, splitToWatts } from '../utils/zones';
+import { ZONES, formatSplit, splitToWatts, wattsToSplit } from '../utils/zones';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 import { toast } from 'sonner';
 
@@ -143,10 +143,12 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                     <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
                         <p className="text-sm font-medium text-neutral-400">Best</p>
                         <p className="mt-2 text-3xl font-bold text-emerald-400">{stats.best}w</p>
+                        <p className="mt-1 text-sm text-neutral-400 font-mono">{formatSplit(wattsToSplit(stats.best))}/500m</p>
                     </div>
                     <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
                         <p className="text-sm font-medium text-neutral-400">Average</p>
                         <p className="mt-2 text-3xl font-bold text-white">{stats.average}w</p>
+                        <p className="mt-1 text-sm text-neutral-400 font-mono">{formatSplit(wattsToSplit(stats.average))}/500m</p>
                     </div>
                     <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5">
                         <p className="text-sm font-medium text-neutral-400">Trend</p>
