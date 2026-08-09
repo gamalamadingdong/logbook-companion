@@ -30,3 +30,4 @@ scripts/*
 .env
 
 supabase/.temp/cli-latest
+.worktrees/
