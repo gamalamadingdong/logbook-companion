@@ -1,0 +1,24 @@
+name: Spark PR Readiness
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  spark-pr-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix packages/rwn ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run test:run
+      - run: npm --prefix packages/rwn run test
