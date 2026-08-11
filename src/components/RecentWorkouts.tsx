@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
 
 interface RecentWorkoutSummary {
@@ -24,6 +24,66 @@ interface RecentWorkoutsProps {
     onPageChange: (newPage: number) => void;
 }
 
+interface WorkoutSearchControllerOptions {
+    setQuery: (query: string) => void;
+    setSearchResults: (results: RecentWorkoutSummary[]) => void;
+    setSearching: (searching: boolean) => void;
+    focusSearchInput: () => void;
+    clearTimeout: (handle: number) => void;
+}
+
+export const createWorkoutSearchController = ({
+    setQuery,
+    setSearchResults,
+    setSearching,
+    focusSearchInput,
+    clearTimeout,
+}: WorkoutSearchControllerOptions) => {
+    let generation = 0;
+    let pendingTimer: number | undefined;
+
+    const cancelPendingTimer = () => {
+        if (pendingTimer !== undefined) {
+            clearTimeout(pendingTimer);
+            pendingTimer = undefined;
+        }
+    };
+
+    return {
+        beginSearch: () => {
+            generation += 1;
+            cancelPendingTimer();
+            return generation;
+        },
+        setPendingTimer: (handle: number) => {
+            pendingTimer = handle;
+        },
+        clearPendingTimer: (handle: number) => {
+            if (pendingTimer === handle) pendingTimer = undefined;
+        },
+        isCurrent: (searchGeneration: number) => searchGeneration === generation,
+        clearSearch: () => {
+            generation += 1;
+            cancelPendingTimer();
+            setQuery('');
+            setSearchResults([]);
+            setSearching(false);
+            focusSearchInput();
+        },
+    };
+};
+
+export const WorkoutSearchClearButton: React.FC<{ onClear: () => void }> = ({ onClear }) => (
+    <button
+        type="button"
+        onClick={onClear}
+        aria-label="Clear workout search"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+    >
+        <X size={16} aria-hidden="true" />
+    </button>
+);
+
 export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     workouts,
     isLoading = false,
@@ -34,6 +94,20 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     const [query, setQuery] = useState('');
     const [searchResults, setSearchResults] = useState<RecentWorkoutSummary[]>([]);
     const [searching, setSearching] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const searchControllerRef = useRef<ReturnType<typeof createWorkoutSearchController> | null>(null);
+
+    if (!searchControllerRef.current) {
+        searchControllerRef.current = createWorkoutSearchController({
+            setQuery,
+            setSearchResults,
+            setSearching,
+            focusSearchInput: () => searchInputRef.current?.focus(),
+            clearTimeout: window.clearTimeout,
+        });
+    }
+
+    const searchController = searchControllerRef.current;
 
     useEffect(() => {
         const trimmed = query.trim();
@@ -43,21 +117,30 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
             return;
         }
 
+        const searchGeneration = searchController.beginSearch();
         const handle = window.setTimeout(async () => {
+            searchController.clearPendingTimer(handle);
             setSearching(true);
             try {
                 const results = await workoutService.searchWorkouts(trimmed);
-                setSearchResults(results as RecentWorkoutSummary[]);
+                if (searchController.isCurrent(searchGeneration)) {
+                    setSearchResults(results as RecentWorkoutSummary[]);
+                }
             } catch (error) {
                 console.error('Workout search failed', error);
-                setSearchResults([]);
+                if (searchController.isCurrent(searchGeneration)) {
+                    setSearchResults([]);
+                }
             } finally {
-                setSearching(false);
+                if (searchController.isCurrent(searchGeneration)) {
+                    setSearching(false);
+                }
             }
         }, 250);
+        searchController.setPendingTimer(handle);
 
         return () => window.clearTimeout(handle);
-    }, [query]);
+    }, [query, searchController]);
 
     const searchActive = query.trim().length >= 2;
     const visibleWorkouts = useMemo(() => (searchActive ? searchResults : workouts), [searchActive, searchResults, workouts]);
@@ -93,6 +176,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
                     <input
+                        ref={searchInputRef}
                         id="recent-workout-search"
                         type="text"
                         value={query}
@@ -100,7 +184,9 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                         placeholder="Search workout history by RWN or keyword"
                         className="w-full rounded-xl border border-neutral-800 bg-neutral-950 py-3 pl-10 pr-10 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    {searching && (
+                    {query.length > 0 ? (
+                        <WorkoutSearchClearButton onClear={searchController.clearSearch} />
+                    ) : searching && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-neutral-500" size={16} />
                     )}
                 </div>
