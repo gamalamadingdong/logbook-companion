@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createWorkoutSearchController, WorkoutSearchClearButton } from './RecentWorkouts';
+import {
+    createWorkoutSearchController,
+    filterWorkoutsByActivityCategory,
+    getActivityCategory,
+    WorkoutSearchClearButton,
+} from './RecentWorkouts';
 
 describe('createWorkoutSearchController', () => {
     it('clears pending search state, refocuses the input, and invalidates an in-flight response', () => {
@@ -37,5 +42,30 @@ describe('WorkoutSearchClearButton', () => {
         expect(markup).toContain('<button');
         expect(markup).toContain('type="button"');
         expect(markup).toContain('aria-label="Clear workout search"');
+    });
+});
+
+describe('activity-category filtering', () => {
+    const workouts = [
+        { id: 'row', type: 'rower' },
+        { id: 'bike', type: 'bike' },
+        { id: 'ski', type: 'skierg' },
+        { id: 'run', type: 'run' },
+        { id: 'treadmill', type: 'treadmill' },
+    ];
+
+    it('normalizes device activity types while preserving generic types', () => {
+        expect(workouts.map(getActivityCategory)).toEqual(['Row', 'Bike', 'Ski', 'Run', 'Treadmill']);
+    });
+
+    it('filters the active search results and restores all of them', () => {
+        const activeSearchResults = [workouts[0], workouts[3], workouts[4]];
+
+        expect(filterWorkoutsByActivityCategory(activeSearchResults, 'Run')).toEqual([workouts[3]]);
+        expect(filterWorkoutsByActivityCategory(activeSearchResults, 'All')).toEqual(activeSearchResults);
+    });
+
+    it('returns an empty list when the selected category has no active results', () => {
+        expect(filterWorkoutsByActivityCategory([workouts[0]], 'Ski')).toEqual([]);
     });
 });

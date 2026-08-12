@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
+import { Button } from './ui/Button';
 
 interface RecentWorkoutSummary {
     id: number | string;
@@ -31,6 +32,27 @@ interface WorkoutSearchControllerOptions {
     focusSearchInput: () => void;
     clearTimeout: (handle: number) => void;
 }
+
+type ActivityCategory = 'All' | string;
+
+export const getActivityCategory = ({ type }: Pick<RecentWorkoutSummary, 'type'>): string => {
+    const normalizedType = type?.trim().toLowerCase() ?? '';
+    const deviceCategories: Record<string, string> = {
+        rower: 'Row',
+        bike: 'Bike',
+        skierg: 'Ski',
+    };
+
+    if (deviceCategories[normalizedType]) return deviceCategories[normalizedType];
+    return normalizedType.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+export const filterWorkoutsByActivityCategory = <T extends Pick<RecentWorkoutSummary, 'type'>>(
+    sourceWorkouts: T[],
+    category: ActivityCategory,
+): T[] => category === 'All'
+    ? sourceWorkouts
+    : sourceWorkouts.filter((workout) => getActivityCategory(workout) === category);
 
 export const createWorkoutSearchController = ({
     setQuery,
@@ -94,6 +116,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     const [query, setQuery] = useState('');
     const [searchResults, setSearchResults] = useState<RecentWorkoutSummary[]>([]);
     const [searching, setSearching] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>('All');
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchControllerRef = useRef<ReturnType<typeof createWorkoutSearchController> | null>(null);
 
@@ -143,7 +166,15 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     }, [query, searchController]);
 
     const searchActive = query.trim().length >= 2;
-    const visibleWorkouts = useMemo(() => (searchActive ? searchResults : workouts), [searchActive, searchResults, workouts]);
+    const sourceWorkouts = useMemo(() => (searchActive ? searchResults : workouts), [searchActive, searchResults, workouts]);
+    const activityCategories = useMemo(
+        () => [...new Set(sourceWorkouts.map(getActivityCategory).filter(Boolean))],
+        [sourceWorkouts],
+    );
+    const visibleWorkouts = useMemo(
+        () => filterWorkoutsByActivityCategory(sourceWorkouts, selectedCategory),
+        [sourceWorkouts, selectedCategory],
+    );
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
@@ -194,6 +225,23 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                     Search all logged workouts by canonical name, manual RWN, or workout label.
                 </p>
             </div>
+
+            {activityCategories.length > 0 && (
+                <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Filter workouts by activity category">
+                    {(['All', ...activityCategories] as ActivityCategory[]).map((category) => (
+                        <Button
+                            key={category}
+                            type="button"
+                            size="sm"
+                            variant={selectedCategory === category ? 'primary' : 'secondary'}
+                            aria-pressed={selectedCategory === category}
+                            onClick={() => setSelectedCategory(category)}
+                        >
+                            {category}
+                        </Button>
+                    ))}
+                </div>
+            )}
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -272,7 +320,11 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
 
             {visibleWorkouts.length === 0 && !isLoading && !searching && (
                 <div className="text-center py-12 text-neutral-500">
-                    {searchActive ? 'No workouts matched that search.' : 'No workouts found. Sync your logbook to get started.'}
+                    {selectedCategory !== 'All'
+                        ? `No ${selectedCategory.toLowerCase()} workouts matched this filter.`
+                        : searchActive
+                            ? 'No workouts matched that search.'
+                            : 'No workouts found. Sync your logbook to get started.'}
                 </div>
             )}
         </div >
