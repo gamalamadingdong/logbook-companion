@@ -8,6 +8,7 @@ interface RecentWorkoutSummary {
     id: number | string;
     date: string;
     distance: number;
+    durationSeconds?: number | null;
     time_formatted?: string | null;
     time?: number | null;
     type?: string | null;
@@ -53,6 +54,25 @@ export const filterWorkoutsByActivityCategory = <T extends Pick<RecentWorkoutSum
 ): T[] => category === 'All'
     ? sourceWorkouts
     : sourceWorkouts.filter((workout) => getActivityCategory(workout) === category);
+
+export const formatAveragePace = (distanceMeters?: number | null, durationSeconds?: number | null): string => {
+    if (
+        typeof distanceMeters !== 'number'
+        || !Number.isFinite(distanceMeters)
+        || distanceMeters <= 0
+        || typeof durationSeconds !== 'number'
+        || !Number.isFinite(durationSeconds)
+        || durationSeconds <= 0
+    ) {
+        return '–';
+    }
+
+    const paceTenths = Math.round((durationSeconds / distanceMeters) * 5000);
+    const minutes = Math.floor(paceTenths / 600);
+    const seconds = ((paceTenths % 600) / 10).toFixed(1).padStart(4, '0');
+
+    return `${minutes}:${seconds}/500m`;
+};
 
 export const createWorkoutSearchController = ({
     setQuery,
@@ -244,12 +264,13 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
             )}
 
             <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="w-full min-w-[760px] text-left">
                     <thead>
                         <tr className="border-b border-neutral-800 text-neutral-400 text-xs font-semibold uppercase tracking-wider">
                             <th className="pb-4 pl-4">Date</th>
                             <th className="pb-4">Distance</th>
                             <th className="pb-4">Time</th>
+                            <th className="pb-4">Average pace</th>
                             <th className="pb-4">Workout</th>
                             <th className="pb-4 pr-4 text-right">Action</th>
                         </tr>
@@ -263,6 +284,9 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 <td className="py-4 font-mono text-white text-base">{workout.distance}m</td>
                                 <td className="py-4 font-mono text-emerald-400 font-medium">
                                     {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
+                                </td>
+                                <td className="py-4 font-mono text-content-secondary font-medium whitespace-nowrap">
+                                    {formatAveragePace(workout.distance, workout.durationSeconds)}
                                 </td>
                                 <td className="py-4">
                                     <div className="flex items-center gap-3">

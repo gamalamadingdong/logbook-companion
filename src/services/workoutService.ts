@@ -316,6 +316,7 @@ export const workoutService = {
                 db_id: log.id, // Keep internal DB ID accessible
                 date: log.completed_at,
                 distance: log.distance_meters ?? 0,
+                durationSeconds,
                 time: durationSeconds ? durationSeconds * 10 : 0,
                 time_formatted: timeFormatted,
                 type: log.workout_type,
@@ -513,6 +514,10 @@ export const workoutService = {
             date: log.completed_at,
             name: log.canonical_name || log.workout_name,
             distance: log.distance_meters,
+            durationSeconds: resolveWorkoutDurationSeconds({
+                duration_seconds: log.duration_seconds,
+                duration_minutes: log.duration_minutes,
+            }),
             time_formatted: formatWorkoutDurationSeconds(log.duration_seconds, log.duration_minutes),
             manual_rwn: log.manual_rwn
         }));
