@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
+    formatAveragePace,
     getActivityCategory,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
@@ -32,6 +33,26 @@ describe('createWorkoutSearchController', () => {
         expect(clearTimeout).toHaveBeenCalledOnce();
         expect(focusSearchInput).toHaveBeenCalledOnce();
         expect(controller.isCurrent(inFlightSearch)).toBe(false);
+    });
+});
+
+describe('formatAveragePace', () => {
+    it('formats a representative average pace from numeric duration seconds and distance', () => {
+        expect(formatAveragePace(2000, 480)).toBe('2:00.0/500m');
+    });
+
+    it('preserves fractional-second average pace precision', () => {
+        expect(formatAveragePace(1000, 245.6)).toBe('2:02.8/500m');
+    });
+
+    it('returns a neutral dash when distance or duration is missing', () => {
+        expect(formatAveragePace(undefined, 480)).toBe('–');
+        expect(formatAveragePace(2000, undefined)).toBe('–');
+    });
+
+    it('returns a neutral dash when distance or duration is zero', () => {
+        expect(formatAveragePace(0, 480)).toBe('–');
+        expect(formatAveragePace(2000, 0)).toBe('–');
     });
 });
 
