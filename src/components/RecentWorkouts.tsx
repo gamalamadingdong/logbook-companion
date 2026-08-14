@@ -36,6 +36,17 @@ interface WorkoutSearchControllerOptions {
 
 type ActivityCategory = 'All' | string;
 
+interface VisibleWorkoutTotalsInput {
+    distance?: unknown;
+    time?: unknown;
+}
+
+interface VisibleWorkoutTotals {
+    count: number;
+    distance: number;
+    duration: number;
+}
+
 export const getActivityCategory = ({ type }: Pick<RecentWorkoutSummary, 'type'>): string => {
     const normalizedType = type?.trim().toLowerCase() ?? '';
     const deviceCategories: Record<string, string> = {
@@ -72,6 +83,30 @@ export const formatAveragePace = (distanceMeters?: number | null, durationSecond
     const seconds = ((paceTenths % 600) / 10).toFixed(1).padStart(4, '0');
 
     return `${minutes}:${seconds}/500m`;
+};
+
+export const calculateVisibleWorkoutTotals = (
+    visibleWorkouts: readonly VisibleWorkoutTotalsInput[],
+): VisibleWorkoutTotals => visibleWorkouts.reduce<VisibleWorkoutTotals>((totals, workout) => ({
+    count: totals.count + 1,
+    distance: totals.distance + (
+        typeof workout.distance === 'number' && Number.isFinite(workout.distance)
+            ? workout.distance
+            : 0
+    ),
+    duration: totals.duration + (
+        typeof workout.time === 'number' && Number.isFinite(workout.time)
+            ? workout.time
+            : 0
+    ),
+}), { count: 0, distance: 0, duration: 0 });
+
+const formatTotalDuration = (durationTenths: number): string => {
+    const totalSeconds = Math.floor(durationTenths / 10);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+
+    return `${minutes}:${seconds}`;
 };
 
 export const createWorkoutSearchController = ({
@@ -195,6 +230,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
         () => filterWorkoutsByActivityCategory(sourceWorkouts, selectedCategory),
         [sourceWorkouts, selectedCategory],
     );
+    const visibleWorkoutTotals = useMemo(
+        () => calculateVisibleWorkoutTotals(visibleWorkouts),
+        [visibleWorkouts],
+    );
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
@@ -262,6 +301,18 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                     ))}
                 </div>
             )}
+
+            <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-surface-secondary px-4 py-3 text-sm" aria-label="Visible workout totals">
+                <span className="text-content-secondary">
+                    <span className="font-medium text-content-primary">{visibleWorkoutTotals.count}</span> workouts
+                </span>
+                <span className="text-content-secondary">
+                    <span className="font-medium text-content-primary">{visibleWorkoutTotals.distance}m</span> total distance
+                </span>
+                <span className="text-content-secondary">
+                    <span className="font-medium text-accent-primary">{formatTotalDuration(visibleWorkoutTotals.duration)}</span> total time
+                </span>
+            </div>
 
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
