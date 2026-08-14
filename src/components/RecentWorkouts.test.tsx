@@ -1,12 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+    calculateVisibleWorkoutTotals,
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
     formatAveragePace,
     getActivityCategory,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
+
+describe('calculateVisibleWorkoutTotals', () => {
+    it('sums the count, distance, and duration for the current page of visible workouts', () => {
+        expect(calculateVisibleWorkoutTotals([
+            { distance: 2000, time: 4800 },
+            { distance: 1500, time: 3600 },
+        ])).toEqual({ count: 2, distance: 3500, duration: 8400 });
+    });
+
+    it('ignores missing and non-numeric durations without producing NaN', () => {
+        expect(calculateVisibleWorkoutTotals([
+            { distance: 2000, time: 4800 },
+            { distance: 1000, time: undefined },
+            { distance: 500, time: 'not-a-duration' },
+        ])).toEqual({ count: 3, distance: 3500, duration: 4800 });
+    });
+
+    it('uses the active search result rows as its aggregation boundary', () => {
+        const activeSearchResults = [
+            { distance: 1000, time: 2400 },
+            { distance: 500, time: 1200 },
+        ];
+
+        expect(calculateVisibleWorkoutTotals(activeSearchResults)).toEqual({
+            count: 2,
+            distance: 1500,
+            duration: 3600,
+        });
+    });
+});
 
 describe('createWorkoutSearchController', () => {
     it('clears pending search state, refocuses the input, and invalidates an in-flight response', () => {
