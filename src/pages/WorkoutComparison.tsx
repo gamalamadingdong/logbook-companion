@@ -4,6 +4,7 @@ import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search,
 import { EmptyState } from '../components/ui';
 import { workoutService } from '../services/workoutService';
 import { formatPace, formatTime } from '../utils/prDetection';
+import { parseLocalDate } from '../utils/dateUtils';
 import { DualWorkoutChart } from '../components/analytics/DualWorkoutChart';
 import type { C2Stroke } from '../api/concept2.types';
 
@@ -152,7 +153,7 @@ const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCardProps
         const paceSeconds = dist > 0 ? (time / dist) * 500 : 0;
         const pace = workout.formatted_pace || formatPace(paceSeconds);
         const watts = workout.watts || (time > 0 && dist > 0 ? Math.round(2.8 / Math.pow((time / dist) * 500 / 500, 3)) : 0);
-        const date = workout.date || workout.completed_at ? new Date(workout.date || workout.completed_at || '').toLocaleDateString() : 'Unknown';
+        const date = workout.date || workout.completed_at ? parseLocalDate(workout.date || workout.completed_at || '').toLocaleDateString() : 'Unknown';
 
         return { dist, pace, watts, date };
     }, [workout]);
@@ -389,7 +390,7 @@ export const WorkoutComparison: React.FC = () => {
                                                 >
                                                     <div className="flex flex-col">
                                                         <span className="text-white font-medium text-sm">{res.name}</span>
-                                                        <span className="text-xs text-neutral-500">{new Date(res.date).toLocaleDateString()}</span>
+                                                        <span className="text-xs text-neutral-500">{parseLocalDate(res.date).toLocaleDateString()}</span>
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <span className="text-xs font-mono text-neutral-400">{res.distance}m</span>
@@ -418,7 +419,7 @@ export const WorkoutComparison: React.FC = () => {
                                                     <div className="text-left">
                                                         <div className="text-sm font-bold text-white">Personal Best</div>
                                                         <div className="text-xs text-neutral-500">
-                                                            {similar.pr.date ? new Date(similar.pr.date).toLocaleDateString() : 'Unknown'} • {similar.pr.watts}w
+                                                            {similar.pr.date ? parseLocalDate(similar.pr.date).toLocaleDateString() : 'Unknown'} • {similar.pr.watts}w
                                                         </div>
                                                     </div>
                                                 </div>
@@ -440,7 +441,7 @@ export const WorkoutComparison: React.FC = () => {
                                                     <div className="text-left">
                                                         <div className="text-sm font-bold text-white">Previous Attempt</div>
                                                         <div className="text-xs text-neutral-500">
-                                                            {similar.previous.date ? new Date(similar.previous.date).toLocaleDateString() : 'Unknown'} • {similar.previous.watts}w
+                                                            {similar.previous.date ? parseLocalDate(similar.previous.date).toLocaleDateString() : 'Unknown'} • {similar.previous.watts}w
                                                         </div>
                                                     </div>
                                                 </div>
@@ -461,7 +462,7 @@ export const WorkoutComparison: React.FC = () => {
                                                     className="w-full flex items-center justify-between p-3 hover:bg-neutral-800 rounded-lg transition-colors text-left"
                                                 >
                                                     <span className="text-sm text-neutral-300">
-                                                        {h.date || h.completed_at ? new Date(h.date || h.completed_at || '').toLocaleDateString() : 'Unknown'}
+                                                        {h.date || h.completed_at ? parseLocalDate(h.date || h.completed_at || '').toLocaleDateString() : 'Unknown'}
                                                     </span>
                                                     <span className="text-sm font-mono text-neutral-500">{h.watts}w</span>
                                                 </button>
