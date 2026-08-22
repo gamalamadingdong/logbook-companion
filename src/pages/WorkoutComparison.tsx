@@ -64,6 +64,13 @@ interface IntervalComparisonRow {
     splitDelta: string;
 }
 
+export const METRIC_HEADINGS = {
+    watts: 'Power Overlay',
+    pace: 'Pace Overlay',
+    rate: 'Stroke Rate',
+    hr: 'Heart Rate',
+} as const;
+
 const formatSecondsDelta = (deltaSeconds: number | null) => {
     if (deltaSeconds === null || Number.isNaN(deltaSeconds)) return '-';
     if (Math.abs(deltaSeconds) < 0.05) return 'Even';
@@ -489,7 +496,7 @@ export const WorkoutComparison: React.FC = () => {
                                 {chartMetric === 'hr' ? <Heart size={18} className="text-red-500" /> :
                                     chartMetric === 'rate' ? <Activity size={18} className="text-blue-400" /> :
                                         <Zap size={18} className="text-yellow-400" />}
-                                {chartMetric === 'hr' ? 'Heart Rate' : chartMetric === 'rate' ? 'Stroke Rate' : 'Power Overlay'}
+                                {METRIC_HEADINGS[chartMetric]}
                             </h3>
 
                             {/* Metric Toggle */}
