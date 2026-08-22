@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search, Heart, Activity, GitCompare } from 'lucide-react';
+import { ArrowLeft, X, SplitSquareHorizontal, Calendar, Zap, Gauge, Trophy, Search, Heart, Activity, GitCompare } from 'lucide-react';
 import { EmptyState } from '../components/ui';
 import { workoutService } from '../services/workoutService';
 import { formatPace, formatTime } from '../utils/prDetection';
@@ -150,7 +150,7 @@ const StatBox = ({ label, value, unit, icon: Icon, color }: StatBoxProps) => (
     </div>
 );
 
-const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCardProps) => {
+export const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCardProps) => {
     // Basic stats extraction
     const stats = useMemo(() => {
         if (!workout) return null;
@@ -182,9 +182,10 @@ const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCardProps
                     <button
                         onClick={onClear}
                         className="text-neutral-600 hover:text-red-500 transition-colors p-2"
-                        title="Remove comparison"
+                        title="Remove comparison workout"
+                        aria-label="Remove comparison workout"
                     >
-                        <ArrowLeft size={16} />
+                        <X size={16} />
                     </button>
                 )}
             </div>
