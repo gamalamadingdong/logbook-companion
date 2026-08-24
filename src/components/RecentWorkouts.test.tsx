@@ -5,6 +5,7 @@ import {
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
     formatAveragePace,
+    formatWorkoutSearchSummary,
     getActivityCategory,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
@@ -36,6 +37,27 @@ describe('calculateVisibleWorkoutTotals', () => {
             distance: 1500,
             duration: 3600,
         });
+    });
+});
+
+describe('formatWorkoutSearchSummary', () => {
+    it('formats the count and summed distance for multiple matching workouts', () => {
+        expect(formatWorkoutSearchSummary([
+            { distance: 2000 },
+            { distance: 1500 },
+        ])).toBe('2 matching workouts · 3.5 km total distance');
+    });
+
+    it('recomputes the summary when the resolved result set changes', () => {
+        const firstResults = [{ distance: 1000 }, { distance: 500 }];
+        const changedResults = [{ distance: 2500 }];
+
+        expect(formatWorkoutSearchSummary(firstResults)).toBe('2 matching workouts · 1.5 km total distance');
+        expect(formatWorkoutSearchSummary(changedResults)).toBe('1 matching workout · 2.5 km total distance');
+    });
+
+    it('does not render a summary for zero results', () => {
+        expect(formatWorkoutSearchSummary([])).toBeNull();
     });
 });
 
