@@ -101,6 +101,20 @@ export const calculateVisibleWorkoutTotals = (
     ),
 }), { count: 0, distance: 0, duration: 0 });
 
+export const formatWorkoutSearchSummary = (
+    searchResults: readonly VisibleWorkoutTotalsInput[],
+): string | null => {
+    if (searchResults.length === 0) return null;
+
+    const { count, distance } = calculateVisibleWorkoutTotals(searchResults);
+    const distanceLabel = distance >= 1000
+        ? `${(distance / 1000).toFixed(1).replace(/\.0$/, '')} km`
+        : `${distance} m`;
+    const workoutLabel = count === 1 ? 'matching workout' : 'matching workouts';
+
+    return `${count} ${workoutLabel} · ${distanceLabel} total distance`;
+};
+
 const formatTotalDuration = (durationTenths: number): string => {
     const totalSeconds = Math.floor(durationTenths / 10);
     const minutes = Math.floor(totalSeconds / 60);
@@ -234,6 +248,9 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
         () => calculateVisibleWorkoutTotals(visibleWorkouts),
         [visibleWorkouts],
     );
+    const searchSummary = searchActive && !searching
+        ? formatWorkoutSearchSummary(searchResults)
+        : null;
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
@@ -313,6 +330,12 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                     <span className="font-medium text-accent-primary">{formatTotalDuration(visibleWorkoutTotals.duration)}</span> total time
                 </span>
             </div>
+
+            {searchSummary && (
+                <p className="mb-5 text-sm text-content-secondary" role="status" aria-live="polite">
+                    {searchSummary}
+                </p>
+            )}
 
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
