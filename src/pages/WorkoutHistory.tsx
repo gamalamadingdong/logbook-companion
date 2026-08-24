@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Activity, Link as LinkIcon, X, Search } from 'lucide-react';
-import { EmptyState } from '../components/ui';
+import { Button, EmptyState } from '../components/ui';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label, Legend } from 'recharts';
 import { workoutService } from '../services/workoutService';
 import { supabase } from '../services/supabase';
@@ -54,6 +54,21 @@ export const getWorkoutHistoryStats = (history: WorkoutHistoryRow[]): WorkoutHis
         trend: history[0].watts - history[history.length - 1].watts,
     };
 };
+
+export const WorkoutHistoryLoadError: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
+    <div className="min-h-screen bg-neutral-950 p-12">
+        <EmptyState
+            icon={<Activity className="w-8 h-8" />}
+            title="Unable to load workout history"
+            description="We couldn't load your workout history. Please try again."
+            action={(
+                <Button type="button" variant="secondary" size="lg" onClick={onRetry} aria-label="Retry loading workout history">
+                    Retry
+                </Button>
+            )}
+        />
+    </div>
+);
 
 interface WorkoutHistoryContentProps {
     history: WorkoutHistoryRow[];
@@ -340,6 +355,8 @@ export const WorkoutHistory: React.FC = () => {
     const { user } = useAuth();
     const [history, setHistory] = useState<WorkoutHistoryRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
     const [baselineWatts, setBaselineWatts] = useState<number | null>(null);
 
     // Bulk Template Linking State
@@ -386,11 +403,13 @@ export const WorkoutHistory: React.FC = () => {
                     workoutService.getWorkoutHistory(workoutName),
                     (async () => {
                         if (!user?.id) return null;
-                        const { data } = await supabase
+                        const { data, error } = await supabase
                             .from('user_profiles')
                             .select('benchmark_preferences')
                             .eq('user_id', user.id)
                             .single();
+
+                        if (error) throw error;
 
                         const baselineStr = data?.benchmark_preferences?.['2k']?.working_baseline;
                         if (baselineStr) {
@@ -415,18 +434,30 @@ export const WorkoutHistory: React.FC = () => {
 
                 setHistory(historyData);
                 if (profileData) setBaselineWatts(profileData);
+                setLoadError(false);
 
             } catch (err) {
                 console.error("Failed to load history or baseline", err);
+                setLoadError(true);
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, [workoutName, user?.id]);
+    }, [retryCount, workoutName, user?.id]);
 
     if (loading) return <LoadingSkeleton />;
+
+    if (loadError) return (
+        <WorkoutHistoryLoadError
+            onRetry={() => {
+                setLoading(true);
+                setLoadError(false);
+                setRetryCount((count) => count + 1);
+            }}
+        />
+    );
 
     if (history.length === 0) return (
         <div className="min-h-screen bg-neutral-950 p-12">
