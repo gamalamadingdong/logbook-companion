@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { EmptyState } from '../components/ui';
-import { WorkoutHistoryContent, WorkoutHistoryLoadError, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
+import { WorkoutHistoryContent, WorkoutHistoryLoadError, getWorkoutHistoryAttemptDeltas, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
 
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -82,6 +82,41 @@ describe('getWorkoutHistoryPbAttemptId', () => {
   });
 });
 
+describe('getWorkoutHistoryAttemptDeltas', () => {
+  it('compares each attempt to the immediately preceding chronological attempt', () => {
+    const now = new Date();
+    const history: WorkoutHistoryRow[] = [
+      { id: 'newest', date: new Date(now.getTime() - 1_000).toISOString(), watts: 310, avg_split: 108, distance: 2000, time: 434 },
+      { id: 'oldest', date: new Date(now.getTime() - 3_000).toISOString(), watts: 280, avg_split: 112, distance: 2000, time: 446 },
+      { id: 'middle', date: new Date(now.getTime() - 2_000).toISOString(), watts: 290, avg_split: 110, distance: 2000, time: 440 },
+    ];
+
+    expect(getWorkoutHistoryAttemptDeltas(history)).toEqual({
+      oldest: { baseline: true, watts: null, pace: null },
+      middle: { baseline: false, watts: 10, pace: -2 },
+      newest: { baseline: false, watts: 20, pace: -2 },
+    });
+  });
+
+  it('preserves signed regression and unchanged deltas and handles one attempt', () => {
+    const now = new Date();
+    const history: WorkoutHistoryRow[] = [
+      { id: 'later', date: new Date(now.getTime() - 1_000).toISOString(), watts: 300, avg_split: 110, distance: 2000, time: 438 },
+      { id: 'baseline', date: new Date(now.getTime() - 2_000).toISOString(), watts: 300, avg_split: 110, distance: 2000, time: 438 },
+      { id: 'single', date: now.toISOString(), watts: 300, avg_split: 110, distance: 2000, time: 438 },
+    ];
+
+    expect(getWorkoutHistoryAttemptDeltas(history)).toEqual({
+      baseline: { baseline: true, watts: null, pace: null },
+      later: { baseline: false, watts: 0, pace: 0 },
+      single: { baseline: false, watts: 0, pace: 0 },
+    });
+    expect(getWorkoutHistoryAttemptDeltas([history[2]])).toEqual({
+      single: { baseline: true, watts: null, pace: null },
+    });
+  });
+});
+
 describe('WorkoutHistoryContent', () => {
   it('renders an explicit load error with an accessible retry action', () => {
     const markup = renderToStaticMarkup(
@@ -112,6 +147,39 @@ describe('WorkoutHistoryContent', () => {
     expect(markup).toContain('PB');
     expect(markup.match(/>PB</g)?.length).toBe(1);
     expect(markup.indexOf('310w')).toBeLessThan(markup.indexOf('PB'));
+  });
+
+  it('renders baseline and accessible improvement, regression, and unchanged cues', () => {
+    const now = new Date();
+    const history: WorkoutHistoryRow[] = [
+      { id: 'improved', date: new Date(now.getTime() - 1_000).toISOString(), watts: 310, avg_split: 108, distance: 2000, time: 434 },
+      { id: 'unchanged', date: new Date(now.getTime() - 2_000).toISOString(), watts: 290, avg_split: 112, distance: 2000, time: 440 },
+      { id: 'regressed', date: new Date(now.getTime() - 3_000).toISOString(), watts: 290, avg_split: 112, distance: 2000, time: 440 },
+      { id: 'baseline', date: new Date(now.getTime() - 4_000).toISOString(), watts: 300, avg_split: 110, distance: 2000, time: 438 },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={history}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('Baseline attempt');
+    expect(markup).toContain('Improved');
+    expect(markup).toContain('Regressed');
+    expect(markup).toContain('Unchanged');
+    expect(markup).toContain('+20w');
+    expect(markup).toContain('-10w');
+    expect(markup).toContain('0w');
+    expect(markup).toContain('-4.0s/500m');
+    expect(markup).toContain('+2.0s/500m');
   });
 
   it('breaks watts ties by marking only the most recent max-watts attempt as PB', () => {

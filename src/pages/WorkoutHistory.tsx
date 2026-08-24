@@ -26,6 +26,26 @@ export interface WorkoutHistoryStats {
     trend: number;
 }
 
+export interface WorkoutHistoryAttemptDelta {
+    baseline: boolean;
+    watts: number | null;
+    pace: number | null;
+}
+
+export const getWorkoutHistoryAttemptDeltas = (history: WorkoutHistoryRow[]): Record<string, WorkoutHistoryAttemptDelta> => {
+    const chronological = history
+        .map((row, index) => ({ row, index }))
+        .sort((a, b) => new Date(a.row.date).getTime() - new Date(b.row.date).getTime() || a.index - b.index);
+
+    return chronological.reduce<Record<string, WorkoutHistoryAttemptDelta>>((deltas, { row }, index) => {
+        const previous = chronological[index - 1]?.row;
+        deltas[row.id] = previous
+            ? { baseline: false, watts: row.watts - previous.watts, pace: row.avg_split - previous.avg_split }
+            : { baseline: true, watts: null, pace: null };
+        return deltas;
+    }, {});
+};
+
 export const getWorkoutHistoryPbAttemptId = (history: WorkoutHistoryRow[]): string | null => {
     if (history.length === 0) {
         return null;
@@ -100,6 +120,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
 }) => {
     const stats = getWorkoutHistoryStats(history);
     const pbAttemptId = getWorkoutHistoryPbAttemptId(history);
+    const attemptDeltas = getWorkoutHistoryAttemptDeltas(history);
 
     // Format Data for Chart (oldest to newest for left-to-right progression)
     const chartData = [...history].reverse().map(h => ({
@@ -295,6 +316,19 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                         <tbody className="divide-y divide-neutral-800/50">
                             {history.map((h) => {
                                 const isPersonalBest = h.id === pbAttemptId;
+                                const delta = attemptDeltas[h.id];
+                                const wattsDelta = delta?.watts;
+                                const paceDelta = delta?.pace;
+                                const cue = delta?.baseline
+                                    ? 'Baseline attempt'
+                                    : wattsDelta === 0 && paceDelta === 0
+                                        ? 'Unchanged'
+                                        : wattsDelta !== null && paceDelta !== null && wattsDelta > 0 && paceDelta < 0
+                                            ? 'Improved'
+                                            : wattsDelta !== null && paceDelta !== null && wattsDelta < 0 && paceDelta > 0
+                                                ? 'Regressed'
+                                                : 'Changed';
+                                const signed = (value: number, decimals = 0) => `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
 
                                 return (
                                     <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
@@ -320,6 +354,11 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                                                     </span>
                                                 )}
                                             </div>
+                                            <span className="sr-only">
+                                                {delta?.baseline
+                                                    ? 'Baseline attempt'
+                                                    : `${cue}: ${signed(wattsDelta ?? 0)}w, ${signed(paceDelta ?? 0, 1)}s/500m`}
+                                            </span>
                                         </td>
                                         <td className="p-4 text-blue-400 font-mono">
                                             {/* Pace: h.avg_split is in SECONDS per 500m */}
@@ -329,6 +368,9 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                                                 const s = (val % 60).toFixed(1);
                                                 return `${m}:${s.padStart(4, '0')}`;
                                             })()}/500m
+                                            <span className="block text-xs text-neutral-500" aria-label={`${cue} pace and watt change`}>
+                                                {delta?.baseline ? 'Baseline attempt' : `${cue}: ${signed(wattsDelta ?? 0)}w / ${signed(paceDelta ?? 0, 1)}s/500m`}
+                                            </span>
                                         </td>
                                         <td className="p-4 pr-6 text-right">
                                             <Link
