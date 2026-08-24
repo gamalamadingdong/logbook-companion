@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { EmptyState } from '../components/ui';
-import { WorkoutHistoryContent, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
+import { WorkoutHistoryContent, WorkoutHistoryLoadError, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
 
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -83,6 +83,17 @@ describe('getWorkoutHistoryPbAttemptId', () => {
 });
 
 describe('WorkoutHistoryContent', () => {
+  it('renders an explicit load error with an accessible retry action', () => {
+    const markup = renderToStaticMarkup(
+      <WorkoutHistoryLoadError onRetry={noop} />
+    );
+
+    expect(markup).toContain('Unable to load workout history');
+    expect(markup).toContain('Please try again.');
+    expect(markup).toContain('aria-label="Retry loading workout history"');
+    expect(markup).not.toContain('No workouts found');
+  });
+
   it('shows a PB badge on the single highest-watts attempt row only', () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>
