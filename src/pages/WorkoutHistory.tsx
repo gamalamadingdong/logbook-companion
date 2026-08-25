@@ -303,7 +303,70 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
 
                 {/* List of Attempts */}
                 <div className="bg-neutral-900/30 border border-neutral-800 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left text-sm">
+                    <div className="md:hidden" aria-label="Workout attempts">
+                        <ol className="divide-y divide-neutral-800/50">
+                            {history.map((h) => {
+                                const isPersonalBest = h.id === pbAttemptId;
+                                const delta = attemptDeltas[h.id];
+                                const wattsDelta = delta?.watts;
+                                const paceDelta = delta?.pace;
+                                const cue = delta?.baseline
+                                    ? 'Baseline attempt'
+                                    : wattsDelta === 0 && paceDelta === 0
+                                        ? 'Unchanged'
+                                        : wattsDelta !== null && paceDelta !== null && wattsDelta > 0 && paceDelta < 0
+                                            ? 'Improved'
+                                            : wattsDelta !== null && paceDelta !== null && wattsDelta < 0 && paceDelta > 0
+                                                ? 'Regressed'
+                                                : 'Changed';
+                                const signed = (value: number, decimals = 0) => `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
+                                const dateLabel = new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                                const totalMinutes = Math.floor(h.time / 60);
+                                const result = `${h.distance}m / ${totalMinutes}:${(h.time % 60).toFixed(1).padStart(4, '0')}`;
+                                const paceMinutes = Math.floor((h.avg_split || 0) / 60);
+                                const pace = `${paceMinutes}:${((h.avg_split || 0) % 60).toFixed(1).padStart(4, '0')}/500m`;
+                                const change = delta?.baseline ? 'Baseline attempt' : `${cue}: ${signed(wattsDelta ?? 0)}w / ${signed(paceDelta ?? 0, 1)}s/500m`;
+
+                                return (
+                                    <li key={h.id} className="space-y-4 p-4">
+                                        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                                            <div>
+                                                <dt className="text-xs font-medium uppercase tracking-wider text-neutral-500">Date</dt>
+                                                <dd className="mt-1 text-white font-medium">{dateLabel}</dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-medium uppercase tracking-wider text-neutral-500">Result</dt>
+                                                <dd className="mt-1 text-neutral-300 font-mono">{result}</dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-medium uppercase tracking-wider text-neutral-500">Watts</dt>
+                                                <dd className="mt-1 flex items-center gap-2 text-emerald-400 font-bold font-mono">
+                                                    {h.watts}w
+                                                    {isPersonalBest && <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300">PB</span>}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-medium uppercase tracking-wider text-neutral-500">Pace</dt>
+                                                <dd className="mt-1 text-blue-400 font-mono">{pace}</dd>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <dt className="text-xs font-medium uppercase tracking-wider text-neutral-500">Status</dt>
+                                                <dd className="mt-1 text-neutral-400" aria-label={`${cue} pace and watt change`}>{change}</dd>
+                                            </div>
+                                        </dl>
+                                        <Link
+                                            to={`/workout/${h.id}`}
+                                            aria-label={`View workout from ${dateLabel}`}
+                                            className="inline-flex min-h-11 w-full items-center justify-center rounded border border-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:border-neutral-600 hover:text-white transition-colors"
+                                        >
+                                            View
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    </div>
+                    <table className="hidden w-full text-left text-sm md:table">
                         <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
                             <tr>
                                 <th className="p-4 pl-6">Date</th>
