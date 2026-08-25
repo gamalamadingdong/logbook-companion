@@ -118,6 +118,41 @@ describe('getWorkoutHistoryAttemptDeltas', () => {
 });
 
 describe('WorkoutHistoryContent', () => {
+  it('renders a labeled stacked mobile attempt list with complete values and reachable actions', () => {
+    const now = new Date();
+    const history: WorkoutHistoryRow[] = [
+      { id: 'mobile-pb', date: new Date(now.getTime() - 1_000).toISOString(), watts: 310, avg_split: 108.4, distance: 2000, time: 434.2 },
+      { id: 'mobile-baseline', date: new Date(now.getTime() - 2_000).toISOString(), watts: 280, avg_split: 112.9, distance: 2000, time: 445.6 },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <WorkoutHistoryContent
+          history={history}
+          baselineWatts={null}
+          workoutName="2k Test"
+          setShowTemplateLinking={noop}
+          setLoadingTemplates={noop}
+          setAvailableTemplates={noop}
+        />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('aria-label="Workout attempts"');
+    expect(markup).toContain('Date');
+    expect(markup).toContain('Result');
+    expect(markup).toContain('Watts');
+    expect(markup).toContain('Pace');
+    expect(markup).toContain('Status');
+    expect(markup).toContain('2000m / 7:14.2');
+    expect(markup).toContain('310w');
+    expect(markup).toContain('1:48.4/500m');
+    expect(markup).toContain('PB');
+    expect(markup).toContain('Baseline attempt');
+    expect(markup).toContain('aria-label="View workout from');
+    expect(markup.match(/aria-label="View workout from/g)?.length).toBe(2);
+  });
+
   it('renders an explicit load error with an accessible retry action', () => {
     const markup = renderToStaticMarkup(
       <WorkoutHistoryLoadError onRetry={noop} />
@@ -145,7 +180,7 @@ describe('WorkoutHistoryContent', () => {
 
     expect(markup).toContain('310w');
     expect(markup).toContain('PB');
-    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup.match(/>PB</g)?.length).toBe(2);
     expect(markup.indexOf('310w')).toBeLessThan(markup.indexOf('PB'));
   });
 
@@ -202,7 +237,7 @@ describe('WorkoutHistoryContent', () => {
       </MemoryRouter>
     );
 
-    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup.match(/>PB</g)?.length).toBe(2);
     expect(markup).toContain('310w');
     expect(markup.indexOf('310w')).toBeLessThan(markup.indexOf('PB'));
   });
@@ -226,7 +261,7 @@ describe('WorkoutHistoryContent', () => {
     );
 
     expect(markup).toContain('305w');
-    expect(markup.match(/>PB</g)?.length).toBe(1);
+    expect(markup.match(/>PB</g)?.length).toBe(2);
     expect(markup.indexOf('305w')).toBeLessThan(markup.indexOf('PB'));
   });
 
