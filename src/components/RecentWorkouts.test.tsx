@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import {
     calculateVisibleWorkoutTotals,
     createWorkoutSearchController,
@@ -7,6 +8,7 @@ import {
     formatAveragePace,
     formatWorkoutSearchSummary,
     getActivityCategory,
+    RecentWorkouts,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
 
@@ -116,6 +118,49 @@ describe('WorkoutSearchClearButton', () => {
         expect(markup).toContain('<button');
         expect(markup).toContain('type="button"');
         expect(markup).toContain('aria-label="Clear workout search"');
+    });
+});
+
+describe('RecentWorkouts responsive presentations', () => {
+    it('renders every compact mobile workout detail with the same Analyze destination as the desktop row', () => {
+        vi.stubGlobal('window', { clearTimeout: vi.fn() });
+        const workoutDate = new Date();
+        const workout = {
+            id: 'mobile-workout-1',
+            date: workoutDate.toISOString(),
+            distance: 2000,
+            time: 4800,
+            time_formatted: '8:00.0',
+            durationSeconds: 480,
+            type: 'rower',
+            name: '4 x 500m',
+            manual_rwn: '4x500m/2:00r',
+        };
+
+        const markup = renderToStaticMarkup(
+            <MemoryRouter>
+                <RecentWorkouts
+                    workouts={[workout]}
+                    currentPage={0}
+                    hasMore={false}
+                    onPageChange={vi.fn()}
+                />
+            </MemoryRouter>,
+        );
+
+        const formattedDate = workoutDate.toLocaleDateString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
+
+        expect(markup).toContain('class="space-y-3 md:hidden"');
+        expect(markup).toContain('class="hidden md:block"');
+        expect(markup).toContain(formattedDate);
+        expect(markup).toContain('2000m');
+        expect(markup).toContain('8:00.0');
+        expect(markup).toContain('4 x 500m');
+        expect(markup).toContain('RWN: 4x500m/2:00r');
+        expect(markup).toContain('href="/workout/mobile-workout-1"');
+        expect(markup.match(/href="\/workout\/mobile-workout-1"/g)).toHaveLength(2);
     });
 });
 
