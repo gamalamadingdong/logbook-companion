@@ -32,6 +32,23 @@ export interface WorkoutHistoryAttemptDelta {
     pace: number | null;
 }
 
+export type WorkoutHistoryRange = 'all' | '30d' | '90d';
+
+export const filterWorkoutHistoryByRange = (
+    history: WorkoutHistoryRow[],
+    range: WorkoutHistoryRange,
+    referenceDate: Date,
+): WorkoutHistoryRow[] => {
+    if (range === 'all') {
+        return history.filter(() => true);
+    }
+
+    const cutoff = new Date(referenceDate);
+    cutoff.setDate(cutoff.getDate() - (range === '30d' ? 30 : 90));
+
+    return history.filter((attempt) => new Date(attempt.date).getTime() >= cutoff.getTime());
+};
+
 export const getWorkoutHistoryAttemptDeltas = (history: WorkoutHistoryRow[]): Record<string, WorkoutHistoryAttemptDelta> => {
     const chronological = history
         .map((row, index) => ({ row, index }))
@@ -90,10 +107,56 @@ export const WorkoutHistoryLoadError: React.FC<{ onRetry: () => void }> = ({ onR
     </div>
 );
 
+interface WorkoutHistoryRangeControlsProps {
+    selectedRange: WorkoutHistoryRange;
+    onSelectedRangeChange: (range: WorkoutHistoryRange) => void;
+}
+
+export const WorkoutHistoryRangeControls: React.FC<WorkoutHistoryRangeControlsProps> = ({ selectedRange, onSelectedRangeChange }) => (
+    <div className="flex flex-wrap gap-2" aria-label="Workout history date range">
+        {([
+            ['all', 'All time'],
+            ['30d', 'Last 30 days'],
+            ['90d', 'Last 90 days'],
+        ] as const).map(([range, label]) => (
+            <Button
+                key={range}
+                type="button"
+                size="sm"
+                variant={selectedRange === range ? 'primary' : 'secondary'}
+                aria-pressed={selectedRange === range}
+                onClick={() => onSelectedRangeChange(range)}
+            >
+                {label}
+            </Button>
+        ))}
+    </div>
+);
+
+export const WorkoutHistorySelectedRangeEmpty: React.FC<WorkoutHistoryRangeControlsProps> = ({ selectedRange, onSelectedRangeChange }) => (
+    <div className="min-h-screen bg-neutral-950 p-6 md:p-12">
+        <div className="mx-auto max-w-5xl space-y-8">
+            <WorkoutHistoryRangeControls selectedRange={selectedRange} onSelectedRangeChange={onSelectedRangeChange} />
+            <EmptyState
+                icon={<Activity className="w-8 h-8" />}
+                title="No attempts in this date range"
+                description="Try a longer date range or view all workout attempts."
+                action={(
+                    <Button type="button" variant="secondary" size="lg" onClick={() => onSelectedRangeChange('all')}>
+                        View all time
+                    </Button>
+                )}
+            />
+        </div>
+    </div>
+);
+
 interface WorkoutHistoryContentProps {
     history: WorkoutHistoryRow[];
     baselineWatts: number | null;
     workoutName: string;
+    selectedRange?: WorkoutHistoryRange;
+    onSelectedRangeChange?: (range: WorkoutHistoryRange) => void;
     setShowTemplateLinking: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadingTemplates: React.Dispatch<React.SetStateAction<boolean>>;
     setAvailableTemplates: React.Dispatch<React.SetStateAction<Array<{
@@ -114,6 +177,8 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
     history,
     baselineWatts,
     workoutName,
+    selectedRange = 'all',
+    onSelectedRangeChange = () => undefined,
     setShowTemplateLinking,
     setLoadingTemplates,
     setAvailableTemplates,
@@ -173,6 +238,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                             Link Template to All
                         </button>
                     </div>
+                    <WorkoutHistoryRangeControls selectedRange={selectedRange} onSelectedRangeChange={onSelectedRangeChange} />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
@@ -463,6 +529,7 @@ export const WorkoutHistory: React.FC = () => {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [baselineWatts, setBaselineWatts] = useState<number | null>(null);
+    const [selectedRange, setSelectedRange] = useState<WorkoutHistoryRange>('all');
 
     // Bulk Template Linking State
     const [showTemplateLinking, setShowTemplateLinking] = useState(false);
@@ -574,12 +641,23 @@ export const WorkoutHistory: React.FC = () => {
         </div>
     );
 
+    const filteredHistory = filterWorkoutHistoryByRange(history, selectedRange, new Date());
+
+    if (filteredHistory.length === 0) return (
+        <WorkoutHistorySelectedRangeEmpty
+            selectedRange={selectedRange}
+            onSelectedRangeChange={setSelectedRange}
+        />
+    );
+
     return (
         <>
             <WorkoutHistoryContent
-                history={history}
+                history={filteredHistory}
                 baselineWatts={baselineWatts}
                 workoutName={workoutName}
+                selectedRange={selectedRange}
+                onSelectedRangeChange={setSelectedRange}
                 setShowTemplateLinking={setShowTemplateLinking}
                 setLoadingTemplates={setLoadingTemplates}
                 setAvailableTemplates={setAvailableTemplates}
