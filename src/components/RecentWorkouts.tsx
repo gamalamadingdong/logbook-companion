@@ -337,8 +337,48 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                 </p>
             )}
 
-            <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left">
+            <div className="space-y-3 md:hidden">
+                {visibleWorkouts.map((workout) => (
+                    <article
+                        key={workout.id || workout.db_id}
+                        className="rounded-xl border border-border bg-surface-secondary p-4"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-content-primary">
+                                    {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                                <p className="mt-1 text-sm text-content-secondary">{workout.name}</p>
+                                <p className="mt-1 text-xs text-content-secondary">
+                                    {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
+                                </p>
+                            </div>
+                            <Link
+                                to={`/workout/${workout.id || workout.db_id}`}
+                                className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-accent-coaching bg-accent-coaching-surface px-3 text-xs font-medium text-accent-coaching transition-colors hover:border-accent-coaching-hover hover:bg-accent-coaching hover:text-content-primary"
+                            >
+                                Analyze
+                            </Link>
+                        </div>
+                        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
+                            <div>
+                                <dt className="text-xs text-content-secondary">Distance</dt>
+                                <dd className="mt-1 font-mono text-base text-content-primary">{workout.distance}m</dd>
+                            </div>
+                            <div>
+                                <dt className="text-xs text-content-secondary">Time</dt>
+                                <dd className="mt-1 font-mono font-medium text-accent-primary">
+                                    {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
+                                </dd>
+                            </div>
+                        </dl>
+                    </article>
+                ))}
+            </div>
+
+            <div className="hidden md:block">
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left">
                     <thead>
                         <tr className="border-b border-neutral-800 text-neutral-400 text-xs font-semibold uppercase tracking-wider">
                             <th className="pb-4 pl-4">Date</th>
@@ -386,7 +426,8 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
 
             {/* Pagination Controls */}
