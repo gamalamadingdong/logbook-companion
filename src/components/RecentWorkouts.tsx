@@ -85,6 +85,25 @@ export const formatAveragePace = (distanceMeters?: number | null, durationSecond
     return `${minutes}:${seconds}/500m`;
 };
 
+const getLocalCalendarDay = (date: Date): number => Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+);
+
+export const formatRelativeWorkoutDay = (recordedDate: string, now = new Date()): string => {
+    const recorded = /^\d{4}-\d{2}-\d{2}$/.test(recordedDate)
+        ? new Date(`${recordedDate}T00:00:00`)
+        : new Date(recordedDate);
+    const daysAgo = Math.max(0, Math.floor(
+        (getLocalCalendarDay(now) - getLocalCalendarDay(recorded)) / 86_400_000,
+    ));
+
+    return daysAgo === 0
+        ? 'today'
+        : `${daysAgo} ${daysAgo === 1 ? 'day' : 'days'} ago`;
+};
+
 export const calculateVisibleWorkoutTotals = (
     visibleWorkouts: readonly VisibleWorkoutTotalsInput[],
 ): VisibleWorkoutTotals => visibleWorkouts.reduce<VisibleWorkoutTotals>((totals, workout) => ({
@@ -348,6 +367,9 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 <p className="text-sm font-medium text-content-primary">
                                     {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </p>
+                                <span className="text-xs text-content-muted">
+                                    {formatRelativeWorkoutDay(workout.date)}
+                                </span>
                                 <p className="mt-1 text-sm text-content-secondary">{workout.name}</p>
                                 <p className="mt-1 text-xs text-content-secondary">
                                     {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
@@ -393,7 +415,12 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                         {visibleWorkouts.map((workout) => (
                             <tr key={workout.id || workout.db_id} className="text-sm hover:bg-neutral-800/40 transition-colors group">
                                 <td className="py-4 pl-4 text-neutral-300 font-medium">
-                                    {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    <div>
+                                        {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                    <span className="text-xs font-normal text-content-muted">
+                                        {formatRelativeWorkoutDay(workout.date)}
+                                    </span>
                                 </td>
                                 <td className="py-4 font-mono text-white text-base">{workout.distance}m</td>
                                 <td className="py-4 font-mono text-emerald-400 font-medium">
