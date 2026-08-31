@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -2212,6 +2212,126 @@ export type Database = {
         }
         Relationships: []
       }
+      fledge_course_catalogs: {
+        Row: {
+          app_id: string
+          created_at: string
+          data: Json
+          id: string
+          owner_id: string | null
+          school_name: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          app_id: string
+          created_at?: string
+          data?: Json
+          id?: string
+          owner_id?: string | null
+          school_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Update: {
+          app_id?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          owner_id?: string | null
+          school_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      fledge_profiles: {
+        Row: {
+          app_id: string
+          created_at: string
+          data: Json
+          graduation_year: string
+          id: string
+          owner_id: string | null
+          student_name: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          app_id: string
+          created_at?: string
+          data?: Json
+          graduation_year?: string
+          id?: string
+          owner_id?: string | null
+          student_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Update: {
+          app_id?: string
+          created_at?: string
+          data?: Json
+          graduation_year?: string
+          id?: string
+          owner_id?: string | null
+          student_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      fledge_va_schools: {
+        Row: {
+          act_high: number | null
+          act_low: number | null
+          admit_rate: number | null
+          city: string
+          data: Json
+          essay_prompts: Json
+          gpa_high: number | null
+          gpa_low: number | null
+          name: string
+          sat_high: number | null
+          sat_low: number | null
+          short_name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          act_high?: number | null
+          act_low?: number | null
+          admit_rate?: number | null
+          city?: string
+          data?: Json
+          essay_prompts?: Json
+          gpa_high?: number | null
+          gpa_low?: number | null
+          name: string
+          sat_high?: number | null
+          sat_low?: number | null
+          short_name?: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          act_high?: number | null
+          act_low?: number | null
+          admit_rate?: number | null
+          city?: string
+          data?: Json
+          essay_prompts?: Json
+          gpa_high?: number | null
+          gpa_low?: number | null
+          name?: string
+          sat_high?: number | null
+          sat_low?: number | null
+          short_name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       generated_workout_candidates: {
         Row: {
           average_rating: number | null
@@ -2524,6 +2644,50 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_records: {
+        Row: {
+          achieved_at: string
+          activity: string
+          best_value: number
+          created_at: string
+          id: string
+          metric: string
+          updated_at: string
+          user_id: string
+          workout_id: string | null
+        }
+        Insert: {
+          achieved_at: string
+          activity: string
+          best_value: number
+          created_at?: string
+          id?: string
+          metric: string
+          updated_at?: string
+          user_id: string
+          workout_id?: string | null
+        }
+        Update: {
+          achieved_at?: string
+          activity?: string
+          best_value?: number
+          created_at?: string
+          id?: string
+          metric?: string
+          updated_at?: string
+          user_id?: string
+          workout_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_records_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_adaptations: {
         Row: {
           adaptation_type: string
@@ -2776,6 +2940,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      portfolio_intents: {
+        Row: {
+          actor_email: string | null
+          claimed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          kind: string
+          payload: Json
+          resolved_at: string | null
+          result: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_email?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind: string
+          payload?: Json
+          resolved_at?: string | null
+          result?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_email?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          payload?: Json
+          resolved_at?: string | null
+          result?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       sso_handoffs: {
         Row: {
