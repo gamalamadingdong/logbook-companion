@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { EmptyState } from '../components/ui';
-import { WorkoutHistoryContent, WorkoutHistoryLoadError, WorkoutHistoryRangeControls, WorkoutHistorySelectedRangeEmpty, filterWorkoutHistoryByRange, getWorkoutHistoryAttemptDeltas, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
+import { WorkoutHistoryContent, WorkoutHistoryLoadError, WorkoutHistoryRangeControls, WorkoutHistorySelectedRangeEmpty, filterWorkoutHistoryByRange, formatWorkoutHistoryDate, getWorkoutHistoryAttemptDeltas, getWorkoutHistoryPbAttemptId, getWorkoutHistoryStats, type WorkoutHistoryRow } from './WorkoutHistory';
 
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -49,6 +49,18 @@ const sampleHistory: WorkoutHistoryRow[] = [
   { id: 'middle', date: '2026-08-02T00:00:00.000Z', watts: 295, avg_split: 110.5, distance: 2000, time: 439.1 },
   { id: 'earliest', date: '2026-08-01T00:00:00.000Z', watts: 280, avg_split: 112.9, distance: 2000, time: 445.6 },
 ];
+
+describe('formatWorkoutHistoryDate', () => {
+  it('preserves a date-only value as its local calendar day', () => {
+    expect(formatWorkoutHistoryDate('2024-01-01')).toBe(new Date(2024, 0, 1).toLocaleDateString());
+  });
+
+  it('formats ISO date-time values with normal Date semantics', () => {
+    const dateTime = '2024-01-01T12:00:00.000Z';
+
+    expect(formatWorkoutHistoryDate(dateTime)).toBe(new Date(dateTime).toLocaleDateString());
+  });
+});
 
 describe('filterWorkoutHistoryByRange', () => {
   const referenceDate = new Date('2026-08-27T12:00:00.000Z');
