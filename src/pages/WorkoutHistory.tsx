@@ -26,6 +26,15 @@ export interface WorkoutHistoryStats {
     trend: number;
 }
 
+export const formatWorkoutHistoryDate = (value: string, options?: Intl.DateTimeFormatOptions): string => {
+    const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const date = dateOnlyMatch
+        ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+        : new Date(value);
+
+    return date.toLocaleDateString(undefined, options);
+};
+
 export interface WorkoutHistoryAttemptDelta {
     baseline: boolean;
     watts: number | null;
@@ -189,7 +198,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
 
     // Format Data for Chart (oldest to newest for left-to-right progression)
     const chartData = [...history].reverse().map(h => ({
-        date: new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }),
+        date: formatWorkoutHistoryDate(h.date, { month: 'short', day: 'numeric', year: '2-digit' }),
         watts: h.watts,
         split: h.avg_split, // Seconds per 500m
         dateObj: new Date(h.date) // For sorting if needed
@@ -386,7 +395,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                                                 ? 'Regressed'
                                                 : 'Changed';
                                 const signed = (value: number, decimals = 0) => `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
-                                const dateLabel = new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                                const dateLabel = formatWorkoutHistoryDate(h.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
                                 const totalMinutes = Math.floor(h.time / 60);
                                 const result = `${h.distance}m / ${totalMinutes}:${(h.time % 60).toFixed(1).padStart(4, '0')}`;
                                 const paceMinutes = Math.floor((h.avg_split || 0) / 60);
@@ -463,7 +472,7 @@ export const WorkoutHistoryContent: React.FC<WorkoutHistoryContentProps> = ({
                                     <tr key={h.id} className="hover:bg-neutral-800/40 transition-colors group">
                                         <td className="p-4 pl-6 text-white font-medium">
                                             {/* Date */}
-                                            {new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {formatWorkoutHistoryDate(h.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                         </td>
                                         <td className="p-4 text-neutral-300 font-mono">
                                             {/* Result: Matches Detail Header format */}
