@@ -6,11 +6,44 @@ import {
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
     formatAveragePace,
+    formatRelativeWorkoutDay,
     formatWorkoutSearchSummary,
     getActivityCategory,
     RecentWorkouts,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
+
+describe('formatRelativeWorkoutDay', () => {
+    it('treats a date-only value as the local calendar day', () => {
+        const now = new Date();
+        now.setHours(0, 15, 0, 0);
+        const localDateOnly = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'),
+        ].join('-');
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayDateOnly = [
+            yesterday.getFullYear(),
+            String(yesterday.getMonth() + 1).padStart(2, '0'),
+            String(yesterday.getDate()).padStart(2, '0'),
+        ].join('-');
+
+        expect(formatRelativeWorkoutDay(localDateOnly, now)).toBe('today');
+        expect(formatRelativeWorkoutDay(yesterdayDateOnly, now)).toBe('1 day ago');
+    });
+
+    it('compares timestamp calendar days without drifting across a local midnight boundary', () => {
+        const now = new Date();
+        now.setHours(0, 5, 0, 0);
+        const recordedNearMidnightDate = new Date(now);
+        recordedNearMidnightDate.setDate(now.getDate() - 1);
+        recordedNearMidnightDate.setHours(23, 55, 0, 0);
+
+        expect(formatRelativeWorkoutDay(recordedNearMidnightDate.toISOString(), now)).toBe('1 day ago');
+    });
+});
 
 describe('calculateVisibleWorkoutTotals', () => {
     it('sums the count, distance, and duration for the current page of visible workouts', () => {
@@ -155,6 +188,7 @@ describe('RecentWorkouts responsive presentations', () => {
         expect(markup).toContain('class="space-y-3 md:hidden"');
         expect(markup).toContain('class="hidden md:block"');
         expect(markup).toContain(formattedDate);
+        expect(markup.match(/>today</g)).toHaveLength(2);
         expect(markup).toContain('2000m');
         expect(markup).toContain('8:00.0');
         expect(markup).toContain('4 x 500m');
