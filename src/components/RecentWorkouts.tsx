@@ -339,7 +339,15 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
         <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6 md:p-8 backdrop-blur-sm">
             <div className="flex justify-between items-end mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-white mb-1">Recent Workouts</h2>
+                    <h2 className="text-2xl font-bold text-white mb-1">
+                        Recent Workouts{' '}
+                        <span
+                            className="text-sm font-normal text-content-muted"
+                            aria-label={`${visibleWorkouts.length} workouts shown`}
+                        >
+                            ({visibleWorkouts.length})
+                        </span>
+                    </h2>
                     <p className="text-neutral-400 text-sm">Your latest activity from the Logbook</p>
                 </div>
             </div>

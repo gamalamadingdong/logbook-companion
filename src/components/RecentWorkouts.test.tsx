@@ -223,6 +223,47 @@ describe('RecentWorkouts responsive presentations', () => {
     });
 });
 
+describe('RecentWorkouts visible workout count', () => {
+    const createWorkout = (id: string, type: string) => ({
+        id,
+        date: new Date().toISOString(),
+        distance: 2000,
+        time: 4800,
+        time_formatted: '8:00.0',
+        durationSeconds: 480,
+        type,
+        name: `${type} workout`,
+    });
+
+    const renderWorkoutList = (workouts: ReturnType<typeof createWorkout>[]) => renderToStaticMarkup(
+        <MemoryRouter>
+            <RecentWorkouts
+                workouts={workouts}
+                currentPage={0}
+                hasMore={false}
+                onPageChange={vi.fn()}
+            />
+        </MemoryRouter>,
+    );
+
+    const countDesktopRows = (markup: string) => (
+        markup.match(/<tr class="text-sm hover:bg-neutral-800\/40 transition-colors group">/g) ?? []
+    ).length;
+
+    it('keeps the heading count equal to rendered rows before and after a category filter change', () => {
+        const workouts = [createWorkout('row-1', 'rower'), createWorkout('bike-1', 'bike')];
+        const filteredWorkouts = filterWorkoutsByActivityCategory(workouts, 'Bike');
+
+        const allMarkup = renderWorkoutList(workouts);
+        const filteredMarkup = renderWorkoutList(filteredWorkouts);
+
+        expect(allMarkup).toMatch(/Recent Workouts\s*<span[^>]*>\(2\)<\/span>/);
+        expect(countDesktopRows(allMarkup)).toBe(2);
+        expect(filteredMarkup).toMatch(/Recent Workouts\s*<span[^>]*>\(1\)<\/span>/);
+        expect(countDesktopRows(filteredMarkup)).toBe(1);
+    });
+});
+
 describe('activity-category filtering', () => {
     const workouts = [
         { id: 'row', type: 'rower' },
