@@ -258,8 +258,10 @@ describe('RecentWorkouts visible workout count', () => {
         const filteredMarkup = renderWorkoutList(filteredWorkouts);
 
         expect(allMarkup).toMatch(/Recent Workouts\s*<span[^>]*>\(2\)<\/span>/);
+        expect(allMarkup).toContain('aria-label="2 workouts shown"');
         expect(countDesktopRows(allMarkup)).toBe(2);
         expect(filteredMarkup).toMatch(/Recent Workouts\s*<span[^>]*>\(1\)<\/span>/);
+        expect(filteredMarkup).toContain('aria-label="1 workouts shown"');
         expect(countDesktopRows(filteredMarkup)).toBe(1);
     });
 });
