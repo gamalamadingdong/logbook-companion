@@ -1,4 +1,14 @@
+import type { Database } from '../types/database.types'
+
 export type MetricDirection = 'higher-is-better' | 'lower-is-better'
+
+type PersonalRecordRow = Database['public']['Tables']['personal_records']['Row']
+
+export type PersonalRecordWorkout = {
+    id: string
+    activity: string
+    metric: string
+}
 
 /**
  * The result of comparing a candidate metric with the best comparable history.
@@ -49,4 +59,15 @@ export function detectPersonalRecord<T>(
         priorBest,
         delta,
     }
+}
+
+export function isPersonalRecord(
+    workout: PersonalRecordWorkout,
+    records: readonly Pick<PersonalRecordRow, 'activity' | 'metric' | 'workout_id'>[],
+): boolean {
+    return records.some(record =>
+        record.activity === workout.activity &&
+        record.metric === workout.metric &&
+        record.workout_id === workout.id,
+    )
 }

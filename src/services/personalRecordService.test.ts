@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
     getUser: vi.fn(),
     upsert: vi.fn(),
+    select: vi.fn(),
+    eq: vi.fn(),
     from: vi.fn(),
     detectPersonalRecord: vi.fn(),
 }))
@@ -16,7 +18,7 @@ vi.mock('./supabase', () => ({
 
 vi.mock('../utils/personalRecords', () => ({ detectPersonalRecord: mocks.detectPersonalRecord }))
 
-import { persistPersonalRecord } from './personalRecordService'
+import { getPersonalRecords, persistPersonalRecord, type PersonalRecordRow } from './personalRecordService'
 
 type ComparableWorkout = { watts: number }
 
@@ -106,5 +108,43 @@ describe('persistPersonalRecord', () => {
 
         expect(mocks.detectPersonalRecord).not.toHaveBeenCalled()
         expect(mocks.from).not.toHaveBeenCalled()
+    })
+})
+
+describe('getPersonalRecords', () => {
+    const records: PersonalRecordRow[] = [
+        {
+            id: 'record-123',
+            user_id: 'user-123',
+            activity: 'rowing',
+            metric: 'watts',
+            best_value: 320,
+            workout_id: 'workout-123',
+            achieved_at: '2025-01-01T00:00:00.000Z',
+            created_at: '2025-01-01T00:00:00.000Z',
+            updated_at: '2025-01-01T00:00:00.000Z',
+        },
+    ]
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.from.mockReturnValue({ select: mocks.select })
+        mocks.select.mockReturnValue({ eq: mocks.eq })
+        mocks.eq.mockResolvedValue({ data: records, error: null })
+    })
+
+    it('reads the current records for the supplied owner', async () => {
+        await expect(getPersonalRecords('user-123')).resolves.toEqual(records)
+
+        expect(mocks.from).toHaveBeenCalledWith('personal_records')
+        expect(mocks.select).toHaveBeenCalledWith('*')
+        expect(mocks.eq).toHaveBeenCalledWith('user_id', 'user-123')
+    })
+
+    it('propagates a Supabase read error', async () => {
+        const readError = new Error('Unable to read records')
+        mocks.eq.mockResolvedValue({ data: null, error: readError })
+
+        await expect(getPersonalRecords('user-123')).rejects.toBe(readError)
     })
 })

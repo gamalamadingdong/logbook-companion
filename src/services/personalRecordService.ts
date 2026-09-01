@@ -7,6 +7,7 @@ import {
 import { supabase } from './supabase'
 
 type PersonalRecordInsert = Database['public']['Tables']['personal_records']['Insert']
+export type PersonalRecordRow = Database['public']['Tables']['personal_records']['Row']
 
 export type PersistPersonalRecordInput<T> = {
     history: readonly T[]
@@ -61,4 +62,17 @@ export async function persistPersonalRecord<T>(
     }
 
     return recordResult
+}
+
+export async function getPersonalRecords(userId: string): Promise<PersonalRecordRow[]> {
+    const { data, error } = await supabase
+        .from('personal_records')
+        .select('*')
+        .eq('user_id', userId)
+
+    if (error) {
+        throw error
+    }
+
+    return data as PersonalRecordRow[]
 }

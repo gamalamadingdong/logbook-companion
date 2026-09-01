@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { detectPersonalRecord } from './personalRecords'
+import { detectPersonalRecord, isPersonalRecord } from './personalRecords'
 
 type Workout = {
     score: number
@@ -59,5 +59,44 @@ describe('detectPersonalRecord', () => {
         expect(
             detectPersonalRecord([{ score: 420 }, { score: 405 }], { score: 410 }, score, 'lower-is-better'),
         ).toEqual({ isRecord: false, priorBest: 405, delta: -5 })
+    })
+})
+
+describe('isPersonalRecord', () => {
+    const records = [
+        { activity: 'rowing', metric: 'watts', workout_id: 'workout-123' },
+    ]
+
+    it('recognizes the workout stored as the current record', () => {
+        expect(
+            isPersonalRecord(
+                { id: 'workout-123', activity: 'rowing', metric: 'watts' },
+                records,
+            ),
+        ).toBe(true)
+    })
+
+    it('does not recognize another workout in the same activity and metric', () => {
+        expect(
+            isPersonalRecord(
+                { id: 'workout-456', activity: 'rowing', metric: 'watts' },
+                records,
+            ),
+        ).toBe(false)
+    })
+
+    it('does not recognize a record from a different activity or metric', () => {
+        expect(
+            isPersonalRecord(
+                { id: 'workout-123', activity: 'cycling', metric: 'watts' },
+                records,
+            ),
+        ).toBe(false)
+        expect(
+            isPersonalRecord(
+                { id: 'workout-123', activity: 'rowing', metric: 'distance' },
+                records,
+            ),
+        ).toBe(false)
     })
 })
