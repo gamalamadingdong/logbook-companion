@@ -414,6 +414,7 @@ export const Dashboard: React.FC = () => {
                         </div>
                     ) : (
                         <RecentWorkouts
+                            userId={user?.id}
                             workouts={recentWorkouts}
                             currentPage={page}
                             isLoading={workoutsLoading}

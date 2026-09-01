@@ -3,15 +3,40 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import {
     calculateVisibleWorkoutTotals,
+    createPersonalRecordWorkoutIdSet,
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
     formatAveragePace,
     formatRelativeWorkoutDay,
     formatWorkoutSearchSummary,
     getActivityCategory,
+    loadPersonalRecordWorkoutIdSet,
     RecentWorkouts,
     WorkoutSearchClearButton,
 } from './RecentWorkouts';
+
+describe('personal-record workout matching', () => {
+    it('matches only workout IDs returned by the owner-scoped personal-record read', () => {
+        const personalRecordWorkoutIds = createPersonalRecordWorkoutIdSet([
+            { workout_id: 'personal-record-workout' },
+            { workout_id: null },
+        ]);
+
+        expect(personalRecordWorkoutIds.has(String('personal-record-workout'))).toBe(true);
+        expect(personalRecordWorkoutIds.has('ordinary-workout')).toBe(false);
+    });
+
+    it('treats an empty personal-record read as an empty match set', () => {
+        expect(createPersonalRecordWorkoutIdSet([]).size).toBe(0);
+        expect(createPersonalRecordWorkoutIdSet().size).toBe(0);
+    });
+
+    it('treats a failed owner-scoped personal-record read as an empty match set', async () => {
+        await expect(loadPersonalRecordWorkoutIdSet('user-123', async () => {
+            throw new Error('Unable to read records');
+        })).resolves.toEqual(new Set());
+    });
+});
 
 describe('formatRelativeWorkoutDay', () => {
     it('treats a date-only value as the local calendar day', () => {

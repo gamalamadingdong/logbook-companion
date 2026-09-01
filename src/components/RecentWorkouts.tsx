@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
+import { getPersonalRecords } from '../services/personalRecordService';
 import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
 
 interface RecentWorkoutSummary {
     id: number | string;
@@ -134,6 +136,27 @@ export const formatWorkoutSearchSummary = (
     return `${count} ${workoutLabel} · ${distanceLabel} total distance`;
 };
 
+export const createPersonalRecordWorkoutIdSet = (
+    records: readonly { workout_id: string | null }[] = [],
+): Set<string> => new Set(
+    records
+        .map((record) => record.workout_id)
+        .filter((workoutId): workoutId is string => typeof workoutId === 'string'),
+);
+
+export const loadPersonalRecordWorkoutIdSet = async (
+    userId: number | string | undefined,
+    readPersonalRecords: typeof getPersonalRecords = getPersonalRecords,
+): Promise<Set<string>> => {
+    if (!userId) return new Set();
+
+    try {
+        return createPersonalRecordWorkoutIdSet(await readPersonalRecords(String(userId)));
+    } catch {
+        return new Set();
+    }
+};
+
 const formatTotalDuration = (durationTenths: number): string => {
     const totalSeconds = Math.floor(durationTenths / 10);
     const minutes = Math.floor(totalSeconds / 60);
@@ -195,6 +218,7 @@ export const WorkoutSearchClearButton: React.FC<{ onClear: () => void }> = ({ on
 );
 
 export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
+    userId,
     workouts,
     isLoading = false,
     currentPage,
@@ -205,6 +229,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     const [searchResults, setSearchResults] = useState<RecentWorkoutSummary[]>([]);
     const [searching, setSearching] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>('All');
+    const [personalRecordWorkoutIds, setPersonalRecordWorkoutIds] = useState<Set<string>>(() => new Set());
     const searchInputRef = useRef<HTMLInputElement>(null);
     const searchControllerRef = useRef<ReturnType<typeof createWorkoutSearchController> | null>(null);
 
@@ -219,6 +244,24 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     }
 
     const searchController = searchControllerRef.current;
+
+    useEffect(() => {
+        let cancelled = false;
+        setPersonalRecordWorkoutIds(new Set());
+
+        const loadPersonalRecordWorkoutIds = async () => {
+            const recordWorkoutIds = await loadPersonalRecordWorkoutIdSet(userId);
+            if (!cancelled) {
+                setPersonalRecordWorkoutIds(recordWorkoutIds);
+            }
+        };
+
+        void loadPersonalRecordWorkoutIds();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [userId]);
 
     useEffect(() => {
         const trimmed = query.trim();
@@ -270,6 +313,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
     const searchSummary = searchActive && !searching
         ? formatWorkoutSearchSummary(searchResults)
         : null;
+    const isPersonalRecordWorkout = (workout: RecentWorkoutSummary): boolean => (
+        personalRecordWorkoutIds.has(String(workout.id))
+        || (typeof workout.db_id === 'string' && personalRecordWorkoutIds.has(workout.db_id))
+    );
 
     if (isLoading && workouts.length === 0) return <div className="text-neutral-400 p-6 animate-pulse">Loading workouts...</div>;
 
@@ -370,7 +417,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 <span className="text-xs text-content-muted">
                                     {formatRelativeWorkoutDay(workout.date)}
                                 </span>
-                                <p className="mt-1 text-sm text-content-secondary">{workout.name}</p>
+                                <div className="mt-1 flex items-center gap-2">
+                                    <p className="text-sm text-content-secondary">{workout.name}</p>
+                                    {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
+                                </div>
                                 <p className="mt-1 text-xs text-content-secondary">
                                     {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
                                 </p>
@@ -435,7 +485,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                             {getMachineIcon(workout.type ?? 'rower')}
                                         </div>
                                         <div>
-                                            <div className="text-sm font-medium text-white">{workout.name}</div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-sm font-medium text-white">{workout.name}</div>
+                                                {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
+                                            </div>
                                             <div className="text-xs text-neutral-500">
                                                 {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
                                             </div>
