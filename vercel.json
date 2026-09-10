@@ -5,7 +5,11 @@
       "destination": "/assets/:path*"
     },
     {
-      "source": "/((?!api/)(?!.*\\..*).*)",
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/well-known/oauth-protected-resource"
+    },
+    {
+      "source": "/((?!api/)(?!.well-known/)(?!.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
