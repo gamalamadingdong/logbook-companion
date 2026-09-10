@@ -5,7 +5,7 @@
       "destination": "/assets/:path*"
     },
     {
-      "source": "/((?!.*\\..*).*)",
+      "source": "/((?!api/)(?!.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
