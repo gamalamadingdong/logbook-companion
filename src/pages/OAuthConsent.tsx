@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { resolvedAuthorizationRedirect } from './oauthConsentFlow';
 
 /**
  * /oauth/consent — Authorization UI for Supabase OAuth 2.1 Server.
@@ -71,6 +72,11 @@ export function OAuthConsent() {
                 const { data, error: detailsError } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
                 if (detailsError) throw detailsError;
                 if (cancelled) return;
+                const redirectUri = resolvedAuthorizationRedirect(data);
+                if (redirectUri) {
+                    window.location.assign(redirectUri);
+                    return;
+                }
                 setDetails((data ?? {}) as AuthorizationDetails);
                 setStatus('ready');
             } catch (err) {
