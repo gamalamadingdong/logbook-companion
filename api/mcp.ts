@@ -233,9 +233,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }
     }
 
-    if (req.method !== 'POST') {
-        // Stateless mode only needs POST; GET/DELETE session transport is unused.
-        sendJsonRpcError(res, 405, -32000, 'Method not allowed. Use POST.');
+    if (!req.method || !['GET', 'POST', 'DELETE'].includes(req.method)) {
+        sendJsonRpcError(res, 405, -32000, 'Method not allowed. Use GET, POST, or DELETE.');
         return;
     }
 
