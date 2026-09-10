@@ -21,6 +21,7 @@ const Login = lazyNamed(() => import('./pages/Login'), 'Login');
 const AuthBootstrap = lazyNamed(() => import('./pages/AuthBootstrap'), 'AuthBootstrap');
 const AuthCallback = lazyNamed(() => import('./pages/AuthCallback'), 'AuthCallback');
 const AuthConfirm = lazyNamed(() => import('./pages/AuthConfirm'), 'AuthConfirm');
+const OAuthConsent = lazyNamed(() => import('./pages/OAuthConsent'), 'OAuthConsent');
 const Callback = lazyNamed(() => import('./pages/Callback'), 'Callback');
 const PublicAssignmentResultsShare = lazyNamed(() => import('./pages/PublicAssignmentResultsShare'), 'PublicAssignmentResultsShare');
 const PublicTeamLeaderboardShare = lazyNamed(() => import('./pages/PublicTeamLeaderboardShare'), 'PublicTeamLeaderboardShare');
@@ -157,6 +158,7 @@ const AppContent: React.FC = () => {
                   <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/auth/confirm" element={<AuthConfirm />} />
+                  <Route path="/oauth/consent" element={<OAuthConsent />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/share/assignment-results/:shareToken" element={<PublicAssignmentResultsShare />} />
           <Route path="/share/team-leaderboard/:shareToken" element={<PublicTeamLeaderboardShare />} />

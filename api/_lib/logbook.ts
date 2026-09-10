@@ -1,14 +1,15 @@
 // Server-side Logbook data access for the ChatGPT MCP connector.
 //
 // This module is intentionally self-contained and MUST NOT import from `src/`:
-// the app's Supabase client reads `import.meta.env` and is browser-scoped. Here
-// we use the service-role key and hard-scope every query to a single athlete
-// (LOGBOOK_USER_ID), because the MCP connector is a personal, read-only tool.
+// the app's Supabase client reads `import.meta.env` and is browser-scoped.
 //
-// SECURITY: the service-role key bypasses RLS. Per-user scoping therefore lives
-// in code (`.eq('user_id', userId)`), not in the database. This shape is only
-// safe for a single-athlete deployment. Do NOT expose it multi-user without
-// switching to per-user OAuth + passing the user JWT so RLS does the scoping.
+// AUTH MODEL: each request carries a Supabase-issued OAuth access token (a JWT).
+// We build a per-request Supabase client using the ANON key plus that token in
+// the Authorization header, so PostgREST runs under the end user's identity and
+// Row Level Security scopes every query to that user automatically. There is NO
+// service-role key here and NO hardcoded user id — RLS is the scoping boundary,
+// which is the correct multi-user-safe shape (and the reference pattern for the
+// V2 Evidence Platform's ChatGPT integration).
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -18,40 +19,35 @@ const VIEWABLE_SOURCES = ['concept2', 'erg_link_live', 'manual'] as const;
 
 export interface LogbookConfig {
     supabaseUrl: string;
-    serviceRoleKey: string;
-    userId: string;
-    bearerToken: string;
+    anonKey: string;
+    /** The end user's Supabase OAuth access token (JWT), verified before use. */
+    accessToken: string;
 }
 
-export function readConfig(): LogbookConfig {
+/** Env needed to construct per-request clients and to verify tokens. */
+export function readEnv(): { supabaseUrl: string; anonKey: string } {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-    const userId = process.env.LOGBOOK_USER_ID ?? '';
-    const bearerToken = process.env.MCP_BEARER_TOKEN ?? '';
+    const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? '';
 
     const missing = [
         !supabaseUrl && 'SUPABASE_URL',
-        !serviceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
-        !userId && 'LOGBOOK_USER_ID',
-        !bearerToken && 'MCP_BEARER_TOKEN',
+        !anonKey && 'SUPABASE_ANON_KEY',
     ].filter(Boolean) as string[];
 
     if (missing.length > 0) {
         throw new Error(`Missing required env vars for MCP connector: ${missing.join(', ')}`);
     }
 
-    return { supabaseUrl, serviceRoleKey, userId, bearerToken };
+    return { supabaseUrl, anonKey };
 }
 
-let cachedClient: SupabaseClient | null = null;
-
 function getClient(cfg: LogbookConfig): SupabaseClient {
-    if (!cachedClient) {
-        cachedClient = createClient(cfg.supabaseUrl, cfg.serviceRoleKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-        });
-    }
-    return cachedClient;
+    // A fresh client per request, bound to the caller's JWT. Not cached: each
+    // request has a different token, and RLS depends on it being correct.
+    return createClient(cfg.supabaseUrl, cfg.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { Authorization: `Bearer ${cfg.accessToken}` } },
+    });
 }
 
 // The subset of columns we expose. Keep this narrow and stable.
@@ -127,7 +123,6 @@ export async function searchWorkouts(cfg: LogbookConfig, filters: SearchFilters)
     let query = client
         .from('workout_logs')
         .select(WORKOUT_COLUMNS)
-        .eq('user_id', cfg.userId)
         .in('source', [...VIEWABLE_SOURCES]);
 
     if (filters.startDate) query = query.gte('completed_at', filters.startDate);
@@ -164,8 +159,7 @@ export async function getWorkoutDetail(cfg: LogbookConfig, idOrExternalId: strin
 
     let query = client
         .from('workout_logs')
-        .select(`${WORKOUT_COLUMNS}, raw_data`)
-        .eq('user_id', cfg.userId);
+        .select(`${WORKOUT_COLUMNS}, raw_data`);
     query = isUUID ? query.eq('id', idOrExternalId) : query.eq('external_id', idOrExternalId);
 
     const { data, error } = await query.maybeSingle();
@@ -274,7 +268,6 @@ export async function getBenchmarkHistory(cfg: LogbookConfig, benchmark: string,
     const { data, error } = await client
         .from('workout_logs')
         .select(WORKOUT_COLUMNS)
-        .eq('user_id', cfg.userId)
         .in('source', [...VIEWABLE_SOURCES])
         .ilike('canonical_name', benchmark)
         .order('completed_at', { ascending: false })
@@ -381,7 +374,6 @@ export async function listBenchmarks(cfg: LogbookConfig): Promise<Array<{ canoni
     const { data, error } = await client
         .from('workout_logs')
         .select('canonical_name')
-        .eq('user_id', cfg.userId)
         .in('source', [...VIEWABLE_SOURCES])
         .not('canonical_name', 'is', null)
         .limit(2000);
