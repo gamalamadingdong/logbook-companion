@@ -53,11 +53,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
                 created_at: new Date().toISOString(),
             });
 
-            // Email notification (fire-and-forget)
-            supabase.functions.invoke('notify-feedback', {
-                body: { feedbackType, message: message.trim() },
-            }).catch(() => {});
-
             setSubmitStatus('success');
             setMessage('');
             setTimeout(() => {

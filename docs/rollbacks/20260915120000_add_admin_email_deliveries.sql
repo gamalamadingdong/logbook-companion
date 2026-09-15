@@ -1,0 +1,10 @@
+drop trigger if exists notify_admin_user_feedback_after_insert on public.user_feedback;
+drop trigger if exists notify_admin_user_signup_after_insert on auth.users;
+drop function if exists public.notify_admin_user_feedback();
+drop function if exists public.notify_admin_user_signup();
+drop function if exists public.fail_admin_email_delivery(text, uuid, uuid, text);
+drop function if exists public.complete_admin_email_delivery(text, uuid, uuid);
+drop function if exists public.fail_admin_email_delivery(text, uuid, text);
+drop function if exists public.complete_admin_email_delivery(text, uuid);
+drop function if exists public.claim_admin_email_delivery(text, uuid);
+drop table if exists public.admin_email_deliveries;

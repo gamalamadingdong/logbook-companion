@@ -68,6 +68,45 @@ export type Database = {
           },
         ]
       }
+      admin_email_deliveries: {
+        Row: {
+          attempt_count: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event_type: string
+          last_error: string | null
+          sent_at: string | null
+          source_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event_type: string
+          last_error?: string | null
+          sent_at?: string | null
+          source_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event_type?: string
+          last_error?: string | null
+          sent_at?: string | null
+          source_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -2245,6 +2284,21 @@ export type Database = {
         }
         Relationships: []
       }
+      fledge_parent_accounts: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       fledge_profiles: {
         Row: {
           app_id: string
@@ -2254,6 +2308,7 @@ export type Database = {
           id: string
           owner_id: string | null
           student_name: string
+          student_user_id: string | null
           updated_at: string
           workspace_id: string
         }
@@ -2265,6 +2320,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           student_name?: string
+          student_user_id?: string | null
           updated_at?: string
           workspace_id?: string
         }
@@ -2276,6 +2332,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           student_name?: string
+          student_user_id?: string | null
           updated_at?: string
           workspace_id?: string
         }
@@ -4889,6 +4946,35 @@ export type Database = {
         Args: { point: string }
         Returns: Database["public"]["Enums"]["coaching_category"]
       }
+      claim_admin_email_delivery: {
+        Args: { p_event_type: string; p_source_id: string }
+        Returns: {
+          attempt_count: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event_type: string
+          last_error: string | null
+          sent_at: string | null
+          source_id: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "admin_email_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_admin_email_delivery: {
+        Args: {
+          p_claim_token: string
+          p_event_type: string
+          p_source_id: string
+        }
+        Returns: undefined
+      }
       consume_sso_handoff: {
         Args: {
           p_consumer_user_id?: string
@@ -4933,6 +5019,15 @@ export type Database = {
       extract_technique_focus: {
         Args: { description: string; workout_type: string }
         Returns: Database["public"]["Enums"]["technique_focus"][]
+      }
+      fail_admin_email_delivery: {
+        Args: {
+          p_claim_token: string
+          p_error: string
+          p_event_type: string
+          p_source_id: string
+        }
+        Returns: undefined
       }
       find_eligible_coaches: {
         Args: {
@@ -5068,12 +5163,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5097,11 +5192,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5122,11 +5217,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5147,11 +5242,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5164,11 +5259,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
