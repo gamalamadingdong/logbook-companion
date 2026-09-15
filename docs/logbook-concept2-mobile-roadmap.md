@@ -1,8 +1,17 @@
 # ErgLink, Concept2 Publishing, and Logbook Companion Mobile Roadmap
 
+## Specifications and resumption guide
+
+Start with [the Concept2/mobile index](concept2-mobile/README.md), then choose an independent track:
+
+- [Publishing specification and implementation plan](concept2-mobile/publishing.md): owned capture identity and provenance, actual completed data, exact-ID import preservation, uncertain POST recovery, and the first manual single-workout development slice.
+- [Mobile delivery specification and implementation plan](concept2-mobile/mobile-delivery.md): Apple app registration/signing checklist, independent Capacitor/TestFlight foundation, and GitHub Actions plus self-hosted Capgo/Vercel OTA integrity, compatibility and rollback.
+
+These bounded plans define the first implementation gates. Broader workout mapping, automatic publication and embedded PM5 capture below remain subsequent roadmap work, not prerequisites for the first manual fixed-distance publication or Apple archive. All implementation and operator checkboxes are proposed; no API approval, native build or live update was verified by this documentation pass. Appflow is retired for cost and is not part of the delivery path.
+
 ## Status
 
-Proposed direction.
+Proposed direction, with a bounded first-release plan below. This is not one combined implementation assignment: Concept2 publishing and the mobile delivery foundation can ship independently. Native PM5 integration and richer capture are later milestones.
 
 This document captures the intended relationship between:
 
@@ -142,7 +151,7 @@ The Concept2 API should not sit between ErgLink and Logbook Companion.
 
 This provides several advantages:
 
-1. A network or Concept2 outage can never cause the workout to be lost.
+1. Once LC has durably saved the workout, a Concept2 outage cannot lose that saved copy. Protection before upload requires durable device storage and resumable upload; an in-memory stroke buffer is not sufficient.
 2. LC can retain data Concept2 does not support.
 3. Concept2 publishing becomes retryable.
 4. ErgLink does not need to own Concept2 OAuth.
@@ -202,6 +211,17 @@ interface CompletedErgWorkout {
 This becomes the boundary between the hardware-facing ErgLink world and the training/logbook-facing LC world.
 
 The exact schema should evolve from the existing `ActiveWorkoutSpec`, `ErgLinkUploadMeta`, and reconciliation contracts rather than replacing them unnecessarily.
+
+Before stabilizing it, use real captured workouts to define:
+
+* a stable capture ID and contract version, preserved across upload retries;
+* authenticated athlete attribution, including how anonymous/coached sessions become owned workouts;
+* completed, aborted, and incomplete-capture semantics;
+* work time versus elapsed time and rest, timestamp/timezone conventions, and units;
+* which PM5 totals are authoritative when final summaries and stroke buffers disagree;
+* true workout averages rather than treating the final stroke as an average.
+
+The existing column-level contract in `src/types/ergSession.types.ts` describes elapsed time and last-stroke values. Those are not automatically equivalent to this proposed summary. Resolve the mapping explicitly. Force curves and additional machine types are not required to stabilize the initial rowing contract.
 
 ---
 
@@ -293,9 +313,13 @@ concept2_last_attempt_at
 concept2_last_error
 ```
 
-Publication should be idempotent wherever possible.
+Publication must have a defined duplicate-prevention and ambiguous-outcome policy before release.
 
 Concept2 itself performs duplicate detection based on workout attributes, but LC should also maintain its own publication state so normal retries do not intentionally create duplicates.
+
+Verify Concept2's actual duplicate behavior in the development environment; do not treat it as a general idempotency guarantee. If Concept2 accepts a POST but LC loses the response or fails to persist its ID, the outcome is unknown, not safely retryable. Resolve it using a verified remote lookup/linking mechanism or explicit operator review before another POST. Concurrent requests must share a durable claim, and stale workers must not overwrite newer attempts. Define recovery for abandoned `publishing` claims as well as ordinary provider failures.
+
+Initial publishing is an explicit user action, restricted to the authenticated owner's eligible workout and connected Concept2 account. Automatic publishing is deferred. Edits after publication and remote deletion are not automatically propagated in the first release; surface the limitation rather than silently diverging or republishing.
 
 ---
 
@@ -324,7 +348,7 @@ It supports:
 * targets
 * metadata
 
-The mapper should attempt to produce the richest valid Concept2 record possible.
+The first mapper should produce a correct, explicitly supported Concept2 record, not the richest possible record. Start with one fixed-distance rowing workout shape; expand only after the complete publish/import round trip works. Unsupported or incomplete workouts must be rejected clearly rather than silently flattened.
 
 RWN can help determine the appropriate Concept2 workout type:
 
@@ -346,6 +370,8 @@ variable pyramid
 ```
 
 However, RWN should remain independent of Concept2's vocabulary.
+
+Publish the measured workout, not merely its prescription. RWN is supporting context; an athlete who stops early has not completed the prescribed workout. Include interval and stroke payloads only as those representations are explicitly validated.
 
 Concept2 is one renderer/consumer of the workout description, not the definition of RWN.
 
@@ -551,6 +577,48 @@ core LC screens
 
 Once that works, ErgLink becomes an obvious native capability to integrate.
 
+### Reuse the ScheduleBoard delivery implementation
+
+Use `~/apps/scheduleboardv2/` as the primary implementation reference for the Capacitor shell, native release automation, and live updates. Sam reports this is a reliable end-to-end pipeline already in use; reuse its proven approach rather than designing another pipeline. Inspection of its files confirms the implementation exists, but is not a fresh verification of its hosted services or Apple account state.
+
+Read these reference files before implementing LC mobile:
+
+* `capacitor.config.ts` and `capacitor.config.production.ts` — app configuration and updater behavior.
+* `package.json` — build, sync, native asset, and build-number scripts.
+* `.github/workflows/build-mobile.yml` — GitHub Actions macOS/Xcode archive, signing, export, and store-upload workflow; Android is also supported.
+* `docs/ci/MOBILE-BUILD-SECRETS.md` — required signing and upload secret names and encoding conventions; never copy secret values into code or documentation.
+* `updates/build-manifest.ts`, `updates/vercel.json`, and `updates/vite.config.ts` — self-hosted update bundle and manifest delivery.
+* `src/lib/updatePublicKey.ts` and updater initialization/call sites — trace bundle verification, app-ready acknowledgement, and failure recovery before adapting them.
+
+The reference uses GitHub Actions for native builds and `@capgo/capacitor-updater` with self-hosted updates on Vercel. Appflow was retired because of cost; do not reintroduce it for LC. Some `updates/README.md` text still describes Appflow and future client integration; those statements are stale. Follow the current executable workflow and client code.
+
+Replicate the pattern, not the application identity or all dependencies. LC needs its own bundle ID, app record, provisioning profile, update endpoint, release configuration, and appropriately authorized signing setup. Do not inherit ScheduleBoard's camera, location, Firebase, push, SQLite, mixed-content settings, or other permissions/plugins without an LC requirement. Confirm compatible Capacitor/plugin versions when implementing instead of blindly copying version pins.
+
+### Apple application and TestFlight setup checklist
+
+This is planned setup, not authorization to create accounts, purchase memberships, upload credentials, or publish an app. Sam must confirm the Apple team, LC identity, and release actions. Consult the current Apple Developer and App Store Connect guidance when executing.
+
+1. **Confirm ownership and identity.** Confirm the Apple Developer membership/team, authorized operator, app display name, and a unique reverse-domain LC bundle ID. Record the chosen non-secret identifiers; do not reuse ScheduleBoard's bundle ID.
+2. **Register the App ID.** In Apple Developer Certificates, Identifiers & Profiles, register the explicit LC bundle ID and only the capabilities needed for the first shell. Defer Bluetooth/background capabilities until the capture milestone; assess Sign in with Apple requirements against LC's actual login options.
+3. **Create the Apple app record.** In App Store Connect, create a new iOS app, choose the registered bundle ID, set the primary language, app name, and unique SKU, and set team access. Record the resulting Apple app ID. Resolve agreements or account-access blockers before attempting CI upload.
+4. **Configure the native project.** Initialize LC Capacitor with the same bundle ID, icons, launch assets, deployment target, team, and version/build-number policy. Adapt ScheduleBoard's scripts and workflow. Use a macOS/Xcode runner for archive/export; the Linux development host cannot perform the native iOS build itself.
+5. **Provision signing and uploads.** Have the authorized operator supply a valid distribution certificate and LC App Store provisioning profile, plus appropriately scoped App Store Connect API credentials. Adapt the reference workflow's `APPLE_CERTIFICATE_P12`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE`, `APPLE_TEAM_ID`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`, and `APPLE_API_KEY_P8` inputs. Store values only in approved CI secret storage; use ephemeral signing keychains and cleanup. Do not place `.p8`, `.p12`, or profiles in the repository.
+6. **Configure authentication return paths.** Define LC's native deep-link/universal-link strategy, Supabase redirect allowlist, and Concept2 callback/browser-return flow. Test cold launch and already-running app returns. Keep development and production identities/endpoints distinct; do not embed Concept2 client secrets in the app.
+7. **Build without publishing first.** Run the adapted workflow with store upload disabled; verify the archive/export, bundle ID, entitlements, artifact, and unique build number. Then obtain approval for an upload to App Store Connect/TestFlight.
+8. **Validate on an iPhone through TestFlight.** Complete required processing/compliance information, configure internal testers, and exercise login/logout, session restoration, navigation, safe areas, keyboard, OAuth, and offline/error states. External testing may require Beta App Review. A successful CI build alone does not establish mobile readiness.
+9. **Prepare App Store submission separately.** Supply screenshots, description, support/privacy URLs, privacy disclosures reflecting analytics and OTA SDK behavior, age rating, review access/instructions, and account-deletion behavior where required. Confirm current Apple policies, including downloaded-code/live-update restrictions. App Store review and release remain explicit approval steps, not automatic consequences of merging code.
+
+### Live-update delivery and safety
+
+Adapt ScheduleBoard's self-hosted bundle/manifest pipeline to an LC-owned endpoint. Keep native TestFlight/App Store delivery distinct from web-bundle OTA delivery.
+
+* Define test versus production rollout targets; a preview build or arbitrary branch must never update production devices.
+* Validate bundle authenticity/integrity, native-version compatibility, app-ready acknowledgement, and fallback to a known-good bundle. Follow the reference implementation where verified; close any gaps rather than assuming its documentation proves enforcement.
+* Demonstrate a successful OTA install and a failed-update rollback on a real device before enabling production updates.
+* New native plugins, permissions, entitlements, or incompatible bridge changes require a new native build. OTA is not a substitute for Apple review or policy compliance.
+* Never activate an update during workout capture. Download/apply only at safe lifecycle boundaries, preserving durable local data.
+* Record how an operator halts a rollout and restores the last good bundle. Do not couple publishing-service deployment to a mobile update.
+
 ---
 
 # 12. Long-Term Mobile Experience
@@ -591,7 +659,7 @@ The standalone ErgLink repository can still remain useful as an open-source impl
 
 # 13. Recommended Next Work
 
-These should be treated as parallel but related tracks.
+These are independent delivery tracks, not a combined release gate. Publishing is the first functional slice; a ScheduleBoard-derived iOS delivery foundation can proceed alongside it without taking on PM5 integration.
 
 ## Track A: Concept2 publishing
 
@@ -599,12 +667,12 @@ These should be treated as parallel but related tracks.
 2. Review the current Concept2 OAuth implementation.
 3. Confirm the registered application and development environment.
 4. Verify `results:write` authorization end-to-end.
-5. Define `CompletedErgWorkout`.
+5. Define the minimal completed-workout contract and settle the provenance/import round-trip rule in Section 14 before implementing publishing.
 6. Implement the ErgLink/LC completed-workout mapping.
 7. Implement `publish-to-c2`.
 8. Build LC → Concept2 payload conversion.
-9. Test on the Concept2 development Logbook.
-10. Validate interval workouts with Concept2 tooling.
+9. Prove one fixed-distance rowing workout on the Concept2 development Logbook, including ambiguous failure recovery and re-import without duplication.
+10. Expand supported workout types incrementally and validate intervals with Concept2 tooling; the full matrix is not a prerequisite for the first bounded proof.
 11. Document test results.
 12. Request production write approval from Concept2.
 13. Add production publishing after approval.
@@ -612,13 +680,13 @@ These should be treated as parallel but related tracks.
 ## Track B: LC mobile
 
 1. Confirm ADR-004 still stands: Capacitor rather than React Native.
-2. Initialize the LC Capacitor project.
-3. Build iOS shell.
-4. Build Android shell.
+2. Inspect and adapt ScheduleBoard's existing Capacitor/build/update implementation using Section 11.
+3. Complete the LC Apple identity/signing setup and build the iOS shell.
+4. Prove iOS TestFlight delivery first; adapt Android delivery separately rather than making both platforms an initial gate.
 5. Validate Supabase authentication.
 6. Validate OAuth redirects.
 7. Validate navigation and responsive UX.
-8. Establish mobile release/build process.
+8. Prove LC-specific live updates and rollback using the existing pipeline pattern. This completes the delivery-foundation milestone; steps below are a separate native-capture release.
 9. Package/share ErgLink PM5 functionality cleanly.
 10. Add PM5 connection to LC mobile.
 11. Add workout programming.
@@ -659,7 +727,7 @@ external publication / synchronization
 
 A Concept2 copy created by LC should enrich the original ErgLink workout with a Concept2 result ID rather than replace its provenance.
 
-This should become an explicit ADR before the publishing implementation is completed.
+This must become an explicit decision before the publishing implementation begins. Use a small LC/Concept2-specific rule, not a generalized multi-provider sync framework. Prefer exact external IDs to fuzzy matching for LC-published workouts, and define the unknown-response recovery case before allowing a retry. Existing import/reconciliation must preserve the original row, rich data, and assignment links.
 
 ---
 
@@ -667,11 +735,25 @@ This should become an explicit ADR before the publishing implementation is compl
 
 The next practical milestones are therefore:
 
-**1. Document and stabilize the ErgLink/LC completed-workout contract.**
+**1. Validate development write access, real captured data, and identity/reconciliation semantics.** Evolve only the contract needed for the first supported workout. Confirm Concept2 approval requirements early; do not wait until broad mapping is complete to discover an access blocker.
 
-**2. Establish Concept2 development write access and build the first `publish-to-c2` proof of concept.**
+**2. Deliver a manual, single-shape publishing slice.** Capture/save once, publish to the development Logbook, and import back into the same LC workout. Production activation follows approval and the acceptance checks below.
 
-**3. Start the LC Capacitor mobile shell.**
+**3. Replicate ScheduleBoard's mobile delivery foundation for LC.** Create the Apple app identity, adapt native CI, prove TestFlight authentication and navigation, and verify LC-specific OTA delivery/rollback. Native PM5 integration is a subsequent milestone, not part of establishing this pipeline.
+
+### First publishing release acceptance checks
+
+* [ ] Repeating a capture upload retains one owned LC workout.
+* [ ] A supported completed fixed-distance row maps accurately and publishes to Concept2 development.
+* [ ] Double-clicks and concurrent requests do not create multiple publications.
+* [ ] Remote acceptance followed by a lost response/local save failure has a verified recovery path without blind retry.
+* [ ] Normal Concept2 sync retains one LC workout with original provenance, strokes, and assignment/template links.
+* [ ] Missing write scope, expiry, and revoked access produce explicit recovery/reconnect behavior.
+* [ ] Unsupported and incomplete workouts are rejected clearly.
+* [ ] Device-local save, LC upload, and Concept2 publication are distinct states; no unsupported offline-loss guarantee is shown.
+* [ ] Development and production routing are explicit, and live publishing remains disabled until approval.
+
+Defer automatic publishing, force curves, verified-result status, generalized external destinations, bidirectional edits/deletes, and embedded PM5 capture from this first release. Add supported workout shapes incrementally rather than silently degrading them.
 
 These reinforce each other.
 
