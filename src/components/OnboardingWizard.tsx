@@ -1,3 +1,4 @@
+import { connectConcept2 } from '../services/concept2Auth';
 import React, { useState } from 'react';
 import { Modal } from './ui/Modal';
 import { useAuth } from '../hooks/useAuth';
@@ -113,11 +114,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ open, onComp
   };
 
   const handleConnect = () => {
-    const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-    const redirect_uri = `${window.location.origin}/callback`;
-    const scope = 'user:read,results:write';
-    const url = `https://log.concept2.com/oauth/authorize?client_id=${client_id}&scope=${scope}&response_type=code&redirect_uri=${redirect_uri}`;
-    window.location.href = url;
+    void connectConcept2();
   };
 
   const finish = async () => {

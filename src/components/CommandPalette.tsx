@@ -1,3 +1,4 @@
+import { connectConcept2 as launchConcept2 } from '../services/concept2Auth';
 // Global search / command palette triggered by Cmd+K or Ctrl+K
 import React from 'react';
 import { Command } from 'cmdk';
@@ -33,10 +34,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
 
     const connectConcept2 = () => {
         onClose();
-        const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-        const redirectUri = `${window.location.origin}/callback`;
-        const scope = 'user:read,results:write';
-        window.location.href = `https://log.concept2.com/oauth/authorize?client_id=${clientId}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}`;
+        void launchConcept2();
     };
 
     if (!open) return null;

@@ -1,6 +1,11 @@
 # Active Context
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
+
+## Local implementation — Concept2 staging auth
+
+Uncommitted `feature/concept2-staging-auth` starts at fetched `origin/staging` (`b409ef6`); local `main` setup-note commit `92471af` is preserved. See [staging auth slice](../docs/concept2-mobile/staging-auth-slice.md) for implementation, verification, traced legacy paths, rollout and rollback. Server-only development exchange/refresh and credential storage are implemented locally; development sync/publishing are explicitly blocked. Production legacy auth is retained only in production builds and excluded from staging bundles. No live changes, commit, push or PR performed. Live MCP/schema verification, confirmed staging hostname/development client, reviewed deployment approval and actual OAuth smoke remain outstanding. `logbook-dev.readyall.org` is a candidate only.
+
 
 ## Current Session — Concept2/mobile planning (2026-09-15)
 

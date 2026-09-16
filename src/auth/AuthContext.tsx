@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 import { AuthContext } from './authContextDef'
+import { legacyConcept2Enabled } from '../services/concept2Environment'
 
 /** How long to wait for initial session before giving up (ms) */
 const SESSION_TIMEOUT_MS = 15_000
@@ -19,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isGuestMode = useRef(false);
 
   // Legacy C2 Token (Keep for now to avoid breaking sync immediately)
-  const [c2Token] = useState<string | null>(localStorage.getItem('concept2_token'));
+  const [c2Token] = useState<string | null>(legacyConcept2Enabled ? localStorage.getItem('concept2_token') : null);
 
   /** Manually clear a stuck/stale session — exposed to UI as escape hatch */
   const clearStaleSession = useCallback(async () => {
@@ -124,6 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore C2 tokens from database to localStorage
   const restoreC2Tokens = useCallback(async (userId: string) => {
+    if (!legacyConcept2Enabled) {
+      ['concept2_token', 'concept2_refresh_token', 'concept2_expires_at'].forEach(key => localStorage.removeItem(key));
+      return;
+    }
     try {
       const localToken = localStorage.getItem('concept2_token');
       const localRefreshToken = localStorage.getItem('concept2_refresh_token');

@@ -1,3 +1,4 @@
+import { connectConcept2 } from '../services/concept2Auth';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -161,10 +162,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <button
                             type="button"
                             onClick={() => {
-                                const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-                                const redirect_uri = `${window.location.origin}/callback`;
-                                const scope = 'user:read,results:write';
-                                window.location.href = `https://log.concept2.com/oauth/authorize?client_id=${client_id}&scope=${scope}&response_type=code&redirect_uri=${redirect_uri}`;
+                                void connectConcept2();
                             }}
                             className="flex items-center gap-3 px-4 py-3 w-full text-left text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all"
                         >

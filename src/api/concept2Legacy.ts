@@ -1,0 +1,342 @@
+import axios from 'axios';
+import { requireProductionConcept2 } from '../services/concept2Environment';
+import type { C2Profile, C2Response, C2Result, C2ResultDetail, C2Stroke } from './concept2.types';
+
+const BASE_URL = 'https://log.concept2.com/api';
+import { supabase } from '../services/supabase';
+
+export const concept2Client = axios.create({
+    baseURL: BASE_URL,
+    timeout: 20000,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+const withRefreshLock = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const lockManager = (navigator as Navigator & {
+        locks?: { request: (name: string, callback: () => Promise<T>) => Promise<T> };
+    }).locks;
+
+    if (lockManager?.request) {
+        return lockManager.request('concept2_refresher_lock', fn);
+    }
+
+    return fn();
+};
+
+async function persistConcept2Tokens(userId: string, token: string, refreshToken: string | null | undefined, expiresAt: string | undefined) {
+    const payload: {
+        user_id: string;
+        concept2_token: string;
+        concept2_refresh_token?: string | null;
+        concept2_expires_at?: string;
+    } = {
+        user_id: userId,
+        concept2_token: token,
+    };
+
+    if (refreshToken !== undefined) {
+        payload.concept2_refresh_token = refreshToken;
+    }
+
+    if (expiresAt) {
+        payload.concept2_expires_at = expiresAt;
+    }
+
+    const { error } = await supabase
+        .from('user_integrations')
+        .upsert(payload, { onConflict: 'user_id' });
+
+    if (error) {
+        console.error('Failed to persist refreshed Concept2 tokens to user_integrations:', error);
+    }
+}
+
+// Helper: Clear local tokens AND database tokens
+async function clearAllTokens() {
+    // Clear localStorage
+    localStorage.removeItem('concept2_token');
+    localStorage.removeItem('concept2_refresh_token');
+    localStorage.removeItem('concept2_expires_at');
+    window.dispatchEvent(new CustomEvent('concept2-token-updated'));
+
+    // Clear database tokens so they don't get restored on next login
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_integrations').update({
+                concept2_token: null,
+                concept2_refresh_token: null,
+                concept2_expires_at: null
+            }).eq('user_id', user.id);
+        }
+    } catch (err) {
+        console.error('Failed to clear C2 tokens from database:', err);
+    }
+
+    // Dispatch reconnect-required event for UI to handle
+    window.dispatchEvent(new CustomEvent('concept2-reconnect-required'));
+}
+
+// Helper: Refresh the access token using the refresh token
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(refreshToken: string): Promise<string> {
+    // Deduplicate requests in the SAME tab
+    if (refreshPromise) {
+        return refreshPromise;
+    }
+
+    refreshPromise = (async () => {
+        // Deduplicate requests ACROSS tabs when Web Locks API is available.
+        // On browsers without `navigator.locks` (e.g., some mobile Safari versions),
+        // safely fall back to running refresh directly.
+        return withRefreshLock(async () => {
+            // 1. Check if token was updated by another tab while we were waiting for the lock
+            const currentStoredRefresh = localStorage.getItem('concept2_refresh_token');
+            const currentStoredToken = localStorage.getItem('concept2_token');
+            const currentExpiresAt = localStorage.getItem('concept2_expires_at');
+
+            // If the refresh token changed, or if the expiry is now well in the future, return the stored token
+            const isFresh = currentExpiresAt && (new Date(currentStoredRefresh ? currentExpiresAt : '').getTime() > Date.now() + 5 * 60 * 1000);
+
+            if ((currentStoredRefresh && currentStoredRefresh !== refreshToken) || (isFresh && currentStoredToken)) {
+                if (currentStoredToken) return currentStoredToken;
+            }
+
+            // 2. Proceed with actual Network Refresh
+            const clientId = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
+            const clientSecret = import.meta.env.VITE_CONCEPT2_CLIENT_SECRET;
+
+            if (!clientId || !clientSecret) {
+                throw new Error("Missing Concept2 Client ID or Secret in environment variables.");
+            }
+
+            const params = new URLSearchParams();
+            params.append('client_id', clientId);
+            params.append('client_secret', clientSecret);
+            params.append('grant_type', 'refresh_token');
+            // Use the LATEST refresh token if possible, though 'refreshToken' arg is usually it
+            params.append('refresh_token', refreshToken);
+            // Explicitly request the scopes we want. This handles cases where:
+            // 1. The original token had scopes that differ from our desired permission set
+            // 2. We keep results:read here (not results:write) because C2 does not allow
+            //    upgrading scopes via refresh — only the initial authorization can grant
+            //    additional scopes. The Edge Function (publish-to-c2) handles its own
+            //    token refresh with results:write for users who re-authorized.
+            params.append('scope', 'user:read,results:read');
+
+            try {
+                const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
+                    timeout: 20000,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
+
+                const newToken = response.data.access_token;
+                const newRefreshToken = response.data.refresh_token;
+
+                localStorage.setItem('concept2_token', newToken);
+                if (newRefreshToken) {
+                    localStorage.setItem('concept2_refresh_token', newRefreshToken);
+                }
+                if (response.data.expires_in) {
+                    const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000)).toISOString();
+                    localStorage.setItem('concept2_expires_at', expiresAt);
+                }
+                window.dispatchEvent(new CustomEvent('concept2-token-updated'));
+
+                // Persist to DB with explicit error reporting (prevents silent token drift)
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    await persistConcept2Tokens(
+                        user.id,
+                        newToken,
+                        newRefreshToken,
+                        response.data.expires_in
+                            ? new Date(Date.now() + (response.data.expires_in * 1000)).toISOString()
+                            : undefined
+                    );
+                } else {
+                    console.warn('Concept2 refresh succeeded but no authenticated Supabase user was available to persist tokens.');
+                }
+
+                return newToken;
+            } catch (error: unknown) {
+                const axiosErr = error as { response?: { status?: number; data?: { error?: string; message?: string } } };
+                if (axiosErr.response && axiosErr.response.status === 400) {
+                    // Check ONE LAST TIME if storage updated differently
+                    const finalCheckRefresh = localStorage.getItem('concept2_refresh_token');
+                    if (finalCheckRefresh && finalCheckRefresh !== refreshToken) {
+                        const finalCheckToken = localStorage.getItem('concept2_token');
+                        if (finalCheckToken) return finalCheckToken;
+                    }
+
+                    // Check error payload for fatal indicators
+                    const errorCode = axiosErr.response.data?.error || axiosErr.response.data?.message || '';
+                    const errorStr = typeof errorCode === 'string' ? errorCode.toLowerCase() : '';
+                    const isFatalRefresh = errorStr.includes('invalid_grant')
+                        || errorStr.includes('refresh token is invalid')
+                        || errorStr.includes('token has been revoked');
+
+                    if (isFatalRefresh) {
+                        console.error("Fatal: Refresh token revoked/expired. Clearing C2 tokens. Reason:", errorCode);
+                        await clearAllTokens();
+                        throw new Error("FATAL_REFRESH_ERROR");
+                    }
+
+                    // Non-fatal 400 — don't nuke tokens, just throw so caller can retry later
+                    console.warn("C2 token refresh got 400 (non-fatal):", errorCode);
+                    throw error;
+                }
+                throw error;
+            }
+        });
+    })();
+
+    // Ensure we clear the local promise reference after it completes (success or fail)
+    // so subsequent calls can start a new chain
+    refreshPromise.finally(() => {
+        refreshPromise = null;
+    });
+
+    return refreshPromise;
+}
+
+// Interceptor to add Authorization header if token exists (with proactive refresh)
+concept2Client.interceptors.request.use(async (config) => {
+    requireProductionConcept2();
+    // Proactive expiry check
+    const expiresAt = localStorage.getItem('concept2_expires_at');
+    const refreshToken = localStorage.getItem('concept2_refresh_token');
+
+    if (expiresAt && refreshToken) {
+        const expiryTime = new Date(expiresAt).getTime();
+        const buffer = 5 * 60 * 1000; // 5 minutes
+        if (Date.now() > expiryTime - buffer) {
+            try {
+                const newToken = await refreshAccessToken(refreshToken);
+                config.headers.Authorization = `Bearer ${newToken}`;
+                config.headers['Accept'] = 'application/vnd.c2logbook.v1+json';
+                return config;
+            } catch (err: unknown) {
+                const refreshErr = err as { message?: string; response?: { status?: number } };
+                console.error('Proactive token refresh failed:', err);
+                if (refreshErr.message === "FATAL_REFRESH_ERROR") {
+                    // Auth is dead, tokens cleared, reconnect event fired — reject request
+                    return Promise.reject(err);
+                }
+                // Non-fatal (network blip, transient 400, etc.) — proceed with existing token
+                // and let the 401 response interceptor handle it if needed
+            }
+        }
+    }
+
+    const token = localStorage.getItem('concept2_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    config.headers['Accept'] = 'application/vnd.c2logbook.v1+json';
+    return config;
+});
+
+// Interceptor to handle 401s (Token Refresh) and 5xx (Retry)
+concept2Client.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        const isNetworkError = !error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK');
+        const isserverError = error.response && [500, 502, 503, 504, 429].includes(error.response.status);
+
+        // RETRY LOGIC for 5xx, 429, or Network Errors (CORS/Drop)
+        if (isserverError || isNetworkError) {
+            originalRequest._retryCount = originalRequest._retryCount || 0;
+            if (originalRequest._retryCount < 3) {
+                originalRequest._retryCount++;
+                const delay = Math.pow(2, originalRequest._retryCount) * 1000; // 2s, 4s, 8s
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return concept2Client(originalRequest);
+            }
+        }
+
+        // If 401 and not already retrying
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+            const refreshToken = localStorage.getItem('concept2_refresh_token');
+
+            if (refreshToken) {
+                try {
+                    // Reuse the helper logic (which handles env vars and 400s) instead of rewriting it
+                    const newToken = await refreshAccessToken(refreshToken);
+
+                    // Update header and retry
+                    originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                    return concept2Client(originalRequest);
+
+                } catch (refreshError) {
+                    console.error("Token refresh failed during retry:", refreshError);
+                    await clearAllTokens();
+                    // Don't reject, just let it fail -> UI might redirect
+                }
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+export const getProfile = async (): Promise<C2Profile> => {
+    const response = await concept2Client.get<any>('/users/me');
+    // Unpack if wrapped in 'data'
+    if (response.data && response.data.data) {
+        return response.data.data;
+    }
+    return response.data;
+};
+
+export const getResults = async (userId: number | string = 'me', page?: number, params: Record<string, any> = {}): Promise<C2Response<C2Result[]>> => {
+    // Construct URL
+    let url = `/users/${userId}/results`;
+
+    // Build Query Params
+    const query = new URLSearchParams();
+    if (page) query.append('page', page.toString());
+
+    // Add optional filters (from, to, type)
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to); // Docs: 'to' is inclusive or exclusive? Usually inclusive ISO or date
+    if (params.type) query.append('type', params.type);
+
+    const queryString = query.toString();
+    if (queryString) {
+        url += `?${queryString}`;
+    }
+
+    const response = await concept2Client.get<C2Response<C2Result[]>>(url);
+    return response.data;
+};
+
+export const getResultDetail = async (resultId: number): Promise<C2ResultDetail> => {
+    // The "me" alias doesn't work for specific result endpoint in some APIs,
+    // but the docs say /api/users/{user}/results/{result_id}.
+    const response = await concept2Client.get<any>(`/users/me/results/${resultId}`);
+    // Unpack if wrapped in 'data'
+    if (response.data && response.data.data) {
+        return response.data.data;
+    }
+    return response.data;
+};
+
+export const getStrokes = async (resultId: number): Promise<C2Stroke[]> => {
+    try {
+        const response = await concept2Client.get<any>(`/users/me/results/${resultId}/strokes`);
+        // Docs say body: { data: [...] }
+        return response.data.data;
+    } catch (error: any) {
+        if (error.response && error.response.status === 404) {
+            return []; // No strokes available
+        }
+        throw error;
+    }
+};
