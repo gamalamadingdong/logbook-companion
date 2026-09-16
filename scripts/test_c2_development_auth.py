@@ -86,5 +86,48 @@ try:
     assert refresh(0).returncode != 0
     sql("select public.c2_development_auth_operation('00000000-0000-0000-0000-000000000001','begin','{\"state_hash\":\"reconnect\"}');")
     print('PASS: no timed lock stealing; invalid_grant clears credentials and permits reconnect, not refresh')
+    sql((root / 'supabase/migrations/20260916160000_concept2_development_results.sql').read_text())
+    for role in ['anon', 'authenticated']:
+        for statement in ["select * from public.c2_development_results", "select public.c2_development_sync_operation('00000000-0000-0000-0000-000000000001','list')"]:
+            p = sql(f'set role {role}; {statement}', ok=False)
+            assert p.returncode != 0 and 'permission denied' in p.stderr
+    sql("""
+      insert into public.c2_development_auth(user_id) values ('00000000-0000-0000-0000-000000000002') on conflict do nothing;
+      update public.c2_development_auth set access_token='fixture-access', refresh_token='fixture-refresh',
+        expires_at=now()+interval '1 hour', needs_reconnect=false, operation_id=null,
+        provider_user_id=case when user_id='00000000-0000-0000-0000-000000000001' then '42' else '43' end;
+      create table public.workout_logs(id int primary key, marker text);
+      insert into public.workout_logs values(1,'production sentinel');
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001'; claim jsonb; v jsonb; begin
+        for i in 1..2 loop
+          claim := public.c2_development_sync_operation(u,'claim');
+          perform public.c2_development_sync_operation(u,'save',jsonb_build_object('operation_id',claim->>'operation_id',
+            'results','[{"id":123,"distance":5000,"time":12345,"type":"rower","date":"2026-09-16"}]'::jsonb));
+        end loop;
+        v := public.c2_development_sync_operation(u,'list');
+        if v->>'total' <> '1' or v->'results'->0->>'time' <> '12345' then raise exception 'Dedup/units failed'; end if;
+        v := public.c2_development_sync_operation('00000000-0000-0000-0000-000000000002','list');
+        if v->>'total' <> '0' then raise exception 'Cross-user leak'; end if;
+        update public.c2_development_auth set provider_user_id='different' where user_id=u;
+        v := public.c2_development_sync_operation(u,'list');
+        if v->>'total' <> '0' then raise exception 'Cross-account leak'; end if;
+        update public.c2_development_auth set provider_user_id='42' where user_id=u;
+      end $$;
+    """)
+    def claim_sync(_):
+        return sql("set role service_role; select public.c2_development_sync_operation('00000000-0000-0000-0000-000000000001','claim');", ok=False)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        claims = list(pool.map(claim_sync, range(8)))
+    assert sum(p.returncode == 0 for p in claims) == 1
+    assert refresh(0).returncode != 0
+    assert sql("select public.c2_development_sync_operation('00000000-0000-0000-0000-000000000001','release','{\"operation_id\":\"00000000-0000-0000-0000-000000000000\"}');", ok=False).returncode != 0
+    sql("""
+      select public.c2_development_sync_operation(user_id,'unauthorized',jsonb_build_object('operation_id',operation_id))
+        from public.c2_development_auth where user_id='00000000-0000-0000-0000-000000000001';
+    """)
+    assert claim_sync(0).returncode != 0
+    assert sql("select marker from public.workout_logs").stdout.strip() == 'production sentinel'
+    assert sql("select count(*) from public.workout_logs").stdout.strip() == '1'
+    print('PASS: isolated result permissions, duplicate imports, user/account boundaries, shared refresh mutex, stale release fencing, expired-token guard, production sentinel unchanged')
 finally:
     subprocess.run(['docker', 'rm', '-f', name], capture_output=True)

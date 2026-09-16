@@ -4,6 +4,8 @@ Status: proposed specifications and bounded implementation plans, inspected 2026
 
 ## Start here / resume
 
+Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
+
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.
 2. Choose one independent track:
    - [Publishing specification and plan](publishing.md): owned completed workout → one manual Concept2 development publication → import into the original LC row.

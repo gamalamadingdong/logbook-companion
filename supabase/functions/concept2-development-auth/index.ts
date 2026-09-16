@@ -19,5 +19,12 @@ Deno.serve(createHandler({
     if (error) throw new Error('Development credential operation failed');
     return data;
   },
+  syncOperation: async (user, action, values = {}) => {
+    const { data, error } = await client!.rpc('c2_development_sync_operation', {
+      p_user_id: user, p_action: action, p_values: values,
+    });
+    if (error) throw new Error('Development import operation failed');
+    return data;
+  },
   fetch,
 }));

@@ -2,9 +2,11 @@
 
 Last updated: 2026-09-16
 
-## Local implementation — Concept2 staging auth
+## Current effort — Concept2 development read-sync
 
-Uncommitted `feature/concept2-staging-auth` starts at fetched `origin/staging` (`b409ef6`); local `main` setup-note commit `92471af` is preserved. See [staging auth slice](../docs/concept2-mobile/staging-auth-slice.md) for implementation, verification, traced legacy paths, rollout and rollback. Server-only development exchange/refresh and credential storage are implemented locally; development sync/publishing are explicitly blocked. Production legacy auth is retained only in production builds and excluded from staging bundles. No live changes, commit, push or PR performed. Live MCP/schema verification, confirmed staging hostname/development client, reviewed deployment approval and actual OAuth smoke remain outstanding. `logbook-dev.readyall.org` is a candidate only.
+The auth slice merged into staging. Sam reports deploying its migration/function, configuring the three server-side secrets, registering `https://logbook-dev.readyall.org/callback`, and successfully connecting a Concept2 development account. Genuine expired-token refresh remains unverified. Production retains its existing connection flow.
+
+`feature/concept2-development-sync` adds manual paginated summary imports into service-only `c2_development_results`, isolated by LC user and development provider account, and removes the misleading staging dashboard connection-lost warning. See [development sync slice](../docs/concept2-mobile/development-sync-slice.md) for scope, verification, deployment order, rollback, and real-account acceptance checks. Sam authorized commit/push and a PR targeting staging. No new migration/function deployment performed. Local checks pass; live schema/MCP verification and real import are outstanding. No production writes; normal staging history still reads shared production records. Strokes, normalization into analytics, publishing, and native mobile are not part of this slice.
 
 
 ## Current Session — Concept2/mobile planning (2026-09-15)

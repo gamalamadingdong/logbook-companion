@@ -1,5 +1,6 @@
 // Deliberately development-only: never accepts an environment, provider URL,
 // callback, credentials, user ID, or tokens from the caller.
+import { developmentResults } from './results.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
 // Operator must explicitly configure the confirmed staging origin. No hostname default.
 function permittedOrigin(value: string): boolean {
@@ -16,6 +17,7 @@ export type Dependencies = {
   config: Config | null;
   authenticate: (jwt: string) => Promise<string | null>;
   operation: (user: string, action: string, values?: Row) => Promise<Row>;
+  syncOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
   fetch: typeof fetch;
 };
 export function configuration(get: (name: string) => string | undefined): Config | null {
@@ -50,10 +52,14 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'code', 'state', 'page'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
       }
       const callback = `${config.origin}/callback`;
+      if (body.action === 'sync' || body.action === 'results') {
+        try { return reply(200, await developmentResults(deps, user, body.action, body.page)); }
+        catch { return reply(409, { error: 'Development import unavailable or failed. Check / refresh connection and retry this page. If operation is pending, stop and request operator recovery.' }); }
+      }
       if (body.action === 'status') return reply(200, await deps.operation(user, 'status'));
       if (body.action === 'begin') {
         const state = crypto.randomUUID() + crypto.randomUUID();
@@ -62,7 +68,7 @@ export function createHandler(deps: Dependencies) {
           response_type: 'code', scope: 'user:read,results:read', state });
         return reply(200, { authorization_url: `${PROVIDER}/oauth/authorize?${query}` });
       }
-      if (!['exchange', 'refresh'].includes(body.action)) return reply(400, { error: 'Unsupported action. Development sync is disabled.' });
+      if (!['exchange', 'refresh'].includes(body.action)) return reply(400, { error: 'Unsupported action. Publishing is disabled.' });
       if (body.action === 'exchange' && (typeof body.code !== 'string' || !body.code || body.code.length > 4096 ||
           typeof body.state !== 'string' || body.state.length !== 72)) return reply(400, { error: 'Invalid callback.' });
       // DB consumes state and acquires a non-expiring mutex in one transaction.
