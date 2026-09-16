@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js'
+import { legacyConcept2Enabled, blockedDevelopmentRequest, DEVELOPMENT_SYNC_DISABLED } from './concept2Environment'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -22,6 +23,16 @@ if (!hasSupabaseEnv) {
 }
 
 export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabaseAnonKey ?? fallbackSupabaseAnonKey, {
+    global: { fetch: (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        if (!legacyConcept2Enabled && blockedDevelopmentRequest(url, method)) {
+            return Promise.resolve(new Response(JSON.stringify({ message: DEVELOPMENT_SYNC_DISABLED }), {
+                status: 403, headers: { 'Content-Type': 'application/json' },
+            }));
+        }
+        return fetch(input, init);
+    } },
     auth: {
         flowType: 'pkce',
         detectSessionInUrl: true,

@@ -16,6 +16,8 @@ import {
     type Concept2SyncRange,
 } from '../utils/concept2SyncRange';
 
+import { legacyConcept2Enabled, DEVELOPMENT_SYNC_DISABLED } from '../services/concept2Environment';
+
 export type SyncRange = Concept2SyncRange;
 
 export interface SyncOptions {
@@ -98,6 +100,7 @@ export const useConcept2Sync = () => {
     };
 
     const startSync = useCallback(async (options: SyncOptions = { range: '30days' }) => {
+        if (!legacyConcept2Enabled) { setError(DEVELOPMENT_SYNC_DISABLED); setStatus(DEVELOPMENT_SYNC_DISABLED); return; }
         // Smart Sync Throttling
         if (options.skipIfRecent) {
             const lastSync = localStorage.getItem(LAST_C2_SYNC_TIMESTAMP_KEY);

@@ -17,6 +17,8 @@ packages/rwn
 .vscode/*
 .agent/
 scripts/*
+!scripts/test_c2_development_auth.py
+!scripts/check_c2_staging_bundle.py
 !.vscode/extensions.json
 .idea
 .DS_Store

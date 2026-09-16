@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { legacyConcept2Enabled } from '../services/concept2Environment';
+import { developmentConcept2 } from '../services/concept2Auth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { supabase } from '../services/supabase';
@@ -7,6 +9,7 @@ export const Callback: React.FC = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const hasRun = useRef(false);
+    const [failure, setFailure] = useState('');
 
     const waitForAuthenticatedUser = useCallback(async (maxAttempts = 10, delayMs = 300) => {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -18,6 +21,18 @@ export const Callback: React.FC = () => {
     }, []);
 
     const exchangeToken = useCallback(async (code: string) => {
+        if (!legacyConcept2Enabled) {
+            const state = searchParams.get('state') || '';
+            window.history.replaceState({}, '', '/callback');
+            try {
+                if (!await waitForAuthenticatedUser()) throw new Error('Sign in with the account that started the connection.');
+                await developmentConcept2('exchange', { code, state });
+                navigate('/sync', { replace: true });
+            } catch (error) {
+                setFailure(error instanceof Error ? error.message : 'Development connection failed.');
+            }
+            return;
+        }
         try {
             const params = new URLSearchParams();
             params.append('client_id', import.meta.env.VITE_CONCEPT2_CLIENT_ID);
@@ -65,7 +80,7 @@ export const Callback: React.FC = () => {
             console.error('Token exchange failed', error);
             navigate('/login');
         }
-    }, [navigate, waitForAuthenticatedUser]);
+    }, [navigate, waitForAuthenticatedUser, searchParams]);
 
     useEffect(() => {
         if (hasRun.current) return;
@@ -75,16 +90,21 @@ export const Callback: React.FC = () => {
         if (code) {
             void exchangeToken(code);
         } else {
-            console.error('No code found in URL');
-            navigate('/login');
+            if (!legacyConcept2Enabled) {
+                window.history.replaceState({}, '', '/callback');
+                setFailure('Authorization was denied or the callback is missing a code. Return to Sync and reconnect.');
+            } else {
+                navigate('/login');
+            }
         }
     }, [exchangeToken, navigate, searchParams]);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-neutral-900 text-white">
             <div className="text-center">
-                <h2 className="text-xl font-semibold mb-2">Authenticating...</h2>
-                <p className="text-neutral-400">Connecting your Concept2 Logbook...</p>
+                <h2 className="text-xl font-semibold mb-2">{failure ? 'Connection failed' : 'Authenticating...'}</h2>
+                <p role={failure ? 'alert' : undefined} className="text-neutral-400">{failure || 'Connecting your Concept2 Logbook...'}</p>
+                {failure && <a href="/sync" className="underline">Return to Sync</a>}
             </div>
         </div>
     );

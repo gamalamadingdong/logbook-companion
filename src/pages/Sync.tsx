@@ -78,7 +78,13 @@ const formatJobStatus = (job: C2SyncJob | null, fallbackStatus: string) => {
     return pieces.join(' | ');
 };
 
-export const Sync: React.FC = () => {
+import { legacyConcept2Enabled } from '../services/concept2Environment';
+import { connectConcept2 } from '../services/concept2Auth';
+import { DevelopmentConcept2 } from './DevelopmentConcept2';
+
+export const Sync: React.FC = () => legacyConcept2Enabled ? <ProductionSync /> : <DevelopmentConcept2 />;
+
+const ProductionSync: React.FC = () => {
     const {
         syncing,
         progress: syncProgress,
@@ -214,10 +220,7 @@ export const Sync: React.FC = () => {
     }, [tokensReady]);
 
     const handleC2Connect = () => {
-        const client_id = import.meta.env.VITE_CONCEPT2_CLIENT_ID;
-        const redirect_uri = `${window.location.origin}/callback`;
-        const scope = 'user:read,results:write';
-        window.location.href = `https://log.concept2.com/oauth/authorize?client_id=${client_id}&scope=${scope}&response_type=code&redirect_uri=${redirect_uri}`;
+        void connectConcept2();
     };
 
 

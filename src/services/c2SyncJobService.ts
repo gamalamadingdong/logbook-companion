@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { requireProductionConcept2 } from './concept2Environment'
 
 export type C2SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
 export type C2SyncJobItemStatus =
@@ -56,6 +57,7 @@ interface StartC2SyncResponse {
 }
 
 export async function startC2SyncJob(options: StartC2SyncJobOptions = {}) {
+    requireProductionConcept2();
     const { data, error } = await supabase.functions.invoke<StartC2SyncResponse>('start-c2-sync', {
         body: {
             requested_from: options.requestedFrom ?? null,
