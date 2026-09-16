@@ -3,14 +3,15 @@ import { legacyConcept2Enabled } from './concept2Environment';
 import { toast } from 'sonner';
 
 export type DevelopmentConnection = { connected: boolean; busy?: boolean; environment: 'development'; provider_user_id?: string };
-export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status', fields: { code?: string; state?: string } = {}) {
+export type DevelopmentResult = { id: number; date: string; type: string; distance: number; time: number };
+export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results', fields: { code?: string; state?: string; page?: number } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
     const detail = error.context instanceof Response ? await error.context.json().catch(() => null) : null;
     throw new Error(typeof detail?.error === 'string' ? detail.error : 'Development Concept2 is unavailable. Sign in and check staging configuration.');
   }
   if (data?.error || !data) throw new Error(data?.error || 'Development Concept2 is unavailable.');
-  return data as DevelopmentConnection & { authorization_url?: string };
+  return data as DevelopmentConnection & { authorization_url?: string; results?: DevelopmentResult[]; total?: number; imported?: number; next_page?: number | null };
 }
 export async function connectConcept2() {
   try {

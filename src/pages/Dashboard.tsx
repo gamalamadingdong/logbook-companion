@@ -1,4 +1,5 @@
 import { connectConcept2 } from '../services/concept2Auth';
+import { legacyConcept2Enabled } from '../services/concept2Environment';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -259,7 +260,13 @@ export const Dashboard: React.FC = () => {
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
                     {/* Disconnected Alert (Partial State) */}
-                    {!c2Connected && !showConnectSplash && !isGuest && (
+                    {!legacyConcept2Enabled && !isGuest && (
+                        <div className="rounded-2xl border border-emerald-900 bg-emerald-950/30 p-4 mb-4">
+                            <p>Staging: development imports are separate from the saved production history shown below.</p>
+                            <Link to="/sync" className="inline-block py-3 text-emerald-300 underline">Check development connection and imports</Link>
+                        </div>
+                    )}
+                    {legacyConcept2Enabled && !c2Connected && !showConnectSplash && !isGuest && (
                         <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3 text-red-200">
                                 <AlertCircle size={24} className="text-red-500 shrink-0" />

@@ -104,8 +104,8 @@ describe('development Concept2 boundary', () => {
     await expect(api.getResultDetail(42)).rejects.toThrow(/disabled/);
     await expect(api.getStrokes(42)).rejects.toThrow(/disabled/);
   });
-  it('no sync or publishing action exists', async () => {
-    const f = fixture(); expect((await f.request({ action: 'sync' })).status).toBe(400);
+  it('no publishing action exists', async () => {
+    const f = fixture(); expect((await f.request({ action: 'publish' })).status).toBe(400);
     expect(f.network).not.toHaveBeenCalled();
   });
   it('staging blocks legacy tokens, jobs and analytics writes but permits the new auth function', () => {

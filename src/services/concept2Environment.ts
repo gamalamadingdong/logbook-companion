@@ -1,7 +1,7 @@
 // Set from Vercel's server-owned deployment metadata, not a VITE toggle.
 declare const __C2_LEGACY_PRODUCTION__: boolean;
 export const legacyConcept2Enabled = typeof __C2_LEGACY_PRODUCTION__ !== 'undefined' && __C2_LEGACY_PRODUCTION__;
-export const DEVELOPMENT_SYNC_DISABLED = 'Development Concept2 sync is disabled until workout storage and jobs are environment-isolated.';
+export const DEVELOPMENT_SYNC_DISABLED = 'Legacy Concept2 sync is disabled in staging. Use the isolated development import on the Sync page.';
 export function requireProductionConcept2() {
   if (!legacyConcept2Enabled) throw new Error(DEVELOPMENT_SYNC_DISABLED);
 }
