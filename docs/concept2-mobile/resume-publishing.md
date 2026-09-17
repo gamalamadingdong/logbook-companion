@@ -51,30 +51,29 @@ Read-only live inspection found no `erg_link_live` workout rows, and there is no
 Verification: 457 Vitest tests; disposable PostgreSQL permission, ownership, bounded manual-entry, write-scope, single-dispatch, exact-ID link, definite-rejection retry, reconnect and unknown-outcome recovery checks; Deno type check; staging and production builds; staging bundle isolation scan; lint with no errors. On 2026-09-17 five targeted migrations were applied and recorded, and Edge Function version 5 was deployed. Both new RPCs remain service-only. Multiple fixed-distance writes, exact-ID import, repeat-import idempotency, real expired-token refresh, provider-side LC provenance and clean post-success form reset pass live. Fixed-distance development writing is complete. Use the official API snapshot to choose the next result shape deliberately rather than broadening several payload classes at once. Rollback of application/function code does not remove published Concept2 results; additive tables/columns can remain.
 
 
-## Agreed next slice
+## Agreed next phase
 
-Implement **manual publication of one eligible, completed fixed-distance rowing workout to Concept2 development**, then link its imported representation back to its original LC identity. Use [publishing.md](publishing.md) as the specification, bounded by this current sequencing decision.
+Stop adding workout-type logic to the manual test form. Use [publishing.md](publishing.md) as the authoritative revised plan:
 
-1. Inspect current auth, import, capture contracts and schema. Confirm the official Concept2 development POST schema and error/duplicate semantics; do not assume an idempotency-key API exists.
-2. Establish the smallest owned, stable completed-workout identity and valid mapping for one supported workout shape. Use actual completed data, not prescription alone; reject unsupported or incomplete workouts visibly. Inspect existing `workout_logs`/ErgLink contracts before inventing another model.
-3. Define development-only publication state and exact-result-ID linkage. Do not attach development result IDs to production Concept2 ID fields or let production reconciliation consume them. Preserve origin, LC UUID, strokes, notes and assignment links. The current development summary table is an isolated snapshot store, not already-completed canonical workout reconciliation.
-4. Add development `results:write` authorization and an explicit reconnect path. Deployed authorization requests `user:read,results:read`; existing tokens cannot acquire write permission by refresh alone. Sam will reconnect after the updated code is deployed. No speculative new credentials are needed now; actual write access remains to be confirmed.
-5. Add a server-owned manual publish action. Authenticate and authorize ownership, reload canonical data, validate payload, persist an attempt before POST, serialize concurrent requests and record the returned result ID. Do not expose tokens or accept caller-supplied provider URLs/user IDs.
-6. Handle the critical ambiguous outcome: Concept2 may accept POST while LC loses the response. No blind POST retry. Use supported reconciliation evidence if available; otherwise retain an explicit unknown/review-required state. Do not claim exactly-once delivery based on local status alone.
-7. Add minimal staging UI for eligibility, publish status, reconnect and recovery. Keep unsupported actions disabled with clear explanations.
-8. Run focused automated checks and document rollout/rollback. Prepare a PR targeting **staging**, not main, following user authorization for publication of the branch. Human merges; no auto-merge.
+1. Freeze the proven fixed-distance payload/state behavior and audit the deployed, unsourced production `publish-to-c2` function without redeploying it.
+2. Define one versioned completed-workout publication model and source adapters for manual and ErgLink evidence.
+3. Extract a pure Concept2 mapper/validator and provider adapter; route fixed distance through it without changing live behavior.
+4. Add fixed time as the second shape and prove it through local contracts plus one gated development publish/read-back/re-import.
+5. Harden ErgLink capture separately: stable capture ID/version, completion state, true finish/timezone, final summary, measured intervals, aggregates and retry-safe IndexedDB persistence.
+6. Add intervals, aggregate enrichment and strokes one shape/capability at a time. Keep unsupported evidence blocked rather than flattened.
+7. Replace the legacy production publisher with a source-controlled wrapper around the proven core only after Concept2 production approval and a separate operator gate.
 
-A new server function or extension of the current development function should follow the simplest existing pattern. Avoid a general multi-provider job framework or redoing the mobile plan. If eligible capture data is unavailable, identify that exact missing input rather than fabricating a successful publish.
+ErgLink remains a capture producer, not a Concept2 client. Reuse its PM5 workout vocabulary, local stroke buffer, session/participant identity and assignment/template provenance. Do not reuse upload-time completion, last-stroke “averages,” or prescription as proof of completion.
 
-## Testing agreement — avoid repeated manual ceremonies
+## Testing agreement
 
-Sam wants stability, but explicitly agreed to complete write capability before a broader manual end-to-end pass. **Do not gate starting the write slice on repeating read smoke tests or completing the entire previous live checklist.**
+Use three separate layers:
 
-Keep meaningful automated tests during implementation: ownership, environment boundaries, units/payload validation, idempotency/concurrency and uncertain publish outcomes. Once the loop exists, test together:
+1. **Local contract tests:** all supported shapes/fields, unit conversions, evidence validation and provider failure categories.
+2. **Disposable database/reliability tests:** ownership, fencing, refresh, retries, unknown outcomes, exact-ID linkage and provenance preservation.
+3. **Gated development conformance:** representative named fixtures or real consented captures published sequentially to Concept2 development, read back and re-imported. This does not run automatically in ordinary CI.
 
-`durable LC workout → manual development publish → development sync → same LC identity with original rich data retained`
-
-At that point cover reconnect/write scope, genuinely expired-token refresh, pagination, repeat publish/re-import, provider/DB failures, and absence of production contamination. Pending manual tests are deferred, not waived or claimed passed. No promotion to production before this verification and Concept2 production write approval.
+Testing the provider specification does not mean implementing every endpoint. Create/read-back is required; update/delete/bulk/webhook and trusted verification remain out of scope until an LC product requirement and provider approval exist.
 
 ## Starting files and commands
 
