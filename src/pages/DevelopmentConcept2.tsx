@@ -28,6 +28,7 @@ export function DevelopmentConcept2() {
   const [newDistance, setNewDistance] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [newCompletedAt, setNewCompletedAt] = useState('');
+  const [publicationShape, setPublicationShape] = useState<'fixed_distance' | 'fixed_time'>('fixed_distance');
   const [draftErrors, setDraftErrors] = useState<DevelopmentWorkoutDraftErrors>({});
   useEffect(() => {
     let active = true;
@@ -47,10 +48,13 @@ export function DevelopmentConcept2() {
       .eq('user_id', user.id).eq('source', 'manual').eq('workout_type', 'row')
       .order('completed_at', { ascending: false }).limit(25)
       .then(({ data }) => { if (active) setManualRows((data ?? []).filter(row => {
-        const raw = row.raw_data as { source?: string; mode?: string } | null;
+        const raw = row.raw_data as { source?: string; mode?: string; publication_shape?: string } | null;
+        const shape = raw?.publication_shape ?? 'fixed_distance';
+        if (shape !== 'fixed_distance' && shape !== 'fixed_time') return false;
         return raw?.source === 'training_block_manual_entry' && raw.mode === 'row'
           && row.distance_meters && row.duration_seconds
-          && row.manual_rwn === `${row.distance_meters}m`;
+          && (shape === 'fixed_time' ? row.manual_rwn === `${row.duration_seconds}s`
+            : row.manual_rwn === `${row.distance_meters}m`);
       })); });
     return () => { active = false; };
   }, [user]);
@@ -93,6 +97,7 @@ export function DevelopmentConcept2() {
       if (result.status === 'published') {
         setSelectedId(''); setWeightClass(''); setConfirmed(false);
         setNewDistance(''); setNewDuration(''); setNewCompletedAt('');
+        setPublicationShape('fixed_distance');
       }
     } catch (err) { setError(err instanceof Error ? err.message : 'Publication failed.'); }
     finally { setPending(false); }
@@ -107,6 +112,7 @@ export function DevelopmentConcept2() {
     try {
       const created = await developmentConcept2('create_workout', {
         distance_meters: distance, duration_seconds: duration, completed_at: completed.toISOString(),
+        publication_shape: publicationShape,
       });
       const { data, error: queryError } = await supabase.from('workout_logs')
         .select('id,completed_at,distance_meters,duration_seconds,manual_rwn,raw_data')
@@ -142,7 +148,15 @@ export function DevelopmentConcept2() {
         onClick={() => void refresh()}>Check / refresh connection</button>
       <div className="space-y-3 rounded border border-neutral-700 p-4">
         <h2 className="text-lg font-semibold">Publish a saved manual row to Concept2 development</h2>
-        <p>For this development test, first save one completed fixed-distance LC row. This does not publish anything until you confirm the separate publish action below.</p>
+        <p>For this development test, first save one completed fixed-distance or fixed-time LC row. This does not publish anything until you confirm the separate publish action below.</p>
+        <Select label="Completed workout shape" value={publicationShape}
+          onChange={event => setPublicationShape(event.target.value as 'fixed_distance' | 'fixed_time')}>
+          <option value="fixed_distance">Fixed distance</option>
+          <option value="fixed_time">Fixed time</option>
+        </Select>
+        <p className="text-sm text-content-muted">{publicationShape === 'fixed_time'
+          ? 'Enter the prescribed completed time and the distance actually measured.'
+          : 'Enter the prescribed completed distance and the work time actually measured.'}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input label="Distance (meters)" type="number" min="1" step="1" inputMode="numeric" value={newDistance}
             onChange={event => { setNewDistance(event.target.value); setDraftErrors(errors => ({ ...errors, distance: undefined })); }}
@@ -157,7 +171,8 @@ export function DevelopmentConcept2() {
         <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected} onClick={() => void createWorkout()}>Save completed LC row</Button>
         <Select label="Workout" value={selectedId} onChange={event => { setSelectedId(event.target.value); setConfirmed(false); }}>
             <option value="">Select a saved workout</option>
-            {manualRows.map(row => <option key={row.id} value={row.id}>{new Date(row.completed_at).toLocaleString()} · {row.distance_meters} m · {row.duration_seconds} s</option>)}
+            {manualRows.map(row => { const raw = row.raw_data as { publication_shape?: string } | null;
+              return <option key={row.id} value={row.id}>{new Date(row.completed_at).toLocaleString()} · {raw?.publication_shape === 'fixed_time' ? 'Fixed time' : 'Fixed distance'} · {row.distance_meters} m · {row.duration_seconds} s</option>; })}
         </Select>
         <Input label="Workout timezone" value={timezone} onChange={event => setTimezone(event.target.value)} placeholder="America/New_York" />
         <Select label="Concept2 weight class" value={weightClass} onChange={event => setWeightClass(event.target.value as '' | 'H' | 'L')}>

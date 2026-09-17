@@ -174,6 +174,7 @@ try:
     sql((root / 'supabase/migrations/20260917124000_concept2_development_manual_entry.sql').read_text())
     sql((root / 'supabase/migrations/20260917130000_fix_concept2_development_manual_entry_trigger_path.sql').read_text())
     sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
+    sql((root / 'supabase/migrations/20260917170000_concept2_shared_publication_core.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
@@ -243,6 +244,28 @@ try:
         p = sql(f"set role {role}; select public.c2_development_create_manual_workout('00000000-0000-0000-0000-000000000001','{{}}');", ok=False)
         assert p.returncode != 0 and 'permission denied' in p.stderr
     print('PASS: development test entry creates one owned manual LC row; invalid and direct client calls are rejected')
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001'; created jsonb; claimed jsonb;
+        w uuid; body jsonb;
+      begin
+        created:=public.c2_development_create_manual_workout(u,
+          '{"distance_meters":6000,"duration_seconds":1500,"completed_at":"2026-09-17T11:00:00Z","publication_shape":"fixed_time"}');
+        w:=(created->>'workout_id')::uuid;
+        body:=jsonb_build_object('type','rower','date','2026-09-17 11:00:00','timezone','UTC',
+          'distance',6000,'time',15000,'workout_type','FixedTimeSplits','weight_class','H',
+          'privacy','private','comments','Logbook Companion workout ID: ' || w::text);
+        claimed:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','UTC','weight_class','H','privacy','private',
+          'confirmed_completed',true,'payload',body));
+        if claimed->>'dispatch' is distinct from 'true' or claimed->'payload' is distinct from body
+          or (select manual_rwn from public.workout_logs where id=w) is distinct from '1500s'
+          or (select mapper_version from public.c2_development_publications where workout_id=w) <> 1 then
+          raise exception 'Fixed-time shared-core claim failed: %',claimed; end if;
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',claimed->>'attempt_id','outcome','rejected'));
+      end $$;
+    """)
+    print('PASS: fixed-time test row and exact shared-core payload are durably claimed')
     sql("""
       do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
         w uuid := '00000000-0000-0000-0000-00000000bbbb'; v jsonb; r jsonb;

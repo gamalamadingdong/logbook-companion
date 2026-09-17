@@ -1,4 +1,5 @@
 import { PROVIDER, type Dependencies } from './handler.ts';
+import { mapCompletedWorkoutToConcept2 } from '../_shared/concept2/publication.ts';
 
 type Claim = {
   dispatch?: boolean; status?: string; result_id?: number; workout_id?: string;
@@ -9,8 +10,16 @@ type Claim = {
 export async function publishManual(
   deps: Dependencies, user: string, fields: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  if (!deps.publishOperation) throw new Error('Development publishing is unavailable.');
-  const claim = await deps.publishOperation(user, 'claim', fields) as Claim;
+  if (!deps.publishOperation || !deps.loadWorkout || typeof fields.workout_id !== 'string') {
+    throw new Error('Development publishing is unavailable.');
+  }
+  const workout = await deps.loadWorkout(user, fields.workout_id);
+  const payload = mapCompletedWorkoutToConcept2(workout, {
+    timezone: String(fields.timezone),
+    weightClass: fields.weight_class as 'H' | 'L',
+    privacy: fields.privacy as 'private' | 'partners' | 'logged_in' | 'everyone',
+  });
+  const claim = await deps.publishOperation(user, 'claim', { ...fields, payload }) as Claim;
   if (!claim.dispatch) return {
     status: claim.status, result_id: claim.result_id, workout_id: claim.workout_id,
   };
