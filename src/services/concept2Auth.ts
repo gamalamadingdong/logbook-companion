@@ -6,6 +6,43 @@ export type DevelopmentConnection = { connected: boolean; busy?: boolean; can_pu
   environment: 'development'; provider_user_id?: string };
 export type DevelopmentResult = { id: number; date: string; type: string; distance: number; time: number; lc_workout_id?: string };
 export type DevelopmentPublication = { workout_id: string; status: 'published' | 'rejected' | 'outcome_unknown'; result_id?: number; created_at?: string };
+
+type DevelopmentWorkoutDraft = { distance: string; duration: string; completedAt: string };
+export type DevelopmentWorkoutDraftErrors = Partial<Record<keyof DevelopmentWorkoutDraft, string>>;
+export function validateDevelopmentWorkoutDraft(draft: DevelopmentWorkoutDraft, now = new Date()): DevelopmentWorkoutDraftErrors {
+  const errors: DevelopmentWorkoutDraftErrors = {};
+  const distance = Number(draft.distance); const duration = Number(draft.duration);
+  const completedAt = draft.completedAt ? new Date(draft.completedAt) : null;
+  if (!Number.isSafeInteger(distance) || distance <= 0 || distance > 1_000_000) {
+    errors.distance = 'Enter a whole number of meters greater than zero.';
+  }
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 86_400) {
+    errors.duration = 'Enter work time in seconds greater than zero.';
+  }
+  if (!completedAt || Number.isNaN(completedAt.getTime())) {
+    errors.completedAt = 'Enter when the workout was completed.';
+  } else if (completedAt > now) {
+    errors.completedAt = 'Completion time cannot be in the future.';
+  }
+  return errors;
+}
+
+export function getDevelopmentPublishBlockers(input: {
+  connection: DevelopmentConnection | null; selectedId: string; weightClass: '' | 'H' | 'L';
+  timezone: string; confirmed: boolean; existingStatus?: DevelopmentPublication['status'];
+}) {
+  const blockers: string[] = [];
+  if (!input.connection?.connected) blockers.push('Connect your Concept2 development account.');
+  else if (!input.connection.can_publish) blockers.push('Reconnect Concept2 to grant development write permission.');
+  if (input.connection?.busy) blockers.push('Wait for the current Concept2 operation to finish.');
+  if (!input.selectedId) blockers.push('Save or select a completed LC workout.');
+  if (!input.timezone.trim()) blockers.push('Enter the workout timezone.');
+  if (!input.weightClass) blockers.push('Select your Concept2 weight class.');
+  if (!input.confirmed) blockers.push('Confirm that you completed the saved workout.');
+  if (input.existingStatus && input.existingStatus !== 'rejected') blockers.push('This workout already has a publication attempt.');
+  return blockers;
+}
+
 export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; distance_meters?: number; duration_seconds?: number; completed_at?: string } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
