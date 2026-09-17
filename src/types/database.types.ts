@@ -536,6 +536,146 @@ export type Database = {
         }
         Relationships: []
       }
+      c2_development_auth: {
+        Row: {
+          access_token: string | null
+          environment: string
+          expires_at: string | null
+          needs_reconnect: boolean
+          operation_id: string | null
+          operation_scope: string | null
+          operation_started_at: string | null
+          provider_user_id: string | null
+          refresh_token: string | null
+          requested_scope: string
+          state_expires_at: string | null
+          state_hash: string | null
+          token_scope: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          environment?: string
+          expires_at?: string | null
+          needs_reconnect?: boolean
+          operation_id?: string | null
+          operation_scope?: string | null
+          operation_started_at?: string | null
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          requested_scope?: string
+          state_expires_at?: string | null
+          state_hash?: string | null
+          token_scope?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          environment?: string
+          expires_at?: string | null
+          needs_reconnect?: boolean
+          operation_id?: string | null
+          operation_scope?: string | null
+          operation_started_at?: string | null
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          requested_scope?: string
+          state_expires_at?: string | null
+          state_hash?: string | null
+          token_scope?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      c2_development_publications: {
+        Row: {
+          attempt_count: number
+          attempt_id: string
+          created_at: string
+          environment: string
+          id: string
+          mapper_version: number
+          payload: Json
+          provider_user_id: string
+          resolution_evidence: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          result_id: number | null
+          status: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          attempt_id: string
+          created_at?: string
+          environment?: string
+          id?: string
+          mapper_version?: number
+          payload: Json
+          provider_user_id: string
+          resolution_evidence?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          result_id?: number | null
+          status: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          attempt_count?: number
+          attempt_id?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          mapper_version?: number
+          payload?: Json
+          provider_user_id?: string
+          resolution_evidence?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          result_id?: number | null
+          status?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_development_publications_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      c2_development_results: {
+        Row: {
+          environment: string
+          imported_at: string
+          provider_user_id: string
+          result_id: number
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          environment?: string
+          imported_at?: string
+          provider_user_id: string
+          result_id: number
+          summary: Json
+          user_id: string
+        }
+        Update: {
+          environment?: string
+          imported_at?: string
+          provider_user_id?: string
+          result_id?: number
+          summary?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       c2_sync_job_items: {
         Row: {
           created_at: string
@@ -4911,6 +5051,22 @@ export type Database = {
       }
       approve_coaching_request: {
         Args: { new_status: string; request_id: string }
+        Returns: Json
+      }
+      c2_development_auth_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_create_manual_workout: {
+        Args: { p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_publish_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_sync_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
         Returns: Json
       }
       calculate_split_500m: {

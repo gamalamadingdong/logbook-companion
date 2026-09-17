@@ -20,7 +20,7 @@ Provider reference fixture:
 | Case | Local contract | Online Validator | Development POST/read-back | LC exact-ID re-import | Evidence |
 |---|---:|---:|---:|---:|---|
 | Fixed-distance summary | Passed | Not required for proven simple shape | Passed | Passed | Results `86800`, `86805`, `86807`, `86817`; result `86817` includes provider-visible LC UUID comment. |
-| Fixed-time summary | Passed | Passed with strict checking | Pending | Pending | [`fixed-time-summary-validator.json`](fixed-time-summary-validator.json), SHA-256 `efd0702c9fddbed88918352b09869982814ce21a2d8e6e961298dfdd300158e5`; validator returned `FixedTimeSplits`, 7,321 m and 30:00. |
+| Fixed-time summary | Passed | Passed with strict checking | Pending user-initiated development publish | Pending | [`fixed-time-summary-validator.json`](fixed-time-summary-validator.json), SHA-256 `efd0702c9fddbed88918352b09869982814ce21a2d8e6e961298dfdd300158e5`; validator returned `FixedTimeSplits`, 7,321 m and 30:00. The shared migration and Edge Function v6 are live; no provider POST has occurred. |
 | Fixed-distance intervals + rest | Pending | Pending | Pending | Pending | Device-free canonical fixture with measured intervals and reconciled totals. |
 | Fixed-time intervals + rest | Pending | Pending | Pending | Pending | Device-free canonical fixture with measured interval distances and reconciled totals. |
 | Variable intervals | Pending | Pending | Pending | Pending | Device-free canonical fixture with ordered mixed work/rest records. |
