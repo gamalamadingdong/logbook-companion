@@ -102,16 +102,19 @@ Edits after publication are local-only in this slice: display divergence from th
 
 ## Implementation tasks
 
-### P1 — Freeze the proven baseline and audit the legacy publisher
+Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidence/README.md); external inquiry text is draft-only until Sam sends it.
+
+### P1 — Start the approval conversation and freeze the proven baseline
 
 **LC files:** `supabase/functions/concept2-development-auth/*`, `scripts/test_c2_development_auth.py`, `docs/concept2-mobile/legacy-publish-to-c2-audit.md`.
 
+- [ ] Send a requirements inquiry to `ranking@concept2.com`: describe the proven fixed-distance flow and ask which development shapes, Online Validator output or payload samples Concept2 expects before formal production-write approval.
 - [ ] Preserve fixed-distance payload, state-machine and exact-ID behavior as regression tests before refactoring.
 - [ ] Download the deployed `publish-to-c2` function read-only; record version/hash and sanitized behavior without adding secrets or redeploying it.
 - [ ] Add an explicit source-control/deployment guard explaining that the live legacy function is not the implementation base.
 - [ ] Verify no production endpoint or credential enters staging bundles.
 
-**Exit:** fixed-distance behavior is frozen and the unsafe production baseline is auditable.
+**Exit:** Concept2's stated evidence expectations are recorded if they respond; fixed-distance behavior is frozen and the unsafe production baseline is auditable. Do not block device-free engineering while waiting for a reply.
 
 ### P2 — Define one completed-workout model and support matrix
 
@@ -135,18 +138,33 @@ Edits after publication are local-only in this slice: display divergence from th
 
 **Exit:** fixed distance uses the same pure core future shapes will use; UI and capture sources contain no Concept2 mapping.
 
-### P4 — Add fixed time and a gated conformance catalog
+### P4 — Complete the device-free production-approval conformance matrix
 
-**LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector.
+**LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector; record validator/development evidence under `docs/concept2-mobile/approval-evidence/`.
 
-- [ ] Add fixed-time failing tests using exact work time and measured distance.
-- [ ] Implement only fixed-time mapping; do not add intervals in the same slice.
-- [ ] Publish one named fixed-time fixture to development after approval, read it back, import it twice and compare the fields Concept2 retained.
-- [ ] Record provider result ID and LC UUID; never label the synthetic fixture as a real ErgLink capture.
+- [ ] Add fixed-time failing tests using exact work time and measured distance; implement and prove one development write/read-back/re-import.
+- [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
+- [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
+- [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.
+- [ ] Exercise deliberate duplicate (`409`) and invalid (`422`) cases without blind retry or false published state.
+- [ ] Record sanitized fixture payload/hash, validator outcome, provider result ID, LC UUID and read-back differences. Never label synthetic fixtures as real ErgLink captures.
+- [ ] Keep strokes, trusted verification, bulk/update/delete/webhook and non-rower machines out of this approval matrix unless Concept2 explicitly requests them.
 
-**Exit:** a second shape proves the core expands without another form-specific mapper.
+**Exit:** fixed distance, fixed time and representative interval classes have local contracts, validator evidence and development API read-back suitable for a formal production-write approval request.
 
-### P5 — Strengthen ErgLink completed capture
+### P5 — Submit the formal production-write approval request
+
+**Evidence:** use the recorded fixed-distance and conformance results; never include secrets, tokens or private user data.
+
+- [ ] Send Concept2 the application/client identity, URLs/callbacks, intended user-initiated unverified workflow, supported shapes and GitHub/live links.
+- [ ] Include representative development result IDs plus duplicate/validation/refresh/unknown-outcome safeguards.
+- [ ] Ask whether `comments` or `metadata.other` is preferred for LC UUID provenance and whether additional rate-limit/client-identification evidence is required.
+- [ ] Record the correspondence and any conditions in project documentation; treat permission as approval to prepare production rollout, not automatic activation.
+- [ ] Continue device-free core/ErgLink contract work while waiting; do not enable production writes.
+
+**Exit:** Concept2 has received a truthful evidence-backed request; approval status and provider conditions are explicit.
+
+### P6 — Strengthen ErgLink completed capture
 
 **ErgLink files:** `src/types/ergSession.types.ts`, `src/services/sessionService.ts`, `src/services/strokeBuffer.ts` and focused pure aggregation tests. Mirror accepted contract changes in LC `src/types/ergSession.types.ts`.
 
@@ -159,17 +177,18 @@ Edits after publication are local-only in this slice: display divergence from th
 
 **Exit:** ErgLink can produce trustworthy completed evidence; it still does not know Concept2 payloads or credentials.
 
-### P6 — Map ErgLink detail and add richer shapes sequentially
+### P7 — Map ErgLink detail and add richer shapes sequentially
 
 - [ ] Convert cumulative ErgLink strokes into Concept2 incremental deciseconds/decimeters/pace; reject decreasing/invalid samples and reconcile totals.
-- [ ] Add shapes in order: Just Row, fixed-distance intervals, fixed-time intervals, variable intervals.
+- [ ] Replace synthetic evidence with consented real PM5 captures for fixed distance, fixed time and interval shapes as device access permits; document any mapper changes forced by actual evidence.
+- [ ] Add Just Row only after its real completion semantics are explicit.
 - [ ] Add HR/SPM/calories/drag/stroke count only from validated aggregate evidence.
 - [ ] Add targets/metadata only for a product requirement and after development validator/read-back evidence.
 - [ ] For every shape: local failing tests → minimal mapper → reliability regression → one gated development publish/read-back/re-import → support-matrix update.
 
 **Exit:** every enabled field/shape has both local contract coverage and representative provider evidence.
 
-### P7 — Replace the legacy production publisher behind a hard gate
+### P8 — Replace the legacy production publisher behind a hard gate
 
 **LC files:** source-control `supabase/functions/publish-to-c2/index.ts` as a thin owner-authenticated wrapper around the shared core; add focused tests and reviewed migrations/config only after live discovery.
 

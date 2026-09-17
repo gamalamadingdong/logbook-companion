@@ -465,22 +465,21 @@ Primary endpoint:
 POST /api/users/me/results
 ```
 
-Test at minimum:
+For the device-free production-approval evidence package, test at minimum:
 
-* Just Row
 * fixed distance
 * fixed time
 * fixed-distance intervals
 * fixed-time intervals
 * variable intervals
-* HR data
-* stroke data
 * workouts with rest
 * duplicate submission behavior
 * invalid payload behavior
 * token expiration and refresh
 
 Concept2 recommends using its Online Validator when developing workout uploads, particularly interval workouts.
+
+Just Row, PM5-derived HR/stroke detail, richer aggregates, targets/metadata and additional machine types are later vertical-slice tests unless Concept2 explicitly requires them for approval. Synthetic canonical fixtures may prove provider mapping; they must not be labeled as real PM5 captures.
 
 ## Step 5: Validate OAuth and reconnect behavior
 
@@ -497,7 +496,10 @@ Test:
 
 ## Step 6: Request production approval
 
-Once write integration works against the development Logbook, contact Concept2 requesting approval to use the live API for result creation.
+Use two contacts rather than guessing at an unpublished checklist:
+
+1. **Requirements inquiry now:** describe the proven fixed-distance development flow and ask whether Concept2 expects specific additional shapes, Online Validator output or payload samples.
+2. **Formal approval request after the compact matrix:** submit fixed-distance, fixed-time and representative interval/duplicate/invalid/refresh evidence and request production result-creation approval.
 
 Concept2's API documentation currently directs API questions to:
 
@@ -521,7 +523,7 @@ The approval request should therefore clearly describe:
 * live application URL
 * developer contact information
 
-Unless Concept2 gives additional instructions, this email should be treated as the formal handoff from development testing to production approval.
+Provider permission allows LC to prepare a production rollout; it does not itself enable writes. Source-controlled production replacement, operator approval, backup/rollback and one bounded smoke path remain separate gates.
 
 ---
 
