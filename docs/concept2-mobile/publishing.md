@@ -158,6 +158,7 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 - [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
 - [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
 - [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.
+- [ ] Use the preserved Online Validator default variable-interval payload as provider reference for top-level totals, mixed intervals, HR and `stroke_data`; create an LC-owned unverified fixture rather than copying its `verified: true` claim or assuming its samples match ErgLink semantics.
 - [ ] Exercise deliberate duplicate (`409`) and invalid (`422`) cases without blind retry or false published state.
 - [ ] Record sanitized fixture payload/hash, validator outcome, provider result ID, LC UUID and read-back differences. Never label synthetic fixtures as real ErgLink captures.
 - [ ] Keep strokes, trusted verification, bulk/update/delete/webhook and non-rower machines out of this approval matrix unless Concept2 explicitly requests them.
