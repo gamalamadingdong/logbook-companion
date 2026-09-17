@@ -174,7 +174,7 @@ try:
     sql((root / 'supabase/migrations/20260917124000_concept2_development_manual_entry.sql').read_text())
     sql((root / 'supabase/migrations/20260917130000_fix_concept2_development_manual_entry_trigger_path.sql').read_text())
     sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
-    sql((root / 'supabase/migrations/20260917170000_concept2_shared_publication_core.sql').read_text())
+    sql((root / 'supabase/migrations/20260917172700_concept2_shared_publication_core.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
