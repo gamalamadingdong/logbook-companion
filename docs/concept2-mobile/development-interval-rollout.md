@@ -2,7 +2,7 @@
 
 ## Purpose and current state
 
-This slice takes the three strictly validated synthetic interval payloads through the same owned-row, fenced development publication flow already proven for fixed-distance and fixed-time summaries. The fixtures are invented conformance results. They are not athlete completions or PM5 captures. Because they are stored in `workout_logs`, they can appear in LC history and affect training analytics for the account used to test. Use an account where those test rows are acceptable; the UI discloses this before saving. The placeholder UUIDs in the validator evidence are replaced with newly created owned LC workout IDs before publication. No interval POST has happened yet.
+This slice takes the three strictly validated synthetic interval payloads through the same owned-row, fenced development publication flow already proven for fixed-distance and fixed-time summaries. The fixtures are invented conformance results. They are not athlete completions or PM5 captures. Because they are stored in `workout_logs`, they can appear in LC history and affect training analytics for the account used to test. Use an account where those test rows are acceptable; the UI discloses this before saving. The placeholder UUIDs in the validator evidence are replaced with newly created owned LC workout IDs before publication. Three synthetic interval results were published on 2026-09-17 and imported by exact ID; this document retains the operational procedure.
 
 ## Rollout order
 
@@ -14,4 +14,4 @@ If a POST outcome is uncertain, stop. The existing state machine prevents anothe
 
 ## Local evidence and remaining gates
 
-The disposable PostgreSQL suite checks service-only access; all three payloads against the TypeScript mapper; changed source and payload rejection; one dispatch; mapper-versioned snapshots; and exact-ID import linkage. The full Vitest suite, build, Deno check and lint passed locally. These are local checks, not a live provider write. The live development POST/read-back, controlled duplicate `409` and invalid `422` evidence, and Concept2 approval response remain open. Once the migration is live, regenerate `src/types/database.types.ts` from live Supabase schema and verify its new table/RPC entries before handoff.
+The disposable PostgreSQL suite checks service-only access; all three payloads against the TypeScript mapper; changed source and payload rejection; one dispatch; mapper-versioned snapshots; and exact-ID import linkage. The full Vitest suite, build, Deno check and lint passed locally. Live development POST, provider display and exact-ID import have now passed for all three fixtures; repeat import retained nine distinct result IDs. Controlled duplicate `409`, invalid `422` and Concept2 approval response remain open. Types were regenerated from the live Supabase schema in PR #160.

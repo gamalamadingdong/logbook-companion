@@ -21,9 +21,9 @@ Provider reference fixture:
 |---|---:|---:|---:|---:|---|
 | Fixed-distance summary | Passed | Not required for proven simple shape | Passed | Passed | Results `86800`, `86805`, `86807`, `86817`; result `86817` includes provider-visible LC UUID comment. |
 | Fixed-time summary | Passed | Passed with strict checking | Passed: result `86844` | Passed on first and repeat import | [`fixed-time-summary-validator.json`](fixed-time-summary-validator.json), SHA-256 `efd0702c9fddbed88918352b09869982814ce21a2d8e6e961298dfdd300158e5`; validator fixture was 7,321 m / 30:00. Live development result `86844` was 5,000 m / 50:00. |
-| Fixed-distance intervals + rest | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
-| Fixed-time intervals + rest | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
-| Variable intervals | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| Fixed-distance intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86847`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| Fixed-time intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86848`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| Variable intervals | Passed | Passed with strict checking (Sam-reported) | Passed: result `86849`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Duplicate `409` | Automated behavior covered | N/A | Pending controlled development evidence | N/A | Must not be marked published without a proven remote ID. |
 | Invalid `422` | Automated behavior covered | Validator should reject matching invalid fixture | Pending controlled development evidence | N/A | Must permit correction without treating outcome as unknown. |
 | Expired-token rotating refresh | Passed | N/A | Passed | N/A | Real expired access-token refresh retained `results:write` with no reconnect or stuck operation. |
@@ -31,7 +31,7 @@ Provider reference fixture:
 
 ## Interval strict validator evidence
 
-On 2026-09-17, Sam reported that all three [single-line fixture payloads](interval-validator-inputs.md) passed Concept2 Online Validator with **Use Strict Checking** enabled. This is user-observed validator evidence; no validator response export or development API write has been captured yet. The validator also recommended an overall stroke rate, stroke count and drag factor. Those fields are optional and absent because the synthetic fixtures contain no measured aggregates; LC must not invent them.
+On 2026-09-17, Sam reported that all three [single-line fixture payloads](interval-validator-inputs.md) passed Concept2 Online Validator with **Use Strict Checking** enabled. This is user-observed validator evidence; no validator response export was captured. The validator also recommended an overall stroke rate, stroke count and drag factor. Those fields are optional and absent because the synthetic fixtures contain no measured aggregates; LC must not invent them.
 
 SHA-256 below is over the UTF-8 bytes of each compact JSON line inside the Markdown code block, excluding the newline and code fences:
 
@@ -41,7 +41,19 @@ SHA-256 below is over the UTF-8 bytes of each compact JSON line inside the Markd
 | `fixed_time_intervals_3x120s` | 1,500 m / 360.0 s work; 90.0 s rest | `ff88ef972b0f5e8b0fb03faf2ad1280900ed75b31a8551b0ab465fa759a6f4fd` |
 | `variable_intervals_mixed` | 1,200 m / 300.0 s work; 45.0 s rest and 40 m rest distance | `1c59b55e61a492f232d36dbf3cb1253bc016265295968c3547c7aa40c58e7c90` |
 
-The fixture UUIDs in the validator inputs are placeholders. The interval development publishing branch binds a named fixture to a new owned, labelled LC test row and saves an immutable service-only snapshot before the fenced publication claim. The local disposable PostgreSQL suite checks all three mapper payloads, tampered row and payload rejection, duplicate dispatch blocking, and exact-ID import linkage. No interval provider POST or result ID exists yet; the new migration, Edge Function and UI have not been deployed.
+The fixture UUIDs in the validator inputs are placeholders. The development publisher binds each named fixture to a new owned, labelled LC test row and saves an immutable service-only snapshot before the fenced publication claim. The local disposable PostgreSQL suite checks all three mapper payloads, tampered row and payload rejection, duplicate dispatch blocking, and exact-ID import linkage. Migration `20260917190000` and `concept2-development-auth` version 7 are live; production publishing remains disabled.
+
+## Interval development results
+
+On 2026-09-17, Sam explicitly published the three synthetic fixtures to Concept2 development and reported that their provider-side interval breakdowns display correctly. Live LC state shows one publication attempt and mapper version 2 for each result. The original LC rows retain empty production Concept2 fields.
+
+| Fixture | Concept2 result | LC workout UUID | Saved payload and import evidence |
+|---|---:|---|---|
+| 2 × 500 m fixed-distance intervals | `86847` | `a136492a-2205-41b1-8e60-2aed510d26ec` | `FixedDistanceInterval`; 1,000 m / 240 s work, 60 s rest; exact-ID import stored one row, and repeat import retained that row. |
+| 3 × 120 s fixed-time intervals | `86848` | `b5d2250d-4962-4392-8317-e954420e7166` | `FixedTimeInterval`; 480 + 500 + 520 m / 360 s work, 90 s rest; exact-ID import stored one row. |
+| Mixed distance/time intervals | `86849` | `1d6a4ebb-4ec0-4b5a-9169-a8df75d92386` | `VariableInterval`; 500 m / 120 s then 700 m / 180 s, 45 s and 40 m total rest; provider display reported correct; exact-ID LC import stored one row. |
+
+The development import currently persists a result summary. Sam's inspection of the Concept2 result pages supplies the provider-side interval-display evidence; the imported summary alone does not prove that detail. After repeat import, the development account had nine saved rows with nine distinct result IDs; all three interval results retained their exact LC links and one publication attempt each.
 
 ## Fixed-time development result 86844
 
