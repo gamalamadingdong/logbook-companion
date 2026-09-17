@@ -166,6 +166,8 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 **Exit:** fixed distance, fixed time and representative interval classes have local contracts, validator evidence and development API read-back suitable for a formal production-write approval request.
 
+Local fixture status (2026-09-17): the first three named synthetic interval results and pure mappings exist under `supabase/functions/_shared/concept2/fixtures/`. `scripts/render_concept2_fixture.mjs` emits their current Concept2 payloads from the mapper. They have local reconciliation tests only; Online Validator results, durable fixture binding, development POST and exact-ID read-back remain pending. The V2 interval contract has typed space for source evidence and normalized samples, but PM5 capture storage and sample integrity are not yet implemented. The manual summary path still uses V1 and the existing test form.
+
 ### P5 — Submit the formal production-write approval request
 
 **Evidence:** use the recorded fixed-distance and conformance results; never include secrets, tokens or private user data.
