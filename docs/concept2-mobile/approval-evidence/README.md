@@ -67,6 +67,7 @@ This manual development row and Concept2's displayed pace, calorie and watt calc
 
 - Requirements inquiry sent by Sam to `ranking@concept2.com` on 2026-09-17; response pending.
 - Formal production-write request follows the compact device-free matrix unless Concept2 gives different instructions.
+- [Production-write request draft](production-write-request-draft.md) is prepared for Sam's review but has not been sent. It identifies live `409` and `422` evidence as pending.
 - Provider permission does not activate production writes.
 - Production replacement still requires source-controlled implementation, operator approval, backup/rollback and one bounded smoke path.
 - Trusted/verified-result status is not part of this request.
