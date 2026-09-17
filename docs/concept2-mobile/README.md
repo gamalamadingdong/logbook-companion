@@ -1,12 +1,14 @@
 # Concept2 publishing and mobile delivery
 
-Status: development auth and isolated summary import are merged into staging, deployed per operator confirmation, and basic live import/re-import/reload smoke passed. Publishing and mobile remain unimplemented. See the current handoff for evidence and outstanding gates.
+Status: development auth, isolated import, bounded fixed-distance publishing, exact-ID read-back, repeat-import idempotency and a real expired-token refresh have passed in staging. Broader write-shape testing and mobile remain. See the current handoff for evidence and outstanding gates.
 
 ## Start here / resume
 
 **Next session: [resume development publishing](resume-publishing.md).** This records the current state, next bounded slice, and Sam's decision to defer broader manual end-to-end testing until the write/read loop exists. Concept2 is the chosen first effort; do not restart track selection.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
+
+API background: [official Concept2 Logbook API documentation snapshot](concept2-logbook-api-reference.md). This searchable Markdown capture covers OAuth, scopes, result reads/writes, bulk results, intervals, targets, strokes, metadata, webhooks and error behavior. Recheck the linked live source before relying on it for provider behavior.
 
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.
 2. Choose one independent track:
