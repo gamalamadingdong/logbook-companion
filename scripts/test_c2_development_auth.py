@@ -129,5 +129,167 @@ try:
     assert sql("select marker from public.workout_logs").stdout.strip() == 'production sentinel'
     assert sql("select count(*) from public.workout_logs").stdout.strip() == '1'
     print('PASS: isolated result permissions, duplicate imports, user/account boundaries, shared refresh mutex, stale release fencing, expired-token guard, production sentinel unchanged')
+    sql((root / 'supabase/migrations/20260916200841_concept2_development_write_scope.sql').read_text())
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001'; v jsonb; begin
+        v := public.c2_development_auth_operation(u,'status');
+        if v->>'can_publish' is distinct from 'false' then raise exception 'Existing connection gained write scope'; end if;
+        v := public.c2_development_auth_operation(u,'begin',
+          '{"state_hash":"write-state","requested_scope":"user:read,results:write"}');
+        v := public.c2_development_auth_operation(u,'exchange','{"state_hash":"write-state"}');
+        if v->>'token_scope' is distinct from 'user:read,results:write' then raise exception 'Exchange scope mismatch'; end if;
+        perform public.c2_development_auth_operation(u,'save',jsonb_build_object(
+          'operation_id',v->>'operation_id','access_token','fixture-write-access',
+          'refresh_token','fixture-write-refresh','provider_user_id','42',
+          'expires_at',now()-interval '1 second','token_scope','user:read,results:write'));
+        v := public.c2_development_auth_operation(u,'status');
+        if v->>'can_publish' is distinct from 'true' then raise exception 'Write reconnect not recorded'; end if;
+        v := public.c2_development_auth_operation(u,'refresh');
+        if v->>'token_scope' is distinct from 'user:read,results:write' then raise exception 'Refresh downscoped write grant'; end if;
+        perform public.c2_development_auth_operation(u,'reject',jsonb_build_object('operation_id',v->>'operation_id'));
+      end $$;
+    """)
+    print('PASS: existing grant remains read-only; write reconnect and refresh retain write scope')
+    sql("""
+      drop table public.workout_logs;
+      create table public.workout_logs (
+        id uuid primary key, user_id uuid not null, source text, workout_type text,
+        workout_name text not null default 'workout', canonical_name text,
+        canonical_signature text, duration_minutes numeric,
+        raw_data jsonb, manual_rwn text, completed_at timestamptz,
+        distance_meters integer, duration_seconds numeric, rest_distance_meters integer,
+        external_id text, notes text, template_id uuid
+      );
+      insert into public.workout_logs(id,user_id,source,workout_type,raw_data,manual_rwn,
+        completed_at,distance_meters,duration_seconds,notes) values
+      ('00000000-0000-0000-0000-00000000aaaa','00000000-0000-0000-0000-000000000001',
+        'manual','row','{"source":"training_block_manual_entry","mode":"row"}',
+        '5000m','2026-09-16 12:00:00+00',5000,1200,'keep original note');
+      update public.c2_development_auth set access_token='write-access',refresh_token='write-refresh',
+        expires_at=now()+interval '1 hour',needs_reconnect=false,operation_id=null,
+        token_scope='user:read,results:write',provider_user_id='42'
+        where user_id='00000000-0000-0000-0000-000000000001';
+    """)
+    sql((root / 'supabase/migrations/20260916202911_concept2_development_manual_publication.sql').read_text())
+    sql((root / 'supabase/migrations/20260917124000_concept2_development_manual_entry.sql').read_text())
+    for role in ['anon', 'authenticated']:
+        for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
+            p = sql(f'set role {role}; {statement}', ok=False)
+            assert p.returncode != 0 and 'permission denied' in p.stderr
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+        w uuid := '00000000-0000-0000-0000-00000000aaaa'; v jsonb; again jsonb;
+      begin
+        begin
+          perform public.c2_development_publish_operation('00000000-0000-0000-0000-000000000002',
+            'claim',jsonb_build_object('workout_id',w,'timezone','America/New_York',
+            'weight_class','H','privacy','private','confirmed_completed',true));
+          raise exception 'Cross-user claim succeeded';
+        exception when others then
+          if sqlerrm='Cross-user claim succeeded' then raise; end if;
+        end;
+        v := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true));
+        if v->>'dispatch' is distinct from 'true' or v->'payload'->>'date' is distinct from '2026-09-16 08:00:00'
+          or v->'payload'->>'time' is distinct from '12000' then
+          raise exception 'Invalid claim payload: %',v; end if;
+        again := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true));
+        if again->>'dispatch' is distinct from 'false' or again->>'status' is distinct from 'outcome_unknown' then
+          raise exception 'Second claim dispatched: %',again; end if;
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',v->>'attempt_id','result_id',999,'outcome','published'));
+        again := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true));
+        if again->>'dispatch' is distinct from 'false' or again->>'result_id' is distinct from '999' then
+          raise exception 'Published retry dispatched'; end if;
+        perform public.c2_development_sync_operation(u,'claim');
+        select to_jsonb(operation_id::text) into strict v from public.c2_development_auth where user_id=u;
+        perform public.c2_development_sync_operation(u,'save',jsonb_build_object(
+          'operation_id',v,'results','[{"id":999,"distance":5000,"time":12000,"type":"rower","date":"2026-09-16 08:00:00"}]'::jsonb));
+        v := public.c2_development_sync_operation(u,'list');
+        if v->'results'->0->>'lc_workout_id' is distinct from w::text then
+          raise exception 'Reimport lost exact LC identity: %',v; end if;
+        if (select source from public.workout_logs where id=w) is distinct from 'manual'
+          or (select notes from public.workout_logs where id=w) is distinct from 'keep original note'
+          or (select external_id from public.workout_logs where id=w) is not null then
+          raise exception 'Original workout changed'; end if;
+      end $$;
+    """)
+    print('PASS: manual publication ownership, measured payload, one dispatch, exact-ID sync link, original row preserved')
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001'; v jsonb;
+      begin
+        v:=public.c2_development_create_manual_workout(u,'{"distance_meters":6000,"duration_seconds":1500,"completed_at":"2026-09-17T11:00:00Z"}');
+        if not exists(select 1 from public.workout_logs where id=(v->>'workout_id')::uuid
+          and user_id=u and source='manual' and manual_rwn='6000m'
+          and raw_data->>'entry_surface'='concept2_development_test') then
+          raise exception 'Development manual row not saved correctly: %',v; end if;
+        begin
+          perform public.c2_development_create_manual_workout(u,'{"distance_meters":0,"duration_seconds":1500,"completed_at":"2026-09-17T11:00:00Z"}');
+          raise exception 'Invalid manual row accepted';
+        exception when others then
+          if sqlerrm='Invalid manual row accepted' then raise; end if;
+        end;
+      end $$;
+    """)
+    for role in ['anon', 'authenticated']:
+        p = sql(f"set role {role}; select public.c2_development_create_manual_workout('00000000-0000-0000-0000-000000000001','{{}}');", ok=False)
+        assert p.returncode != 0 and 'permission denied' in p.stderr
+    print('PASS: development test entry creates one owned manual LC row; invalid and direct client calls are rejected')
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+        w uuid := '00000000-0000-0000-0000-00000000bbbb'; v jsonb; r jsonb;
+      begin
+        insert into public.workout_logs(id,user_id,source,workout_type,raw_data,manual_rwn,
+          completed_at,distance_meters,duration_seconds) values
+          (w,u,'manual','row','{"source":"training_block_manual_entry","mode":"row"}',
+           '2000m','2026-09-16 12:00:00+00',2000,480);
+        update public.c2_development_auth set token_scope='user:read,results:read' where user_id=u;
+        begin
+          perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H',
+            'privacy','private','confirmed_completed',true));
+          raise exception 'Read scope published';
+        exception when others then
+          if sqlerrm='Read scope published' then raise; end if;
+        end;
+        update public.c2_development_auth set token_scope='user:read,results:write' where user_id=u;
+        v:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true));
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',v->>'attempt_id','outcome','rejected','reconnect_required',true));
+        if not (select needs_reconnect and access_token is null
+          from public.c2_development_auth where user_id=u) then
+          raise exception 'Provider auth rejection did not require reconnect'; end if;
+        update public.c2_development_auth set access_token='write-access-2',
+          refresh_token='write-refresh-2',expires_at=now()+interval '1 hour',
+          needs_reconnect=false,token_scope='user:read,results:write' where user_id=u;
+        r:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true));
+        if r->>'dispatch' is distinct from 'true' or r->>'attempt_id'=v->>'attempt_id'
+          or (select attempt_count from public.c2_development_publications where workout_id=w)<>2 then
+          raise exception 'Definite rejection did not create one safe retry: %',r; end if;
+        v:=r;
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',v->>'attempt_id','outcome','outcome_unknown'));
+        r:=public.c2_development_publish_operation(u,'claim',jsonb_build_object('workout_id',w));
+        if r->>'dispatch' is distinct from 'false' then raise exception 'Unknown attempt redispatched'; end if;
+        r:=public.c2_development_publish_operation(u,'operator_resolve',jsonb_build_object(
+          'workout_id',w,'attempt_id',v->>'attempt_id','outcome','published',
+          'result_id',1000,'operator','test-operator',
+          'evidence','Verified exact result ID 1000 in development account 42'));
+        if r->>'status' is distinct from 'published' then raise exception 'Operator resolution failed'; end if;
+        if (select resolution_evidence from public.c2_development_publications where workout_id=w) is null then
+          raise exception 'Resolution evidence missing'; end if;
+      end $$;
+    """)
+    print('PASS: read scope blocked; auth rejection requires reconnect; definite rejection retries once; unknown attempt cannot redispatch and requires audited operator resolution')
+
 finally:
     subprocess.run(['docker', 'rm', '-f', name], capture_output=True)

@@ -5,11 +5,12 @@ import { blockedDevelopmentRequest, legacyConcept2Enabled, requireProductionConc
 const origin = 'https://logbook-dev.readyall.org';
 const state = 's'.repeat(72);
 function fixture() {
-  const operation = vi.fn(async (_user: string, action: string) => action === 'status'
+  const operation = vi.fn(async (...args: Parameters<Dependencies['operation']>) => args[1] === 'status'
     ? { connected: false, environment: 'development' }
-    : { operation_id: 'operation', refresh_token: 'test-refresh', provider_user_id: '42' });
-  const network = vi.fn(async (url: string | URL | Request) => new Response(JSON.stringify(
-    String(url).endsWith('/users/me') ? { data: { id: 42 } } : { access_token: 'test-access', refresh_token: 'test-rotated', expires_in: 3600 },
+    : { operation_id: 'operation', refresh_token: 'test-refresh', provider_user_id: '42',
+      token_scope: args[1] === 'refresh' ? 'user:read,results:read' : 'user:read,results:write' });
+  const network = vi.fn(async (...args: Parameters<typeof fetch>) => new Response(JSON.stringify(
+    String(args[0]).endsWith('/users/me') ? { data: { id: 42 } } : { access_token: 'test-access', refresh_token: 'test-rotated', expires_in: 3600 },
   ), { status: 200 }));
   const deps: Dependencies = { config: { origin, clientId: 'test-client', clientSecret: 'test-secret' },
     authenticate: vi.fn(async () => 'user-1'), operation, fetch: network as typeof fetch };
@@ -45,9 +46,10 @@ describe('development Concept2 boundary', () => {
     const f = fixture(); const result = await (await f.request({ action: 'begin' })).json();
     const url = new URL(result.authorization_url);
     expect(url.origin).toBe(PROVIDER); expect(url.searchParams.get('redirect_uri')).toBe(`${origin}/callback`);
-    expect(url.searchParams.get('scope')).toBe('user:read,results:read');
+    expect(url.searchParams.get('scope')).toBe('user:read,results:write');
     const values = f.operation.mock.calls[0] as unknown[];
     expect(values[0]).toBe('user-1'); expect(values[1]).toBe('begin');
+    expect(values[2]).toMatchObject({ requested_scope: 'user:read,results:write' });
     expect(JSON.stringify(values[2])).not.toContain(url.searchParams.get('state'));
     expect(JSON.stringify(result)).not.toContain('test-secret');
   });
@@ -57,6 +59,9 @@ describe('development Concept2 boundary', () => {
     expect(text).not.toMatch(/test-access|test-rotated|test-secret/); expect(text).toContain('development');
     expect(f.network.mock.calls.map(call => String(call[0]))).toEqual([`${PROVIDER}/oauth/access_token`, `${PROVIDER}/api/users/me`]);
     expect(f.operation.mock.calls.map(call => call[1])).toEqual(['exchange', 'save']);
+    const tokenRequest = f.network.mock.calls[0]?.[1] as RequestInit;
+    expect(new URLSearchParams(String(tokenRequest.body)).get('scope')).toBe('user:read,results:write');
+    expect(f.operation.mock.calls[1]?.[2]).toMatchObject({ token_scope: 'user:read,results:write' });
   });
   it('invalid, expired, cross-user and replayed state rejected by DB never reaches provider', async () => {
     const f = fixture(); f.deps.operation = async () => { throw new Error('invalid state'); };
@@ -68,6 +73,16 @@ describe('development Concept2 boundary', () => {
     expect(f.network).toHaveBeenCalledTimes(1);
     const save = f.operation.mock.calls[1] as unknown[];
     expect(save[2]).toMatchObject({ refresh_token: 'test-rotated', provider_user_id: '42' });
+    const tokenRequest = f.network.mock.calls[0]?.[1] as RequestInit;
+    expect(new URLSearchParams(String(tokenRequest.body)).get('scope')).toBe('user:read,results:read');
+  });
+  it('refresh keeps write scope after a write-authorized reconnect', async () => {
+    const f = fixture();
+    f.deps.operation = async () => ({ operation_id: 'operation', refresh_token: 'test-refresh',
+      provider_user_id: '42', token_scope: 'user:read,results:write' });
+    expect((await f.request({ action: 'refresh' })).status).toBe(200);
+    const tokenRequest = f.network.mock.calls[0]?.[1] as RequestInit;
+    expect(new URLSearchParams(String(tokenRequest.body)).get('scope')).toBe('user:read,results:write');
   });
   it('fresh tokens and busy account claims never trigger another refresh', async () => {
     const f = fixture(); f.deps.operation = async () => ({ fresh: true });
@@ -91,7 +106,8 @@ describe('development Concept2 boundary', () => {
   it('save failure never leaks or retries newly rotated credentials', async () => {
     const f = fixture(); f.deps.operation = async (_user, action) => {
       if (action === 'save') throw new Error('DB unavailable');
-      return { operation_id: 'operation', refresh_token: 'test-refresh', provider_user_id: '42' };
+      return { operation_id: 'operation', refresh_token: 'test-refresh', provider_user_id: '42',
+        token_scope: 'user:read,results:read' };
     };
     const result = await f.request({ action: 'refresh' });
     expect(result.status).toBe(409); expect(await result.text()).not.toContain('test-rotated');
@@ -104,9 +120,69 @@ describe('development Concept2 boundary', () => {
     await expect(api.getResultDetail(42)).rejects.toThrow(/disabled/);
     await expect(api.getStrokes(42)).rejects.toThrow(/disabled/);
   });
-  it('no publishing action exists', async () => {
+  it('rejects an incomplete publishing request before provider dispatch', async () => {
     const f = fixture(); expect((await f.request({ action: 'publish' })).status).toBe(400);
     expect(f.network).not.toHaveBeenCalled();
+  });
+  it('creates a tightly bounded owned manual workout without contacting Concept2', async () => {
+    const f = fixture();
+    f.deps.createWorkout = vi.fn(async (user, values) => ({ workout_id: 'workout-1', user, ...values }));
+    const response = await f.request({ action: 'create_workout', distance_meters: 5000,
+      duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z' });
+    expect(response.status).toBe(200);
+    expect(f.deps.createWorkout).toHaveBeenCalledWith('user-1', expect.objectContaining({ distance_meters: 5000 }));
+    expect(f.network).not.toHaveBeenCalled();
+    expect((await f.request({ action: 'create_workout', distance_meters: -1,
+      duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z' })).status).toBe(400);
+  });
+  it('publishes one owned claim to the fixed development endpoint and returns only the result ID', async () => {
+    const f = fixture();
+    const publication = vi.fn(async (_user: string, action: string) => action === 'claim'
+      ? { dispatch: true, attempt_id: 'attempt', access_token: 'secret-access', workout_id: 'workout',
+          payload: { type: 'rower', date: '2026-09-16 08:00:00', timezone: 'America/New_York', distance: 5000, time: 12000 } }
+      : { status: 'published' });
+    f.deps.publishOperation = publication;
+    f.deps.fetch = vi.fn(async () => new Response(JSON.stringify({ data: {
+      id: 999, type: 'rower', date: '2026-09-16 08:00:00', distance: 5000, time: 12000,
+    } }), { status: 201 }));
+    const response = await f.request({ action: 'publish', workout_id: '00000000-0000-0000-0000-00000000aaaa',
+      timezone: 'America/New_York', weight_class: 'H', privacy: 'private', confirmed_completed: true });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: 'published', result_id: 999, workout_id: 'workout' });
+    expect((f.deps.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe(`${PROVIDER}/api/users/me/results`);
+    expect(publication.mock.calls.map(call => call[1])).toEqual(['claim', 'finish']);
+  });
+  it('keeps uncertain POST results for review without another dispatch', async () => {
+    const f = fixture();
+    const publication = vi.fn(async (_user: string, action: string) => action === 'claim'
+      ? { dispatch: true, attempt_id: 'attempt', access_token: 'secret-access', workout_id: 'workout',
+          payload: { type: 'rower', date: '2026-09-16 08:00:00', timezone: 'America/New_York', distance: 5000, time: 12000 } }
+      : { status: 'outcome_unknown' });
+    f.deps.publishOperation = publication;
+    f.deps.fetch = vi.fn(async () => { throw new Error('response lost'); });
+    const request = { action: 'publish', workout_id: '00000000-0000-0000-0000-00000000aaaa',
+      timezone: 'America/New_York', weight_class: 'H', privacy: 'private', confirmed_completed: true };
+    expect(await (await f.request(request)).json()).toMatchObject({ status: 'outcome_unknown' });
+    expect(f.deps.fetch).toHaveBeenCalledTimes(1);
+    f.deps.publishOperation = async () => ({ dispatch: false, status: 'outcome_unknown' });
+    expect(await (await f.request(request)).json()).toMatchObject({ status: 'outcome_unknown' });
+    expect(f.deps.fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each([[401, 'rejected', true], [403, 'rejected', true], [422, 'rejected', false],
+    [409, 'outcome_unknown', false], [503, 'outcome_unknown', false]])('classifies POST status %i without retry', async (status, outcome, reconnectRequired) => {
+    const f = fixture();
+    const publication = vi.fn(async (...args: [string, string, Record<string, unknown>?]) => args[1] === 'claim'
+      ? { dispatch: true, attempt_id: 'attempt', access_token: 'secret-access', workout_id: 'workout',
+          payload: { type: 'rower', date: '2026-09-16 08:00:00', timezone: 'America/New_York', distance: 5000, time: 12000 } }
+      : { status: outcome });
+    f.deps.publishOperation = publication;
+    f.deps.fetch = vi.fn(async () => new Response('{}', { status }));
+    const response = await f.request({ action: 'publish', workout_id: '00000000-0000-0000-0000-00000000aaaa',
+      timezone: 'America/New_York', weight_class: 'H', privacy: 'private', confirmed_completed: true });
+    expect((await response.json()).status).toBe(outcome);
+    expect(f.deps.fetch).toHaveBeenCalledTimes(1);
+    expect(publication.mock.calls[1]?.[2]).toEqual({ attempt_id: 'attempt', outcome,
+      ...(reconnectRequired ? { reconnect_required: true } : {}) });
   });
   it('staging blocks legacy tokens, jobs and analytics writes but permits the new auth function', () => {
     expect(legacyConcept2Enabled).toBe(false); expect(requireProductionConcept2).toThrow(/disabled/);

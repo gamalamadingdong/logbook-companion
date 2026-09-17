@@ -34,10 +34,13 @@ Rollback: redeploy the auth-only function from PR #139 and revert the staging fr
 
 ## Live acceptance checklist
 
+Operator-confirmed smoke evidence: Sam applied the migration and deployed the updated function after PR #140 merged into staging. Empty-account import returned zero without errors. After adding a development workout, import displayed result `86742`, `2026-09-16 00:00:00`, rower, 5000 m, 1200 seconds. Re-import retained exactly one saved result, and Sam confirmed persistence after reload. These are user-observed live results, not an independently inspected browser or database session.
+
 - [ ] Unauthenticated requests rejected; a second LC user cannot retrieve the first user's development snapshots.
-- [ ] Import a page from a consented development account; compare count/ID/date/distance/time with Concept2 development. Zero is legitimate for an empty account, not evidence of nonempty import behavior.
-- [ ] Re-import same page: count stays stable, changed summaries update.
-- [ ] Import another page if available; reload and browse saved pages.
+- [x] Empty and nonempty import: operator confirmed the test workout's ID, date, distance and time.
+- [x] Re-import unchanged page: count stays at one; reload preserves the result.
+- [ ] Edit a provider summary and verify re-import updates it.
+- [ ] Import another page if available and browse saved pages.
 - [ ] Check / refresh then import; separately exercise a genuinely expired token before claiming refresh rotation verified.
 - [ ] Provider failure and concurrent clicks return clear errors without duplicates or production fallback.
 - [ ] Compare production connections and workout counts before/after, without displaying credential values.
@@ -49,6 +52,6 @@ Rollback: redeploy the auth-only function from PR #139 and revert the staging fr
 - Disposable PostgreSQL fixture: both development migrations compile; table/RPC access denied to anon/authenticated; repeated import idempotent; user/account boundaries; eight concurrent imports yield one claim; refresh blocked during import; stale release rejected; expired-token import blocked; production sentinel unchanged. This is not a full live Supabase test.
 - Existing production sync Node contract tests: 2 files pass.
 - Lint and Deno function type check pass; staging build and bundle isolation scan pass. Existing build chunk-size warnings remain.
-- Browser/real provider import and live deployment not performed.
+- Implementation-time checks did not include a live deployment or browser import. Subsequent operator-confirmed live smoke evidence is recorded above; unchecked live acceptance items remain unverified.
 
 Official API pagination reference inspected: [Concept2 documentation](https://log.concept2.com/developers/documentation/) (`number`, 1-based `page`, `meta.pagination`).

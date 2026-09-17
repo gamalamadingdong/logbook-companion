@@ -26,5 +26,19 @@ Deno.serve(createHandler({
     if (error) throw new Error('Development import operation failed');
     return data;
   },
+  publishOperation: async (user, action, values = {}) => {
+    const { data, error } = await client!.rpc('c2_development_publish_operation', {
+      p_user_id: user, p_action: action, p_values: values,
+    });
+    if (error) throw new Error('Development publication operation failed');
+    return data;
+  },
+  createWorkout: async (user, values) => {
+    const { data, error } = await client!.rpc('c2_development_create_manual_workout', {
+      p_user_id: user, p_values: values,
+    });
+    if (error) throw new Error('Development manual workout creation failed');
+    return data;
+  },
   fetch,
 }));
