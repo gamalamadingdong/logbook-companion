@@ -28,6 +28,7 @@ export function DevelopmentConcept2() {
   const [newDistance, setNewDistance] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [newCompletedAt, setNewCompletedAt] = useState('');
+  const [fixtureName, setFixtureName] = useState('fixed_distance_intervals_2x500m');
   const [publicationShape, setPublicationShape] = useState<'fixed_distance' | 'fixed_time'>('fixed_distance');
   const [draftErrors, setDraftErrors] = useState<DevelopmentWorkoutDraftErrors>({});
   useEffect(() => {
@@ -50,6 +51,7 @@ export function DevelopmentConcept2() {
       .then(({ data }) => { if (active) setManualRows((data ?? []).filter(row => {
         const raw = row.raw_data as { source?: string; mode?: string; publication_shape?: string } | null;
         const shape = raw?.publication_shape ?? 'fixed_distance';
+        if (raw?.source === 'concept2_development_fixture') return Boolean(row.distance_meters && row.duration_seconds);
         if (shape !== 'fixed_distance' && shape !== 'fixed_time') return false;
         return raw?.source === 'training_block_manual_entry' && raw.mode === 'row'
           && row.distance_meters && row.duration_seconds
@@ -84,11 +86,12 @@ export function DevelopmentConcept2() {
   }
   async function publish() {
     if (!selectedId || !weightClass || !confirmed) return;
+    const fixture = (manualRows.find(row => row.id === selectedId)?.raw_data as { source?: string } | null)?.source === 'concept2_development_fixture';
     setPending(true); setError(''); setMessage('');
     try {
       await developmentConcept2('refresh');
       const result = await developmentConcept2('publish', { workout_id: selectedId,
-        timezone, weight_class: weightClass, privacy, confirmed_completed: true });
+        timezone, weight_class: weightClass, privacy, ...(fixture ? { confirmed_fixture: true } : { confirmed_completed: true }) });
       setPublications((await developmentConcept2('publications')).publications ?? []);
       setConnection(await developmentConcept2('status'));
       setMessage(result.status === 'published' ? `Published development result ${result.result_id}. Import to link it back to this LC workout.` :
@@ -100,6 +103,22 @@ export function DevelopmentConcept2() {
         setPublicationShape('fixed_distance');
       }
     } catch (err) { setError(err instanceof Error ? err.message : 'Publication failed.'); }
+    finally { setPending(false); }
+  }
+  async function createFixture() {
+    if (!user) return;
+    setPending(true); setError(''); setMessage('');
+    try {
+      const created = await developmentConcept2('create_fixture', { fixture_name: fixtureName });
+      const { data, error: queryError } = await supabase.from('workout_logs')
+        .select('id,completed_at,distance_meters,duration_seconds,manual_rwn,raw_data')
+        .eq('id', created.workout_id).eq('user_id', user.id).single();
+      if (queryError || !data) throw new Error('Fixture was saved but could not be reloaded.');
+      setManualRows(rows => [data, ...rows.filter(row => row.id !== data.id)]);
+      setSelectedId(data.id); setConfirmed(false);
+      setTimezone('America/New_York');
+      setMessage('Saved a synthetic LC test row. Review its type and publishing options before sending it to Concept2 development.');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not save the interval fixture.'); }
     finally { setPending(false); }
   }
   async function createWorkout() {
@@ -131,9 +150,12 @@ export function DevelopmentConcept2() {
     catch (err) { setError(err instanceof Error ? err.message : 'Could not load saved results.'); }
     finally { setPending(false); }
   }
+  const selectedRow = manualRows.find(row => row.id === selectedId);
+  const selectedRaw = selectedRow?.raw_data as { source?: string; fixture_name?: string; publication_shape?: string } | null;
+  const selectedFixture = selectedRaw?.source === 'concept2_development_fixture';
   const selectedPublication = publications.find(publication => publication.workout_id === selectedId);
   const publishBlockers = getDevelopmentPublishBlockers({ connection, selectedId, weightClass, timezone,
-    confirmed, existingStatus: selectedPublication?.status });
+    confirmed, syntheticFixture: selectedFixture, existingStatus: selectedPublication?.status });
   return <section className="max-w-xl mx-auto p-6 space-y-4 text-neutral-100">
     <h1 className="text-2xl font-bold">Concept2 development connection</h1>
     <p>Development imports and publication links are stored separately from production Concept2 history, analytics, and assignments.</p>
@@ -147,8 +169,8 @@ export function DevelopmentConcept2() {
       <button className="ml-3 px-4 min-h-11 rounded bg-neutral-700 disabled:opacity-50" disabled={!connection?.connected || pending || connection?.busy}
         onClick={() => void refresh()}>Check / refresh connection</button>
       <div className="space-y-3 rounded border border-neutral-700 p-4">
-        <h2 className="text-lg font-semibold">Publish a saved manual row to Concept2 development</h2>
-        <p>For this development test, first save one completed fixed-distance or fixed-time LC row. This does not publish anything until you confirm the separate publish action below.</p>
+        <h2 className="text-lg font-semibold">Publish an LC test row to Concept2 development</h2>
+        <p>For a manual summary test, save a completed fixed-distance or fixed-time LC row. You can also save one of the named synthetic interval fixtures below. Saving a row does not publish it.</p>
         <Select label="Completed workout shape" value={publicationShape}
           onChange={event => setPublicationShape(event.target.value as 'fixed_distance' | 'fixed_time')}>
           <option value="fixed_distance">Fixed distance</option>
@@ -169,10 +191,26 @@ export function DevelopmentConcept2() {
             error={draftErrors.completedAt} />
         </div>
         <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected} onClick={() => void createWorkout()}>Save completed LC row</Button>
-        <Select label="Workout" value={selectedId} onChange={event => { setSelectedId(event.target.value); setConfirmed(false); }}>
+        <div className="space-y-3 rounded border border-neutral-600 p-3">
+          <h3 className="font-semibold">Synthetic interval test fixtures</h3>
+          <p>These are invented results for checking Concept2 development publication. They are saved as labelled LC test rows and are not PM5 captures or workouts you completed. Because they live in workout history, they may also affect LC training totals.</p>
+          <Select label="Interval fixture" value={fixtureName} onChange={event => setFixtureName(event.target.value)}>
+            <option value="fixed_distance_intervals_2x500m">2 × 500 m, fixed distance intervals</option>
+            <option value="fixed_time_intervals_3x120s">3 × 120 s, fixed time intervals</option>
+            <option value="variable_intervals_mixed">Mixed distance and time intervals</option>
+          </Select>
+          <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected}
+            onClick={() => void createFixture()}>Save synthetic LC test row</Button>
+        </div>
+        <Select label="Workout" value={selectedId} onChange={event => {
+          setSelectedId(event.target.value); setConfirmed(false);
+          const row = manualRows.find(item => item.id === event.target.value);
+          const raw = row?.raw_data as { source?: string; completed_workout?: { timezone?: string } } | null;
+          if (raw?.source === 'concept2_development_fixture' && raw.completed_workout?.timezone) setTimezone(raw.completed_workout.timezone);
+        }}>
             <option value="">Select a saved workout</option>
-            {manualRows.map(row => { const raw = row.raw_data as { publication_shape?: string } | null;
-              return <option key={row.id} value={row.id}>{new Date(row.completed_at).toLocaleString()} · {raw?.publication_shape === 'fixed_time' ? 'Fixed time' : 'Fixed distance'} · {row.distance_meters} m · {row.duration_seconds} s</option>; })}
+            {manualRows.map(row => { const raw = row.raw_data as { source?: string; fixture_name?: string; publication_shape?: string } | null;
+              return <option key={row.id} value={row.id}>{new Date(row.completed_at).toLocaleString()} · {raw?.source === 'concept2_development_fixture' ? `[Synthetic test] ${raw.fixture_name}` : raw?.publication_shape === 'fixed_time' ? 'Fixed time' : 'Fixed distance'} · {row.distance_meters} m · {row.duration_seconds} s</option>; })}
         </Select>
         <Input label="Workout timezone" value={timezone} onChange={event => setTimezone(event.target.value)} placeholder="America/New_York" />
         <Select label="Concept2 weight class" value={weightClass} onChange={event => setWeightClass(event.target.value as '' | 'H' | 'L')}>
@@ -183,7 +221,9 @@ export function DevelopmentConcept2() {
             <option value="logged_in">Logged-in users</option><option value="everyone">Everyone</option>
         </Select>
         <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
-          <span>I completed this row at the saved distance and work time, and I want to publish it to my connected Concept2 development account.</span></label>
+          <span>{selectedFixture
+            ? 'This is a synthetic test result, not a workout I completed. I want to publish it to my connected Concept2 development account.'
+            : 'I completed this row at the saved distance and work time, and I want to publish it to my connected Concept2 development account.'}</span></label>
         {publishBlockers.length > 0 && <div role="status" className="rounded border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-200">
           <p className="font-medium">{message.startsWith('Published development result') ? 'To publish another workout:' : 'Before you can publish:'}</p><ul className="list-disc pl-5">{publishBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
         </div>}

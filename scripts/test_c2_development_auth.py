@@ -6,6 +6,7 @@ Never connects to Supabase or reads environment files.
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
+import json
 import time
 import uuid
 
@@ -175,6 +176,7 @@ try:
     sql((root / 'supabase/migrations/20260917130000_fix_concept2_development_manual_entry_trigger_path.sql').read_text())
     sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
     sql((root / 'supabase/migrations/20260917172700_concept2_shared_publication_core.sql').read_text())
+    sql((root / 'supabase/migrations/20260917190000_concept2_development_interval_fixtures.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
@@ -266,6 +268,121 @@ try:
       end $$;
     """)
     print('PASS: fixed-time test row and exact shared-core payload are durably claimed')
+    for role in ['anon', 'authenticated']:
+        for statement in ["select * from public.c2_development_fixture_workouts", "select public.c2_development_create_fixture_workout('00000000-0000-0000-0000-000000000001','fixed_distance_intervals_2x500m','{}')"]:
+            p = sql(f'set role {role}; {statement};', ok=False)
+            assert p.returncode != 0 and 'permission denied' in p.stderr
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+        w uuid := '44444444-5555-4666-8777-888888888888'; completed jsonb; created jsonb;
+        body jsonb; claimed jsonb; again jsonb; saved jsonb;
+      begin
+        completed:=jsonb_build_object('_v',2,'workoutId',w,'ownerId',u,
+          'source','synthetic_fixture','completionStatus','completed','machine','rower',
+          'shape',jsonb_build_object('kind','fixed_distance_interval'),
+          'completedAt',to_char(now()-interval '10 minutes','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+          'timezone','America/New_York','distanceMeters',1000,'workTimeSeconds',240,
+          'restDistanceMeters',0,'restTimeSeconds',60,
+          'intervals',jsonb_build_array(
+            jsonb_build_object('kind','distance','distanceMeters',500,'workTimeSeconds',120,'restDistanceMeters',0,'restTimeSeconds',60),
+            jsonb_build_object('kind','distance','distanceMeters',500,'workTimeSeconds',120,'restDistanceMeters',0,'restTimeSeconds',0)));
+        created:=public.c2_development_create_fixture_workout(u,'fixed_distance_intervals_2x500m',completed);
+        if created->>'workout_id' is distinct from w::text then raise exception 'Fixture identity changed'; end if;
+        body:=jsonb_build_object('type','rower',
+          'date',to_char((completed->>'completedAt')::timestamptz at time zone 'America/New_York','YYYY-MM-DD HH24:MI:SS'),
+          'timezone','America/New_York','distance',1000,'time',2400,
+          'workout_type','FixedDistanceInterval','rest_distance',0,'rest_time',600,
+          'workout',jsonb_build_object('intervals',jsonb_build_array(
+            jsonb_build_object('type','distance','distance',500,'time',1200,'rest_time',600),
+            jsonb_build_object('type','distance','distance',500,'time',1200,'rest_time',0))),
+          'weight_class','H','privacy','private','comments','Logbook Companion workout ID: ' || w::text);
+        begin
+          perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H','privacy','private',
+            'confirmed_completed',true,'payload',body));
+          raise exception 'Manual confirmation accepted for fixture';
+        exception when others then
+          if sqlerrm='Manual confirmation accepted for fixture' then raise; end if;
+        end;
+        begin
+          perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H','privacy','private',
+            'confirmed_fixture',true,'payload',body || '{"time":999}'::jsonb));
+          raise exception 'Tampered interval payload accepted';
+        exception when others then
+          if sqlerrm='Tampered interval payload accepted' then raise; end if;
+        end;
+        update public.workout_logs set distance_meters=999 where id=w;
+        begin
+          perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H','privacy','private',
+            'confirmed_fixture',true,'payload',body));
+          raise exception 'Changed source row accepted';
+        exception when others then
+          if sqlerrm='Changed source row accepted' then raise; end if;
+        end;
+        update public.workout_logs set distance_meters=1000 where id=w;
+        claimed:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H','privacy','private',
+          'confirmed_fixture',true,'payload',body));
+        if claimed->>'dispatch' is distinct from 'true' or claimed->'payload' is distinct from body
+          or (select mapper_version from public.c2_development_publications where workout_id=w) <> 2 then
+          raise exception 'Fixture claim failed: %',claimed; end if;
+        again:=public.c2_development_publish_operation(u,'claim',jsonb_build_object('workout_id',w));
+        if again->>'dispatch' is distinct from 'false' then raise exception 'Fixture duplicate dispatched'; end if;
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',claimed->>'attempt_id','outcome','published','result_id',1001));
+        perform public.c2_development_sync_operation(u,'claim');
+        perform public.c2_development_sync_operation(u,'save',jsonb_build_object(
+          'operation_id',(select operation_id from public.c2_development_auth where user_id=u),
+          'results',jsonb_build_array(jsonb_build_object('id',1001,'distance',1000,
+            'time',2400,'type','rower','date',body->>'date'))));
+        saved:=public.c2_development_sync_operation(u,'list');
+        if (select x->>'lc_workout_id' from jsonb_array_elements(saved->'results') x
+          where x->>'id'='1001') is distinct from w::text then
+          raise exception 'Fixture exact-ID import lost LC link'; end if;
+        if (select external_id from public.workout_logs where id=w) is not null then
+          raise exception 'Source row contaminated by development ID'; end if;
+      end $$;
+    """)
+    print('PASS: service-only fixture creation and exact interval claim, tamper rejection, duplicate fence')
+    generated = subprocess.run(['node', '--input-type=module', '-e', """
+      import { bindDevelopmentFixture } from './supabase/functions/_shared/concept2/fixtures/index.ts';
+      import { mapCompletedWorkoutToConcept2 } from './supabase/functions/_shared/concept2/publication.ts';
+      const names = ['fixed_time_intervals_3x120s', 'variable_intervals_mixed'];
+      const ids = ['55555555-6666-4777-8888-999999999999', '66666666-7777-4888-8999-aaaaaaaaaaaa'];
+      const completedAt = new Date(Date.now() - 1200000).toISOString();
+      console.log(JSON.stringify(names.map((name, index) => {
+        const completed = bindDevelopmentFixture(name, ids[index],
+          '00000000-0000-0000-0000-000000000001', completedAt);
+        return { name, completed, payload: mapCompletedWorkoutToConcept2(completed,
+          { timezone: completed.timezone, weightClass: 'H', privacy: 'private' }) };
+      })));
+    """], cwd=root, text=True, capture_output=True, check=True)
+    for result_id, item in enumerate(json.loads(generated.stdout), start=1002):
+        fixture_name = item['name']
+        completed = json.dumps(item['completed']).replace("'", "''")
+        payload = json.dumps(item['payload']).replace("'", "''")
+        sql(f"""
+          do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+            c jsonb := '{completed}'::jsonb; b jsonb := '{payload}'::jsonb;
+            w uuid; claimed jsonb; again jsonb;
+          begin
+            w := (c->>'workoutId')::uuid;
+            perform public.c2_development_create_fixture_workout(u,'{fixture_name}',c);
+            claimed := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+              'workout_id',w,'timezone','America/New_York','weight_class','H',
+              'privacy','private','confirmed_fixture',true,'payload',b));
+            if claimed->>'dispatch' is distinct from 'true' or claimed->'payload' is distinct from b
+              or (select mapper_version from public.c2_development_publications where workout_id=w) <> 2 then
+              raise exception 'Named fixture claim failed: %',claimed; end if;
+            again := public.c2_development_publish_operation(u,'claim',jsonb_build_object('workout_id',w));
+            if again->>'dispatch' is distinct from 'false' then raise exception 'Duplicate fixture dispatched'; end if;
+            perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+              'attempt_id',claimed->>'attempt_id','outcome','published','result_id',{result_id}));
+          end $$;
+        """)
+    print('PASS: fixed-time and variable interval claims match the TypeScript mapper exactly')
     sql("""
       do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
         w uuid := '00000000-0000-0000-0000-00000000bbbb'; v jsonb; r jsonb;

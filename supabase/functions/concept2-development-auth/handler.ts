@@ -3,6 +3,8 @@
 import { developmentResults } from './results.ts';
 import { publishManual } from './publish.ts';
 import type { CompletedWorkoutV1 } from '../_shared/concept2/publication.ts';
+import type { CompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
+import { completedWorkoutFixtures } from '../_shared/concept2/fixtures/index.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
 const WRITE_SCOPE = 'user:read,results:write';
 const READ_SCOPE = 'user:read,results:read';
@@ -24,7 +26,8 @@ export type Dependencies = {
   syncOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
   publishOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
   createWorkout?: (user: string, values: Row) => Promise<Row>;
-  loadWorkout?: (user: string, workoutId: string) => Promise<CompletedWorkoutV1>;
+  createFixture?: (user: string, name: string) => Promise<Row>;
+  loadWorkout?: (user: string, workoutId: string) => Promise<CompletedWorkoutV1 | CompletedWorkoutV2>;
   fetch: typeof fetch;
 };
 export function configuration(get: (name: string) => string | undefined): Config | null {
@@ -59,7 +62,7 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape', 'fixture_name', 'confirmed_fixture'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
       }
       const callback = `${config.origin}/callback`;
@@ -73,6 +76,15 @@ export function createHandler(deps: Dependencies) {
         try { return reply(200, await deps.createWorkout(user, body)); }
         catch { return reply(409, { error: 'Could not save the completed development test row.' }); }
       }
+      if (body.action === 'create_fixture') {
+        if (!deps.createFixture || typeof body.fixture_name !== 'string' ||
+            !Object.prototype.hasOwnProperty.call(completedWorkoutFixtures, body.fixture_name) ||
+            Object.keys(body).some(k => !['action', 'fixture_name'].includes(k))) {
+          return reply(400, { error: 'Select a named development interval fixture.' });
+        }
+        try { return reply(200, await deps.createFixture(user, body.fixture_name)); }
+        catch { return reply(409, { error: 'Could not save the development interval fixture.' }); }
+      }
       if (body.action === 'publications') {
         if (!deps.publishOperation) return reply(503, { error: 'Development publishing is unavailable.' });
         return reply(200, await deps.publishOperation(user, 'list'));
@@ -82,7 +94,10 @@ export function createHandler(deps: Dependencies) {
           typeof body.timezone !== 'string' || body.timezone.length > 100 ||
           !['H', 'L'].includes(body.weight_class) ||
           !['private', 'partners', 'logged_in', 'everyone'].includes(body.privacy) ||
-          body.confirmed_completed !== true) return reply(400, { error: 'Confirm a completed row and its publishing options.' });
+          (body.confirmed_completed !== true && body.confirmed_fixture !== true) ||
+          (body.confirmed_completed === true && body.confirmed_fixture === true)) {
+          return reply(400, { error: 'Confirm the selected row and its publishing options.' });
+        }
         try { return reply(200, await publishManual(deps, user, body)); }
         catch { return reply(409, { error: 'Development publication unavailable. Check the selected row and connection. An uncertain attempt needs operator review.' }); }
       }

@@ -41,7 +41,7 @@ SHA-256 below is over the UTF-8 bytes of each compact JSON line inside the Markd
 | `fixed_time_intervals_3x120s` | 1,500 m / 360.0 s work; 90.0 s rest | `ff88ef972b0f5e8b0fb03faf2ad1280900ed75b31a8551b0ab465fa759a6f4fd` |
 | `variable_intervals_mixed` | 1,200 m / 300.0 s work; 45.0 s rest and 40 m rest distance | `1c59b55e61a492f232d36dbf3cb1253bc016265295968c3547c7aa40c58e7c90` |
 
-The fixture UUIDs are synthetic. A development POST requires a new owned durable LC test row, publication through the fenced state machine, and exact returned-ID read-back. No interval provider result IDs exist yet.
+The fixture UUIDs in the validator inputs are placeholders. The interval development publishing branch binds a named fixture to a new owned, labelled LC test row and saves an immutable service-only snapshot before the fenced publication claim. The local disposable PostgreSQL suite checks all three mapper payloads, tampered row and payload rejection, duplicate dispatch blocking, and exact-ID import linkage. No interval provider POST or result ID exists yet; the new migration, Edge Function and UI have not been deployed.
 
 ## Fixed-time development result 86844
 
