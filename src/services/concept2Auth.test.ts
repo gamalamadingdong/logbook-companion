@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { configuration, createHandler, PROVIDER, type Dependencies } from '../../supabase/functions/concept2-development-auth/handler';
 import { blockedDevelopmentRequest, legacyConcept2Enabled, requireProductionConcept2 } from './concept2Environment';
+import { getDevelopmentPublishBlockers, validateDevelopmentWorkoutDraft } from './concept2Auth';
 
 const origin = 'https://logbook-dev.readyall.org';
 const state = 's'.repeat(72);
@@ -20,6 +21,24 @@ function fixture() {
   return { deps, operation, network, request };
 }
 describe('development Concept2 boundary', () => {
+  it('explains incomplete workout-entry fields instead of silently disabling save', () => {
+    expect(validateDevelopmentWorkoutDraft({ distance: '', duration: '0', completedAt: '' }, new Date('2026-09-17T12:00:00Z'))).toEqual({
+      distance: 'Enter a whole number of meters greater than zero.',
+      duration: 'Enter work time in seconds greater than zero.',
+      completedAt: 'Enter when the workout was completed.',
+    });
+    expect(validateDevelopmentWorkoutDraft({ distance: '5000', duration: '1200', completedAt: '2026-09-17T08:00' }, new Date('2026-09-17T12:00:00Z'))).toEqual({});
+  });
+  it('lists the exact prerequisites blocking publication', () => {
+    expect(getDevelopmentPublishBlockers({ connection: { connected: true, can_publish: true, environment: 'development' },
+      selectedId: '', weightClass: '', timezone: 'America/New_York', confirmed: false })).toEqual([
+      'Save or select a completed LC workout.', 'Select your Concept2 weight class.', 'Confirm that you completed the saved workout.',
+    ]);
+    expect(getDevelopmentPublishBlockers({ connection: { connected: true, can_publish: false, environment: 'development' },
+      selectedId: 'workout', weightClass: 'H', timezone: 'America/New_York', confirmed: true })).toEqual([
+      'Reconnect Concept2 to grant development write permission.',
+    ]);
+  });
   it('fails closed without complete server configuration; rejects arbitrary and production origins', () => {
     expect(configuration(() => undefined)).toBeNull();
     expect(configuration(k => k.endsWith('ORIGIN') ? 'https://logbook.readyall.org' : 'fixture')).toBeNull();

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { connectConcept2, developmentConcept2, type DevelopmentConnection, type DevelopmentResult, type DevelopmentPublication } from '../services/concept2Auth';
+import { connectConcept2, developmentConcept2, getDevelopmentPublishBlockers, validateDevelopmentWorkoutDraft,
+  type DevelopmentConnection, type DevelopmentResult, type DevelopmentPublication, type DevelopmentWorkoutDraftErrors } from '../services/concept2Auth';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../services/supabase';
+import { Button, Input, Select } from '../components/ui';
 
 type ManualRow = { id: string; completed_at: string; distance_meters: number | null; duration_seconds: number | null; manual_rwn: string | null; raw_data: unknown };
 
@@ -26,6 +28,7 @@ export function DevelopmentConcept2() {
   const [newDistance, setNewDistance] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [newCompletedAt, setNewCompletedAt] = useState('');
+  const [draftErrors, setDraftErrors] = useState<DevelopmentWorkoutDraftErrors>({});
   useEffect(() => {
     let active = true;
     if (user) void developmentConcept2('status').then(async data => {
@@ -93,7 +96,9 @@ export function DevelopmentConcept2() {
   async function createWorkout() {
     const distance = Number(newDistance); const duration = Number(newDuration);
     const completed = new Date(newCompletedAt);
-    if (!user || !Number.isSafeInteger(distance) || distance <= 0 || !Number.isFinite(duration) || duration <= 0 || Number.isNaN(completed.getTime())) return;
+    const validation = validateDevelopmentWorkoutDraft({ distance: newDistance, duration: newDuration, completedAt: newCompletedAt });
+    setDraftErrors(validation);
+    if (!user || Object.keys(validation).length) return;
     setPending(true); setError(''); setMessage('');
     try {
       const created = await developmentConcept2('create_workout', {
@@ -105,6 +110,7 @@ export function DevelopmentConcept2() {
       if (queryError || !data) throw new Error('Workout was saved but could not be reloaded.');
       setManualRows(rows => [data, ...rows.filter(row => row.id !== data.id)]);
       setSelectedId(data.id); setConfirmed(false);
+      setDraftErrors({});
       setMessage('Saved the completed LC row. Review the publishing options below, then publish it once.');
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not save the completed row.'); }
     finally { setPending(false); }
@@ -115,6 +121,9 @@ export function DevelopmentConcept2() {
     catch (err) { setError(err instanceof Error ? err.message : 'Could not load saved results.'); }
     finally { setPending(false); }
   }
+  const selectedPublication = publications.find(publication => publication.workout_id === selectedId);
+  const publishBlockers = getDevelopmentPublishBlockers({ connection, selectedId, weightClass, timezone,
+    confirmed, existingStatus: selectedPublication?.status });
   return <section className="max-w-xl mx-auto p-6 space-y-4 text-neutral-100">
     <h1 className="text-2xl font-bold">Concept2 development connection</h1>
     <p>Development imports and publication links are stored separately from production Concept2 history, analytics, and assignments.</p>
@@ -122,6 +131,7 @@ export function DevelopmentConcept2() {
       <p role="status">{loading ? 'Checking development connection…' : connection?.busy ? 'Operation pending. Operator recovery required; do not retry.' :
         connection?.connected ? `Connected to development account ${connection.provider_user_id}.` : 'Not connected to development.'}</p>
       {connection?.connected && !connection.can_publish && <p>Current connection has read-only access. Reconnect to request Concept2 development publishing permission.</p>}
+      {connection?.can_publish && <p className="text-emerald-300">Development write permission is ready.</p>}
       <button className="px-4 min-h-11 rounded bg-emerald-700 disabled:opacity-50" disabled={loading || pending || connection?.busy}
         onClick={() => void connectConcept2()}>{connection?.connected ? 'Reconnect for publishing' : 'Connect development account'}</button>
       <button className="ml-3 px-4 min-h-11 rounded bg-neutral-700 disabled:opacity-50" disabled={!connection?.connected || pending || connection?.busy}
@@ -130,41 +140,36 @@ export function DevelopmentConcept2() {
         <h2 className="text-lg font-semibold">Publish a saved manual row to Concept2 development</h2>
         <p>For this development test, first save one completed fixed-distance LC row. This does not publish anything until you confirm the separate publish action below.</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block">Distance (meters)
-            <input className="block w-full min-h-11 bg-neutral-800" inputMode="numeric" value={newDistance} onChange={event => setNewDistance(event.target.value)} placeholder="5000" />
-          </label>
-          <label className="block">Work time (seconds)
-            <input className="block w-full min-h-11 bg-neutral-800" inputMode="decimal" value={newDuration} onChange={event => setNewDuration(event.target.value)} placeholder="1200" />
-          </label>
-          <label className="block sm:col-span-2">Completed at
-            <input type="datetime-local" className="block w-full min-h-11 bg-neutral-800" value={newCompletedAt} onChange={event => setNewCompletedAt(event.target.value)} />
-          </label>
+          <Input label="Distance (meters)" type="number" min="1" step="1" inputMode="numeric" value={newDistance}
+            onChange={event => { setNewDistance(event.target.value); setDraftErrors(errors => ({ ...errors, distance: undefined })); }}
+            placeholder="5000" error={draftErrors.distance} />
+          <Input label="Work time (seconds)" type="number" min="0.1" step="0.1" inputMode="decimal" value={newDuration}
+            onChange={event => { setNewDuration(event.target.value); setDraftErrors(errors => ({ ...errors, duration: undefined })); }}
+            placeholder="1200" error={draftErrors.duration} />
+          <Input label="Completed at" type="datetime-local" className="sm:col-span-2" value={newCompletedAt}
+            onChange={event => { setNewCompletedAt(event.target.value); setDraftErrors(errors => ({ ...errors, completedAt: undefined })); }}
+            error={draftErrors.completedAt} />
         </div>
-        <button className="min-h-11 px-4 rounded bg-neutral-700 disabled:opacity-50" disabled={pending || !connection?.connected || !newDistance || !newDuration || !newCompletedAt} onClick={() => void createWorkout()}>Save completed LC row</button>
-        <label className="block">Workout
-          <select className="block w-full min-h-11 bg-neutral-800" value={selectedId} onChange={event => { setSelectedId(event.target.value); setConfirmed(false); }}>
+        <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected} onClick={() => void createWorkout()}>Save completed LC row</Button>
+        <Select label="Workout" value={selectedId} onChange={event => { setSelectedId(event.target.value); setConfirmed(false); }}>
             <option value="">Select a saved workout</option>
             {manualRows.map(row => <option key={row.id} value={row.id}>{new Date(row.completed_at).toLocaleString()} · {row.distance_meters} m · {row.duration_seconds} s</option>)}
-          </select>
-        </label>
-        <label className="block">Workout timezone
-          <input className="block w-full min-h-11 bg-neutral-800" value={timezone} onChange={event => setTimezone(event.target.value)} placeholder="America/New_York" />
-        </label>
-        <label className="block">Concept2 weight class
-          <select className="block w-full min-h-11 bg-neutral-800" value={weightClass} onChange={event => setWeightClass(event.target.value as '' | 'H' | 'L')}>
+        </Select>
+        <Input label="Workout timezone" value={timezone} onChange={event => setTimezone(event.target.value)} placeholder="America/New_York" />
+        <Select label="Concept2 weight class" value={weightClass} onChange={event => setWeightClass(event.target.value as '' | 'H' | 'L')}>
             <option value="">Select weight class</option><option value="H">Heavyweight</option><option value="L">Lightweight</option>
-          </select>
-        </label>
-        <label className="block">Concept2 visibility
-          <select className="block w-full min-h-11 bg-neutral-800" value={privacy} onChange={event => setPrivacy(event.target.value as typeof privacy)}>
+        </Select>
+        <Select label="Concept2 visibility" value={privacy} onChange={event => setPrivacy(event.target.value as typeof privacy)}>
             <option value="private">Private</option><option value="partners">Training partners</option>
             <option value="logged_in">Logged-in users</option><option value="everyone">Everyone</option>
-          </select>
-        </label>
+        </Select>
         <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
           <span>I completed this row at the saved distance and work time, and I want to publish it to my connected Concept2 development account.</span></label>
-        <button className="min-h-11 px-4 rounded bg-emerald-700 disabled:opacity-50" disabled={!connection?.can_publish || connection.busy || pending || !selectedId || !weightClass || !timezone || !confirmed || publications.some(p => p.workout_id === selectedId && p.status !== 'rejected')} onClick={() => void publish()}>{publications.some(p => p.workout_id === selectedId && p.status === 'rejected') ? 'Retry rejected publication' : 'Publish to development'}</button>
-        {selectedId && publications.find(p => p.workout_id === selectedId) && <p role="status">Publication: {publications.find(p => p.workout_id === selectedId)?.status} · Result {publications.find(p => p.workout_id === selectedId)?.result_id ?? 'pending review'}</p>}
+        {publishBlockers.length > 0 && <div role="status" className="rounded border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-200">
+          <p className="font-medium">Before you can publish:</p><ul className="list-disc pl-5">{publishBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
+        </div>}
+        <Button size="lg" loading={pending} disabled={publishBlockers.length > 0} onClick={() => void publish()}>{selectedPublication?.status === 'rejected' ? 'Retry rejected publication' : 'Publish to development'}</Button>
+        {selectedId && selectedPublication && <p role="status">Publication: {selectedPublication.status} · Result {selectedPublication.result_id ?? 'pending review'}</p>}
       </div>
       <div className="flex flex-wrap gap-3">
         <button className="min-h-11 px-4 rounded bg-emerald-700 disabled:opacity-50" disabled={!connection?.connected || pending || connection?.busy}
