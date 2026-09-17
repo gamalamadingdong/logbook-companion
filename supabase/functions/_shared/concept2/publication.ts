@@ -1,3 +1,4 @@
+import { toDeciseconds, validateCompletedWorkoutV2, type CompletedWorkoutV2 } from './completedWorkout.ts';
 export type WorkoutSource = 'manual' | 'erg_link_live';
 export type CompletedWorkoutShape = { kind: 'fixed_distance' } | { kind: 'fixed_time' };
 
@@ -44,7 +45,10 @@ export type Concept2ResultPayload = {
   timezone: string;
   distance: number;
   time: number;
-  workout_type: 'unknown' | 'FixedTimeSplits';
+  workout_type: 'unknown' | 'FixedTimeSplits' | 'FixedDistanceInterval' | 'FixedTimeInterval' | 'VariableInterval';
+  rest_distance?: number;
+  rest_time?: number;
+  workout?: { intervals: Array<{ type: 'distance' | 'time'; distance: number; time: number; rest_time: number; rest_distance?: number }> };
   weight_class: 'H' | 'L';
   privacy: Concept2PublicationOptions['privacy'];
   comments: string;
@@ -98,9 +102,39 @@ export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWo
 }
 
 export function mapCompletedWorkoutToConcept2(
-  workout: CompletedWorkoutV1,
+  workout: CompletedWorkoutV1 | CompletedWorkoutV2,
   options: Concept2PublicationOptions,
 ): Concept2ResultPayload {
+  if (workout._v === 2) {
+    validateCompletedWorkoutV2(workout);
+    if (options.timezone !== workout.timezone) throw new Error('Completed workout timezone differs from publication timezone');
+    const typeByShape = {
+      fixed_distance_interval: 'FixedDistanceInterval',
+      fixed_time_interval: 'FixedTimeInterval',
+      variable_interval: 'VariableInterval',
+    } as const;
+    return {
+      type: 'rower',
+      date: formatProviderDate(workout.completedAt, workout.timezone),
+      timezone: workout.timezone,
+      distance: workout.distanceMeters,
+      time: toDeciseconds(workout.workTimeSeconds, true),
+      workout_type: typeByShape[workout.shape.kind],
+      rest_distance: workout.restDistanceMeters,
+      rest_time: toDeciseconds(workout.restTimeSeconds, false),
+      workout: { intervals: workout.intervals.map(interval => ({
+        type: interval.kind,
+        distance: interval.distanceMeters,
+        time: toDeciseconds(interval.workTimeSeconds, true),
+        rest_time: toDeciseconds(interval.restTimeSeconds, false),
+        ...(workout.shape.kind === 'variable_interval'
+          ? { rest_distance: interval.restDistanceMeters } : {}),
+      })) },
+      weight_class: options.weightClass,
+      privacy: options.privacy,
+      comments: `Logbook Companion workout ID: ${workout.workoutId}`,
+    };
+  }
   if (workout._v !== 1 || workout.machine !== 'rower' ||
       !['fixed_distance', 'fixed_time'].includes(workout.shape.kind)) {
     throw new Error('Unsupported completed workout');
