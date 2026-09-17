@@ -8,6 +8,13 @@ Official contacts and tools:
 - Online Validator: https://log.concept2.com/developers/validator
 - API documentation: ../concept2-logbook-api-reference.md
 
+Provider reference fixture:
+
+- [`validator-default-variable-interval.json`](validator-default-variable-interval.json) is the default payload Sam observed in the live Online Validator input on 2026-09-17. It is preserved verbatim as provider reference evidence, not as an LC-generated or validated fixture.
+- The example combines top-level work/rest totals, mixed completed intervals, HR summaries and `stroke_data`, supporting the requirement that LC's completed-workout model retain full detail rather than summaries alone.
+- The example uses `verified: true`; LC must use normal unverified results unless Concept2 separately grants trusted-client status.
+- The example does not establish that current ErgLink buffer records are one-per-stroke or settle PM5-to-Concept2 unit/reset semantics.
+
 ## Evidence matrix
 
 | Case | Local contract | Online Validator | Development POST/read-back | LC exact-ID re-import | Evidence |

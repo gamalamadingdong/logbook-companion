@@ -1,0 +1,74 @@
+{
+  "type": "rower",
+  "date": "2017-12-30 17:01:00",
+  "distance": 369,
+  "time": 900,
+  "rest_distance": 6592,
+  "rest_time": 17100,
+  "weight_class": "H",
+  "verified": true,
+  "comments": "",
+  "stroke_rate": 23,
+  "workout_type": "VariableInterval",
+  "heart_rate": {
+    "ending": 138,
+    "average": 132
+  },
+  "workout": {
+    "intervals": [
+      {
+        "time": 300,
+        "distance": 132,
+        "calories_total": 9,
+        "stroke_rate": 24,
+        "heart_rate": {
+          "average": 0,
+          "ending": 108
+        },
+        "type": "time"
+      },
+      {
+        "type": "calorie",
+        "time": 300,
+        "distance": 119,
+        "calories_total": 7,
+        "stroke_rate": 23,
+        "heart_rate": {
+          "average": 0,
+          "ending": 127
+        }
+      },
+      {
+        "type": "time",
+        "time": 300,
+        "distance": 118,
+        "calories_total": 7,
+        "stroke_rate": 23,
+        "heart_rate": {
+          "average": 0,
+          "ending": 135
+        }
+      }
+    ]
+  },
+  "stroke_data": [
+    {
+      "t": 0,
+      "d": 0,
+      "p": 0,
+      "spm": 0
+    },
+    {
+      "t": 10,
+      "d": 20,
+      "p": 100,
+      "spm": 25
+    },
+    {
+      "t": 20,
+      "d": 40,
+      "p": 130,
+      "spm": 25
+    }
+  ]
+}
