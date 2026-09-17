@@ -1,6 +1,6 @@
 # Concept2 publishing and mobile delivery
 
-Status: fixed-distance development writing is complete. The immediate milestone is production-write approval readiness: ask Concept2 what evidence it expects, extract one server-side completed-workout mapper/provider core, then prove fixed time and representative interval fixtures through local contracts, the Online Validator and gated development read-back. PM5-dependent ErgLink testing follows separately and mobile remains independent.
+Status: fixed-distance development writing is complete. The shared `CompletedWorkoutV1`/Concept2 mapper now supports fixed distance and fixed time locally; fixed time passes strict Online Validator checking but is not deployed or written/read back yet. Representative interval fixtures remain next. PM5-dependent ErgLink testing follows separately and mobile remains independent.
 
 ## Start here / resume
 

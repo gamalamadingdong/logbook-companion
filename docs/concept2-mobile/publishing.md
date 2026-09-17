@@ -154,7 +154,8 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 **LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector; record validator/development evidence under `docs/concept2-mobile/approval-evidence/`.
 
-- [ ] Add fixed-time failing tests using exact work time and measured distance; implement and prove one development write/read-back/re-import.
+- [x] Add fixed-time failing tests using exact work time and measured distance; implement mapping and pass strict Online Validator checking.
+- [ ] Deploy the fixed-time slice, publish one development fixture, read it back, import it twice and record the result ID/LC UUID/read-back differences.
 - [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
 - [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
 - [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.
