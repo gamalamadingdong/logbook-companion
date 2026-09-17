@@ -39,7 +39,8 @@ export function getDevelopmentPublishBlockers(input: {
   if (!input.timezone.trim()) blockers.push('Enter the workout timezone.');
   if (!input.weightClass) blockers.push('Select your Concept2 weight class.');
   if (!input.confirmed) blockers.push('Confirm that you completed the saved workout.');
-  if (input.existingStatus && input.existingStatus !== 'rejected') blockers.push('This workout already has a publication attempt.');
+  if (input.existingStatus === 'published') blockers.push('This workout is already published to Concept2 development.');
+  if (input.existingStatus === 'outcome_unknown') blockers.push('This workout has an uncertain publication outcome. Do not retry it.');
   return blockers;
 }
 

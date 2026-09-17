@@ -90,6 +90,10 @@ export function DevelopmentConcept2() {
       setMessage(result.status === 'published' ? `Published development result ${result.result_id}. Import to link it back to this LC workout.` :
         result.status === 'rejected' ? 'Concept2 rejected the result. Correct the workout or reconnect if required, then you may retry this definite rejection.' :
         'Publication outcome is uncertain. Do not retry; review the development logbook and request operator recovery.');
+      if (result.status === 'published') {
+        setSelectedId(''); setWeightClass(''); setConfirmed(false);
+        setNewDistance(''); setNewDuration(''); setNewCompletedAt('');
+      }
     } catch (err) { setError(err instanceof Error ? err.message : 'Publication failed.'); }
     finally { setPending(false); }
   }
@@ -166,7 +170,7 @@ export function DevelopmentConcept2() {
         <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
           <span>I completed this row at the saved distance and work time, and I want to publish it to my connected Concept2 development account.</span></label>
         {publishBlockers.length > 0 && <div role="status" className="rounded border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-200">
-          <p className="font-medium">Before you can publish:</p><ul className="list-disc pl-5">{publishBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
+          <p className="font-medium">{message.startsWith('Published development result') ? 'To publish another workout:' : 'Before you can publish:'}</p><ul className="list-disc pl-5">{publishBlockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>
         </div>}
         <Button size="lg" loading={pending} disabled={publishBlockers.length > 0} onClick={() => void publish()}>{selectedPublication?.status === 'rejected' ? 'Retry rejected publication' : 'Publish to development'}</Button>
         {selectedId && selectedPublication && <p role="status">Publication: {selectedPublication.status} · Result {selectedPublication.result_id ?? 'pending review'}</p>}

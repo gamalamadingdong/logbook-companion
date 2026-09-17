@@ -38,6 +38,9 @@ describe('development Concept2 boundary', () => {
       selectedId: 'workout', weightClass: 'H', timezone: 'America/New_York', confirmed: true })).toEqual([
       'Reconnect Concept2 to grant development write permission.',
     ]);
+    expect(getDevelopmentPublishBlockers({ connection: { connected: true, can_publish: true, environment: 'development' },
+      selectedId: 'workout', weightClass: 'H', timezone: 'America/New_York', confirmed: true,
+      existingStatus: 'published' })).toEqual(['This workout is already published to Concept2 development.']);
   });
   it('fails closed without complete server configuration; rejects arbitrary and production origins', () => {
     expect(configuration(() => undefined)).toBeNull();

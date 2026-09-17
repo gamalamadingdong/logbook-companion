@@ -173,6 +173,7 @@ try:
     sql((root / 'supabase/migrations/20260916202911_concept2_development_manual_publication.sql').read_text())
     sql((root / 'supabase/migrations/20260917124000_concept2_development_manual_entry.sql').read_text())
     sql((root / 'supabase/migrations/20260917130000_fix_concept2_development_manual_entry_trigger_path.sql').read_text())
+    sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
@@ -193,7 +194,8 @@ try:
           'workout_id',w,'timezone','America/New_York','weight_class','H',
           'privacy','private','confirmed_completed',true));
         if v->>'dispatch' is distinct from 'true' or v->'payload'->>'date' is distinct from '2026-09-16 08:00:00'
-          or v->'payload'->>'time' is distinct from '12000' then
+          or v->'payload'->>'time' is distinct from '12000'
+          or v->'payload'->>'comments' is distinct from 'Logbook Companion workout ID: ' || w::text then
           raise exception 'Invalid claim payload: %',v; end if;
         again := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
           'workout_id',w,'timezone','America/New_York','weight_class','H',
