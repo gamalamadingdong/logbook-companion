@@ -56,7 +56,7 @@
 | Shape/capability | Status / next gate |
 |---|---|
 | Fixed-distance summary | Proven development baseline; preserve exact behavior through extraction. |
-| Fixed-time summary | Next supported shape after shared core extraction. |
+| Fixed-time summary | Proven in development: strict validator, one POST, exact-ID read-back and repeat import. |
 | Just Row | Add after completion semantics are explicit. |
 | Fixed-distance/time intervals | Require measured completed interval records, not prescription alone. |
 | Variable intervals | Require ordered measured work/rest records and total reconciliation. |
@@ -155,7 +155,7 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 **LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector; record validator/development evidence under `docs/concept2-mobile/approval-evidence/`.
 
 - [x] Add fixed-time failing tests using exact work time and measured distance; implement mapping and pass strict Online Validator checking.
-- [ ] Deploy the fixed-time slice, publish one development fixture, read it back, import it twice and record the result ID/LC UUID/read-back differences.
+- [x] Deploy the fixed-time slice, publish one development manual test row, read it back, import it twice and record the result ID/LC UUID/read-back differences. Result `86844` linked to LC workout `038c5e27-8220-4ff9-88cf-10555a20abe5`; validator fixture was separate from the published row.
 - [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
 - [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
 - [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.
@@ -222,7 +222,7 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 - [x] Double-click/concurrent claims, stale generations, definitive rejection retry and unknown-outcome blocking are covered by focused and disposable-Postgres tests.
 - [x] Development write consent and a real rotating-token refresh pass without token leakage, reconnect or stuck operation.
 - [ ] Shared-core extraction preserves the proven fixed-distance payload and state behavior exactly.
-- [ ] Fixed-time passes local mapping/validation plus one development publish/read-back/re-import.
+- [x] Fixed-time passes local mapping/validation plus one development publish/read-back/re-import.
 - [ ] ErgLink retries retain one stable owned capture ID; actual completion/totals/averages are evidence-backed rather than prescription or final-sample estimates.
 - [ ] Interval and stroke shapes remain blocked until completed interval/final-summary semantics and unit conversion are tested.
 - [ ] Browser and server import paths preserve LC source/raw strokes/template/assignment links while exact IDs win over fuzzy matching.
