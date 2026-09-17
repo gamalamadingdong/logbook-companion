@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-17
 
-## Current effort — broaden Concept2 development write validation
+## Current effort — shared Concept2 publication core and ErgLink capture evidence
 
 The auth slice merged into staging. Sam reports deploying its migration/function, configuring the three server-side secrets, registering `https://logbook-dev.readyall.org/callback`, and successfully connecting a Concept2 development account. A genuine expired-token refresh now passes. Production retains its existing connection flow.
 
@@ -16,7 +16,9 @@ Refreshed-token writes also produced results `86805` and `86807`; import retaine
 
 Post-fix result `86817` completed the final fixed-distance check: Concept2 displayed `Logbook Companion workout ID: 733e80e4-cfef-44c8-b851-d097fda0f432`, the form cleared after success, and import persisted five total snapshots with result `86817` linked to that exact LC UUID. Fixed-distance development writing is complete.
 
-**Resume at [Concept2 publishing handoff](../docs/concept2-mobile/resume-publishing.md).** Current checks include 457 Vitest tests, disposable PostgreSQL tests, Deno check, staging and production builds, staging bundle isolation scan, and lint with no errors. Five targeted migrations are live and recorded; both new RPCs are service-only. Fixed-distance development writing, exact-ID read-back, repeat-import idempotency, real expired-token refresh, provider-side LC provenance and form reset are proven. Use the [official API snapshot](../docs/concept2-mobile/concept2-logbook-api-reference.md) to choose and implement the next result shape one at a time. Production publishing and mobile remain deferred.
+The [publishing specification](../docs/concept2-mobile/publishing.md) now replaces form-by-form expansion with one server-side canonical completed-workout model, pure mapper/validator, provider adapter and existing durable publication state machine. ErgLink is a capture producer: reuse its PM5 workout vocabulary, IndexedDB stroke buffer, session/participant/template/assignment provenance and raw samples, but first add stable capture identity/version, completion state, true finish/timezone, final summary, measured intervals and real aggregates. The deployed legacy production `publish-to-c2` function is not in source control and is unsafe as the foundation; audit and replace it only after the shared core is proven.
+
+**Resume at [Concept2 publishing handoff](../docs/concept2-mobile/resume-publishing.md).** Current checks include 457 Vitest tests, disposable PostgreSQL tests, Deno check, staging and production builds, staging bundle isolation scan, and lint with no errors. Five targeted migrations are live and recorded; both new RPCs are service-only. Fixed-distance development writing is complete. Next planning discussion should challenge/confirm the revised responsibility boundaries and sequence before implementation: freeze/audit baseline → canonical model → fixed-distance core extraction → fixed time → ErgLink capture hardening → richer shapes → gated production replacement. Production publishing and mobile remain deferred.
 
 
 ## Architecture references — Concept2/mobile

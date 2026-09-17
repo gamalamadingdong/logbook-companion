@@ -2,38 +2,68 @@
 
 > **For agentic workers:** Use `executing-plans` or `subagent-driven-development` when authorized to implement, task-by-task. Checkboxes below are future work, not completed validation.
 
-**Goal:** Manually publish one eligible, durably saved fixed-distance rowing workout to Concept2 development and re-import it without duplication or loss of origin.
+**Goal:** Build one server-side Concept2 publication core that maps durable completed LC workouts from manual, ErgLink and future capture sources into explicitly supported Concept2 result shapes, with local contract tests and gated development-API conformance tests.
 
-**Architecture:** LC owns the workout and a small Concept2-specific publication record. A server-side Supabase Edge Function owns authorization, mapping and the remote POST; ordinary imports resolve exact publication links before legacy fuzzy reconciliation.
+**Architecture:** Capture producers persist versioned measured evidence; LC owns the canonical completed-workout publication model and durable publication state. A pure mapper/validator creates Concept2 payloads, while a server-side provider adapter owns OAuth, dispatch and read-back. Product UI and development test UI both call this same core.
 
-**Tech stack:** Existing React/Vite/TypeScript, Supabase/Postgres/Edge Functions, Vitest and Concept2 OAuth/API. No new generalized synchronization framework.
+**Tech stack:** Existing React/Vite/TypeScript, Supabase/Postgres/Edge Functions, Vitest, disposable PostgreSQL tests and Concept2 OAuth/API. Keep this Concept2-specific; do not create a generalized provider framework.
+
+**Current status:** Fixed-distance development publication is proven end to end across multiple writes, exact-ID imports, repeat imports, provider-visible LC UUID comments and a real rotating-token refresh. The manual form proved the seam; it is not the expansion architecture.
 
 ## Global constraints
 
-- Preserve LC row identity, `source = erg_link_live`, original raw capture/strokes and template/assignment links. Publication is a reference, not an origin upgrade.
+- Preserve LC row identity, source, original raw capture/strokes and template/assignment links. Publication is a reference, not an origin upgrade; manual and ErgLink inputs use the same publication core after source-specific normalization.
 - Only the authenticated owner can publish their completed workout to their connected Concept2 account. Anonymous/coached attribution is a prerequisite, not permission to publish on someone else's behalf.
-- First slice is a completed fixed-distance row only, explicitly requested by the user, normal/unverified, development-only until production approval. Reject unsupported/incomplete shapes; do not flatten them.
-- No remote edits/deletes, automatic retries after uncertain POSTs, automatic publishing, force curves or native PM5 implementation.
+- Fixed distance is the proven baseline. Add one result shape at a time through the support matrix; reject unsupported/incomplete shapes rather than flattening them to `JustRow` or summary-only records.
+- No remote edits/deletes, bulk publication, automatic retries after uncertain POSTs, automatic publishing, force curves or trusted/verified claims without separate product need and provider approval.
 - All database changes require current schema/RLS discovery with the local guards and MCP-first workflow. This plan does not assert the live schema matches generated types.
 
 ## Existing surfaces and specific gaps
 
-| Read before implementation | Observed behavior / implication |
+| Surface | Current reality / implication |
 |---|---|
-| [ErgLink types](../../src/types/ergSession.types.ts) | `ActiveWorkoutSpec` is prescription; `ErgLinkUploadMeta` carries session/participant IDs and strokes but no explicit capture version/ID or final-summary contract. Column comments use elapsed time and last-stroke SPM/watts. These are not proof of actual work time or true averages. |
-| [Reconciliation](../../src/utils/reconciliation.ts), [sync hook](../../src/hooks/useConcept2Sync.ts) | Utility priority uses `erg_link`, whereas shared types use `erg_link_live`. Sync applies broad fuzzy matching, sets `source: concept2`, stores provider raw data, and can reuse a matched row ID. Existing-ID skipping also needs review. This is unsafe as the write-back round-trip policy. |
-| [Workout service](../../src/services/workoutService.ts) | Supports `external_id` and raw-data reads that assume Concept2 shapes in some paths. Preserve rich original capture while keeping detail/stroke rendering compatible. |
-| [Concept2 client](../../src/api/concept2.ts), [callback](../../src/pages/Callback.tsx) | Browser code references `VITE_CONCEPT2_CLIENT_SECRET`, refreshes with read scopes, persists browser/DB tokens and uses only browser-local refresh coordination. A comment mentions future `publish-to-c2`; no such function exists in the inspected functions directory. |
-| [Schema reference](../../working-memory/concept2_schema.md), [API types](../../src/api/concept2.types.ts) | Useful mapping references, not evidence of accepted uploads or production approval. |
-| [Server sync batch](../../supabase/functions/run-c2-sync-batch/index.ts), [sync starter](../../supabase/functions/start-c2-sync/index.ts) | Include server import entry points in exact-ID/provenance review; fixing browser sync alone is not enough. |
+| [`concept2-development-auth`](../../supabase/functions/concept2-development-auth/) | Proven server-side development OAuth, rotating refresh, summary import, fenced publication, explicit unknown outcomes, provider-visible LC UUID comments and exact-ID read-back. This is the reliability foundation to extract and reuse. |
+| [ErgLink/LC contract](../../src/types/ergSession.types.ts) | `ActiveWorkoutSpec` describes prescription; `ErgLinkUploadMeta` carries session/participant/template/assignment identity and a full stroke buffer. It has no stable capture ID/version, completion status, original timezone, final-summary contract or completed interval summaries. |
+| ErgLink `src/services/sessionService.ts` | Uploads `completed_at` at upload time and uses the last stroke's SPM/watts as apparent averages. Those values are not sufficient for rich Concept2 publication. ErgLink should produce measured evidence, not Concept2 payloads. |
+| ErgLink `src/services/strokeBuffer.ts` | IndexedDB buffering and retry-preserving capture are useful foundations. Current store contains strokes only; it needs a stable capture record/status before it can prove one durable completed workout across retries. |
+| [Reconciliation](../../src/utils/reconciliation.ts), [sync hook](../../src/hooks/useConcept2Sync.ts) | Legacy browser and server read paths remain fragmented. Exact publication IDs must win before fuzzy matching, and original ErgLink/manual evidence must not be replaced by provider snapshots. |
+| [Server sync batch](../../supabase/functions/run-c2-sync-batch/index.ts) | Richer production import already parses summaries/details/strokes, but it has its own types and mappings. Consolidate provider types/units without coupling publication to batch scheduling. |
+| Deployed `publish-to-c2` function | A live production function exists but is absent from source control. Inspected code hard-codes heavyweight, sends summary-only payloads, falls back to `JustRow`, does not serialize refresh, treats `409` without an ID as published and lacks unknown-outcome fencing. Audit and replace it; do not extend or redeploy it as the core. |
+| [API snapshot](concept2-logbook-api-reference.md), [legacy API types](../../src/api/concept2.types.ts) | Snapshot is the searchable provider reference. Existing types are incomplete and contain unit ambiguity (for example stroke distance/pace comments); new server types must be derived and tested explicitly. |
 
 ## Prerequisites and decisions to close
 
-1. **Provider access:** operator confirms development OAuth app/callback, connected development account, granted `results:write`, applicable privacy and weight-class fields. Requested scope is not evidence of granted scope; refresh cannot upgrade consent. Confirm current [Concept2 documentation](https://log.concept2.com/developers/documentation/) and validator requirements before API work. Production/trusted-client approvals are unknown.
-2. **Actual capture evidence:** obtain one consented/redacted completed fixed-distance capture and one aborted/incomplete capture. Establish actual PM summary availability, work/rest/elapsed meanings, finish timestamp/timezone, distance rounding, and whether the upload survives restart. Never generate a fixture and label it a real capture.
-3. **Identity:** choose a stable capture ID generated once and retained across upload retries, scoped to the authenticated athlete; add a capture contract version. Session/participant IDs alone must not collapse multiple workouts. Resolve null-owner legacy rows through a verified ownership flow before eligibility, not a client-supplied `user_id`.
-4. **Storage decision:** prefer one Concept2-specific publication table over many mutable raw JSON fields. Verify actual `external_id` constraints and choose how to mirror known IDs for existing readers. Development and production result IDs/account tokens must be isolated. Record the chosen migration and import rule before enabling POST.
-5. **OAuth safety:** move confidential exchange/refresh to server-side code, bind authorization state to user and environment, validate return destinations, and coordinate refresh per account across browsers/workers. Do not package a `VITE_*` secret into web/native bundles. Assess deployed exposure and operator-led rotation separately; this inspection did not access credentials.
+1. **Provider access:** development OAuth, write consent and rotating refresh are proven. Production/trusted-client approval remains unknown and must stay a separate gate.
+2. **Actual ErgLink evidence:** obtain consented completed, aborted and incomplete captures. Establish authoritative PM5 work/rest/elapsed meanings, interval summaries, finish timestamp/timezone, averaging semantics and restart durability. Never label a synthetic fixture as a real capture.
+3. **Capture identity:** add a stable ErgLink capture ID/version generated once and retained across upload retries. Session/participant IDs alone must not collapse multiple workouts.
+4. **Canonical input:** define one versioned completed-workout publication model. Manual and ErgLink adapters normalize into it; neither builds provider JSON.
+5. **OAuth convergence:** retain the proven server-side development flow and design production cutover around it. Browser-bundled production secret/refresh paths remain technical debt until an approved cutover.
+6. **Support matrix:** explicitly classify each Concept2 shape/field as proven, next, planned enrichment, product-deferred or provider-blocked. API documentation does not imply LC support.
+
+## Revised responsibility boundaries
+
+1. **ErgLink and other capture producers:** persist measured evidence, stable capture identity, completion status, actual timing/timezone, final summary, completed intervals and raw strokes. They do not know Concept2 payload rules or credentials.
+2. **LC source adapters:** convert manual/ErgLink rows into one completed-workout publication model while preserving source, raw evidence, assignment/template/session links and LC UUID.
+3. **Pure mapper and validator:** deterministically emit an accepted Concept2 payload or a stable unsupported/incomplete reason. No database, OAuth or network calls.
+4. **Publication state machine:** own eligibility, immutable payload snapshot/version, single dispatch, unknown outcome, audited recovery and exact remote ID.
+5. **Provider adapter:** own environment-specific endpoint, OAuth/refresh, HTTP validation and safe response parsing.
+6. **Read-back/reconciliation:** exact publication ID wins before fuzzy matching; provider enrichment must not replace original capture identity or rich raw data.
+7. **UI:** product UI requests publication by LC workout ID. The development console selects a canonical workout or named server-owned fixture; neither accepts arbitrary provider JSON or maps fields.
+
+## Support sequence
+
+| Shape/capability | Status / next gate |
+|---|---|
+| Fixed-distance summary | Proven development baseline; preserve exact behavior through extraction. |
+| Fixed-time summary | Next supported shape after shared core extraction. |
+| Just Row | Add after completion semantics are explicit. |
+| Fixed-distance/time intervals | Require measured completed interval records, not prescription alone. |
+| Variable intervals | Require ordered measured work/rest records and total reconciliation. |
+| HR/SPM/calories/drag/stroke count | Add only from true summary/aggregate evidence; never final-sample approximations. |
+| Stroke data | Convert cumulative ErgLink samples to Concept2 incremental deciseconds/decimeters/pace and reconcile totals. |
+| Targets/metadata | Add when product-needed and validated through development read-back. |
+| Trusted verification | Blocked pending Concept2 approval. |
+| Update/delete/bulk/webhook | Documented API behavior, not planned LC product support. |
 
 ## Completed-workout and mapping specification
 
@@ -72,57 +102,96 @@ Edits after publication are local-only in this slice: display divergence from th
 
 ## Implementation tasks
 
-### P1 — Establish safe owned input and server auth
+### P1 — Freeze the proven baseline and audit the legacy publisher
 
-**Files:** modify `src/types/ergSession.types.ts`, `src/pages/Callback.tsx`, `src/api/concept2.ts`; inspect OAuth entry points in `src/components/Layout.tsx`, `src/pages/Sync.tsx`, `src/components/ReconnectPrompt.tsx`. Proposed new server auth helper: `supabase/functions/_shared/concept2-auth.ts`; focused tests adjacent to it. Coordinate any capture-producer change in a separately authorized ErgLink task, not this repo by assumption.
+**LC files:** `supabase/functions/concept2-development-auth/*`, `scripts/test_c2_development_auth.py`, `docs/concept2-mobile/legacy-publish-to-c2-audit.md`.
 
-- [ ] Resolve prerequisite evidence and record the minimal actual-capture mapping; reject missing ownership/final-summary cases.
-- [ ] Write failing tests for repeated capture identity, aborted completion, secret-free exchange, state mismatch, cross-user access, read-only consent, revoked/rotated tokens and concurrent refresh.
-- [ ] Implement the narrow versioned input and server auth boundary; ensure refresh cannot silently downscope a publisher or race older browser token writes.
-- [ ] Run focused tests and `npm run build`; inspect built assets for confidential configuration references without printing secret values. Commit this prerequisite separately.
+- [ ] Preserve fixed-distance payload, state-machine and exact-ID behavior as regression tests before refactoring.
+- [ ] Download the deployed `publish-to-c2` function read-only; record version/hash and sanitized behavior without adding secrets or redeploying it.
+- [ ] Add an explicit source-control/deployment guard explaining that the live legacy function is not the implementation base.
+- [ ] Verify no production endpoint or credential enters staging bundles.
 
-**Exit:** a testable owned actual-workout input and server-side development credentials flow; no POST feature yet. Mobile may reuse this auth boundary.
+**Exit:** fixed-distance behavior is frozen and the unsafe production baseline is auditable.
 
-### P2 — Add durable publication identity and exact-ID import preservation
+### P2 — Define one completed-workout model and support matrix
 
-**Files:** proposed reviewed migration in `supabase/migrations/` (choose timestamp when implementing), regenerate `src/types/database.types.ts`; modify `src/utils/reconciliation.ts`, `src/hooks/useConcept2Sync.ts`, `src/services/workoutService.ts` and server sync paths above. Proposed tests: `src/utils/reconciliation.test.ts` plus local database/RLS integration tests.
+**LC files:** create `supabase/functions/_shared/concept2/types.ts`, `validateCompletedWorkout.ts` and focused tests.
 
-- [ ] Inspect live constraints/RLS through approved MCP access; write migration and rollback/forward-fix notes, avoiding destructive raw-data rewrites.
-- [ ] Test unique owner/capture and publication claims, cross-user denials, stale-generation fencing, development/live ID collisions, and re-import of an exact linked result.
-- [ ] Implement a small publication relation/claim operation and exact-ID import path. Store provider enrichment separately from the immutable origin capture; preserve assignment/template links and original LC UUID.
-- [ ] Test two similar but distinct workouts are not auto-linked, all browser/server sync entry points preserve provenance, and detail/stroke readers still work. Run focused Vitest and local DB tests before a separate commit.
+- [ ] Define a versioned model containing LC workout/owner/source/capture IDs, completion status, machine/shape, actual finish/timezone, work distance/time, optional intervals/aggregates/strokes and explicit privacy/weight class.
+- [ ] Test fixed-distance and fixed-time requirements, interval total reconciliation, non-finite/unit boundaries, unsupported machines/shapes and incomplete evidence.
+- [ ] Add manual and ErgLink row adapters; prescription classifies shape but measured evidence supplies published totals.
+- [ ] Keep source-specific metadata/assignment/template/session identity outside provider mapping.
 
-**Exit:** publication/import identity and recovery storage are tested before external writes. No generic multi-provider model.
+**Exit:** all sources normalize to one provider-independent completed-workout contract or a stable rejection reason.
 
-### P3 — Prove the manual development publishing slice
+### P3 — Extract pure Concept2 mapping and provider transport
 
-**Files:** create `supabase/functions/publish-to-c2/index.ts`, adjacent `index.test.ts`, `supabase/functions/_shared/concept2-payload.ts` and adjacent tests; add `src/services/concept2PublishService.ts`; modify `src/pages/WorkoutDetail.tsx` for owner-only action and explicit states.
+**LC files:** create `supabase/functions/_shared/concept2/mapCompletedWorkout.ts`, `provider.ts`, fixtures and tests; modify `concept2-development-auth/publish.ts` to use them.
 
-**Boundary:** request contains LC workout ID only; server derives owner, account, environment and actual payload. Return durable publication state, sanitized reason and remote ID when known, never credentials. A second request reads/claims the same publication rather than issuing another POST.
+- [ ] Move the proven fixed-distance payload out of SQL without behavior change; persist mapper version and immutable payload snapshot before POST.
+- [ ] Test exact units, rounding, DST/UTC date boundaries, provenance comment, enums and omitted unsupported fields.
+- [ ] Isolate fixed development/production endpoints, timeout, redirects, response validation and sanitized errors in the provider adapter.
+- [ ] Preserve the existing fenced claim, definitive-rejection retry, unknown-outcome block and audited resolution semantics.
 
-- [ ] Write mapper fixtures for the supported actual row and invalid/incomplete/wrong-machine/timezone/rounding cases. Write function tests with injected provider responses: double request, lost response, accepted-but-save-failed, stale worker, revoked token, and confirmed validation rejection.
-- [ ] Implement mapping, fenced dispatch and state persistence; keep production endpoint selection server-owned and disabled. Do not accept arbitrary provider URLs or token/payload overrides from the browser.
-- [ ] Implement Publish confirmation showing target account, actual result and privacy; show Saved to LC separately from Published to Concept2. Display unknown outcome as review required, not retryable. UI must never promise offline capture safety it cannot verify.
-- [ ] Run `npm run test:run -- src/utils/reconciliation.test.ts`, focused mapper/function tests using the chosen Edge Function test runner, `npm run lint` and `npm run build`. Record real commands/results in the implementation PR.
-- [ ] With explicit development-call authorization, publish the consented capture, save the remote ID, import it through normal sync and verify one unchanged LC identity with strokes/links retained. Exercise unknown-outcome recovery with controlled fault injection and operator review. Commit evidence without personal data/tokens.
+**Exit:** fixed distance uses the same pure core future shapes will use; UI and capture sources contain no Concept2 mapping.
 
-**Exit:** one real development round trip plus all failure/ownership cases, not a broad mapping library.
+### P4 — Add fixed time and a gated conformance catalog
 
-### P4 — Production gate, not automatic activation
+**LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector.
 
-- [ ] Record redacted development evidence, supported shape, OAuth scopes, privacy/verification behavior, duplicate/unknown recovery and reconnect tests. Use the roadmap's Concept2 contact process after checking current provider guidance.
-- [ ] Sam/operator requests and records production write approval; do not claim it exists from requested scope alone. Resolve production credentials, granted consent and account/environment routing independently.
-- [ ] Approve a narrowly enabled production rollout only after all checks below pass. Document the switch to halt new POSTs while keeping saved workouts/imports intact; never delete remote results as rollback.
+- [ ] Add fixed-time failing tests using exact work time and measured distance.
+- [ ] Implement only fixed-time mapping; do not add intervals in the same slice.
+- [ ] Publish one named fixed-time fixture to development after approval, read it back, import it twice and compare the fields Concept2 retained.
+- [ ] Record provider result ID and LC UUID; never label the synthetic fixture as a real ErgLink capture.
+
+**Exit:** a second shape proves the core expands without another form-specific mapper.
+
+### P5 — Strengthen ErgLink completed capture
+
+**ErgLink files:** `src/types/ergSession.types.ts`, `src/services/sessionService.ts`, `src/services/strokeBuffer.ts` and focused pure aggregation tests. Mirror accepted contract changes in LC `src/types/ergSession.types.ts`.
+
+- [ ] Add `_capture_v`, stable `capture_id`, completion status, actual start/end/timezone and a final-summary object.
+- [ ] Compute true workout aggregates; do not copy final-sample watts/SPM into average fields.
+- [ ] Separate measured work time from elapsed/rest time and persist completed interval summaries when PM5 evidence supports them.
+- [ ] Retain the same capture ID across retries and clear strokes only after durable LC upload confirmation.
+- [ ] Keep anonymous captures ineligible for publication until ownership is explicitly resolved.
+- [ ] Add contract parity tests across the two repositories and coordinate separate compatible PRs.
+
+**Exit:** ErgLink can produce trustworthy completed evidence; it still does not know Concept2 payloads or credentials.
+
+### P6 — Map ErgLink detail and add richer shapes sequentially
+
+- [ ] Convert cumulative ErgLink strokes into Concept2 incremental deciseconds/decimeters/pace; reject decreasing/invalid samples and reconcile totals.
+- [ ] Add shapes in order: Just Row, fixed-distance intervals, fixed-time intervals, variable intervals.
+- [ ] Add HR/SPM/calories/drag/stroke count only from validated aggregate evidence.
+- [ ] Add targets/metadata only for a product requirement and after development validator/read-back evidence.
+- [ ] For every shape: local failing tests → minimal mapper → reliability regression → one gated development publish/read-back/re-import → support-matrix update.
+
+**Exit:** every enabled field/shape has both local contract coverage and representative provider evidence.
+
+### P7 — Replace the legacy production publisher behind a hard gate
+
+**LC files:** source-control `supabase/functions/publish-to-c2/index.ts` as a thin owner-authenticated wrapper around the shared core; add focused tests and reviewed migrations/config only after live discovery.
+
+- [ ] Accept LC workout IDs only; server derives owner/account/environment/evidence/payload.
+- [ ] Reuse serialized refresh, immutable attempt snapshot, fixed endpoints and unknown-outcome behavior.
+- [ ] Treat `409` without a proven remote ID as duplicate review, not published.
+- [ ] Keep production writes disabled until Concept2 production approval and operator rollout approval are documented.
+- [ ] Stage live backup/checksum and one-line rollback before replacement; verify version/permissions and one approved smoke path afterward.
+
+**Exit:** production publishing is source-controlled and uses the proven core, but remains off until explicitly approved.
 
 ## Release acceptance / evidence checklist
 
-- [ ] Upload retry retains one owned LC row; actual totals differ safely from prescription and final-stroke estimates.
-- [ ] Supported fixed-distance record accepted in development; unsupported/incomplete records clearly rejected.
-- [ ] Double-clicks/concurrent calls create at most one attempted dispatch per valid claim; stale workers cannot overwrite it.
-- [ ] Unknown POST/save outcomes resolve without blind retransmission, including abandoned claims and ambiguous lookup candidates.
-- [ ] Re-import through browser and server paths preserves LC identity/origin/strokes/template/assignment links and renders correctly.
-- [ ] Missing scope/expiry/revocation/reconnect/account switching produce correct states without token leakage or cross-user access.
-- [ ] Local capture, LC upload and external publication are separate states; local durability is not inferred from stroke-buffer comments.
+- [x] Fixed-distance development writes preserve owned LC identity, publish once, expose LC UUID in provider comments and re-import idempotently by exact result ID.
+- [x] Double-click/concurrent claims, stale generations, definitive rejection retry and unknown-outcome blocking are covered by focused and disposable-Postgres tests.
+- [x] Development write consent and a real rotating-token refresh pass without token leakage, reconnect or stuck operation.
+- [ ] Shared-core extraction preserves the proven fixed-distance payload and state behavior exactly.
+- [ ] Fixed-time passes local mapping/validation plus one development publish/read-back/re-import.
+- [ ] ErgLink retries retain one stable owned capture ID; actual completion/totals/averages are evidence-backed rather than prescription or final-sample estimates.
+- [ ] Interval and stroke shapes remain blocked until completed interval/final-summary semantics and unit conversion are tested.
+- [ ] Browser and server import paths preserve LC source/raw strokes/template/assignment links while exact IDs win over fuzzy matching.
+- [ ] Controlled unknown-outcome recovery is exercised without blind retransmission, including abandoned claims and ambiguous lookup candidates.
 - [ ] Production remains disabled until documented provider and operator approval. Native delivery is not a dependency.
 
 [Back to resumption guide](README.md) · [Roadmap](../logbook-concept2-mobile-roadmap.md)

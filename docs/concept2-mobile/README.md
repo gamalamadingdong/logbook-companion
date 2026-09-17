@@ -1,6 +1,6 @@
 # Concept2 publishing and mobile delivery
 
-Status: development auth, isolated import, bounded fixed-distance publishing, exact-ID read-back, repeat-import idempotency and a real expired-token refresh have passed in staging. Broader write-shape testing and mobile remain. See the current handoff for evidence and outstanding gates.
+Status: fixed-distance development writing is complete. The next publishing phase extracts one server-side completed-workout model/mapper/provider core, strengthens ErgLink capture evidence, then adds fixed time and richer shapes through local contract tests plus gated development conformance. Mobile remains independent.
 
 ## Start here / resume
 
@@ -12,7 +12,7 @@ API background: [official Concept2 Logbook API documentation snapshot](concept2-
 
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.
 2. Choose one independent track:
-   - [Publishing specification and plan](publishing.md): owned completed workout → one manual Concept2 development publication → import into the original LC row.
+   - [Publishing specification and plan](publishing.md): capture evidence → canonical completed workout → shared Concept2 mapper/publisher → exact-ID import; fixed distance is proven and fixed time is next.
    - [Mobile delivery specification and plan](mobile-delivery.md): LC Capacitor shell → GitHub Actions iOS archive → TestFlight → self-hosted Capgo/Vercel updates and rollback.
 3. Read `AGENTS.md`, the newest [active context](../../working-memory/activeContext.md), and [system patterns](../../working-memory/systemPatterns.md). Inspect the referenced code again before implementing; file observations here are not live-service verification.
 4. Resolve that track's prerequisites, then implement only its next unchecked task with focused tests. Record actual evidence and blockers beside the task; do not mark planned acceptance tests as passed.
@@ -22,7 +22,7 @@ The two track documents own first-release detail. The roadmap remains the archit
 ## Decisions already bounded
 
 - Save durably to LC before publishing outward; retain ErgLink origin and rich data.
-- First publishing action is manual, one completed fixed-distance row, normal/unverified, against Concept2 development. No automatic publishing or blind POST retries.
+- The manual fixed-distance form proved the seam; it is not the expansion architecture. Manual and ErgLink records normalize into one server-owned publication core. No automatic publishing or blind POST retries.
 - Mobile follows ADR-004 (Capacitor), not React Native. Sam confirms ScheduleBoard's GitHub Actions native pipeline and self-hosted Capgo/Vercel updates are reliable in use. Adapt that pattern, not ScheduleBoard's identity, credentials, permissions, or entire dependency set.
 - Appflow was retired for cost and must not be reintroduced. Historical Appflow instructions in ScheduleBoard are not the current delivery design.
 - Apple/TestFlight work does not wait on Concept2 write approval. Native Concept2 OAuth still requires its own safe callback/token work; an archive-only milestone can precede that.
