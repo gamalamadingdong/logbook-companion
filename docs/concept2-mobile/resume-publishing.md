@@ -55,13 +55,14 @@ Verification: 457 Vitest tests; disposable PostgreSQL permission, ownership, bou
 
 Stop adding workout-type logic to the manual test form. Use [publishing.md](publishing.md) as the authoritative revised plan:
 
-1. Freeze the proven fixed-distance payload/state behavior and audit the deployed, unsourced production `publish-to-c2` function without redeploying it.
-2. Define one versioned completed-workout publication model and source adapters for manual and ErgLink evidence.
-3. Extract a pure Concept2 mapper/validator and provider adapter; route fixed distance through it without changing live behavior.
-4. Add fixed time as the second shape and prove it through local contracts plus one gated development publish/read-back/re-import.
-5. Harden ErgLink capture separately: stable capture ID/version, completion state, true finish/timezone, final summary, measured intervals, aggregates and retry-safe IndexedDB persistence.
-6. Add intervals, aggregate enrichment and strokes one shape/capability at a time. Keep unsupported evidence blocked rather than flattened.
-7. Replace the legacy production publisher with a source-controlled wrapper around the proven core only after Concept2 production approval and a separate operator gate.
+1. Send Concept2 a requirements inquiry now: summarize the proven fixed-distance flow and ask what additional development shapes or Online Validator evidence they expect.
+2. Freeze the proven fixed-distance payload/state behavior and audit the deployed, unsourced production `publish-to-c2` function without redeploying it.
+3. Define one versioned completed-workout publication model and extract a pure mapper/validator/provider adapter; route fixed distance through it unchanged.
+4. Complete the device-free approval matrix: fixed time, fixed-distance intervals, fixed-time intervals and variable intervals, plus `409` duplicate and `422` invalid behavior. Run interval payloads through the Online Validator and development POST/read-back/re-import.
+5. Submit the formal production-write request with the evidence; permission does not activate production writes.
+6. While waiting, harden ErgLink capture separately: stable capture ID/version, completion state, true finish/timezone, final summary, measured intervals, aggregates and retry-safe IndexedDB persistence.
+7. Add real PM5 evidence and richer aggregate/stroke capabilities when device access permits. Keep unsupported evidence blocked rather than flattened.
+8. Replace the legacy production publisher with a source-controlled wrapper around the proven core only after Concept2 production approval and a separate operator gate.
 
 ErgLink remains a capture producer, not a Concept2 client. Reuse its PM5 workout vocabulary, local stroke buffer, session/participant identity and assignment/template provenance. Do not reuse upload-time completion, last-stroke “averages,” or prescription as proof of completion.
 
@@ -71,7 +72,7 @@ Use three separate layers:
 
 1. **Local contract tests:** all supported shapes/fields, unit conversions, evidence validation and provider failure categories.
 2. **Disposable database/reliability tests:** ownership, fencing, refresh, retries, unknown outcomes, exact-ID linkage and provenance preservation.
-3. **Gated development conformance:** representative named fixtures or real consented captures published sequentially to Concept2 development, read back and re-imported. This does not run automatically in ordinary CI.
+3. **Gated development conformance:** representative named fixtures or real consented captures published sequentially to Concept2 development, read back and re-imported. The approval matrix uses device-free synthetic canonical fixtures labeled as such and does not run automatically in ordinary CI.
 
 Testing the provider specification does not mean implementing every endpoint. Create/read-back is required; update/delete/bulk/webhook and trusted verification remain out of scope until an LC product requirement and provider approval exist.
 

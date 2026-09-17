@@ -1,6 +1,6 @@
 # Concept2 publishing and mobile delivery
 
-Status: fixed-distance development writing is complete. The next publishing phase extracts one server-side completed-workout model/mapper/provider core, strengthens ErgLink capture evidence, then adds fixed time and richer shapes through local contract tests plus gated development conformance. Mobile remains independent.
+Status: fixed-distance development writing is complete. The immediate milestone is production-write approval readiness: ask Concept2 what evidence it expects, extract one server-side completed-workout mapper/provider core, then prove fixed time and representative interval fixtures through local contracts, the Online Validator and gated development read-back. PM5-dependent ErgLink testing follows separately and mobile remains independent.
 
 ## Start here / resume
 
@@ -9,6 +9,8 @@ Status: fixed-distance development writing is complete. The next publishing phas
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 
 API background: [official Concept2 Logbook API documentation snapshot](concept2-logbook-api-reference.md). This searchable Markdown capture covers OAuth, scopes, result reads/writes, bulk results, intervals, targets, strokes, metadata, webhooks and error behavior. Recheck the linked live source before relying on it for provider behavior.
+
+Production-write approval: [evidence matrix](approval-evidence/README.md) and [requirements-inquiry draft](approval-evidence/requirements-inquiry-draft.md).
 
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.
 2. Choose one independent track:
