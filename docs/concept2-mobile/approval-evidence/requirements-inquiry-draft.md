@@ -1,6 +1,6 @@
 # Draft: Concept2 production-write requirements inquiry
 
-**Status:** Draft only; Sam reviews and sends externally.
+**Status:** Sent by Sam to `ranking@concept2.com` on 2026-09-17; awaiting response.
 
 **To:** ranking@concept2.com  
 **Subject:** Production Logbook API write approval — development evidence requirements
