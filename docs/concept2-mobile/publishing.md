@@ -8,7 +8,7 @@
 
 **Tech stack:** Existing React/Vite/TypeScript, Supabase/Postgres/Edge Functions, Vitest, disposable PostgreSQL tests and Concept2 OAuth/API. Keep this Concept2-specific; do not create a generalized provider framework.
 
-**Current status:** Fixed-distance development publication is proven end to end across multiple writes, exact-ID imports, repeat imports, provider-visible LC UUID comments and a real rotating-token refresh. The manual form proved the seam; it is not the expansion architecture.
+**Current status:** Fixed-distance and fixed-time summaries and three synthetic interval classes are proven in Concept2 development with exact-ID imports. Sam confirmed provider-side interval breakdowns; repeated import retained nine distinct results. These tests do not prove real PM5 capture. The manual form proved the seam; it is not the expansion architecture.
 
 ## Global constraints
 
@@ -58,9 +58,11 @@
 | Fixed-distance summary | Proven development baseline; preserve exact behavior through extraction. |
 | Fixed-time summary | Proven in development: strict validator, one POST, exact-ID read-back and repeat import. |
 | Just Row | Add after completion semantics are explicit. |
-| Fixed-distance/time intervals | Require measured completed interval records, not prescription alone. |
-| Variable intervals | Require ordered measured work/rest records and total reconciliation. |
-| HR/SPM/calories/drag/stroke count | Add only from true summary/aggregate evidence; never final-sample approximations. |
+| Fixed-distance/time intervals | Synthetic development fixtures passed strict validator, POST, provider display and exact-ID import. Real capture still requires measured completed interval records, not prescription alone. |
+| Variable intervals | Synthetic mixed distance/time fixture passed strict validator, POST, provider display and exact-ID LC import. Real capture requires ordered measured work/rest records and total reconciliation. |
+| Fixed-calorie / fixed-watt-minute workouts and interval variants | Planned shape coverage after the current approval matrix. Establish actual PM5 completion units and work/rest semantics; test each chosen shape locally and in strict validator, then publish, inspect provider display and re-import one labelled development result. Do not infer these shapes from distance/time totals. |
+| Measured calorie and power detail | Planned capture enrichment: validate workout and interval `calories_total`/`wattminutes_total`, normalized watt samples and any derived display values against trustworthy PM5 evidence. Keep units and averaging rules explicit; do not invent values from the current synthetic fixtures or final sample. |
+| HR/SPM/drag/stroke count | Add only from true summary/aggregate evidence; never final-sample approximations. |
 | Detailed samples / stroke data | Store the full source stream and normalized detailed samples in LC. Do not assume each current ErgLink sample is one PM5 stroke. After device evidence establishes sampling semantics, derive Concept2 incremental `stroke_data` in deciseconds/decimeters/pace and reconcile totals/interval boundaries. |
 | Targets/metadata | Add when product-needed and validated through development read-back. |
 | Trusted verification | Blocked pending Concept2 approval. |
@@ -156,17 +158,17 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 - [x] Add fixed-time failing tests using exact work time and measured distance; implement mapping and pass strict Online Validator checking.
 - [x] Deploy the fixed-time slice, publish one development manual test row, read it back, import it twice and record the result ID/LC UUID/read-back differences. Result `86844` linked to LC workout `038c5e27-8220-4ff9-88cf-10555a20abe5`; validator fixture was separate from the published row.
-- [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
-- [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
-- [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.
+- [x] Add one fixed-distance interval fixture with synthetic completed intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back. Result `86847`.
+- [x] Add one fixed-time interval fixture with synthetic completed interval distances/rest and reconciled totals; pass validator/publish/read-back. Result `86848`.
+- [x] Add one variable-interval fixture with ordered synthetic mixed work/rest records and reconciled totals; pass validator/publish/read-back. Result `86849`.
 - [ ] Use the preserved Online Validator default variable-interval payload as provider reference for top-level totals, mixed intervals, HR and `stroke_data`; create an LC-owned unverified fixture rather than copying its `verified: true` claim or assuming its samples match ErgLink semantics.
 - [ ] Exercise deliberate duplicate (`409`) and invalid (`422`) cases without blind retry or false published state.
-- [ ] Record sanitized fixture payload/hash, validator outcome, provider result ID, LC UUID and read-back differences. Never label synthetic fixtures as real ErgLink captures.
+- [x] Record sanitized fixture payload/hash, validator outcome, provider result ID, LC UUID and read-back differences for the three interval fixtures in the approval evidence. Never label synthetic fixtures as real ErgLink captures.
 - [ ] Keep strokes, trusted verification, bulk/update/delete/webhook and non-rower machines out of this approval matrix unless Concept2 explicitly requests them.
 
 **Exit:** fixed distance, fixed time and representative interval classes have local contracts, validator evidence and development API read-back suitable for a formal production-write approval request.
 
-Local fixture status (2026-09-17): the first three named synthetic interval results and pure mappings exist under `supabase/functions/_shared/concept2/fixtures/`. `scripts/render_concept2_fixture.mjs` emits their current Concept2 payloads from the mapper. Their local reconciliation tests pass, and Sam reported all three passed Concept2 Online Validator with strict checking. The validator recommended optional overall stroke rate, stroke count and drag factor; the synthetic fixtures have no measured values for those fields. Durable fixture binding, development POST and exact-ID read-back remain pending. The V2 interval contract has typed space for source evidence and normalized samples, but PM5 capture storage and sample integrity are not yet implemented. The manual summary path still uses V1 and the existing test form.
+Interval fixture status (2026-09-17): the three named synthetic results and pure mappings exist under `supabase/functions/_shared/concept2/fixtures/`. `scripts/render_concept2_fixture.mjs` emits their current Concept2 payloads from the mapper. Their local reconciliation tests pass; Sam reported strict Online Validator success and confirmed the Concept2 interval breakdowns. Development results `86847`, `86848` and `86849` were each published once with mapper version 2, imported by exact result ID and re-imported without duplicate saved IDs. The validator recommended optional overall stroke rate, stroke count and drag factor; the synthetic fixtures have no measured values for those fields. The V2 interval contract has typed space for source evidence and normalized samples, but PM5 capture storage and sample integrity are not yet implemented. The manual summary path still uses V1 and the existing test form.
 
 ### P5 — Submit the formal production-write approval request
 
@@ -200,7 +202,9 @@ Local fixture status (2026-09-17): the first three named synthetic interval resu
 - [ ] First establish whether each buffered ErgLink record represents a true stroke, a periodic telemetry sample or a mixture; preserve the original stream and derive provider `stroke_data` without destroying it.
 - [ ] Replace synthetic evidence with consented real PM5 captures for fixed distance, fixed time and interval shapes as device access permits; document any mapper changes forced by actual evidence.
 - [ ] Add Just Row only after its real completion semantics are explicit.
-- [ ] Add HR/SPM/calories/drag/stroke count only from validated aggregate evidence.
+- [ ] Add HR/SPM/drag/stroke count only from validated aggregate evidence.
+- [ ] Validate calorie and power evidence separately: reconcile measured workout/interval calories and watt-minutes with the raw capture, derive power summaries only from a proven sampling rule, and test the provider's integer fields and displayed values through strict validation, development write, provider inspection and exact-ID re-import. Provider-calculated calories or watts on today's summary pages are not PM5 measurements.
+- [ ] Add fixed-calorie and fixed-watt-minute workout shapes, then their interval variants if supported by real LC/PM5 completion evidence; verify target-vs-actual units and rest semantics before mapper support. Use one labelled development fixture per chosen shape and keep unsupported cases blocked.
 - [ ] Add targets/metadata only for a product requirement and after development validator/read-back evidence.
 - [ ] For every shape: local failing tests → minimal mapper → reliability regression → one gated development publish/read-back/re-import → support-matrix update.
 
