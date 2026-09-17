@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { configuration, createHandler } from './handler.ts';
+import { completedWorkoutFromRow } from '../_shared/concept2/publication.ts';
 
 const url = Deno.env.get('SUPABASE_URL');
 const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -39,6 +40,13 @@ Deno.serve(createHandler({
     });
     if (error) throw new Error('Development manual workout creation failed');
     return data;
+  },
+  loadWorkout: async (user, workoutId) => {
+    const { data, error } = await client!.from('workout_logs')
+      .select('id,source,workout_type,completed_at,distance_meters,duration_seconds,rest_distance_meters,manual_rwn,external_id,template_id,raw_data')
+      .eq('id', workoutId).eq('user_id', user).single();
+    if (error || !data) throw new Error('Owned completed workout required');
+    return completedWorkoutFromRow(data);
   },
   fetch,
 }));

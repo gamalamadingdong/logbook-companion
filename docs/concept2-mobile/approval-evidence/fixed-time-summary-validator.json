@@ -1,0 +1,11 @@
+{
+  "type": "rower",
+  "date": "2026-09-17 08:30:00",
+  "timezone": "America/New_York",
+  "distance": 7321,
+  "time": 18000,
+  "workout_type": "FixedTimeSplits",
+  "weight_class": "L",
+  "privacy": "partners",
+  "comments": "Logbook Companion workout ID: 11111111-2222-4333-8444-555555555555"
+}

@@ -44,7 +44,7 @@ export function getDevelopmentPublishBlockers(input: {
   return blockers;
 }
 
-export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; distance_meters?: number; duration_seconds?: number; completed_at?: string } = {}) {
+export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
     const detail = error.context instanceof Response ? await error.context.json().catch(() => null) : null;

@@ -119,17 +119,17 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 **LC files:** `supabase/functions/concept2-development-auth/*`, `scripts/test_c2_development_auth.py`, `docs/concept2-mobile/legacy-publish-to-c2-audit.md`.
 
-- [ ] Send a requirements inquiry to `ranking@concept2.com`: describe the proven fixed-distance flow and ask which development shapes, Online Validator output or payload samples Concept2 expects before formal production-write approval.
-- [ ] Preserve fixed-distance payload, state-machine and exact-ID behavior as regression tests before refactoring.
-- [ ] Download the deployed `publish-to-c2` function read-only; record version/hash and sanitized behavior without adding secrets or redeploying it.
-- [ ] Add an explicit source-control/deployment guard explaining that the live legacy function is not the implementation base.
-- [ ] Verify no production endpoint or credential enters staging bundles.
+- [x] Send a requirements inquiry to `ranking@concept2.com`: describe the proven fixed-distance flow and ask which development shapes, Online Validator output or payload samples Concept2 expects before formal production-write approval.
+- [x] Preserve fixed-distance payload, state-machine and exact-ID behavior as regression tests before refactoring.
+- [x] Download the deployed `publish-to-c2` function read-only; record version/hash and sanitized behavior without adding secrets or redeploying it.
+- [x] Add an explicit source-control/deployment guard explaining that the live legacy function is not the implementation base.
+- [x] Verify no production endpoint or credential enters staging bundles.
 
 **Exit:** Concept2's stated evidence expectations are recorded if they respond; fixed-distance behavior is frozen and the unsafe production baseline is auditable. Do not block device-free engineering while waiting for a reply.
 
 ### P2 — Define one completed-workout model and support matrix
 
-**LC files:** create `supabase/functions/_shared/concept2/types.ts`, `validateCompletedWorkout.ts` and focused tests.
+**LC files:** create `supabase/functions/_shared/concept2/publication.ts` and focused tests; split it later only when type/adapter/mapper growth earns separate files.
 
 - [ ] Define a versioned model containing LC workout/owner/source/capture IDs, completion status, machine/shape, actual finish/timezone, work distance/time, optional intervals/aggregates, a lossless source-evidence reference, normalized detailed samples and explicit privacy/weight class.
 - [ ] Test fixed-distance and fixed-time requirements, interval total reconciliation, non-finite/unit boundaries, unsupported machines/shapes and incomplete evidence.
@@ -141,12 +141,12 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 ### P3 — Extract pure Concept2 mapping and provider transport
 
-**LC files:** create `supabase/functions/_shared/concept2/mapCompletedWorkout.ts`, `provider.ts`, fixtures and tests; modify `concept2-development-auth/publish.ts` to use them.
+**LC files:** extend `supabase/functions/_shared/concept2/publication.ts`, add fixtures/tests, and modify `concept2-development-auth/publish.ts` to use it. Extract a separate `provider.ts` when production/development transport actually shares the boundary.
 
-- [ ] Move the proven fixed-distance payload out of SQL without behavior change; persist mapper version and immutable payload snapshot before POST.
+- [x] Move the proven fixed-distance payload out of SQL without behavior change; persist mapper version and immutable payload snapshot before POST.
 - [ ] Test exact units, rounding, DST/UTC date boundaries, provenance comment, enums and omitted unsupported fields.
 - [ ] Isolate fixed development/production endpoints, timeout, redirects, response validation and sanitized errors in the provider adapter.
-- [ ] Preserve the existing fenced claim, definitive-rejection retry, unknown-outcome block and audited resolution semantics.
+- [x] Preserve the existing fenced claim, definitive-rejection retry, unknown-outcome block and audited resolution semantics.
 
 **Exit:** fixed distance uses the same pure core future shapes will use; UI and capture sources contain no Concept2 mapping.
 
@@ -154,7 +154,8 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 **LC files:** add named server-owned fixtures under `supabase/functions/_shared/concept2/fixtures/`; extend mapper/validator tests; keep `DevelopmentConcept2.tsx` a thin workout/fixture selector; record validator/development evidence under `docs/concept2-mobile/approval-evidence/`.
 
-- [ ] Add fixed-time failing tests using exact work time and measured distance; implement and prove one development write/read-back/re-import.
+- [x] Add fixed-time failing tests using exact work time and measured distance; implement mapping and pass strict Online Validator checking.
+- [ ] Deploy the fixed-time slice, publish one development fixture, read it back, import it twice and record the result ID/LC UUID/read-back differences.
 - [ ] Add one fixed-distance interval fixture with measured intervals/rest and reconciled totals; pass the Online Validator, publish to development and compare read-back.
 - [ ] Add one fixed-time interval fixture with measured interval distances/rest and reconciled totals; pass validator/publish/read-back.
 - [ ] Add one variable-interval fixture with ordered mixed work/rest records and reconciled totals; pass validator/publish/read-back.

@@ -2,6 +2,7 @@
 // callback, credentials, user ID, or tokens from the caller.
 import { developmentResults } from './results.ts';
 import { publishManual } from './publish.ts';
+import type { CompletedWorkoutV1 } from '../_shared/concept2/publication.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
 const WRITE_SCOPE = 'user:read,results:write';
 const READ_SCOPE = 'user:read,results:read';
@@ -23,6 +24,7 @@ export type Dependencies = {
   syncOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
   publishOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
   createWorkout?: (user: string, values: Row) => Promise<Row>;
+  loadWorkout?: (user: string, workoutId: string) => Promise<CompletedWorkoutV1>;
   fetch: typeof fetch;
 };
 export function configuration(get: (name: string) => string | undefined): Config | null {
@@ -57,14 +59,15 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
       }
       const callback = `${config.origin}/callback`;
       if (body.action === 'create_workout') {
         if (!deps.createWorkout || !Number.isSafeInteger(body.distance_meters) || body.distance_meters <= 0 ||
           typeof body.duration_seconds !== 'number' || !Number.isFinite(body.duration_seconds) || body.duration_seconds <= 0 ||
-          typeof body.completed_at !== 'string' || body.completed_at.length > 40 || !body.completed_at) {
+          typeof body.completed_at !== 'string' || body.completed_at.length > 40 || !body.completed_at ||
+          !['fixed_distance', 'fixed_time'].includes(String(body.publication_shape ?? 'fixed_distance'))) {
           return reply(400, { error: 'Enter a valid completed distance, work time and finish time.' });
         }
         try { return reply(200, await deps.createWorkout(user, body)); }

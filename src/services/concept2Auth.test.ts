@@ -14,7 +14,14 @@ function fixture() {
     String(args[0]).endsWith('/users/me') ? { data: { id: 42 } } : { access_token: 'test-access', refresh_token: 'test-rotated', expires_in: 3600 },
   ), { status: 200 }));
   const deps: Dependencies = { config: { origin, clientId: 'test-client', clientSecret: 'test-secret' },
-    authenticate: vi.fn(async () => 'user-1'), operation, fetch: network as typeof fetch };
+    authenticate: vi.fn(async () => 'user-1'), operation,
+    loadWorkout: vi.fn(async (_user, workoutId) => ({
+      _v: 1 as const, workoutId, source: 'manual' as const, machine: 'rower' as const,
+      shape: { kind: 'fixed_distance' as const },
+      completedAt: '2026-09-16T12:00:00.000Z', distanceMeters: 5000, workTimeSeconds: 1200,
+      restDistanceMeters: 0, restTimeSeconds: 0,
+    })),
+    fetch: network as typeof fetch };
   const request = (body: unknown, options: { origin?: string; auth?: string } = {}) => createHandler(deps)(new Request('https://edge.test', {
     method: 'POST', headers: { Origin: options.origin ?? origin, Authorization: options.auth ?? 'Bearer app-session' }, body: JSON.stringify(body),
   }));
@@ -146,13 +153,36 @@ describe('development Concept2 boundary', () => {
     const f = fixture(); expect((await f.request({ action: 'publish' })).status).toBe(400);
     expect(f.network).not.toHaveBeenCalled();
   });
+  it('maps a server-loaded completed workout before the durable publication claim', async () => {
+    const f = fixture();
+    f.deps.loadWorkout = vi.fn(async () => ({
+      _v: 1 as const, workoutId: '00000000-0000-0000-0000-00000000aaaa', source: 'manual' as const,
+      machine: 'rower' as const, shape: { kind: 'fixed_distance' as const },
+      completedAt: '2026-09-16T12:00:00.000Z', distanceMeters: 5000, workTimeSeconds: 1200,
+      restDistanceMeters: 0, restTimeSeconds: 0,
+    }));
+    const publication = vi.fn(async () => ({ dispatch: false, status: 'published', workout_id: 'workout' }));
+    f.deps.publishOperation = publication;
+    const response = await f.request({ action: 'publish', workout_id: '00000000-0000-0000-0000-00000000aaaa',
+      timezone: 'America/New_York', weight_class: 'H', privacy: 'private', confirmed_completed: true });
+    expect(response.status).toBe(200);
+    expect(f.deps.loadWorkout).toHaveBeenCalledWith('user-1', '00000000-0000-0000-0000-00000000aaaa');
+    expect(publication).toHaveBeenCalledWith('user-1', 'claim', expect.objectContaining({ payload: {
+      type: 'rower', date: '2026-09-16 08:00:00', timezone: 'America/New_York', distance: 5000,
+      time: 12000, workout_type: 'unknown', weight_class: 'H', privacy: 'private',
+      comments: 'Logbook Companion workout ID: 00000000-0000-0000-0000-00000000aaaa',
+    } }));
+    expect(f.network).not.toHaveBeenCalled();
+  });
   it('creates a tightly bounded owned manual workout without contacting Concept2', async () => {
     const f = fixture();
     f.deps.createWorkout = vi.fn(async (user, values) => ({ workout_id: 'workout-1', user, ...values }));
     const response = await f.request({ action: 'create_workout', distance_meters: 5000,
-      duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z' });
+      duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z', publication_shape: 'fixed_time' });
     expect(response.status).toBe(200);
-    expect(f.deps.createWorkout).toHaveBeenCalledWith('user-1', expect.objectContaining({ distance_meters: 5000 }));
+    expect(f.deps.createWorkout).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      distance_meters: 5000, publication_shape: 'fixed_time',
+    }));
     expect(f.network).not.toHaveBeenCalled();
     expect((await f.request({ action: 'create_workout', distance_meters: -1,
       duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z' })).status).toBe(400);

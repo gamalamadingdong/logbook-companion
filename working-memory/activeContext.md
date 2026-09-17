@@ -21,6 +21,8 @@ The completed-workout requirement includes the entire detailed result when avail
 
 Sam sent the Concept2 production-write requirements inquiry to `ranking@concept2.com` on 2026-09-17; response is pending.
 
+Local branch `feature/concept2-publication-core-fixed-time` now has the first capability-bearing core slice: versioned `CompletedWorkoutV1`, a server-only manual-row adapter, pure fixed-distance/fixed-time mapper, mapper-versioned durable payload snapshots, Edge publication through the mapper, a fixed-time development test-entry selector, disposable-Postgres coverage and strict Online Validator success for a 30:00 / 7,321 m `FixedTimeSplits` payload. The deployed legacy production function is documented read-only in `legacy-publish-to-c2-audit.md` and remains untouched. This slice is local only: migration/function/UI are not deployed and no fixed-time provider POST/read-back has occurred.
+
 **Resume at [Concept2 publishing handoff](../docs/concept2-mobile/resume-publishing.md).** Fixed-distance development writing is complete. Immediate engineering sequence while awaiting Concept2: freeze/audit baseline → extract canonical model/mapper/provider core → prove fixed time plus fixed-distance, fixed-time and variable interval fixtures with Online Validator and development read-back → submit the formal production-write request unless Concept2 gives different instructions. This approval matrix is device-free. ErgLink capture hardening and occasional batched PM5 tests continue separately; production activation remains a later gate.
 
 
