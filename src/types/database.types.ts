@@ -587,6 +587,38 @@ export type Database = {
         }
         Relationships: []
       }
+      c2_development_fixture_workouts: {
+        Row: {
+          completed_result: Json
+          created_at: string
+          fixture_name: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          completed_result: Json
+          created_at?: string
+          fixture_name: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          completed_result?: Json
+          created_at?: string
+          fixture_name?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_development_fixture_workouts_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: true
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       c2_development_publications: {
         Row: {
           attempt_count: number
@@ -5055,6 +5087,10 @@ export type Database = {
       }
       c2_development_auth_operation: {
         Args: { p_action: string; p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_create_fixture_workout: {
+        Args: { p_completed: Json; p_fixture_name: string; p_user_id: string }
         Returns: Json
       }
       c2_development_create_manual_workout: {
