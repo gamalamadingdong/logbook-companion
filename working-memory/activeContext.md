@@ -1,23 +1,26 @@
 # Active Context
 
-Last updated: 2026-09-16
+Last updated: 2026-09-17
 
-## Current effort — Concept2 development read-sync
+## Current effort — ready for Concept2 development publishing
 
 The auth slice merged into staging. Sam reports deploying its migration/function, configuring the three server-side secrets, registering `https://logbook-dev.readyall.org/callback`, and successfully connecting a Concept2 development account. Genuine expired-token refresh remains unverified. Production retains its existing connection flow.
 
-`feature/concept2-development-sync` adds manual paginated summary imports into service-only `c2_development_results`, isolated by LC user and development provider account, and removes the misleading staging dashboard connection-lost warning. See [development sync slice](../docs/concept2-mobile/development-sync-slice.md) for scope, verification, deployment order, rollback, and real-account acceptance checks. Sam authorized commit/push and a PR targeting staging. No new migration/function deployment performed. Local checks pass; live schema/MCP verification and real import are outstanding. No production writes; normal staging history still reads shared production records. Strokes, normalization into analytics, publishing, and native mobile are not part of this slice.
+PR #140 merged into staging; Sam reports applying its migration and deploying the updated function. User-confirmed smoke passed: empty import, one 5000 m / 1200 s result imported, repeat import stayed at one, and reload preserved it. Local tests/builds passed. Normal staging history still reads shared production records; development summaries use their own service-only table. Live permission checks, expired-token refresh and multi-page behavior are not independently verified.
+
+On `feature/concept2-development-publishing`, the targeted development write migrations and Edge Function version 5 are live. The staging UI change is not yet released. It adds a tightly bounded development-only form to save one owned completed fixed-distance LC row, followed by explicit publication and exact-result-ID import linkage. Existing connections still need reconnection for write consent. Unknown provider outcomes cannot POST again automatically; service-only recovery records operator evidence. Definite provider rejections can be retried with a new fenced attempt after correction, while 401/403 clear credentials and require reconnect. No provider POST has occurred.
+
+**Resume at [Concept2 publishing handoff](../docs/concept2-mobile/resume-publishing.md).** Current checks include 455 Vitest tests, disposable PostgreSQL tests, Deno check, staging and production builds, staging bundle isolation scan, and lint with no errors. Three targeted migrations are live and recorded; the publication table is empty and both new RPCs are service-only. Next: release the staging UI, reconnect the development account for write permission, save one completed test row, publish once, and import to verify the exact LC UUID. Production publishing and mobile remain deferred.
 
 
-## Current Session — Concept2/mobile planning (2026-09-15)
+## Architecture references — Concept2/mobile
 
-Documentation-only specifications and bounded implementation plans are now in [docs/concept2-mobile/README.md](../docs/concept2-mobile/README.md), linked from the [roadmap](../docs/logbook-concept2-mobile-roadmap.md). The authorized pre-existing roadmap improvements are retained. This session prepares a documentation PR; implementation, live changes and merge are not authorized by it.
+Specifications and bounded plans are in [docs/concept2-mobile/README.md](../docs/concept2-mobile/README.md), linked from the [roadmap](../docs/logbook-concept2-mobile-roadmap.md). The current handoff above governs implementation sequencing; older planning and slice documents contain historical status.
 
 - [Publishing](../docs/concept2-mobile/publishing.md): prerequisite owned capture identity/version and completed-versus-prescribed data; preserve ErgLink origin/strokes and LC UUID through exact-ID import; manual single fixed-distance development publication first; durable claim plus explicit unknown-POST recovery, not blind retries. Concept2 production write approval is unverified.
 - [Mobile delivery](../docs/concept2-mobile/mobile-delivery.md): independent Apple registration/signing/archive/TestFlight track, then signed compatible OTA and rollback. Sam confirms ScheduleBoard's GitHub Actions native pipeline and self-hosted Capgo/Vercel updates are reliable; Appflow was retired for cost and must not return. ScheduleBoard was read as reference only and not modified.
 - Inspected gaps to resolve before code enablement: shared types use `erg_link_live` but reconciliation priority uses `erg_link`; current import can replace origin/raw data with Concept2 data; `publish-to-c2` is mentioned in client comments but absent from inspected functions; OAuth callback/refresh reference a browser `VITE_CONCEPT2_CLIENT_SECRET`. No secret values were read. Capture completion/final-summary semantics and live database constraints require evidence.
-- Next implementation choice: publishing identity/auth/import prerequisites or the independent mobile shell/archive. Both have explicit operator prerequisites and testable gates. Embedded PM5, force curves, automatic publication and broad platform/machine expansion remain deferred.
-- Validation for this documentation change: inspect local source/reference files, verify new relative links and roadmap references, run `git diff --check`, and review the exact staged documentation scope. Application/native/API behavior is not newly tested by this docs pass.
+- Current priority is development publishing, not the mobile shell. Embedded PM5, force curves, automatic publication and broad platform/machine expansion remain deferred.
 
 ## Prior Product Focus — Support work (retained from 2026-07-09)
 

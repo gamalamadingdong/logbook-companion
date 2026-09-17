@@ -1,7 +1,10 @@
 // Deliberately development-only: never accepts an environment, provider URL,
 // callback, credentials, user ID, or tokens from the caller.
 import { developmentResults } from './results.ts';
+import { publishManual } from './publish.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
+const WRITE_SCOPE = 'user:read,results:write';
+const READ_SCOPE = 'user:read,results:read';
 // Operator must explicitly configure the confirmed staging origin. No hostname default.
 function permittedOrigin(value: string): boolean {
   try {
@@ -18,6 +21,8 @@ export type Dependencies = {
   authenticate: (jwt: string) => Promise<string | null>;
   operation: (user: string, action: string, values?: Row) => Promise<Row>;
   syncOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
+  publishOperation?: (user: string, action: string, values?: Row) => Promise<Row>;
+  createWorkout?: (user: string, values: Row) => Promise<Row>;
   fetch: typeof fetch;
 };
 export function configuration(get: (name: string) => string | undefined): Config | null {
@@ -52,10 +57,32 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state', 'page'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
       }
       const callback = `${config.origin}/callback`;
+      if (body.action === 'create_workout') {
+        if (!deps.createWorkout || !Number.isSafeInteger(body.distance_meters) || body.distance_meters <= 0 ||
+          typeof body.duration_seconds !== 'number' || !Number.isFinite(body.duration_seconds) || body.duration_seconds <= 0 ||
+          typeof body.completed_at !== 'string' || body.completed_at.length > 40 || !body.completed_at) {
+          return reply(400, { error: 'Enter a valid completed distance, work time and finish time.' });
+        }
+        try { return reply(200, await deps.createWorkout(user, body)); }
+        catch { return reply(409, { error: 'Could not save the completed development test row.' }); }
+      }
+      if (body.action === 'publications') {
+        if (!deps.publishOperation) return reply(503, { error: 'Development publishing is unavailable.' });
+        return reply(200, await deps.publishOperation(user, 'list'));
+      }
+      if (body.action === 'publish') {
+        if (typeof body.workout_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.workout_id) ||
+          typeof body.timezone !== 'string' || body.timezone.length > 100 ||
+          !['H', 'L'].includes(body.weight_class) ||
+          !['private', 'partners', 'logged_in', 'everyone'].includes(body.privacy) ||
+          body.confirmed_completed !== true) return reply(400, { error: 'Confirm a completed row and its publishing options.' });
+        try { return reply(200, await publishManual(deps, user, body)); }
+        catch { return reply(409, { error: 'Development publication unavailable. Check the selected row and connection. An uncertain attempt needs operator review.' }); }
+      }
       if (body.action === 'sync' || body.action === 'results') {
         try { return reply(200, await developmentResults(deps, user, body.action, body.page)); }
         catch { return reply(409, { error: 'Development import unavailable or failed. Check / refresh connection and retry this page. If operation is pending, stop and request operator recovery.' }); }
@@ -63,20 +90,23 @@ export function createHandler(deps: Dependencies) {
       if (body.action === 'status') return reply(200, await deps.operation(user, 'status'));
       if (body.action === 'begin') {
         const state = crypto.randomUUID() + crypto.randomUUID();
-        await deps.operation(user, 'begin', { state_hash: await hash(state) });
+        await deps.operation(user, 'begin', { state_hash: await hash(state), requested_scope: WRITE_SCOPE });
         const query = new URLSearchParams({ client_id: config.clientId, redirect_uri: callback,
-          response_type: 'code', scope: 'user:read,results:read', state });
+          response_type: 'code', scope: WRITE_SCOPE, state });
         return reply(200, { authorization_url: `${PROVIDER}/oauth/authorize?${query}` });
       }
-      if (!['exchange', 'refresh'].includes(body.action)) return reply(400, { error: 'Unsupported action. Publishing is disabled.' });
+      if (!['exchange', 'refresh'].includes(body.action)) return reply(400, { error: 'Unsupported action.' });
       if (body.action === 'exchange' && (typeof body.code !== 'string' || !body.code || body.code.length > 4096 ||
           typeof body.state !== 'string' || body.state.length !== 72)) return reply(400, { error: 'Invalid callback.' });
       // DB consumes state and acquires a non-expiring mutex in one transaction.
       const claim = await deps.operation(user, body.action,
         body.action === 'exchange' ? { state_hash: await hash(body.state) } : {});
       if (claim.fresh) return reply(200, { connected: true, environment: 'development' });
+      const tokenScope = claim.token_scope;
+      if (tokenScope !== READ_SCOPE && tokenScope !== WRITE_SCOPE) throw new Error('Invalid stored scope');
       const form = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret,
-        grant_type: body.action === 'exchange' ? 'authorization_code' : 'refresh_token' });
+        grant_type: body.action === 'exchange' ? 'authorization_code' : 'refresh_token',
+        scope: tokenScope });
       if (body.action === 'exchange') { form.set('code', body.code); form.set('redirect_uri', callback); }
       else form.set('refresh_token', String(claim.refresh_token));
       // Never retry a rotating credential request after an ambiguous outcome.
@@ -110,7 +140,8 @@ export function createHandler(deps: Dependencies) {
       }
       await deps.operation(user, 'save', { operation_id: claim.operation_id,
         access_token: tokens.access_token, refresh_token: refresh,
-        expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(), provider_user_id: String(identity) });
+        expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        provider_user_id: String(identity), token_scope: tokenScope });
       return reply(200, { connected: true, environment: 'development', provider_user_id: String(identity) });
     } catch {
       // Do not return/log provider payloads, credentials, authorization codes or DB errors.
