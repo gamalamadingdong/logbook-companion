@@ -13,6 +13,7 @@
 ## Global constraints
 
 - Preserve LC row identity, source, original raw capture/strokes and template/assignment links. Publication is a reference, not an origin upgrade; manual and ErgLink inputs use the same publication core after source-specific normalization.
+- Preserve the complete detailed workout evidence whenever the capture source provides it. Summary totals are an index/view of the workout, not a substitute for raw PM5 telemetry, normalized samples or completed interval detail.
 - Only the authenticated owner can publish their completed workout to their connected Concept2 account. Anonymous/coached attribution is a prerequisite, not permission to publish on someone else's behalf.
 - Fixed distance is the proven baseline. Add one result shape at a time through the support matrix; reject unsupported/incomplete shapes rather than flattening them to `JustRow` or summary-only records.
 - No remote edits/deletes, bulk publication, automatic retries after uncertain POSTs, automatic publishing, force curves or trusted/verified claims without separate product need and provider approval.
@@ -42,8 +43,8 @@
 
 ## Revised responsibility boundaries
 
-1. **ErgLink and other capture producers:** persist measured evidence, stable capture identity, completion status, actual timing/timezone, final summary, completed intervals and raw strokes. They do not know Concept2 payload rules or credentials.
-2. **LC source adapters:** convert manual/ErgLink rows into one completed-workout publication model while preserving source, raw evidence, assignment/template/session links and LC UUID.
+1. **ErgLink and other capture producers:** persist measured evidence, stable capture identity, completion status, actual timing/timezone, final summary, completed intervals and the complete raw telemetry/sample stream. They do not know Concept2 payload rules or credentials.
+2. **LC source adapters:** convert manual/ErgLink rows into one completed-workout publication model while preserving source, raw evidence, normalized detail, assignment/template/session links and LC UUID.
 3. **Pure mapper and validator:** deterministically emit an accepted Concept2 payload or a stable unsupported/incomplete reason. No database, OAuth or network calls.
 4. **Publication state machine:** own eligibility, immutable payload snapshot/version, single dispatch, unknown outcome, audited recovery and exact remote ID.
 5. **Provider adapter:** own environment-specific endpoint, OAuth/refresh, HTTP validation and safe response parsing.
@@ -60,7 +61,7 @@
 | Fixed-distance/time intervals | Require measured completed interval records, not prescription alone. |
 | Variable intervals | Require ordered measured work/rest records and total reconciliation. |
 | HR/SPM/calories/drag/stroke count | Add only from true summary/aggregate evidence; never final-sample approximations. |
-| Stroke data | Convert cumulative ErgLink samples to Concept2 incremental deciseconds/decimeters/pace and reconcile totals. |
+| Detailed samples / stroke data | Store the full source stream and normalized detailed samples in LC. Do not assume each current ErgLink sample is one PM5 stroke. After device evidence establishes sampling semantics, derive Concept2 incremental `stroke_data` in deciseconds/decimeters/pace and reconcile totals/interval boundaries. |
 | Targets/metadata | Add when product-needed and validated through development read-back. |
 | Trusted verification | Blocked pending Concept2 approval. |
 | Update/delete/bulk/webhook | Documented API behavior, not planned LC product support. |
@@ -70,6 +71,16 @@
 The minimal contract needs capture ID/version, owned LC workout ID, source, completion status (`completed`, `aborted`, `incomplete_capture`), machine type, actual finish instant plus original timezone, measured work distance/time and retained prescription references. The owner comes from authenticated persistence, not untrusted request data. Store the original measured input; use a versioned immutable payload snapshot for each publication attempt.
 
 Eligibility requires an owned durable row, actual completed fixed-distance rowing evidence, positive finite measured distance/work time, known time convention, required profile fields, and no existing/uncertain publication for the target account/environment. Legacy rows missing final-summary evidence remain ineligible until safely resolved. An athlete stopping early has not completed the prescribed piece even if the RWN still says `5000m`.
+
+### Detailed capture requirement
+
+`CompletedWorkout` must be able to retain the whole completed workout, not only a summary payload. Keep three layers distinct:
+
+1. **Lossless source evidence:** versioned PM5/ErgLink records exactly as captured, with stable capture ID, source timestamps, sampling/characteristic identity, schema version, count and integrity checksum/reference.
+2. **Normalized workout detail:** provider-independent elapsed/work/rest timing, cumulative distance, pace/power/SPM/HR/calorie samples and completed interval boundaries. Normalization must remain reproducible from the lossless source evidence.
+3. **Provider projection:** Concept2 summary/interval/`stroke_data` generated from the normalized model. Concept2 unit conversion or sampling limits must never overwrite or become LC's only detailed record.
+
+The detailed stream may be absent for manual rows and should be retained for PM5-originated captures when available. Storage layout (versioned JSONB, child rows, object storage/compression or a hybrid) remains a schema decision after measuring representative capture sizes and query needs. Regardless of layout, retries must reference one immutable capture rather than duplicate or truncate samples.
 
 | Destination | First-slice rule |
 |---|---|
@@ -120,8 +131,9 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 
 **LC files:** create `supabase/functions/_shared/concept2/types.ts`, `validateCompletedWorkout.ts` and focused tests.
 
-- [ ] Define a versioned model containing LC workout/owner/source/capture IDs, completion status, machine/shape, actual finish/timezone, work distance/time, optional intervals/aggregates/strokes and explicit privacy/weight class.
+- [ ] Define a versioned model containing LC workout/owner/source/capture IDs, completion status, machine/shape, actual finish/timezone, work distance/time, optional intervals/aggregates, a lossless source-evidence reference, normalized detailed samples and explicit privacy/weight class.
 - [ ] Test fixed-distance and fixed-time requirements, interval total reconciliation, non-finite/unit boundaries, unsupported machines/shapes and incomplete evidence.
+- [ ] Test detailed-evidence integrity: stable order/count/checksum, monotonic time/distance where required, explicit gaps/resets and summary/interval reconciliation. Do not equate periodic telemetry samples with strokes without PM5 evidence.
 - [ ] Add manual and ErgLink row adapters; prescription classifies shape but measured evidence supplies published totals.
 - [ ] Keep source-specific metadata/assignment/template/session identity outside provider mapping.
 
@@ -171,6 +183,7 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 - [ ] Add `_capture_v`, stable `capture_id`, completion status, actual start/end/timezone and a final-summary object.
 - [ ] Compute true workout aggregates; do not copy final-sample watts/SPM into average fields.
 - [ ] Separate measured work time from elapsed/rest time and persist completed interval summaries when PM5 evidence supports them.
+- [ ] Retain the complete raw telemetry stream and record sampling provenance (PM5 characteristic/message type, timestamp semantics, schema version, sample count and integrity checksum/reference).
 - [ ] Retain the same capture ID across retries and clear strokes only after durable LC upload confirmation.
 - [ ] Keep anonymous captures ineligible for publication until ownership is explicitly resolved.
 - [ ] Add contract parity tests across the two repositories and coordinate separate compatible PRs.
@@ -180,6 +193,7 @@ Approval evidence is tracked in [`approval-evidence/README.md`](approval-evidenc
 ### P7 — Map ErgLink detail and add richer shapes sequentially
 
 - [ ] Convert cumulative ErgLink strokes into Concept2 incremental deciseconds/decimeters/pace; reject decreasing/invalid samples and reconcile totals.
+- [ ] First establish whether each buffered ErgLink record represents a true stroke, a periodic telemetry sample or a mixture; preserve the original stream and derive provider `stroke_data` without destroying it.
 - [ ] Replace synthetic evidence with consented real PM5 captures for fixed distance, fixed time and interval shapes as device access permits; document any mapper changes forced by actual evidence.
 - [ ] Add Just Row only after its real completion semantics are explicit.
 - [ ] Add HR/SPM/calories/drag/stroke count only from validated aggregate evidence.
