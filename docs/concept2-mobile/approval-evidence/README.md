@@ -21,13 +21,27 @@ Provider reference fixture:
 |---|---:|---:|---:|---:|---|
 | Fixed-distance summary | Passed | Not required for proven simple shape | Passed | Passed | Results `86800`, `86805`, `86807`, `86817`; result `86817` includes provider-visible LC UUID comment. |
 | Fixed-time summary | Passed | Passed with strict checking | Passed: result `86844` | Passed on first and repeat import | [`fixed-time-summary-validator.json`](fixed-time-summary-validator.json), SHA-256 `efd0702c9fddbed88918352b09869982814ce21a2d8e6e961298dfdd300158e5`; validator fixture was 7,321 m / 30:00. Live development result `86844` was 5,000 m / 50:00. |
-| Fixed-distance intervals + rest | Pending | Pending | Pending | Pending | Device-free canonical fixture with measured intervals and reconciled totals. |
-| Fixed-time intervals + rest | Pending | Pending | Pending | Pending | Device-free canonical fixture with measured interval distances and reconciled totals. |
-| Variable intervals | Pending | Pending | Pending | Pending | Device-free canonical fixture with ordered mixed work/rest records. |
+| Fixed-distance intervals + rest | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| Fixed-time intervals + rest | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| Variable intervals | Passed | Passed with strict checking (Sam-reported) | Pending | Pending | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Duplicate `409` | Automated behavior covered | N/A | Pending controlled development evidence | N/A | Must not be marked published without a proven remote ID. |
 | Invalid `422` | Automated behavior covered | Validator should reject matching invalid fixture | Pending controlled development evidence | N/A | Must permit correction without treating outcome as unknown. |
 | Expired-token rotating refresh | Passed | N/A | Passed | N/A | Real expired access-token refresh retained `results:write` with no reconnect or stuck operation. |
 | Uncertain POST outcome | Automated/disposable-DB coverage passed | N/A | Do not induce against provider without an approved fault-injection method | N/A | No blind retry; explicit review/recovery. |
+
+## Interval strict validator evidence
+
+On 2026-09-17, Sam reported that all three [single-line fixture payloads](interval-validator-inputs.md) passed Concept2 Online Validator with **Use Strict Checking** enabled. This is user-observed validator evidence; no validator response export or development API write has been captured yet. The validator also recommended an overall stroke rate, stroke count and drag factor. Those fields are optional and absent because the synthetic fixtures contain no measured aggregates; LC must not invent them.
+
+SHA-256 below is over the UTF-8 bytes of each compact JSON line inside the Markdown code block, excluding the newline and code fences:
+
+| Fixture | Work/rest summary | SHA-256 |
+|---|---|---|
+| `fixed_distance_intervals_2x500m` | 1,000 m / 240.0 s work; 60.0 s rest | `569d9b40d3eaa8d95b898fb6dceb0a6b72e4e6ecbf0d02a9736274af38689be5` |
+| `fixed_time_intervals_3x120s` | 1,500 m / 360.0 s work; 90.0 s rest | `ff88ef972b0f5e8b0fb03faf2ad1280900ed75b31a8551b0ab465fa759a6f4fd` |
+| `variable_intervals_mixed` | 1,200 m / 300.0 s work; 45.0 s rest and 40 m rest distance | `1c59b55e61a492f232d36dbf3cb1253bc016265295968c3547c7aa40c58e7c90` |
+
+The fixture UUIDs are synthetic. A development POST requires a new owned durable LC test row, publication through the fenced state machine, and exact returned-ID read-back. No interval provider result IDs exist yet.
 
 ## Fixed-time development result 86844
 
