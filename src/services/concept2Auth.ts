@@ -29,7 +29,7 @@ export function validateDevelopmentWorkoutDraft(draft: DevelopmentWorkoutDraft, 
 
 export function getDevelopmentPublishBlockers(input: {
   connection: DevelopmentConnection | null; selectedId: string; weightClass: '' | 'H' | 'L';
-  timezone: string; confirmed: boolean; existingStatus?: DevelopmentPublication['status'];
+  timezone: string; confirmed: boolean; syntheticFixture?: boolean; existingStatus?: DevelopmentPublication['status'];
 }) {
   const blockers: string[] = [];
   if (!input.connection?.connected) blockers.push('Connect your Concept2 development account.');
@@ -38,13 +38,13 @@ export function getDevelopmentPublishBlockers(input: {
   if (!input.selectedId) blockers.push('Save or select a completed LC workout.');
   if (!input.timezone.trim()) blockers.push('Enter the workout timezone.');
   if (!input.weightClass) blockers.push('Select your Concept2 weight class.');
-  if (!input.confirmed) blockers.push('Confirm that you completed the saved workout.');
+  if (!input.confirmed) blockers.push(input.syntheticFixture ? 'Confirm this is a synthetic development test result.' : 'Confirm that you completed the saved workout.');
   if (input.existingStatus === 'published') blockers.push('This workout is already published to Concept2 development.');
   if (input.existingStatus === 'outcome_unknown') blockers.push('This workout has an uncertain publication outcome. Do not retry it.');
   return blockers;
 }
 
-export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
+export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout' | 'create_fixture', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; confirmed_fixture?: boolean; fixture_name?: string; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
     const detail = error.context instanceof Response ? await error.context.json().catch(() => null) : null;

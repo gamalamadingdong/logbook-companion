@@ -187,6 +187,17 @@ describe('development Concept2 boundary', () => {
     expect((await f.request({ action: 'create_workout', distance_meters: -1,
       duration_seconds: 1200, completed_at: '2026-09-17T11:00:00.000Z' })).status).toBe(400);
   });
+  it('creates a named synthetic fixture without accepting browser-supplied result data', async () => {
+    const f = fixture();
+    f.deps.createFixture = vi.fn(async (_user, name) => ({ workout_id: 'owned-fixture', fixture_name: name }));
+    const response = await f.request({ action: 'create_fixture', fixture_name: 'fixed_distance_intervals_2x500m' });
+    expect(response.status).toBe(200);
+    expect(f.deps.createFixture).toHaveBeenCalledWith('user-1', 'fixed_distance_intervals_2x500m');
+    expect(f.network).not.toHaveBeenCalled();
+    expect((await f.request({ action: 'create_fixture', fixture_name: 'unknown' })).status).toBe(400);
+    expect((await f.request({ action: 'create_fixture', fixture_name: 'fixed_distance_intervals_2x500m',
+      intervals: [] })).status).toBe(400);
+  });
   it('publishes one owned claim to the fixed development endpoint and returns only the result ID', async () => {
     const f = fixture();
     const publication = vi.fn(async (_user: string, action: string) => action === 'claim'

@@ -21,6 +21,7 @@ export type CompletedWorkoutV1 = {
 
 export type PublicationWorkoutRow = {
   id: string;
+  user_id?: string;
   source: string | null;
   workout_type: string;
   completed_at: string;
@@ -64,8 +65,23 @@ function formatProviderDate(completedAt: string, timezone: string) {
   return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
 }
 
-export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWorkoutV1 {
+export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWorkoutV1 | CompletedWorkoutV2 {
   const raw = row.raw_data as Record<string, unknown> | null;
+  if (raw?.source === 'concept2_development_fixture') {
+    const completed = raw.completed_workout as CompletedWorkoutV2 | undefined;
+    if (row.source !== 'manual' || row.workout_type !== 'row' ||
+        row.external_id !== null || row.template_id !== null || row.manual_rwn !== null ||
+        typeof raw.fixture_name !== 'string' || !completed || completed.source !== 'synthetic_fixture' ||
+        completed.workoutId !== row.id || completed.ownerId !== row.user_id ||
+        new Date(completed.completedAt).getTime() !== new Date(row.completed_at).getTime() ||
+        completed.distanceMeters !== row.distance_meters ||
+        completed.workTimeSeconds !== row.duration_seconds ||
+        completed.restDistanceMeters !== (row.rest_distance_meters ?? 0)) {
+      throw new Error('Development fixture row does not match its completed result');
+    }
+    validateCompletedWorkoutV2(completed);
+    return completed;
+  }
   const rawShape = raw?.publication_shape;
   if (rawShape !== undefined && rawShape !== 'fixed_distance' && rawShape !== 'fixed_time') {
     throw new Error('Only a completed manual fixed-distance or fixed-time row is eligible');

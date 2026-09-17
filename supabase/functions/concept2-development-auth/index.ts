@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { configuration, createHandler } from './handler.ts';
 import { completedWorkoutFromRow } from '../_shared/concept2/publication.ts';
+import { bindDevelopmentFixture } from '../_shared/concept2/fixtures/index.ts';
+import { validateCompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
 
 const url = Deno.env.get('SUPABASE_URL');
 const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -41,11 +43,30 @@ Deno.serve(createHandler({
     if (error) throw new Error('Development manual workout creation failed');
     return data;
   },
+  createFixture: async (user, name) => {
+    const workoutId = crypto.randomUUID();
+    const completed = bindDevelopmentFixture(name, workoutId, user, new Date(Date.now() - 600_000).toISOString());
+    validateCompletedWorkoutV2(completed);
+    const { data, error } = await client!.rpc('c2_development_create_fixture_workout', {
+      p_user_id: user, p_fixture_name: name, p_completed: completed,
+    });
+    if (error) throw new Error('Development fixture creation failed');
+    return data;
+  },
   loadWorkout: async (user, workoutId) => {
     const { data, error } = await client!.from('workout_logs')
-      .select('id,source,workout_type,completed_at,distance_meters,duration_seconds,rest_distance_meters,manual_rwn,external_id,template_id,raw_data')
+      .select('id,user_id,source,workout_type,completed_at,distance_meters,duration_seconds,rest_distance_meters,manual_rwn,external_id,template_id,raw_data')
       .eq('id', workoutId).eq('user_id', user).single();
     if (error || !data) throw new Error('Owned completed workout required');
+    if ((data.raw_data as { source?: string } | null)?.source === 'concept2_development_fixture') {
+      const { data: fixture, error: fixtureError } = await client!.from('c2_development_fixture_workouts')
+        .select('completed_result,fixture_name').eq('workout_id', workoutId).eq('user_id', user).single();
+      const raw = data.raw_data as { fixture_name?: string; completed_workout?: unknown };
+      if (fixtureError || !fixture || raw.fixture_name !== fixture.fixture_name ||
+          JSON.stringify(raw.completed_workout) !== JSON.stringify(fixture.completed_result)) {
+        throw new Error('Owned fixture snapshot required');
+      }
+    }
     return completedWorkoutFromRow(data);
   },
   fetch,

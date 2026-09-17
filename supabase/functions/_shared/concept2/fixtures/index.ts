@@ -59,3 +59,17 @@ export const completedWorkoutFixtures = {
     ],
   },
 } as const satisfies Record<string, CompletedWorkoutV2>;
+
+
+// Bind only a server-owned named fixture. Placeholder identities are never publishable.
+export function bindDevelopmentFixture(name: string, workoutId: string, ownerId: string,
+  completedAt: string): CompletedWorkoutV2 {
+  if (!Object.prototype.hasOwnProperty.call(completedWorkoutFixtures, name)) {
+    throw new Error('Unknown development fixture');
+  }
+  const fixture = completedWorkoutFixtures[name as keyof typeof completedWorkoutFixtures];
+  const finished = new Date(completedAt);
+  if (!Number.isFinite(finished.getTime())) throw new Error('Invalid fixture completion time');
+  return { ...fixture, workoutId, ownerId, completedAt: finished.toISOString(),
+    intervals: fixture.intervals.map(interval => ({ ...interval })) };
+}

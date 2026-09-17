@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { completedWorkoutFromRow, mapCompletedWorkoutToConcept2, type CompletedWorkoutV1 } from '../../supabase/functions/_shared/concept2/publication';
+import { bindDevelopmentFixture, completedWorkoutFixtures } from '../../supabase/functions/_shared/concept2/fixtures/index';
 
 const fixedDistance: CompletedWorkoutV1 = {
   _v: 1,
@@ -15,6 +16,29 @@ const fixedDistance: CompletedWorkoutV1 = {
 };
 
 describe('Concept2 completed-workout publication mapper', () => {
+  it('binds a named interval fixture to a durable owned LC identity', () => {
+    const bound = bindDevelopmentFixture('fixed_distance_intervals_2x500m',
+      '44444444-5555-4666-8777-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '2026-09-17T19:00:00.000Z');
+    expect(bound.workoutId).toBe('44444444-5555-4666-8777-888888888888');
+    expect(bound.ownerId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(bound.completedAt).toBe('2026-09-17T19:00:00.000Z');
+    expect(completedWorkoutFixtures.fixed_distance_intervals_2x500m.workoutId).not.toBe(bound.workoutId);
+    expect(() => bindDevelopmentFixture('not_a_fixture', bound.workoutId, bound.ownerId, bound.completedAt)).toThrow();
+  });
+
+  it('loads only an intact owned synthetic fixture result from its LC row', () => {
+    const id = '44444444-5555-4666-8777-888888888888';
+    const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const completed = bindDevelopmentFixture('fixed_time_intervals_3x120s', id, owner, '2026-09-17T19:00:00.000Z');
+    const row = { id, user_id: owner, source: 'manual', workout_type: 'row', completed_at: completed.completedAt,
+      distance_meters: completed.distanceMeters, duration_seconds: completed.workTimeSeconds,
+      rest_distance_meters: completed.restDistanceMeters, manual_rwn: null, external_id: null, template_id: null,
+      raw_data: { source: 'concept2_development_fixture', fixture_name: 'fixed_time_intervals_3x120s', completed_workout: completed } };
+    expect(completedWorkoutFromRow(row)).toEqual(completed);
+    expect(() => completedWorkoutFromRow({ ...row, distance_meters: 999 })).toThrow();
+    expect(() => completedWorkoutFromRow({ ...row, user_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' })).toThrow();
+  });
   it('preserves the proven fixed-distance development payload', () => {
     expect(mapCompletedWorkoutToConcept2(fixedDistance, {
       timezone: 'America/New_York', weightClass: 'H', privacy: 'private',
