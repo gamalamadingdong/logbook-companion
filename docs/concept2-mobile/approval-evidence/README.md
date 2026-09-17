@@ -24,8 +24,8 @@ Provider reference fixture:
 | Fixed-distance intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86847`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Fixed-time intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86848`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Variable intervals | Passed | Passed with strict checking (Sam-reported) | Passed: result `86849`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
-| Duplicate `409` | Automated behavior covered | N/A | Pending controlled development evidence | N/A | Must not be marked published without a proven remote ID. |
-| Invalid `422` | Automated behavior covered | Validator should reject matching invalid fixture | Pending controlled development evidence | N/A | Must permit correction without treating outcome as unknown. |
+| Duplicate `409` | Automated behavior covered | N/A | Pending controlled development evidence | N/A | Must not be marked published without a proven remote ID. See [controlled error protocol](controlled-error-protocol.md). |
+| Invalid `422` | Automated behavior covered | Validator should reject matching invalid fixture | Pending controlled development evidence | N/A | Must permit correction without treating outcome as unknown. See [controlled error protocol](controlled-error-protocol.md). |
 | Expired-token rotating refresh | Passed | N/A | Passed | N/A | Real expired access-token refresh retained `results:write` with no reconnect or stuck operation. |
 | Uncertain POST outcome | Automated/disposable-DB coverage passed | N/A | Do not induce against provider without an approved fault-injection method | N/A | No blind retry; explicit review/recovery. |
 
