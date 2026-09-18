@@ -1,19 +1,10 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
-// Define Source Priority for "Upgrades"
-const SOURCE_PRIORITY = {
-    'concept2': 3, // GOLD
-    'erg_link': 2, // SILVER
-    'manual': 1,   // BRONZE
-    'unknown': 0
-};
-
-export type DataSource = keyof typeof SOURCE_PRIORITY;
-
 interface MatchingCriteria {
     userId: string;
     date: Date;
+    externalId?: string;
     distance?: number;
     timeSeconds?: number;
     tolerance: {
@@ -27,15 +18,18 @@ export type WorkoutLogMatch = {
     id: string;
     source: string;
     canonical_name?: string;
+    external_id?: string | null;
 };
 
-/**
- * Determines if a new source provides better data quality than the existing source.
- */
-export function shouldUpgrade(existingSource: string, newSource: string): boolean {
-    const existingScore = SOURCE_PRIORITY[existingSource as DataSource] || 0;
-    const newScore = SOURCE_PRIORITY[newSource as DataSource] || 0;
-    return newScore >= existingScore;
+/** A fuzzy time/distance match can only update the same provider-owned result. */
+export function shouldUpgrade(
+    existingSource: string,
+    newSource: string,
+    existingExternalId: string | null | undefined,
+    incomingExternalId: string,
+): boolean {
+    return existingSource === 'concept2' && newSource === 'concept2' &&
+        existingExternalId === incomingExternalId;
 }
 
 /**
@@ -46,7 +40,7 @@ export async function findMatchingWorkout(
     supabase: SupabaseClient,
     criteria: MatchingCriteria
 ): Promise<WorkoutLogMatch | null> {
-    const { userId, date, distance, timeSeconds, tolerance } = criteria;
+    const { userId, date, externalId, distance, timeSeconds, tolerance } = criteria;
 
     // Time window based on tolerance (defaulting to 10m if not set, but criteria usually has it)
     const windowMs = (tolerance.timeSeconds || 600) * 1000;
@@ -55,7 +49,7 @@ export async function findMatchingWorkout(
 
     let query = supabase
         .from('workout_logs')
-        .select('id, source, canonical_name, distance_meters, duration_seconds')
+        .select('id, source, external_id, canonical_name, distance_meters, duration_seconds')
         .eq('user_id', userId)
         .gte('completed_at', minDate.toISOString())
         .lte('completed_at', maxDate.toISOString());
@@ -72,7 +66,7 @@ export async function findMatchingWorkout(
     // Refine match in memory based on Distance or Time
     // Refine match in memory based on Distance AND/OR Time
     // We require ALL provided criteria to match if the log has that data.
-    const match = data.find(log => {
+    const match = (externalId ? data.find(log => log.external_id === externalId) : null) ?? data.find(log => {
         let works = true;
 
         // 1. Check Distance
@@ -94,7 +88,8 @@ export async function findMatchingWorkout(
         return {
             id: match.id,
             source: match.source || 'manual',
-            canonical_name: match.canonical_name
+            canonical_name: match.canonical_name,
+            external_id: match.external_id
         };
     }
 

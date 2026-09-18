@@ -201,12 +201,13 @@ export const useConcept2Sync = () => {
 
             // 2b. Optimize: Fetch existing IDs to avoid re-processing
             setStatus('Checking existing database records...');
-            const { data: existingRecords } = await supabase
+            const { data: existingRecords, error: existingRecordsError } = await supabase
                 .from('workout_logs')
-                .select('external_id')
+                .select('external_id, source')
                 .eq('user_id', userId);
+            if (existingRecordsError) throw existingRecordsError;
 
-            const existingIds = new Set(existingRecords?.map(r => r.external_id) || []);
+            const existingById = new Map(existingRecords?.filter(r => r.external_id).map(r => [r.external_id, r.source]) || []);
 
             // 3. Process & Upsert
             let processed = 0;
@@ -236,7 +237,8 @@ export const useConcept2Sync = () => {
                 }
 
                 // SKIP if already exists (unless Forced)
-                if (!options.forceResync && existingIds.has(summary.id.toString())) {
+                if (existingById.has(summary.id.toString()) &&
+                    (!options.forceResync || existingById.get(summary.id.toString()) !== 'concept2')) {
                     skippedExisting++;
                     setStatus(`Processing ${currentIndex}/${totalToProcess} (${processed} synced, ${skippedExisting} existing, ${skippedFiltered} filtered)`);
                     continue;
@@ -349,6 +351,7 @@ export const useConcept2Sync = () => {
                     const match = await findMatchingWorkout(supabase, {
                         userId,
                         date: new Date(summary.date),
+                        externalId: summary.id.toString(),
                         distance: summary.distance,
                         timeSeconds: summary.time / 10,
                         tolerance: {
@@ -359,7 +362,7 @@ export const useConcept2Sync = () => {
                     });
 
                     if (match) {
-                        if (shouldUpgrade(match.source, 'concept2')) {
+                        if (shouldUpgrade(match.source, 'concept2', match.external_id, summary.id.toString())) {
                             record.id = match.id; // OVERRIDE existing row
                         } else {
                             skippedExisting++;

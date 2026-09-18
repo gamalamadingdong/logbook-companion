@@ -1,20 +1,22 @@
 # Concept2 publishing and mobile delivery
 
-Status: fixed-distance development writing is complete. The shared `CompletedWorkoutV1`/Concept2 mapper now supports fixed distance and fixed time locally; fixed time passes strict Online Validator checking but is not deployed or written/read back yet. Representative interval fixtures remain next. PM5-dependent ErgLink testing follows separately and mobile remains independent.
+Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. Manual entry is in staging. PM5 capture and production write approval remain separate work.
 
 ## Start here / resume
 
-**Next session: [resume development publishing](resume-publishing.md).** This records the current state, next bounded slice, and Sam's decision to defer broader manual end-to-end testing until the write/read loop exists. Concept2 is the chosen first effort; do not restart track selection.
+**Current state:** Read the [active context](../../working-memory/activeContext.md) and the [storage audit](capture-storage-audit.md). The [development publishing handoff](resume-publishing.md) retains earlier rollout detail; check dates before acting on its next steps.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 
 API background: [official Concept2 Logbook API documentation snapshot](concept2-logbook-api-reference.md). This searchable Markdown capture covers OAuth, scopes, result reads/writes, bulk results, intervals, targets, strokes, metadata, webhooks and error behavior. Recheck the linked live source before relying on it for provider behavior.
 
+Data boundary: [completed result storage and capture audit](capture-storage-audit.md) records the current LC, ErgLink, and Concept2 evidence and next integrity checks.
+
 Production-write approval: [evidence matrix](approval-evidence/README.md) and [requirements-inquiry draft](approval-evidence/requirements-inquiry-draft.md).
 
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.
 2. Choose one independent track:
-   - [Publishing specification and plan](publishing.md): capture evidence → canonical completed workout → shared Concept2 mapper/publisher → exact-ID import; fixed distance is proven and fixed time is next.
+   - [Publishing specification and plan](publishing.md): capture evidence → canonical completed workout → shared Concept2 mapper/publisher → exact-ID import; development fixed distance, fixed time, and interval examples have been proven.
    - [Mobile delivery specification and plan](mobile-delivery.md): LC Capacitor shell → GitHub Actions iOS archive → TestFlight → self-hosted Capgo/Vercel updates and rollback.
 3. Read `AGENTS.md`, the newest [active context](../../working-memory/activeContext.md), and [system patterns](../../working-memory/systemPatterns.md). Inspect the referenced code again before implementing; file observations here are not live-service verification.
 4. Resolve that track's prerequisites, then implement only its next unchecked task with focused tests. Record actual evidence and blockers beside the task; do not mark planned acceptance tests as passed.
