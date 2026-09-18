@@ -279,7 +279,7 @@ export function CompletedWorkoutEntry() {
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || saving) return;
-    const normalized = normalizeCompletedWorkoutDraft(formToDraft(form, original));
+    const normalized = normalizeCompletedWorkoutDraft(formToDraft(form, original), { requireConcept2IntervalTypes: true });
     if (!normalized.ok) {
       setErrors(normalized.errors);
       if (Object.keys(normalized.errors).some((field) => field.startsWith('segments.') || field === 'segments' || field === 'detailCoverage')) setShowSegments(true);

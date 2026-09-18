@@ -156,13 +156,17 @@ describe('completed workout entry', () => {
       equipment: { brand: 'concept2', name: 'RowErg' },
       summary: { distanceMeters: 2250, durationSeconds: 630 }, detailCoverage: 'full', segments };
 
-    expect(normalizeCompletedWorkoutDraft(draft)).toMatchObject({ ok: false, errors: {
-      'segments.4.intervalKind': 'Choose Distance or Time for this work interval before saving.',
-    } });
+    expect(normalizeCompletedWorkoutDraft(draft)).toMatchObject({ ok: true });
+    expect(normalizeCompletedWorkoutDraft(draft, { requireConcept2IntervalTypes: true }))
+      .toMatchObject({ ok: false, errors: {
+        'segments.4.intervalKind': 'Choose Distance or Time for this work interval before saving.',
+      } });
     expect(normalizeCompletedWorkoutDraft({ ...draft, segments: segments.map((segment, index) =>
-      index === 4 ? { ...segment, intervalKind: 'time' } : segment) })).toMatchObject({ ok: true });
-    expect(normalizeCompletedWorkoutDraft({ ...draft, detailCoverage: 'partial' })).toMatchObject({ ok: true });
-    expect(normalizeCompletedWorkoutDraft({ ...draft, equipment: { brand: 'other', name: 'Gym rower' } }))
-      .toMatchObject({ ok: true });
+      index === 4 ? { ...segment, intervalKind: 'time' } : segment) },
+    { requireConcept2IntervalTypes: true })).toMatchObject({ ok: true });
+    expect(normalizeCompletedWorkoutDraft({ ...draft, detailCoverage: 'partial' },
+      { requireConcept2IntervalTypes: true })).toMatchObject({ ok: true });
+    expect(normalizeCompletedWorkoutDraft({ ...draft, equipment: { brand: 'other', name: 'Gym rower' } },
+      { requireConcept2IntervalTypes: true })).toMatchObject({ ok: true });
   });
 });
