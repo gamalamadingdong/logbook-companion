@@ -63,6 +63,9 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
   if (draft.summary.perceivedExertion !== undefined && (!Number.isInteger(draft.summary.perceivedExertion) || draft.summary.perceivedExertion < 1 || draft.summary.perceivedExertion > 10)) {
     errors['summary.perceivedExertion'] = 'Effort must be from 1 to 10.';
   }
+  if (draft.plannedTemplate && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draft.plannedTemplate.id) || !draft.plannedTemplate.name?.trim() || !draft.plannedRwn?.trim())) {
+    errors.plannedTemplate = 'Choose a template with valid workout notation.';
+  }
   if (!['none', 'partial', 'full'].includes(draft.detailCoverage)) errors.detailCoverage = 'Choose how much of the session these segments cover.';
   if (draft.detailCoverage === 'none' && draft.segments.length) errors.detailCoverage = 'Choose full or partial detail for these segments.';
   if (draft.detailCoverage !== 'none' && !draft.segments.length) errors.segments = 'Add a segment or close interval detail.';
@@ -74,6 +77,9 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
   draft.segments.forEach((segment, index) => {
     const prefix = 'segments.' + index;
     if (!['work', 'rest'].includes(segment.role)) errors[prefix + '.role'] = 'Choose work or rest.';
+    if (segment.intervalKind !== undefined && (segment.role !== 'work' || !['distance', 'time'].includes(segment.intervalKind))) {
+      errors[prefix + '.intervalKind'] = 'Choose distance or time for a work interval.';
+    }
     if (!validNonnegative(segment.distanceMeters, true) || !validNonnegative(segment.durationSeconds) ||
         !validNonnegative(segment.calories, true) || !validPositive(segment.watts, true)) {
       errors[prefix] = 'Check this segment’s measured values.';
@@ -120,6 +126,7 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
       summary,
       notes: draft.notes.trim(),
       plannedRwn: draft.plannedRwn?.trim() || null,
+      ...(draft.plannedTemplate ? { plannedTemplate: { id: draft.plannedTemplate.id, name: draft.plannedTemplate.name.trim() } } : {}),
       segments: draft.segments.map((segment) => ({ ...segment, label: segment.label?.trim() || undefined })),
       ...(draft.segments.length ? { workTimeSeconds: workTime } : {}),
     },
@@ -136,6 +143,7 @@ export function scaffoldSegmentsFromRwn(rwn: string): CompletedSegment[] | null 
     for (let index = 0; index < structure.repeats; index += 1) {
       segments.push({
         role: 'work',
+        ...(structure.work.type === 'distance' || structure.work.type === 'time' ? { intervalKind: structure.work.type } : {}),
         target: {
           kind: structure.work.type === 'distance' ? 'distance' : structure.work.type === 'time' ? 'time' : 'calories',
           value: structure.work.value,
@@ -149,6 +157,7 @@ export function scaffoldSegmentsFromRwn(rwn: string): CompletedSegment[] | null 
   }
   return structure.steps.map((step) => ({
     role: step.type,
+    ...(step.type === 'work' && (step.duration_type === 'distance' || step.duration_type === 'time') ? { intervalKind: step.duration_type } : {}),
     target: {
       kind: step.duration_type === 'distance' ? 'distance' : step.duration_type === 'time' ? 'time' : 'calories',
       value: step.value,

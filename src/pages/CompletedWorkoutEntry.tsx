@@ -9,6 +9,7 @@ import { Input, Select } from '../components/ui/Input';
 import { SegmentEditor, newSegmentForm, type SegmentForm } from '../components/completed-workout/SegmentEditor';
 import { useAuth } from '../hooks/useAuth';
 import { createCompletedWorkout, getCompletedWorkout, updateCompletedWorkout } from '../services/completedWorkoutEntryService';
+import { searchTemplatesForCompletion, type CompletionTemplateMatch } from '../services/templateService';
 import type { CompletedActivity, CompletedSegment, CompletedWorkoutDraft, CompletedWorkoutEntryV1 } from '../types/completedWorkoutEntry';
 import { formatCompletedDuration, normalizeCompletedWorkoutDraft, parseDurationInput, scaffoldSegmentsFromRwn } from '../utils/completedWorkoutEntry';
 
@@ -32,6 +33,7 @@ interface EntryForm {
   perceivedExertion: string;
   notes: string;
   plannedRwn: string;
+  plannedTemplate: { id: string; name: string } | null;
   detailCoverage: 'none' | 'partial' | 'full';
   segments: SegmentForm[];
 }
@@ -62,7 +64,7 @@ function emptyForm(): EntryForm {
     activity: 'indoor_row', activityName: '', equipmentChoice: 'unspecified', equipmentName: '', status: 'completed',
     finishedLocal: localDateTime(new Date()), distanceUnit: 'm', distance: '', duration: '',
     calories: '', watts: '', heartRate: '', strokeRate: '', perceivedExertion: '',
-    notes: '', plannedRwn: '', detailCoverage: 'none', segments: [],
+    notes: '', plannedRwn: '', plannedTemplate: null, detailCoverage: 'none', segments: [],
   };
 }
 
@@ -85,9 +87,10 @@ function fromResult(result: CompletedWorkoutEntryV1): EntryForm {
     perceivedExertion: result.summary.perceivedExertion?.toString() ?? '',
     notes: result.notes,
     plannedRwn: result.plannedRwn ?? '',
+    plannedTemplate: result.plannedTemplate ?? null,
     detailCoverage: result.detailCoverage,
     segments: result.segments.map((segment) => ({
-      id: crypto.randomUUID(), role: segment.role, label: segment.label ?? '',
+      id: crypto.randomUUID(), role: segment.role, intervalKind: segment.intervalKind ?? 'none', label: segment.label ?? '',
       targetKind: segment.target?.kind ?? 'none',
       targetValue: segment.target ? (segment.target.kind === 'time' ? displayTime(segment.target.value) : String(segment.target.value)) : '',
       distance: segment.distanceMeters === undefined ? '' : String(segment.distanceMeters / (distanceUnit === 'km' ? 1000 : 1)),
@@ -119,6 +122,7 @@ function formToDraft(form: EntryForm, original?: CompletedWorkoutEntryV1 | null)
   const timezone = finishedUnchanged ? original.timezone : Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const segments: CompletedSegment[] = form.segments.map((segment) => ({
     role: segment.role,
+    ...(segment.role === 'work' && segment.intervalKind !== 'none' ? { intervalKind: segment.intervalKind } : {}),
     ...(segment.label.trim() ? { label: segment.label.trim() } : {}),
     target: segment.targetKind === 'none' ? null : {
       kind: segment.targetKind,
@@ -152,6 +156,7 @@ function formToDraft(form: EntryForm, original?: CompletedWorkoutEntryV1 | null)
     segments,
     notes: form.notes,
     plannedRwn: form.plannedRwn || null,
+    plannedTemplate: form.plannedTemplate,
   };
 }
 
@@ -166,6 +171,10 @@ export function CompletedWorkoutEntry() {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rwnError, setRwnError] = useState('');
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateResults, setTemplateResults] = useState<CompletionTemplateMatch[]>([]);
+  const [templateSearchError, setTemplateSearchError] = useState('');
+  const [templateSearching, setTemplateSearching] = useState(false);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -184,6 +193,22 @@ export function CompletedWorkoutEntry() {
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, user]);
+
+  useEffect(() => {
+    if (templateSearch.trim().length < 2) { setTemplateResults([]); setTemplateSearchError(''); setTemplateSearching(false); return; }
+    let cancelled = false;
+    setTemplateSearching(true);
+    setTemplateSearchError('');
+    setTemplateResults([]);
+    const timer = window.setTimeout(() => {
+      void searchTemplatesForCompletion(templateSearch).then((matches) => {
+        if (!cancelled) { setTemplateResults(matches); setTemplateSearchError(''); }
+      }).catch(() => {
+        if (!cancelled) setTemplateSearchError('Could not search templates. Try again.');
+      }).finally(() => { if (!cancelled) setTemplateSearching(false); });
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [templateSearch]);
 
   const update = (patch: Partial<EntryForm>) => {
     setForm((current) => ({ ...current, ...patch }));
@@ -209,25 +234,40 @@ export function CompletedWorkoutEntry() {
     });
   };
 
-  const applyRwn = () => {
-    const scaffold = scaffoldSegmentsFromRwn(form.plannedRwn);
+  const applyPlan = (rwn: string, template: EntryForm['plannedTemplate']): boolean => {
+    const scaffold = scaffoldSegmentsFromRwn(rwn);
     if (scaffold === null) {
       setRwnError('This notation is not recognized. You can still enter the workout without it.');
-      return;
+      return false;
     }
-    if (form.segments.length && !window.confirm('Replace the current interval cards with this planned structure? Entered actual values in those cards will be lost.')) return;
+    if (form.segments.some(segment => segment.distance || segment.duration || segment.calories || segment.watts) &&
+        !window.confirm('Replace the current interval cards with this planned structure? Entered actual values in those cards will be lost.')) return false;
     setRwnError('');
     update({
+      plannedRwn: rwn, plannedTemplate: template,
       detailCoverage: scaffold.length ? 'full' : 'none',
       segments: scaffold.map((segment) => ({
         ...newSegmentForm(segment.role),
         label: segment.label ?? '',
+        intervalKind: segment.intervalKind ?? 'none',
         targetKind: segment.target?.kind ?? 'none',
         targetValue: segment.target ? (segment.target.kind === 'time' ? displayTime(segment.target.value) : String(segment.target.value)) : '',
       })),
     });
     if (scaffold.length) setShowSegments(true);
     toast.success(scaffold.length ? 'Planned intervals added. Enter what you actually did.' : 'Workout notation saved as the plan.');
+    return true;
+  };
+
+  const chooseTemplate = (template: CompletionTemplateMatch) => {
+    const notation = [template.rwn, template.canonical_name].find(value => value && scaffoldSegmentsFromRwn(value) !== null);
+    if (!notation) {
+      setTemplateSearchError('This template has no supported RWN. You can still paste notation or enter the result directly.');
+      return;
+    }
+    if (applyPlan(notation, { id: template.id, name: template.name })) {
+      setTemplateSearch(''); setTemplateResults([]); setTemplateSearchError('');
+    }
   };
 
   const useSegmentTotals = () => update({
@@ -355,7 +395,29 @@ export function CompletedWorkoutEntry() {
             </Card>
 
             <Card>
-              <CardHeader title="Intervals or splits" subtitle="Optional detail for repeats, variable work, warmups and rest." action={form.segments.length ? <span className="text-xs text-content-muted">{form.segments.length} segments</span> : undefined} />
+              <CardHeader title="Start from a plan" subtitle="Find a saved template or paste workout notation. Either way, you enter the actual result below." />
+              {form.plannedTemplate && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-secondary p-3 text-sm">
+                <span>Template: <span className="font-medium text-content-primary">{form.plannedTemplate.name}</span></span>
+                <Button type="button" variant="ghost" className="min-h-11" onClick={() => update({ plannedTemplate: null })}>Remove link</Button>
+              </div>}
+              <Input label="Find a saved template" value={templateSearch} onChange={event => setTemplateSearch(event.target.value)} placeholder="Search by name or RWN" className="min-h-11" />
+              {templateSearching && <p role="status" className="mt-2 text-xs text-content-muted">Searching templates…</p>}
+              {templateSearchError && <p role="alert" className="mt-2 text-xs text-accent-danger">{templateSearchError}</p>}
+              {templateSearch.trim().length >= 2 && !templateSearching && !templateSearchError && templateResults.length === 0 && <p className="mt-2 text-xs text-content-muted">No matching templates. Paste notation or enter the result directly.</p>}
+              {templateResults.length > 0 && <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-border p-1" aria-label="Matching templates">
+                {templateResults.map(template => <li key={template.id}><button type="button" className="flex min-h-11 w-full flex-col rounded-md px-3 py-2 text-left hover:bg-surface-secondary focus:outline-none focus:ring-2 focus:ring-focus" onClick={() => chooseTemplate(template)}>
+                  <span className="text-sm font-medium text-content-primary">{template.name}</span><span className="text-xs text-content-muted">{template.rwn || template.canonical_name || 'No RWN available'}</span>
+                </button></li>)}
+              </ul>}
+              <div className="mt-4 flex flex-col gap-3 border-t border-border-subtle pt-4 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1"><Input label="Or paste workout notation (RWN)" value={form.plannedRwn} onChange={(event) => { update({ plannedRwn: event.target.value, plannedTemplate: null }); setRwnError(''); }} placeholder="4x500m/1:00r" error={rwnError || errors.plannedTemplate} className="min-h-11" /></div>
+                <Button type="button" variant="secondary" className="min-h-11" disabled={!form.plannedRwn.trim()} onClick={() => applyPlan(form.plannedRwn, form.plannedTemplate)}>Set up intervals</Button>
+              </div>
+              <p className="mt-2 text-xs text-content-muted">The plan sets targets only. Enter measured distance and time for each interval after the workout.</p>
+            </Card>
+
+            <Card>
+              <CardHeader title="Intervals or splits" subtitle="Optional detail for repeats, variable work, warmups and rest. Choose each work interval type when you know it." action={form.segments.length ? <span className="text-xs text-content-muted">{form.segments.length} segments</span> : undefined} />
               {!showSegments ? (
                 <Button type="button" variant="secondary" className="min-h-11" icon={<Plus size={16} />} onClick={() => { if (!form.segments.length) update({ segments: [newSegmentForm()], detailCoverage: 'full' }); setShowSegments(true); }}>{form.segments.length ? `Show ${form.segments.length} intervals` : 'Add intervals or splits'}</Button>
               ) : (
@@ -375,15 +437,6 @@ export function CompletedWorkoutEntry() {
                   <Button type="button" variant="ghost" className="min-h-11" onClick={() => setShowSegments(false)}>Hide interval detail</Button>
                 </div>
               )}
-            </Card>
-
-            <Card>
-              <CardHeader title="From a planned workout?" subtitle="Optional. Notation can set up targets, then you enter actual results." />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1"><Input label="Workout notation (RWN)" value={form.plannedRwn} onChange={(event) => { update({ plannedRwn: event.target.value }); setRwnError(''); }} placeholder="4x500m/1:00r" error={rwnError} className="min-h-11" /></div>
-                <Button type="button" variant="secondary" className="min-h-11" disabled={!form.plannedRwn.trim()} onClick={applyRwn}>Set up intervals</Button>
-              </div>
-              <p className="mt-2 text-xs text-content-muted">You can save without notation. A planned target never counts as an actual measurement.</p>
             </Card>
 
             <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-surface-page/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">

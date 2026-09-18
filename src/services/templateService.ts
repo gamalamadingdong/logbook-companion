@@ -92,6 +92,27 @@ export async function fetchTemplates(filters: TemplateFilters = {}): Promise<Wor
     return results;
 }
 
+export interface CompletionTemplateMatch {
+    id: string;
+    name: string;
+    canonical_name: string | null;
+    rwn: string | null;
+    workout_type: string;
+}
+
+/** Search the existing library by name or RWN without loading the whole library. */
+export async function searchTemplatesForCompletion(search: string): Promise<CompletionTemplateMatch[]> {
+    const term = search.trim().replace(/[,%()]/g, ' ');
+    if (term.length < 2) return [];
+    const { data, error } = await supabase.from('workout_templates')
+        .select('id, name, canonical_name, rwn, workout_type')
+        .or(`name.ilike.%${term}%,canonical_name.ilike.%${term}%,rwn.ilike.%${term}%`)
+        .order('usage_count', { ascending: false })
+        .limit(20);
+    if (error) throw error;
+    return data ?? [];
+}
+
 /**
  * Fetch a single template by ID
  */

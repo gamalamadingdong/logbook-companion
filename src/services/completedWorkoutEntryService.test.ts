@@ -85,6 +85,30 @@ describe('general manual workout persistence', () => {
     expect(buildCompletedWorkoutInsert('user-1', withMovingRest).avg_split_500m).toBeCloseTo(215 / 1200 * 500);
   });
 
+  it('indexes a selected LC template for later comparison', () => {
+    const selected: CompletedWorkoutEntryV1 = { ...result, plannedRwn: '4x500m/1:00r',
+      plannedTemplate: { id: '11111111-2222-4333-8444-555555555555', name: 'Four 500s' } };
+    const insert = buildCompletedWorkoutInsert('user-1', selected);
+    expect(insert.template_id).toBe(selected.plannedTemplate?.id);
+    expect(insert.raw_data).toMatchObject({ completed_result: { plannedRwn: selected.plannedRwn,
+      plannedTemplate: selected.plannedTemplate } });
+  });
+
+  it('indexes Concept2 RowErg work and moving rest distance separately', () => {
+    const measured: CompletedWorkoutEntryV1 = {
+      ...result, equipment: { brand: 'concept2', name: 'RowErg' },
+      summary: { distanceMeters: 1300, durationSeconds: 330 },
+      segments: result.segments.map((segment, index) => index === 1
+        ? { ...segment, distanceMeters: 100 }
+        : segment.role === 'work' ? { ...segment, intervalKind: index === 0 ? 'distance' as const : 'time' as const } : segment),
+    };
+    const insert = buildCompletedWorkoutInsert('user-1', measured);
+    expect(insert.distance_meters).toBe(1200);
+    expect(insert.rest_distance_meters).toBe(100);
+    expect(insert.duration_seconds).toBe(330);
+    expect(insert.raw_data).toMatchObject({ completed_result: { summary: { distanceMeters: 1300 } } });
+  });
+
   it('ignores malformed stored detail instead of breaking the workout list', () => {
     expect(readCompletedWorkoutFromRow({ source: 'manual', raw_data: { source: 'general_manual_entry', completed_result: { _v: 1 } } })).toBeNull();
   });

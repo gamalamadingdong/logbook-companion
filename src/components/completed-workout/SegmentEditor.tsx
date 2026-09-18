@@ -6,6 +6,7 @@ import { Input, Select } from '../ui/Input';
 export interface SegmentForm {
   id: string;
   role: 'work' | 'rest';
+  intervalKind: 'none' | 'distance' | 'time';
   label: string;
   targetKind: 'none' | 'distance' | 'time' | 'calories';
   targetValue: string;
@@ -17,7 +18,7 @@ export interface SegmentForm {
 
 export function newSegmentForm(role: 'work' | 'rest' = 'work'): SegmentForm {
   return {
-    id: crypto.randomUUID(), role, label: '', targetKind: 'none', targetValue: '',
+    id: crypto.randomUUID(), role, intervalKind: 'none', label: '', targetKind: 'none', targetValue: '',
     distance: '', duration: '', calories: '', watts: '',
   };
 }
@@ -51,17 +52,29 @@ export function SegmentEditor({ segments, onChange, distanceUnit, errors }: Segm
               ? 'Enter what actually happened. A planned target is optional.'
               : `Planned: ${segment.targetValue || 'enter target'} ${segment.targetKind === 'distance' ? 'm' : segment.targetKind === 'time' ? 'time' : 'cal'}. Enter actual values below.`}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select
               id={`segment-${segment.id}-role`}
               label="Segment"
               value={segment.role}
-              onChange={(event) => update(index, { role: event.target.value as SegmentForm['role'], calories: '', watts: '' })}
+              onChange={(event) => update(index, { role: event.target.value as SegmentForm['role'], intervalKind: event.target.value === 'rest' ? 'none' : segment.intervalKind, calories: '', watts: '' })}
               className="min-h-11"
             >
               <option value="work">Work</option>
               <option value="rest">Rest</option>
             </Select>
+            {segment.role === 'work' && <Select
+              id={`segment-${segment.id}-kind`}
+              label="Interval type"
+              value={segment.intervalKind}
+              onChange={(event) => update(index, { intervalKind: event.target.value as SegmentForm['intervalKind'] })}
+              error={errors[`segments.${index}.intervalKind`]}
+              className="min-h-11"
+            >
+              <option value="none">Not specified</option>
+              <option value="distance">Distance</option>
+              <option value="time">Time</option>
+            </Select>}
             <Input
               id={`segment-${segment.id}-label`}
               label="Label (optional)"

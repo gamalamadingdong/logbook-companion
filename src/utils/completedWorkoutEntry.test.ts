@@ -16,6 +16,16 @@ const base: CompletedWorkoutDraft = {
 };
 
 describe('completed workout entry', () => {
+  it('keeps the selected template link and RWN snapshot without turning targets into measurements', () => {
+    const selected = normalizeCompletedWorkoutDraft({ ...base, plannedRwn: '4x500m/1:00r',
+      plannedTemplate: { id: '11111111-2222-4333-8444-555555555555', name: ' Four 500s ' } });
+    expect(selected).toMatchObject({ ok: true, value: { plannedRwn: '4x500m/1:00r',
+      plannedTemplate: { id: '11111111-2222-4333-8444-555555555555', name: 'Four 500s' } } });
+    expect(normalizeCompletedWorkoutDraft({ ...base, plannedRwn: null,
+      plannedTemplate: { id: '11111111-2222-4333-8444-555555555555', name: 'Four 500s' } }))
+      .toMatchObject({ ok: false, errors: { plannedTemplate: expect.any(String) } });
+  });
+
   it('keeps a summary-only run without inventing equipment or segment detail', () => {
     const result = normalizeCompletedWorkoutDraft(base);
     expect(result).toEqual({
@@ -111,10 +121,26 @@ describe('completed workout entry', () => {
   it('prefills interval targets from RWN without inventing measured work or rest', () => {
     const segments = scaffoldSegmentsFromRwn('2x500m/1:00r');
     expect(segments).toEqual([
-      { role: 'work', target: { kind: 'distance', value: 500 } },
+      { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 } },
       { role: 'rest', target: { kind: 'time', value: 60 } },
-      { role: 'work', target: { kind: 'distance', value: 500 } },
+      { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 } },
     ]);
     expect(scaffoldSegmentsFromRwn('nonsense')).toBeNull();
+  });
+
+  it('keeps the selected interval type separate from an RWN target', () => {
+    const result = normalizeCompletedWorkoutDraft({ ...base, activity: 'indoor_row',
+      equipment: { brand: 'concept2', name: 'RowErg' },
+      summary: { distanceMeters: 1000, durationSeconds: 300 }, detailCoverage: 'full',
+      plannedRwn: '2x500m/1:00r',
+      segments: [
+        { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 }, distanceMeters: 500, durationSeconds: 120 },
+        { role: 'rest', target: { kind: 'time', value: 60 }, durationSeconds: 60 },
+        { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 }, distanceMeters: 500, durationSeconds: 120 },
+      ],
+    });
+    expect(result).toMatchObject({ ok: true, value: { workTimeSeconds: 240, segments: [
+      { intervalKind: 'distance', distanceMeters: 500 }, {}, { intervalKind: 'distance', distanceMeters: 500 },
+    ] } });
   });
 });

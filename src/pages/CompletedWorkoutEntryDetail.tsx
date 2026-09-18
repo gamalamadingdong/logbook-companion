@@ -94,7 +94,7 @@ export function CompletedWorkoutEntryDetail() {
             </Card>}
 
             {id && canPublishManualRowErg(result) && <Concept2DevelopmentPublication workoutId={id} result={result} />}
-            {result.plannedRwn && <Card><CardHeader title="Planned notation" /><p className="text-sm text-content-secondary">{result.plannedRwn}</p></Card>}
+            {(result.plannedRwn || result.plannedTemplate) && <Card><CardHeader title="Plan used" />{result.plannedTemplate && <Link to={`/library/${result.plannedTemplate.id}`} className="text-sm font-medium text-accent-primary underline">{result.plannedTemplate.name}</Link>}{result.plannedRwn && <p className="mt-1 text-sm text-content-secondary">Saved RWN: {result.plannedRwn}</p>}</Card>}
             <div className="flex flex-wrap gap-3">
               <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus">Back to log</Link>
               <Link to="/completed-workout/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent-primary px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover focus:outline-none focus:ring-2 focus:ring-focus"><Plus size={16} aria-hidden="true" />Add another</Link>

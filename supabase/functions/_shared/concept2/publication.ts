@@ -77,34 +77,105 @@ export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWo
     const finishedAt = typeof completed?.completedAt === 'string'
       ? new Date(completed.completedAt).getTime() : NaN;
     if (row.source !== 'manual' || row.workout_type !== 'row' ||
-        !row.user_id || row.external_id !== null || row.template_id !== null ||
-        row.manual_rwn !== null || (row.rest_distance_meters ?? 0) !== 0 ||
-        !completed || completed._v !== 1 || completed.activity !== 'indoor_row' ||
-        completed.status !== 'completed' || equipment?.brand !== 'concept2' ||
-        equipment.name !== 'RowErg' || completed.detailCoverage !== 'none' ||
-        !Array.isArray(completed.segments) || completed.segments.length !== 0 ||
-        completed.workTimeSeconds !== undefined ||
+        !row.user_id || row.external_id !== null ||
+        row.template_id !== ((completed?.plannedTemplate as Record<string, unknown> | undefined)?.id ?? null) ||
+        row.manual_rwn !== null || !completed || completed._v !== 1 ||
+        completed.activity !== 'indoor_row' || completed.status !== 'completed' ||
+        equipment?.brand !== 'concept2' || equipment.name !== 'RowErg' ||
         typeof completed.timezone !== 'string' ||
         !Number.isFinite(finishedAt) || finishedAt > Date.now() ||
         finishedAt !== new Date(row.completed_at).getTime() ||
         !Number.isSafeInteger(distance) || Number(distance) <= 0 ||
-        distance !== row.distance_meters ||
         typeof seconds !== 'number' || !Number.isFinite(seconds) ||
-        seconds <= 0 || seconds > 86_400 || seconds !== row.duration_seconds) {
-      throw new Error('Only a completed single-piece Concept2 RowErg result is eligible');
+        seconds <= 0 || seconds > 86_400 || seconds !== row.duration_seconds ||
+        !Array.isArray(completed.segments)) {
+      throw new Error('Only an intact completed Concept2 RowErg result is eligible');
     }
     try {
       new Intl.DateTimeFormat('en', { timeZone: completed.timezone }).format();
       toDeciseconds(seconds, true);
     } catch {
-      throw new Error('Saved manual result timezone or work time is invalid');
+      throw new Error('Saved manual result timezone or elapsed time is invalid');
     }
-    return {
-      _v: 1, workoutId: row.id, source: 'manual', machine: 'rower',
-      shape: { kind: 'fixed_distance' }, completedAt: completed.completedAt as string,
-      timezone: completed.timezone, distanceMeters: distance as number,
-      workTimeSeconds: seconds, restDistanceMeters: 0, restTimeSeconds: 0,
+    if (completed.detailCoverage === 'none') {
+      if (distance !== row.distance_meters || (row.rest_distance_meters ?? 0) !== 0 ||
+          completed.segments.length !== 0 || completed.workTimeSeconds !== undefined) {
+        throw new Error('Only an intact completed single-piece Concept2 RowErg result is eligible');
+      }
+      return {
+        _v: 1, workoutId: row.id, source: 'manual', machine: 'rower',
+        shape: { kind: 'fixed_distance' }, completedAt: completed.completedAt as string,
+        timezone: completed.timezone, distanceMeters: distance as number,
+        workTimeSeconds: seconds, restDistanceMeters: 0, restTimeSeconds: 0,
+      };
+    }
+    if (completed.detailCoverage !== 'full' || completed.segments.length < 2 ||
+        typeof completed.workTimeSeconds !== 'number') {
+      throw new Error('Full measured interval detail is required');
+    }
+    const intervals: Array<{ kind: 'distance' | 'time'; distanceMeters: number; workTimeSeconds: number;
+      restDistanceMeters: number; restTimeSeconds: number }> = [];
+    let workDistance = 0, workTime = 0, restDistance = 0, restTime = 0;
+    let previousRole: string | undefined;
+    for (const segment of completed.segments) {
+      if (!segment || typeof segment !== 'object' || Array.isArray(segment)) {
+        throw new Error('Invalid measured interval segment');
+      }
+      const measured = segment as Record<string, unknown>;
+      if (measured.role === 'work') {
+        if ((measured.intervalKind !== 'distance' && measured.intervalKind !== 'time') ||
+            !Number.isSafeInteger(measured.distanceMeters) || Number(measured.distanceMeters) <= 0 ||
+            typeof measured.durationSeconds !== 'number' || measured.durationSeconds <= 0) {
+          throw new Error('Each work interval needs a type, distance and time');
+        }
+        toDeciseconds(measured.durationSeconds, true);
+        intervals.push({ kind: measured.intervalKind as 'distance' | 'time',
+          distanceMeters: measured.distanceMeters as number, workTimeSeconds: measured.durationSeconds,
+          restDistanceMeters: 0, restTimeSeconds: 0 });
+        workDistance += measured.distanceMeters as number;
+        workTime += measured.durationSeconds;
+      } else if (measured.role === 'rest') {
+        if (!intervals.length || previousRole === 'rest' || measured.intervalKind !== undefined ||
+            (measured.distanceMeters !== undefined &&
+              (!Number.isSafeInteger(measured.distanceMeters) || Number(measured.distanceMeters) < 0)) ||
+            (measured.durationSeconds !== undefined &&
+              (typeof measured.durationSeconds !== 'number' || measured.durationSeconds < 0))) {
+          throw new Error('Rest must follow a measured work interval');
+        }
+        const last = intervals[intervals.length - 1];
+        last.restDistanceMeters = (measured.distanceMeters as number | undefined) ?? 0;
+        last.restTimeSeconds = (measured.durationSeconds as number | undefined) ?? 0;
+        toDeciseconds(last.restTimeSeconds, false);
+        restDistance += last.restDistanceMeters;
+        restTime += last.restTimeSeconds;
+      } else {
+        throw new Error('Unsupported measured segment role');
+      }
+      previousRole = measured.role as string;
+    }
+    if (intervals.length < 2 || !Number.isSafeInteger(workDistance) ||
+        !Number.isSafeInteger(restDistance) || workDistance + restDistance !== distance ||
+        workDistance !== row.distance_meters || restDistance !== (row.rest_distance_meters ?? 0) ||
+        Math.abs(workTime + restTime - seconds) > 1e-7 ||
+        Math.abs(workTime - completed.workTimeSeconds) > 1e-7) {
+      throw new Error('Measured interval totals do not match the saved LC result');
+    }
+    const allDistance = intervals.every(item => item.kind === 'distance' &&
+      item.distanceMeters === intervals[0].distanceMeters);
+    const allTime = intervals.every(item => item.kind === 'time' &&
+      item.workTimeSeconds === intervals[0].workTimeSeconds);
+    const shape = restDistance === 0 && allDistance ? 'fixed_distance_interval'
+      : restDistance === 0 && allTime ? 'fixed_time_interval' : 'variable_interval';
+    const result: CompletedWorkoutV2 = {
+      _v: 2, workoutId: row.id, ownerId: row.user_id, source: 'manual',
+      completionStatus: 'completed', machine: 'rower', shape: { kind: shape },
+      completedAt: completed.completedAt as string, timezone: completed.timezone,
+      distanceMeters: workDistance, workTimeSeconds: workTime,
+      restDistanceMeters: restDistance, restTimeSeconds: restTime, intervals,
+      ...(row.template_id ? { provenance: { templateId: row.template_id } } : {}),
     };
+    validateCompletedWorkoutV2(result);
+    return result;
   }
   if (raw?.source === 'concept2_development_fixture') {
     const completed = raw.completed_workout as CompletedWorkoutV2 | undefined;
