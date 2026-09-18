@@ -107,19 +107,24 @@ export function normalizeCompletedWorkoutDraft(
   });
 
   const summary = { ...draft.summary };
+  const workSegments = draft.segments.filter((segment) => segment.role === 'work');
+  const hasAllWorkDistance = workSegments.length > 0 && workSegments.every((segment) => segment.distanceMeters !== undefined);
+  const hasAllElapsedTime = draft.segments.length > 0 && draft.segments.every((segment) => segment.durationSeconds !== undefined);
+  const hasAllWorkTime = workSegments.length > 0 && workSegments.every((segment) => segment.durationSeconds !== undefined);
+  const hasAllWorkCalories = workSegments.length > 0 && workSegments.every((segment) => segment.calories !== undefined);
   if (draft.detailCoverage === 'full' && draft.segments.length) {
-    if (summary.distanceMeters !== undefined && summary.distanceMeters !== distance) {
+    if (hasAllWorkDistance && summary.distanceMeters !== undefined && summary.distanceMeters !== distance) {
       errors['summary.distanceMeters'] = 'Segments add up to ' + distance + ' m; update the total or mark detail as partial.';
     }
-    if (summary.durationSeconds !== undefined && Math.abs(summary.durationSeconds - elapsed) > 0.001) {
+    if (hasAllElapsedTime && summary.durationSeconds !== undefined && Math.abs(summary.durationSeconds - elapsed) > 0.001) {
       errors['summary.durationSeconds'] = 'Segments add up to ' + elapsed + ' seconds; update the total or mark detail as partial.';
     }
-    if (summary.calories !== undefined && calories > 0 && summary.calories !== calories) {
+    if (hasAllWorkCalories && summary.calories !== undefined && summary.calories !== calories) {
       errors['summary.calories'] = 'Segments add up to ' + calories + ' calories; update the total or mark detail as partial.';
     }
-    if (distance > 0) summary.distanceMeters = distance;
-    if (elapsed > 0) summary.durationSeconds = elapsed;
-    if (calories > 0) summary.calories = calories;
+    if (hasAllWorkDistance && distance > 0) summary.distanceMeters = distance;
+    if (hasAllElapsedTime && elapsed > 0) summary.durationSeconds = elapsed;
+    if (hasAllWorkCalories && calories > 0) summary.calories = calories;
   }
   if (!hasMeasurement(summary)) errors.summary = 'Enter distance, time, calories, or measured segments.';
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -135,7 +140,7 @@ export function normalizeCompletedWorkoutDraft(
       plannedRwn: draft.plannedRwn?.trim() || null,
       ...(draft.plannedTemplate ? { plannedTemplate: { id: draft.plannedTemplate.id, name: draft.plannedTemplate.name.trim() } } : {}),
       segments: draft.segments.map((segment) => ({ ...segment, label: segment.label?.trim() || undefined })),
-      ...(draft.segments.length ? { workTimeSeconds: workTime } : {}),
+      ...(hasAllWorkTime ? { workTimeSeconds: workTime } : {}),
     },
   };
 }

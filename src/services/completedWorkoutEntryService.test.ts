@@ -85,6 +85,37 @@ describe('general manual workout persistence', () => {
     expect(buildCompletedWorkoutInsert('user-1', withMovingRest).avg_split_500m).toBeCloseTo(215 / 1200 * 500);
   });
 
+  it('keeps Concept2 work and rest distance separate when an interval time is unknown', () => {
+    const incomplete: CompletedWorkoutEntryV1 = {
+      ...result, equipment: { brand: 'concept2', name: 'RowErg' },
+      summary: { distanceMeters: 1100 }, workTimeSeconds: undefined,
+      segments: [
+        { role: 'work', target: null, intervalKind: 'distance', distanceMeters: 500, durationSeconds: 120 },
+        { role: 'rest', target: null, distanceMeters: 100, durationSeconds: 60 },
+        { role: 'work', target: null, intervalKind: 'distance', distanceMeters: 500 },
+      ],
+    };
+    const insert = buildCompletedWorkoutInsert('user-1', incomplete);
+    expect(insert.distance_meters).toBe(1000);
+    expect(insert.rest_distance_meters).toBe(100);
+    expect(insert.duration_seconds).toBeNull();
+    expect(insert.avg_split_500m).toBeNull();
+  });
+
+  it('does not index an interval pace from elapsed time when work distance is missing', () => {
+    const incomplete: CompletedWorkoutEntryV1 = {
+      ...result, summary: { distanceMeters: 1200, durationSeconds: 330 },
+      segments: [
+        { role: 'work', target: null, distanceMeters: 400, durationSeconds: 95 },
+        { role: 'rest', target: null, durationSeconds: 30 },
+        { role: 'work', target: null, durationSeconds: 120 },
+        { role: 'rest', target: null, durationSeconds: 85 },
+      ],
+      workTimeSeconds: 215,
+    };
+    expect(buildCompletedWorkoutInsert('user-1', incomplete).avg_split_500m).toBeNull();
+  });
+
   it('indexes a selected LC template for later comparison', () => {
     const selected: CompletedWorkoutEntryV1 = { ...result, plannedRwn: '4x500m/1:00r',
       plannedTemplate: { id: '11111111-2222-4333-8444-555555555555', name: 'Four 500s' } };
