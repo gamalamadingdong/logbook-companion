@@ -650,7 +650,7 @@ async function getBaselineWatts(supabase: ReturnType<typeof createClient>, userI
 async function hasExistingWorkout(supabase: ReturnType<typeof createClient>, userId: string, externalId: string) {
   const { data, error } = await supabase
     .from('workout_logs')
-    .select('id')
+    .select('id, source')
     .eq('user_id', userId)
     .eq('external_id', externalId)
     .maybeSingle();
@@ -659,7 +659,7 @@ async function hasExistingWorkout(supabase: ReturnType<typeof createClient>, use
     throw new Error(`Failed to check existing workout ${externalId}: ${error.message}`);
   }
 
-  return Boolean(data);
+  return data as { id: string; source: string | null } | null;
 }
 
 async function findMatchingWorkout(
@@ -674,7 +674,7 @@ async function findMatchingWorkout(
 
   const { data, error } = await supabase
     .from('workout_logs')
-    .select('id, source, distance_meters, duration_seconds')
+    .select('id, source, external_id, distance_meters, duration_seconds')
     .eq('user_id', userId)
     .gte('completed_at', minDate)
     .lte('completed_at', maxDate);
@@ -683,17 +683,23 @@ async function findMatchingWorkout(
     return null;
   }
 
+  const candidates = data as Array<{ id: string; source: string | null; external_id: string | null; distance_meters: number | null; duration_seconds: number | null }>;
   const summarySeconds = summary.time / 10;
-  return data.find((log) => {
+  return candidates.find((log) => log.external_id === String(summary.id)) ?? candidates.find((log) => {
     const distance = typeof log.distance_meters === 'number' ? log.distance_meters : 0;
     const duration = typeof log.duration_seconds === 'number' ? log.duration_seconds : 0;
     return Math.abs(distance - summary.distance) <= 100 && Math.abs(duration - summarySeconds) <= 10;
   }) ?? null;
 }
 
-function shouldUpgrade(existingSource: string | null | undefined, newSource: string) {
-  const priority: Record<string, number> = { concept2: 3, erg_link: 2, manual: 1, unknown: 0 };
-  return (priority[newSource] ?? 0) >= (priority[existingSource ?? 'unknown'] ?? 0);
+function shouldUpgrade(
+  existingSource: string | null | undefined,
+  newSource: string,
+  existingExternalId: string | null | undefined,
+  incomingExternalId: string,
+) {
+  return existingSource === 'concept2' && newSource === 'concept2' &&
+    existingExternalId === incomingExternalId;
 }
 
 async function matchWorkoutToTemplate(
@@ -820,7 +826,8 @@ async function processWorkoutSummary(
     return 'skipped_filtered' as const;
   }
 
-  if (!forceResync && await hasExistingWorkout(supabase, job.user_id, String(summary.id))) {
+  const existingWorkout = await hasExistingWorkout(supabase, job.user_id, String(summary.id));
+  if (existingWorkout && (!forceResync || existingWorkout.source !== 'concept2')) {
     await markJobItem(supabase, job, summary, 'skipped_existing');
     return 'skipped_existing' as const;
   }
@@ -870,7 +877,7 @@ async function processWorkoutSummary(
 
     const match = await findMatchingWorkout(supabase, job.user_id, summary);
     if (match) {
-      if (shouldUpgrade(match.source, 'concept2')) {
+      if (shouldUpgrade(match.source, 'concept2', match.external_id, String(summary.id))) {
         record.id = match.id;
       } else {
         await markJobItem(supabase, job, summary, 'skipped_existing', {

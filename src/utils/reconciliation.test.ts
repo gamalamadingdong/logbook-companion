@@ -10,24 +10,21 @@ const mockSupabase = {
 describe('reconciliation logic', () => {
 
     describe('shouldUpgrade', () => {
-        it('upgrades manual to concept2', () => {
-            expect(shouldUpgrade('manual', 'concept2')).toBe(true);
+        it('preserves an LC manual result when a nearby Concept2 result has a different identity', () => {
+            expect(shouldUpgrade('manual', 'concept2', null, '86940')).toBe(false);
         });
 
-        it('does not upgrade concept2 to manual', () => {
-            expect(shouldUpgrade('concept2', 'manual')).toBe(false);
+        it('preserves ErgLink evidence when a nearby Concept2 result is imported', () => {
+            expect(shouldUpgrade('erg_link_live', 'concept2', null, '86940')).toBe(false);
         });
 
-        it('upgrades same source (updates)', () => {
-            expect(shouldUpgrade('concept2', 'concept2')).toBe(true);
+        it('updates only the same imported Concept2 result ID', () => {
+            expect(shouldUpgrade('concept2', 'concept2', '86940', '86940')).toBe(true);
+            expect(shouldUpgrade('concept2', 'concept2', '86939', '86940')).toBe(false);
         });
 
-        it('upgrades erg_link (Silver) to concept2 (Gold)', () => {
-            expect(shouldUpgrade('erg_link', 'concept2')).toBe(true);
-        });
-
-        it('does not upgrade concept2 (Gold) to erg_link (Silver)', () => {
-            expect(shouldUpgrade('concept2', 'erg_link')).toBe(false);
+        it('never replaces a Concept2 row with a different source', () => {
+            expect(shouldUpgrade('concept2', 'manual', '86940', '86940')).toBe(false);
         });
     });
 
@@ -68,6 +65,28 @@ describe('reconciliation logic', () => {
 
             expect(result).toBeDefined();
             expect(result?.id).toBe('test-id');
+        });
+
+        it('prefers the exact provider ID over a nearby manual workout', async () => {
+            const candidates = [
+                { id: 'manual-id', source: 'manual', external_id: null, distance_meters: 5000, duration_seconds: 1200 },
+                { id: 'provider-id', source: 'concept2', external_id: '86940', distance_meters: 5000, duration_seconds: 1200 },
+            ];
+            const queryBuilder: any = {
+                then: (resolve: any) => resolve({ data: candidates, error: null }),
+            };
+            queryBuilder.select = vi.fn().mockReturnValue(queryBuilder);
+            queryBuilder.eq = vi.fn().mockReturnValue(queryBuilder);
+            queryBuilder.gte = vi.fn().mockReturnValue(queryBuilder);
+            queryBuilder.lte = vi.fn().mockReturnValue(queryBuilder);
+            mockSupabase.from.mockReturnValue(queryBuilder);
+
+            const result = await findMatchingWorkout(mockSupabase as any, {
+                userId: 'user-123', date: new Date('2026-09-18T12:00:00Z'),
+                externalId: '86940', distance: 5000, timeSeconds: 1200,
+                tolerance: { timeSeconds: 60, distanceMeters: 100, durationSeconds: 5 },
+            });
+            expect(result).toMatchObject({ id: 'provider-id', external_id: '86940' });
         });
 
         it('rejects match if distance outside tolerance', async () => {
