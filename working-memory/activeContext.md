@@ -2,6 +2,10 @@
 
 Last updated: 2026-09-18
 
+## Current staging slice — saved manual RowErg development publication
+
+PR #167 merged into staging at `685535b`. The general completed-workout result page now offers an explicit Concept2 development publish action for completed, single-piece Concept2 RowErg summaries with measured distance and decisecond time. It uses the shared server-side mapper, an exact service-role database claim, and a returned-result-ID GET/readback; LC remains the source record. The shared backend migration was applied through Supabase MCP and recorded live as `20260918142512`; the development Edge Function is version 8 with JWT verification. The Git migration file was renamed to that recorded version. Vercel staging passed. A live staging-account manual publication/readback has **not** yet been performed; Sam will test it. No production publishing or legacy production function change occurred. Other machines and interval-shaped manual entries remain LC-only until their result mappings are defined.
+
 ## Current product slice — general completed workout entry
 
 PR #165 merged the approved [general entry design](../docs/completed-workout-entry-design.md) into staging. It adds a global activity-first manual completion flow, versioned result detail in owned `workout_logs.raw_data`, measured variable intervals with full/partial coverage, optional RWN target prefill, save/read/edit, and a dedicated LC result detail. Runs, non-Concept2 ergs, and named Other activities remain LC records. The first staging save exposed an overbroad client request guard that blocked all `workout_logs` writes; the follow-up fix permits only versioned general manual-entry saves/edits while preserving legacy Concept2 sync blocks. The plan picker/link, Concept2 publication bridge, and ErgLink capture remain later work. No migration, Edge deployment, Concept2 POST, or production enablement is part of this slice. Staging phone/desktop visual and live save/reopen checks remain pending.
