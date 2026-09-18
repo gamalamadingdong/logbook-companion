@@ -1,6 +1,6 @@
 # Completed result storage and Concept2 boundary audit
 
-Status: 2026-09-18 code and live-schema review. This is the next capture and persistence work list, not a claim that PM5 capture or production publishing is ready.
+Status: 2026-09-18 code and live-schema review. The legacy import guard in PR #179 is not merged or deployed. This is the next capture and persistence work list, not a claim that PM5 capture or production publishing is ready.
 
 ## What is already durable
 
@@ -12,7 +12,7 @@ Status: 2026-09-18 code and live-schema review. This is the next capture and per
 
 | Boundary | Current evidence | Required next step |
 | --- | --- | --- |
-| Legacy Concept2 import | The browser sync and `run-c2-sync-batch` previously used a nearby date/distance/time match to replace a manual or ErgLink row with Concept2 `source` and `raw_data`. | The current fix allows replacement only for an already imported Concept2 row with the same exact provider result ID. Nearby LC-owned rows are preserved and skipped. A later provider-link table can associate a legitimate manual/capture result with its provider result without rewriting source evidence. |
+| Legacy Concept2 import | The browser sync and `run-c2-sync-batch` previously used a nearby date/distance/time match to replace a manual or ErgLink row with Concept2 `source` and `raw_data`. | PR #179 changes replacement so only an already imported Concept2 row with the same exact provider result ID can be updated. After rollout, nearby LC-owned rows will be preserved and skipped. A later provider-link table can associate a legitimate manual/capture result with its provider result without rewriting source evidence. |
 | ErgLink upload | The buffer is keyed by session; the upload lacks a stable workout capture ID, can use upload time as finish time, and can resolve after a failed owned-row insert. BLE notifications currently produce aggregate snapshots. | Persist one capture UUID and version at workout start; retain raw notifications, actual start/finish and timezone, completion state, and assignment/template provenance. LC ingestion must be idempotent by owner and capture ID and acknowledge a durable workout UUID before ErgLink clears the buffer. Treat source records as telemetry samples until PM5 sampling semantics are verified. |
 | Detailed result | `CompletedWorkoutV2` reserves source evidence and normalized sample fields, but the manual path has only entered intervals and the PM5 path is not wired. Development read-back stores a Concept2 summary by exact ID. | Store immutable raw capture evidence separately from normalized intervals/samples and from a Concept2 projection. Fetch provider detail and strokes for comparison when that validation is needed; a summary read-back does not prove detailed equivalence. |
 | Published corrections | The manual edit path can change a published source row while its publication payload snapshot stays immutable. The UI warns that Concept2 will not update automatically. | Add an owned revision/audit trail and a clear correction workflow, with database enforcement, before production write approval. Do not silently mutate or repost the Concept2 result. |
