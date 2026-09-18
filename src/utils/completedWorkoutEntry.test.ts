@@ -73,6 +73,32 @@ describe('completed workout entry', () => {
     if (result.ok) expect(result.value.summary).toEqual({ distanceMeters: 5000, durationSeconds: 1500 });
   });
 
+  it('does not claim a complete elapsed or work time when one interval time is missing', () => {
+    const result = normalizeCompletedWorkoutDraft({ ...base, summary: {}, detailCoverage: 'full', segments: [
+      { role: 'work', target: null, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: null, durationSeconds: 60 },
+      { role: 'work', target: null, distanceMeters: 500 },
+    ] });
+    expect(result).toMatchObject({ ok: true, value: { summary: { distanceMeters: 1000 } } });
+    if (result.ok) {
+      expect(result.value.summary.durationSeconds).toBeUndefined();
+      expect(result.value.workTimeSeconds).toBeUndefined();
+    }
+  });
+
+  it('does not turn a measured subset of work meters or calories into a session total', () => {
+    const result = normalizeCompletedWorkoutDraft({ ...base, summary: {}, detailCoverage: 'full', segments: [
+      { role: 'work', target: null, distanceMeters: 500, durationSeconds: 120, calories: 30 },
+      { role: 'rest', target: null, durationSeconds: 60 },
+      { role: 'work', target: null, durationSeconds: 180 },
+    ] });
+    expect(result).toMatchObject({ ok: true, value: { summary: { durationSeconds: 360 }, workTimeSeconds: 300 } });
+    if (result.ok) {
+      expect(result.value.summary.distanceMeters).toBeUndefined();
+      expect(result.value.summary.calories).toBeUndefined();
+    }
+  });
+
   it('reports a full-detail mismatch at the summary field', () => {
     const result = normalizeCompletedWorkoutDraft({
       ...base,

@@ -49,8 +49,8 @@ export function manualConcept2Preview(result: CompletedWorkoutEntryV1): Publicat
   if (workCount < 2 || workDistance > 1_000_000 || workDistance + restDistance !== distance ||
       Math.abs(workTime + restSeconds - seconds) > 1e-7 ||
       result.workTimeSeconds === undefined || Math.abs(workTime - result.workTimeSeconds) > 1e-7) return null;
-  const fixedDistance = restDistance === 0 && workSegments.every(segment => segment.intervalKind === 'distance' && segment.distanceMeters === workSegments[0].distanceMeters);
-  const fixedTime = restDistance === 0 && workSegments.every(segment => segment.intervalKind === 'time' && segment.durationSeconds === workSegments[0].durationSeconds);
+  const fixedDistance = workSegments.every(segment => segment.intervalKind === 'distance' && segment.distanceMeters === workSegments[0].distanceMeters);
+  const fixedTime = workSegments.every(segment => segment.intervalKind === 'time' && segment.durationSeconds === workSegments[0].durationSeconds);
   return { label: `${workCount} ${fixedDistance ? 'fixed-distance' : fixedTime ? 'fixed-time' : 'variable'} intervals`,
     distance: workDistance, seconds: workTime, restSeconds, restDistance };
 }

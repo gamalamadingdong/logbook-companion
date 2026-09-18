@@ -26,6 +26,28 @@ describe('manual Concept2 publication preview', () => {
     expect(manualConcept2Preview(result)).toEqual({ label: '2 variable intervals',
       distance: 1200, seconds: 300, restSeconds: 45, restDistance: 40 });
   });
+  it('labels equal distance intervals as fixed even when the rest has measured distance', () => {
+    const fixed = { ...result, summary: { distanceMeters: 1050, durationSeconds: 300 },
+      segments: [
+        { role: 'work' as const, target: null, intervalKind: 'distance' as const, distanceMeters: 500, durationSeconds: 120 },
+        { role: 'rest' as const, target: null, distanceMeters: 50, durationSeconds: 60 },
+        { role: 'work' as const, target: null, intervalKind: 'distance' as const, distanceMeters: 500, durationSeconds: 120 },
+      ], workTimeSeconds: 240 };
+    expect(manualConcept2Preview(fixed)).toMatchObject({ label: '2 fixed-distance intervals',
+      distance: 1000, restDistance: 50 });
+  });
+
+  it('labels equal time intervals as fixed even when the rest has measured distance', () => {
+    const fixed = { ...result, summary: { distanceMeters: 1050, durationSeconds: 300 },
+      segments: [
+        { role: 'work' as const, target: null, intervalKind: 'time' as const, distanceMeters: 480, durationSeconds: 120 },
+        { role: 'rest' as const, target: null, distanceMeters: 50, durationSeconds: 60 },
+        { role: 'work' as const, target: null, intervalKind: 'time' as const, distanceMeters: 520, durationSeconds: 120 },
+      ], workTimeSeconds: 240 };
+    expect(manualConcept2Preview(fixed)).toMatchObject({ label: '2 fixed-time intervals',
+      distance: 1000, restDistance: 50 });
+  });
+
   it('supports two adjacent measured work intervals without rest', () => {
     const adjacent = { ...result, summary: { distanceMeters: 1200, durationSeconds: 300 },
       segments: result.segments.filter(segment => segment.role === 'work') };

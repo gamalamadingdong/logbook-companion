@@ -63,6 +63,7 @@ The first implementation step can replace cards with the result grid while using
 ## Save, validation, and publication
 
 - Saving writes one owned LC workout. It never publishes to Concept2.
+- A whole-workout total is shown and indexed only when its needed interval measurements are present: work distance needs every Work meter value, elapsed time needs every Work and Rest time, and entered work calories need every Work calorie value. Blank cells remain unknown; the row subtotal stays visible as entered data. Average interval pace needs both complete work distance and work time.
 - Full measured Concept2 RowErg intervals require a Distance or Time basis on each Work row. The form points to the exact missing cell before save. Partial detail and other equipment remain saveable in LC.
 - The saved result page states specific missing publication requirements and links to Edit. It does not silently omit all explanation when a completed Concept2 RowErg result is close to eligible.
 - If a result has already been published, editing LC shows the immutable Concept2 publication snapshot and warns that the remote result will not change automatically.

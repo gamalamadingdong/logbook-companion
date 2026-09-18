@@ -228,6 +228,10 @@ export function CompletedWorkoutEntry() {
     return total;
   }, { work: { distance: 0, duration: 0, calories: 0 }, rest: { distance: 0, duration: 0, calories: 0 } }), [form.segments, form.distanceUnit]);
   const fullDetail = form.detailCoverage === 'full' && form.segments.length > 0;
+  const workRows = form.segments.filter((segment) => segment.role === 'work');
+  const hasAllWorkDistances = workRows.length > 0 && workRows.every((segment) => segment.distance.trim() !== '');
+  const hasAllSegmentTimes = form.segments.length > 0 && form.segments.every((segment) => segment.duration.trim() !== '');
+  const hasAllWorkCalories = workRows.length > 0 && workRows.every((segment) => segment.calories.trim() !== '');
   const measuredDistance = segmentTotals.work.distance + segmentTotals.rest.distance;
   const measuredDuration = segmentTotals.work.duration + segmentTotals.rest.duration;
   const rwnPreview = useMemo(() => rwnInput.trim() ? scaffoldSegmentsFromRwn(rwnInput) : null, [rwnInput]);
@@ -407,7 +411,7 @@ export function CompletedWorkoutEntry() {
                 </Select>
                 <div>
                   <div className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1"><Input label={`Distance (${form.distanceUnit})`} inputMode="decimal" value={fullDetail ? measuredDistance ? String(measuredDistance / (form.distanceUnit === 'km' ? 1000 : 1)) : '' : form.distance} readOnly={fullDetail} onChange={(event) => update({ distance: event.target.value })} error={errors['summary.distanceMeters']} className="min-h-11" /></div>
+                    <div className="min-w-0 flex-1"><Input label={`Distance (${form.distanceUnit})`} inputMode="decimal" value={fullDetail ? hasAllWorkDistances && measuredDistance ? String(measuredDistance / (form.distanceUnit === 'km' ? 1000 : 1)) : '' : form.distance} readOnly={fullDetail} onChange={(event) => update({ distance: event.target.value })} error={errors['summary.distanceMeters']} className="min-h-11" /></div>
                     <Select aria-label="Distance unit" value={form.distanceUnit} onChange={(event) => {
                       const next = event.target.value as DistanceUnit;
                       const factor = next === 'km' ? 1 / 1000 : 1000;
@@ -415,14 +419,14 @@ export function CompletedWorkoutEntry() {
                     }} className="min-h-11 w-20"><option value="m">m</option><option value="km">km</option></Select>
                   </div>
                 </div>
-                <Input label="Time" inputMode="decimal" value={fullDetail ? measuredDuration ? displayTime(measuredDuration) : "" : form.duration} readOnly={fullDetail} onChange={(event) => update({ duration: event.target.value })} placeholder="20:10 or 1:02:03" hint={fullDetail ? "Calculated from all entered work and rest rows." : "For intervals, include rest if this is the full elapsed time."} error={errors['summary.durationSeconds']} className="min-h-11" />
-                {fullDetail && <p className="text-xs text-content-muted sm:col-span-2">Distance, time, and calories are calculated from the interval rows below. To enter a separate session total, choose partial detail.</p>}
+                <Input label="Time" inputMode="decimal" value={fullDetail ? hasAllSegmentTimes && measuredDuration ? displayTime(measuredDuration) : '' : form.duration} readOnly={fullDetail} onChange={(event) => update({ duration: event.target.value })} placeholder="20:10 or 1:02:03" hint={fullDetail ? "Calculated when every work and rest row has a time." : "For intervals, include rest if this is the full elapsed time."} error={errors['summary.durationSeconds']} className="min-h-11" />
+                {fullDetail && <p className="text-xs text-content-muted sm:col-span-2">Session totals appear when the relevant rows have measurements. Blank values stay unknown. To enter a separate session total, choose partial detail.</p>}
               </div>
               {errors.summary && <p className="mt-3 text-sm text-accent-danger" role="alert">{errors.summary}</p>}
               <details className="mt-4 border-t border-border-subtle pt-4" open={Object.keys(errors).some((field) => ['summary.calories', 'summary.watts', 'summary.heartRate', 'summary.strokeRate', 'summary.perceivedExertion'].includes(field)) || undefined}>
                 <summary className="cursor-pointer text-sm font-medium text-content-secondary">More measurements and notes</summary>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Input label="Calories" inputMode="numeric" value={fullDetail ? segmentTotals.work.calories ? String(segmentTotals.work.calories) : '' : form.calories} readOnly={fullDetail} onChange={(event) => update({ calories: event.target.value })} error={errors['summary.calories']} className="min-h-11" />
+                  <Input label="Calories" inputMode="numeric" value={fullDetail ? hasAllWorkCalories && segmentTotals.work.calories ? String(segmentTotals.work.calories) : '' : form.calories} readOnly={fullDetail} onChange={(event) => update({ calories: event.target.value })} error={errors['summary.calories']} className="min-h-11" />
                   {form.activity !== 'run' && <Input label="Average watts" inputMode="numeric" value={form.watts} onChange={(event) => update({ watts: event.target.value })} error={errors['summary.watts']} className="min-h-11" />}
                   <Input label="Average heart rate" inputMode="numeric" value={form.heartRate} onChange={(event) => update({ heartRate: event.target.value })} error={errors['summary.heartRate']} className="min-h-11" />
                   {(form.activity === 'indoor_row' || form.activity === 'ski_erg') && <Input label="Average stroke rate" inputMode="numeric" value={form.strokeRate} onChange={(event) => update({ strokeRate: event.target.value })} error={errors['summary.strokeRate']} className="min-h-11" />}
@@ -446,7 +450,7 @@ export function CompletedWorkoutEntry() {
                     <option value="partial">Only part of it</option>
                   </Select>
                   {form.segments.length > 0 && <div className="rounded-lg border border-border bg-surface-secondary p-3 text-sm" aria-live="polite">
-                    <p className="font-medium text-content-primary">Measured rows {form.detailCoverage === 'partial' ? '(partial detail)' : '(whole workout)'}</p>
+                    <p className="font-medium text-content-primary">Entered row subtotals {form.detailCoverage === 'partial' ? '(partial detail)' : '(whole workout detail)'}</p>
                     <p className="mt-1 text-content-secondary">
                       Work: {segmentTotals.work.distance.toLocaleString()} m · {displayTime(segmentTotals.work.duration)}
                       {'  ·  '}Rest: {segmentTotals.rest.distance.toLocaleString()} m · {displayTime(segmentTotals.rest.duration)}

@@ -29,17 +29,25 @@ export function completedActivityName(activity: CompletedActivity, activityName?
 export function buildCompletedWorkoutInsert(userId: string, result: CompletedWorkoutEntryV1): WorkoutInsert {
   const distance = result.summary.distanceMeters ?? null;
   const elapsed = result.summary.durationSeconds ?? null;
-  const measuredWork = result.detailCoverage === 'full' && result.segments.length > 0
-    && result.segments.filter((segment) => segment.role === 'work').every((segment) => segment.distanceMeters !== undefined && segment.durationSeconds !== undefined);
-  const workDistance = measuredWork
-    ? result.segments.filter((segment) => segment.role === 'work').reduce((total, segment) => total + (segment.distanceMeters ?? 0), 0)
-    : distance;
-  const workTime = measuredWork ? result.workTimeSeconds ?? elapsed : elapsed;
-  const separateRestDistance = measuredWork && result.activity === 'indoor_row'
+  const fullDetail = result.detailCoverage === 'full' && result.segments.length > 0;
+  const workSegments = result.segments.filter((segment) => segment.role === 'work');
+  const hasMeasuredWorkDistance = fullDetail && workSegments.length > 0
+    && workSegments.every((segment) => segment.distanceMeters !== undefined);
+  const hasMeasuredWorkTime = fullDetail && workSegments.length > 0
+    && workSegments.every((segment) => segment.durationSeconds !== undefined);
+  const workDistance = hasMeasuredWorkDistance
+    ? workSegments.reduce((total, segment) => total + (segment.distanceMeters ?? 0), 0)
+    : null;
+  const workTime = hasMeasuredWorkTime
+    ? result.workTimeSeconds ?? workSegments.reduce((total, segment) => total + (segment.durationSeconds ?? 0), 0)
+    : null;
+  const separateRestDistance = hasMeasuredWorkDistance && result.activity === 'indoor_row'
     && result.equipment?.brand === 'concept2' && result.equipment.name === 'RowErg';
   const indexedDistance = separateRestDistance ? workDistance : distance;
   const restDistance = separateRestDistance && distance !== null && workDistance !== null
     ? distance - workDistance : null;
+  const paceDistance = fullDetail ? workDistance : distance;
+  const paceTime = fullDetail ? workTime : elapsed;
   const activityName = completedActivityName(result.activity, result.activityName);
   const isErg = result.activity === 'indoor_row' || result.activity === 'ski_erg';
   return {
@@ -53,7 +61,7 @@ export function buildCompletedWorkoutInsert(userId: string, result: CompletedWor
     rest_distance_meters: restDistance,
     duration_seconds: elapsed,
     duration_minutes: elapsed == null ? null : Math.round(elapsed / 60),
-    avg_split_500m: isErg && workTime && workDistance ? (workTime / workDistance) * 500 : null,
+    avg_split_500m: isErg && paceTime && paceDistance ? (paceTime / paceDistance) * 500 : null,
     calories_burned: result.summary.calories ?? null,
     watts: result.summary.watts ?? null,
     average_heart_rate: result.summary.heartRate ?? null,
