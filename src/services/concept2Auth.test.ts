@@ -256,4 +256,18 @@ describe('development Concept2 boundary', () => {
     expect(blockedDevelopmentRequest('https://db.test/rest/v1/workout_logs', 'GET')).toBe(false);
     expect(blockedDevelopmentRequest('https://db.test/functions/v1/concept2-development-auth', 'POST')).toBe(false);
   });
+  it('permits only owned general manual workout saves and edits in staging', () => {
+    const url = 'https://db.test/rest/v1/workout_logs';
+    const manual = JSON.stringify({ user_id: 'owner', source: 'manual', workout_type: 'row',
+      raw_data: { source: 'general_manual_entry', completed_result: { _v: 1 } } });
+    expect(blockedDevelopmentRequest(url, 'POST', manual)).toBe(false);
+    expect(blockedDevelopmentRequest(`${url}?id=eq.workout&user_id=eq.owner&source=eq.manual&raw_data=cs.%7B%22source%22%3A%22general_manual_entry%22%7D`,
+      'PATCH', manual)).toBe(false);
+    expect(blockedDevelopmentRequest(url, 'POST', JSON.stringify({ ...JSON.parse(manual), source: 'concept2' }))).toBe(true);
+    expect(blockedDevelopmentRequest(url, 'POST', JSON.stringify({ ...JSON.parse(manual), external_id: 123 }))).toBe(true);
+    expect(blockedDevelopmentRequest(url, 'POST', JSON.stringify({ ...JSON.parse(manual), raw_data: { source: 'training_block_manual_entry' } }))).toBe(true);
+    expect(blockedDevelopmentRequest(url, 'POST')).toBe(true);
+    expect(blockedDevelopmentRequest(url, 'DELETE', manual)).toBe(true);
+    expect(blockedDevelopmentRequest(url, 'PATCH', manual)).toBe(true);
+  });
 });

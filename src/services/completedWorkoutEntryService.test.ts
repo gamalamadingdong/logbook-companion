@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildCompletedWorkoutInsert, readCompletedWorkoutFromRow } from './completedWorkoutEntryService';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildCompletedWorkoutInsert, createCompletedWorkout, readCompletedWorkoutFromRow, updateCompletedWorkout } from './completedWorkoutEntryService';
 import type { CompletedWorkoutEntryV1 } from '../types/completedWorkoutEntry';
 
 const result: CompletedWorkoutEntryV1 = {
@@ -23,6 +23,37 @@ const result: CompletedWorkoutEntryV1 = {
 };
 
 describe('general manual workout persistence', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends a new completed workout through the staging client guard', async () => {
+    const network = vi.fn(async () => new Response(JSON.stringify({ id: 'saved-workout' }), {
+      status: 201, headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', network);
+    await expect(createCompletedWorkout('user-1', result)).resolves.toBe('saved-workout');
+    expect(network).toHaveBeenCalledTimes(1);
+    const [url, init] = network.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/rest/v1/workout_logs');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toMatchObject({ source: 'manual',
+      raw_data: { source: 'general_manual_entry' } });
+  });
+
+  it('sends an owned edit through the staging client guard', async () => {
+    const network = vi.fn(async () => new Response(JSON.stringify({ id: 'saved-workout' }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', network);
+    await expect(updateCompletedWorkout('saved-workout', 'user-1', result)).resolves.toBeUndefined();
+    expect(network).toHaveBeenCalledTimes(1);
+    const [url, init] = network.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('user_id=eq.user-1');
+    expect(url).toContain('source=eq.manual');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(String(init.body))).toMatchObject({ source: 'manual',
+      raw_data: { source: 'general_manual_entry' } });
+  });
+
   it('projects a validated result into the owned log and preserves all ordered detail', () => {
     const insert = buildCompletedWorkoutInsert('user-1', result);
     expect(insert).toMatchObject({

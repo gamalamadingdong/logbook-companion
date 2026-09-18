@@ -26,7 +26,7 @@ export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabas
     global: { fetch: (input, init) => {
         const url = input instanceof Request ? input.url : String(input);
         const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-        if (!legacyConcept2Enabled && blockedDevelopmentRequest(url, method)) {
+        if (!legacyConcept2Enabled && blockedDevelopmentRequest(url, method, init?.body)) {
             return Promise.resolve(new Response(JSON.stringify({ message: DEVELOPMENT_SYNC_DISABLED }), {
                 status: 403, headers: { 'Content-Type': 'application/json' },
             }));

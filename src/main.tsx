@@ -20,6 +20,7 @@ if (import.meta.env.PROD) {
   const manifestLink = document.createElement('link');
   manifestLink.rel = 'manifest';
   manifestLink.href = '/manifest.json';
+  manifestLink.crossOrigin = 'use-credentials';
   document.head.appendChild(manifestLink);
 }
 
