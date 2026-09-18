@@ -6,6 +6,7 @@ import { getPersonalRecords } from '../services/personalRecordService';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { formatCompletedDuration } from '../utils/completedWorkoutEntry';
+import { measuredManualWork } from '../utils/completedWorkoutMetrics';
 
 interface RecentWorkoutSummary {
     id: number | string;
@@ -111,9 +112,10 @@ export const formatWorkoutPace = (workout: RecentWorkoutSummary): string => {
     const activity = manualResult(workout)?.activity;
     if (activity === 'other') return '–';
     const distanceUnit = activity === 'run' || activity === 'bike_erg' ? 1000 : 500;
-    if (distanceUnit === 500) return formatAveragePace(workout.distance, workout.durationSeconds);
-    const distance = workout.distance;
-    const duration = workout.durationSeconds;
+    const measured = measuredManualWork(workout.raw_data);
+    const distance = measured?.distanceMeters ?? workout.distance;
+    const duration = measured?.durationSeconds ?? workout.durationSeconds;
+    if (distanceUnit === 500) return formatAveragePace(distance, duration);
     if (!Number.isFinite(distance) || distance <= 0 || typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return '–';
     const paceTenths = Math.round(duration / distance * distanceUnit * 10);
     const minutes = Math.floor(paceTenths / 600);

@@ -138,18 +138,18 @@ export function Concept2DevelopmentPublication({ workoutId, result }: Props) {
   const preview = manualConcept2Preview(result);
   const blockers = getDevelopmentPublishBlockers({ connection, selectedId: workoutId, weightClass,
     timezone: result.timezone, confirmed, existingStatus: publication?.status });
-  const canSend = !loading && !pending && blockers.length === 0;
+  const canSend = !!preview && !loading && !pending && blockers.length === 0;
   return <Card>
     <CardHeader title="Publish to Concept2 development" subtitle="Your saved LC result remains the training record. Publishing is a separate, explicit step." />
     <div className="space-y-4 text-sm text-content-secondary">
-      <p>{preview?.label} · {preview?.distance.toLocaleString()} m work · {formatCompletedDuration(preview?.seconds ?? 0)} work{preview?.restSeconds ? ` · ${formatCompletedDuration(preview.restSeconds)} rest` : ''}{preview?.restDistance ? ` · ${preview.restDistance.toLocaleString()} m rest` : ''} · {result.timezone}</p>
+      {preview && <p>{preview.label} · {preview.distance.toLocaleString()} m work · {formatCompletedDuration(preview.seconds)} work{preview.restSeconds ? ` · ${formatCompletedDuration(preview.restSeconds)} rest` : ''}{preview.restDistance ? ` · ${preview.restDistance.toLocaleString()} m rest` : ''} · {result.timezone}</p>}
       {loading ? <p role="status">Checking development connection and publication status…</p> : <>
         {publication?.status === 'published' ? <div role="status" className="rounded-lg border border-border bg-surface-secondary p-3">
           <p className="font-medium text-content-primary">Published as Concept2 development result {publication.result_id}.</p>
           <p>{readBack ? 'Read back into LC by this exact result ID.' : 'The result is published. Check its exact ID to refresh the LC copy.'}</p>
           {publication.result_id && <Button variant="secondary" size="lg" className="mt-3 min-h-11" loading={pending}
             onClick={() => { setPending(true); void checkResult(publication.result_id!).finally(() => setPending(false)); }}>Recheck result {publication.result_id}</Button>}
-        </div> : publication?.status === 'outcome_unknown' ? <p role="status" className="rounded-lg border border-amber-600/50 p-3">Publication outcome needs operator review. Do not send this workout again.</p> : <>
+        </div> : publication?.status === 'outcome_unknown' ? <p role="status" className="rounded-lg border border-amber-600/50 p-3">Publication outcome needs operator review. Do not send this workout again.</p> : !preview ? <p role="status">{manualConcept2PublishBlocker(result)}</p> : <>
           <p>{connection?.connected ? connection.can_publish ? 'Development account connected with write access.' : 'Reconnect your development account to grant write access.' : 'Connect your Concept2 development account before publishing.'} <Link to="/sync" className="text-accent-primary underline">Connection settings</Link></p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Select label="Concept2 weight class" value={weightClass} onChange={event => setWeightClass(event.target.value as '' | 'H' | 'L')}>

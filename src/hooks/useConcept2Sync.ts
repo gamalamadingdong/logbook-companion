@@ -9,7 +9,8 @@ import { calculatePowerBuckets } from '../utils/powerBucketing';
 import { calculateCanonicalName, roundToStandardDistance } from '../utils/workoutNaming';
 import { saveFilteredPRs } from '../utils/prDetection';
 import { matchWorkoutToTemplate } from '../utils/templateMatching';
-import { findMatchingWorkout, shouldUpgrade } from '../utils/reconciliation';
+import { findMatchingWorkout } from '../utils/reconciliation';
+import { concept2ImportTarget } from '../../supabase/functions/_shared/concept2/importTarget';
 import {
     LAST_C2_SYNC_TIMESTAMP_KEY,
     resolveConcept2SyncQueryParams,
@@ -361,14 +362,9 @@ export const useConcept2Sync = () => {
                         }
                     });
 
-                    if (match) {
-                        if (shouldUpgrade(match.source, 'concept2', match.external_id, summary.id.toString())) {
-                            record.id = match.id; // OVERRIDE existing row
-                        } else {
-                            skippedExisting++;
-                            continue; // Logic says we don't need to sync this if we have better data
-                        }
-                    }
+                    // Only the exact provider ID may update a provider-owned row.
+                    // A nearby LC manual or ErgLink result remains intact; import this C2 ID separately.
+                    record.id = concept2ImportTarget(match ?? null, summary.id.toString());
 
                     // Fallback for Watts if missing (Estimate from Pace)
                     if (!record.watts && record.avg_split_500m) {

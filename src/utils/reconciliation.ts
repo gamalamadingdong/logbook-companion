@@ -21,17 +21,6 @@ export type WorkoutLogMatch = {
     external_id?: string | null;
 };
 
-/** A fuzzy time/distance match can only update the same provider-owned result. */
-export function shouldUpgrade(
-    existingSource: string,
-    newSource: string,
-    existingExternalId: string | null | undefined,
-    incomingExternalId: string,
-): boolean {
-    return existingSource === 'concept2' && newSource === 'concept2' &&
-        existingExternalId === incomingExternalId;
-}
-
 /**
  * Finds a matching workout in the database to reconcile against.
  * Matches based on User + Date (approx) + (Distance OR Duration).

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { findMatchingWorkout, shouldUpgrade } from './reconciliation';
+import { findMatchingWorkout } from './reconciliation';
 
 // Mock Supabase Client
 const mockSupabase = {
@@ -8,25 +8,6 @@ const mockSupabase = {
 };
 
 describe('reconciliation logic', () => {
-
-    describe('shouldUpgrade', () => {
-        it('preserves an LC manual result when a nearby Concept2 result has a different identity', () => {
-            expect(shouldUpgrade('manual', 'concept2', null, '86940')).toBe(false);
-        });
-
-        it('preserves ErgLink evidence when a nearby Concept2 result is imported', () => {
-            expect(shouldUpgrade('erg_link_live', 'concept2', null, '86940')).toBe(false);
-        });
-
-        it('updates only the same imported Concept2 result ID', () => {
-            expect(shouldUpgrade('concept2', 'concept2', '86940', '86940')).toBe(true);
-            expect(shouldUpgrade('concept2', 'concept2', '86939', '86940')).toBe(false);
-        });
-
-        it('never replaces a Concept2 row with a different source', () => {
-            expect(shouldUpgrade('concept2', 'manual', '86940', '86940')).toBe(false);
-        });
-    });
 
     describe('findMatchingWorkout', () => {
         it('constructs correct query params', async () => {

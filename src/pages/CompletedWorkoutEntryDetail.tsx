@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CalendarDays, Clock3, Pencil, Plus } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
-import { canPublishManualRowErg, Concept2DevelopmentPublication, manualConcept2PublishBlocker } from '../components/completed-workout/Concept2DevelopmentPublication';
+import { Concept2DevelopmentPublication } from '../components/completed-workout/Concept2DevelopmentPublication';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { Card, CardHeader } from '../components/ui/Card';
 import { useAuth } from '../hooks/useAuth';
 import { completedActivityName, getCompletedWorkout } from '../services/completedWorkoutEntryService';
+import { developmentConcept2, type DevelopmentPublication } from '../services/concept2Auth';
 import type { CompletedWorkoutEntryV1 } from '../types/completedWorkoutEntry';
 import { formatCompletedDuration } from '../utils/completedWorkoutEntry';
 
@@ -26,6 +27,8 @@ export function CompletedWorkoutEntryDetail() {
   const [result, setResult] = useState<CompletedWorkoutEntryV1 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [publication, setPublication] = useState<DevelopmentPublication | null>(null);
+  const [checkingPublication, setCheckingPublication] = useState(false);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -33,7 +36,16 @@ export function CompletedWorkoutEntryDetail() {
     getCompletedWorkout(id, user.id).then((saved) => {
       if (cancelled) return;
       if (!saved) setError('This completed workout was not found.');
-      else setResult(saved.result);
+      else {
+        setResult(saved.result);
+        if (saved.result.activity === 'indoor_row' && saved.result.equipment?.brand === 'concept2') {
+          setCheckingPublication(true);
+          void developmentConcept2('publications').then((response) => {
+            if (!cancelled) setPublication(response.publications?.find((item) => item.workout_id === id) ?? null);
+          }).catch(() => { /* Publication panel reports connection failures; the DB guards edits. */ })
+            .finally(() => { if (!cancelled) setCheckingPublication(false); });
+        }
+      }
     }).catch(() => {
       if (!cancelled) setError('Could not load this workout. Try again.');
     }).finally(() => { if (!cancelled) setLoading(false); });
@@ -58,7 +70,11 @@ export function CompletedWorkoutEntryDetail() {
                   <Badge variant={result.status === 'completed' ? 'success' : 'warning'}>{result.status === 'completed' ? 'Completed' : 'Stopped early'}</Badge>
                 </div>
               </div>
-              <Link to={`/completed-workout/${id}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus"><Pencil size={16} aria-hidden="true" />Edit</Link>
+              {publication?.status === 'published' || publication?.status === 'outcome_unknown' ? (
+                <p className="rounded-lg border border-border bg-surface-secondary px-3.5 py-2 text-sm text-content-secondary">Published result · read-only</p>
+              ) : checkingPublication ? <p className="text-sm text-content-muted" role="status">Checking publication…</p> : (
+                <Link to={`/completed-workout/${id}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus"><Pencil size={16} aria-hidden="true" />Edit</Link>
+              )}
             </div>
 
             <Card>
@@ -93,15 +109,8 @@ export function CompletedWorkoutEntryDetail() {
               </ol>
             </Card>}
 
-            {id && result.activity === 'indoor_row' && result.equipment?.brand !== 'other' && (
-              canPublishManualRowErg(result) ? <Concept2DevelopmentPublication workoutId={id} result={result} /> : (
-                <Card>
-                  <CardHeader title="Concept2 development publishing" subtitle="Your workout is saved in LC. Publishing is a separate choice." />
-                  <p className="text-sm text-content-secondary">{manualConcept2PublishBlocker(result)}</p>
-                  <Link to={`/completed-workout/${id}/edit`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-primary underline">Edit workout details</Link>
-                </Card>
-              )
-            )}
+            {id && result.activity === 'indoor_row' && result.equipment?.brand === 'concept2' &&
+              <Concept2DevelopmentPublication workoutId={id} result={result} />}
             {(result.plannedRwn || result.plannedTemplate) && <Card><CardHeader title="Plan used" />{result.plannedTemplate && <Link to={`/library/${result.plannedTemplate.id}`} className="text-sm font-medium text-accent-primary underline">{result.plannedTemplate.name}</Link>}{result.plannedRwn && <p className="mt-1 text-sm text-content-secondary">Saved RWN: {result.plannedRwn}</p>}</Card>}
             <div className="flex flex-wrap gap-3">
               <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus">Back to log</Link>

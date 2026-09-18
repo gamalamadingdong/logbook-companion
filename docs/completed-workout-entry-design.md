@@ -143,7 +143,7 @@ Concept2 result ID -> exact-ID read-back -> LC link
 - Optional measurements appear by activity and equipment. Keep common fields short; avoid an all-sports form full of empty rowing fields.
 - Time and distance inputs accept familiar display formats and normalize only on save. Date/time shows the user's local timezone and persists an unambiguous instant plus the selected timezone.
 - Changing a planned structure changes the actual result only. Preserve the original plan link and prescription so planned versus completed can be compared.
-- An edited LC record that was already published must show its publication snapshot/status. Editing LC must not silently update Concept2 or trigger a second POST.
+- A published or uncertain LC result is read-only until a versioned, audited correction flow exists. The saved detail keeps showing the publication status and exact result ID even if an older row is no longer eligible for a new publication. Editing LC must not silently update Concept2 or trigger a second POST.
 - Saving a manual workout must not mark it as device-verified. Device and provenance labels must remain truthful.
 
 ## Data boundary

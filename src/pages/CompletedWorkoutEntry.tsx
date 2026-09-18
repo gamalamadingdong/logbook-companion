@@ -11,6 +11,7 @@ import { SegmentGrid } from '../components/completed-workout/SegmentGrid';
 import { mergePlannedSegments } from '../components/completed-workout/segmentPlan';
 import { useAuth } from '../hooks/useAuth';
 import { createCompletedWorkout, getCompletedWorkout, updateCompletedWorkout } from '../services/completedWorkoutEntryService';
+import { developmentConcept2 } from '../services/concept2Auth';
 import { searchTemplatesForCompletion, type CompletionTemplateMatch } from '../services/templateService';
 import type { CompletedActivity, CompletedSegment, CompletedWorkoutDraft, CompletedWorkoutEntryV1 } from '../types/completedWorkoutEntry';
 import { formatCompletedDuration, normalizeCompletedWorkoutDraft, parseDurationInput, scaffoldSegmentsFromRwn } from '../utils/completedWorkoutEntry';
@@ -171,6 +172,7 @@ export function CompletedWorkoutEntry() {
   const [original, setOriginal] = useState<CompletedWorkoutEntryV1 | null>(null);
   const [showSegments, setShowSegments] = useState(false);
   const [loading, setLoading] = useState(Boolean(id));
+  const [editLock, setEditLock] = useState<'none' | 'published' | 'outcome_unknown' | 'unavailable'>('none');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rwnError, setRwnError] = useState('');
@@ -183,16 +185,28 @@ export function CompletedWorkoutEntry() {
   useEffect(() => {
     if (!id || !user) return;
     let cancelled = false;
-    getCompletedWorkout(id, user.id).then((saved) => {
+    getCompletedWorkout(id, user.id).then(async (saved) => {
       if (cancelled) return;
       if (!saved) {
         setErrors({ page: 'This manual workout was not found.' });
-      } else {
-        setOriginal(saved.result);
-        setForm(fromResult(saved.result));
-        setRwnInput(saved.result.plannedRwn ?? '');
-        setShowSegments(saved.result.segments.length > 0);
+        return;
       }
+      if (saved.result.activity === 'indoor_row' && saved.result.equipment?.brand === 'concept2') {
+        try {
+          const publications = await developmentConcept2('publications');
+          if (cancelled) return;
+          const status = publications.publications?.find((item) => item.workout_id === id)?.status;
+          setEditLock(status === 'published' || status === 'outcome_unknown' ? status : 'none');
+        } catch {
+          if (cancelled) return;
+          setEditLock('unavailable');
+        }
+      }
+      if (cancelled) return;
+      setOriginal(saved.result);
+      setForm(fromResult(saved.result));
+      setRwnInput(saved.result.plannedRwn ?? '');
+      setShowSegments(saved.result.segments.length > 0);
     }).catch(() => {
       if (!cancelled) setErrors({ page: 'Could not load this workout. Try again.' });
     }).finally(() => { if (!cancelled) setLoading(false); });
@@ -283,7 +297,7 @@ export function CompletedWorkoutEntry() {
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user || saving) return;
+    if (!user || saving || (id && editLock !== 'none')) return;
     if (rwnInput.trim() !== form.plannedRwn.trim()) {
       setRwnError('Set up intervals to apply this RWN before saving, or restore the saved plan.');
       document.getElementById('manual-entry-rwn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -336,6 +350,14 @@ export function CompletedWorkoutEntry() {
           <Card><p className="text-content-secondary" role="status">Loading workout…</p></Card>
         ) : errors.page && id && !original ? (
           <Card><p className="text-accent-danger" role="alert">{errors.page}</p></Card>
+        ) : id && editLock !== 'none' ? (
+          <Card>
+            <CardHeader title="This result is read-only" />
+            <p className="text-sm text-content-secondary" role="status">{editLock === 'unavailable'
+              ? 'Could not check this workout’s Concept2 publication status. Reload to try again before editing.'
+              : 'This result has a Concept2 development publication. Keep the saved LC result aligned with the published snapshot; a revision flow is needed for corrections.'}</p>
+            <Link to={`/completed-workout/${id}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-primary underline">Back to workout</Link>
+          </Card>
         ) : (
           <form onSubmit={(event) => { void save(event); }} className="space-y-5" noValidate>
             {errors.page && <Card><p className="text-accent-danger" role="alert">{errors.page}</p></Card>}

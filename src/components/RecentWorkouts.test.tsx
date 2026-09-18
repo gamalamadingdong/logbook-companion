@@ -151,6 +151,20 @@ describe('createWorkoutSearchController', () => {
 });
 
 describe('manual workout pace', () => {
+    it('shows measured work pace rather than elapsed pace for a full interval result', () => {
+        const workout = {
+            id: 'manual-intervals', date: '2026-09-18', distance: 1000, durationSeconds: 300,
+            name: '2x500m', raw_data: { source: 'general_manual_entry', completed_result: {
+                activity: 'indoor_row', detailCoverage: 'full', workTimeSeconds: 240,
+                segments: [
+                    { role: 'work', distanceMeters: 500, durationSeconds: 120 },
+                    { role: 'rest', durationSeconds: 60 },
+                    { role: 'work', distanceMeters: 500, durationSeconds: 120 },
+                ],
+            } },
+        };
+        expect(formatWorkoutPace(workout)).toBe('2:00.0/500m');
+    });
     it('uses a kilometre for runs and bike ergs and avoids inventing pace for other activities', () => {
         const manual = (activity: string) => ({
             id: 'workout-1', db_id: 'workout-1', date: '2026-09-18', distance: 5000, durationSeconds: 1500,
