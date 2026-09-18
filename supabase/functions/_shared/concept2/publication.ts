@@ -164,8 +164,8 @@ export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWo
       item.distanceMeters === intervals[0].distanceMeters);
     const allTime = intervals.every(item => item.kind === 'time' &&
       item.workTimeSeconds === intervals[0].workTimeSeconds);
-    const shape = restDistance === 0 && allDistance ? 'fixed_distance_interval'
-      : restDistance === 0 && allTime ? 'fixed_time_interval' : 'variable_interval';
+    const shape = allDistance ? 'fixed_distance_interval'
+      : allTime ? 'fixed_time_interval' : 'variable_interval';
     const result: CompletedWorkoutV2 = {
       _v: 2, workoutId: row.id, ownerId: row.user_id, source: 'manual',
       completionStatus: 'completed', machine: 'rower', shape: { kind: shape },
