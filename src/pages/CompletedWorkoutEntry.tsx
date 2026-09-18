@@ -6,7 +6,9 @@ import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Input, Select } from '../components/ui/Input';
-import { SegmentEditor, newSegmentForm, type SegmentForm } from '../components/completed-workout/SegmentEditor';
+import { newSegmentForm, type SegmentForm } from '../components/completed-workout/segmentForm';
+import { SegmentGrid } from '../components/completed-workout/SegmentGrid';
+import { mergePlannedSegments } from '../components/completed-workout/segmentPlan';
 import { useAuth } from '../hooks/useAuth';
 import { createCompletedWorkout, getCompletedWorkout, updateCompletedWorkout } from '../services/completedWorkoutEntryService';
 import { searchTemplatesForCompletion, type CompletionTemplateMatch } from '../services/templateService';
@@ -133,6 +135,7 @@ function formToDraft(form: EntryForm, original?: CompletedWorkoutEntryV1 | null)
     ...(segment.calories.trim() ? { calories: numeric(segment.calories) } : {}),
     ...(segment.watts.trim() ? { watts: numeric(segment.watts) } : {}),
   }));
+  const fullDetail = form.detailCoverage === 'full' && form.segments.length > 0;
   return {
     activity: form.activity,
     activityName: form.activityName,
@@ -144,9 +147,9 @@ function formToDraft(form: EntryForm, original?: CompletedWorkoutEntryV1 | null)
     completedAt,
     timezone,
     summary: {
-      ...(form.distance.trim() ? { distanceMeters: meters(form.distance, form.distanceUnit) } : {}),
-      ...(form.duration.trim() ? { durationSeconds: seconds(form.duration) } : {}),
-      ...(form.calories.trim() ? { calories: numeric(form.calories) } : {}),
+      ...(!fullDetail && form.distance.trim() ? { distanceMeters: meters(form.distance, form.distanceUnit) } : {}),
+      ...(!fullDetail && form.duration.trim() ? { durationSeconds: seconds(form.duration) } : {}),
+      ...(!fullDetail && form.calories.trim() ? { calories: numeric(form.calories) } : {}),
       ...(form.watts.trim() ? { watts: numeric(form.watts) } : {}),
       ...(form.heartRate.trim() ? { heartRate: numeric(form.heartRate) } : {}),
       ...(form.strokeRate.trim() ? { strokeRate: numeric(form.strokeRate) } : {}),
@@ -171,6 +174,7 @@ export function CompletedWorkoutEntry() {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rwnError, setRwnError] = useState('');
+  const [rwnInput, setRwnInput] = useState('');
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateResults, setTemplateResults] = useState<CompletionTemplateMatch[]>([]);
   const [templateSearchError, setTemplateSearchError] = useState('');
@@ -186,6 +190,7 @@ export function CompletedWorkoutEntry() {
       } else {
         setOriginal(saved.result);
         setForm(fromResult(saved.result));
+        setRwnInput(saved.result.plannedRwn ?? '');
         setShowSegments(saved.result.segments.length > 0);
       }
     }).catch(() => {
@@ -215,11 +220,17 @@ export function CompletedWorkoutEntry() {
     if (Object.keys(errors).length) setErrors({});
   };
 
-  const segmentTotals = useMemo(() => form.segments.reduce((total, segment) => ({
-    distance: total.distance + (meters(segment.distance, form.distanceUnit) || 0),
-    duration: total.duration + (seconds(segment.duration) || 0),
-    calories: total.calories + (numeric(segment.calories) || 0),
-  }), { distance: 0, duration: 0, calories: 0 }), [form.segments, form.distanceUnit]);
+  const segmentTotals = useMemo(() => form.segments.reduce((total, segment) => {
+    const group = segment.role === 'work' ? total.work : total.rest;
+    group.distance += meters(segment.distance, form.distanceUnit) || 0;
+    group.duration += seconds(segment.duration) || 0;
+    group.calories += numeric(segment.calories) || 0;
+    return total;
+  }, { work: { distance: 0, duration: 0, calories: 0 }, rest: { distance: 0, duration: 0, calories: 0 } }), [form.segments, form.distanceUnit]);
+  const fullDetail = form.detailCoverage === 'full' && form.segments.length > 0;
+  const measuredDistance = segmentTotals.work.distance + segmentTotals.rest.distance;
+  const measuredDuration = segmentTotals.work.duration + segmentTotals.rest.duration;
+  const rwnPreview = useMemo(() => rwnInput.trim() ? scaffoldSegmentsFromRwn(rwnInput) : null, [rwnInput]);
 
   const changeActivity = (activity: CompletedActivity) => {
     if (activity === form.activity) return;
@@ -240,21 +251,17 @@ export function CompletedWorkoutEntry() {
       setRwnError('This notation is not recognized. You can still enter the workout without it.');
       return false;
     }
-    if (form.segments.some(segment => segment.distance || segment.duration || segment.calories || segment.watts) &&
-        !window.confirm('Replace the current interval cards with this planned structure? Entered actual values in those cards will be lost.')) return false;
+    const merged = mergePlannedSegments(form.segments, scaffold);
+    if (merged.discardedActualRows > 0 &&
+        !window.confirm('This plan would replace ' + merged.discardedActualRows + ' rows with entered results. Continue?')) return false;
     setRwnError('');
+    setRwnInput(rwn);
     update({
       plannedRwn: rwn, plannedTemplate: template,
       detailCoverage: scaffold.length ? 'full' : 'none',
-      segments: scaffold.map((segment) => ({
-        ...newSegmentForm(segment.role),
-        label: segment.label ?? '',
-        intervalKind: segment.intervalKind ?? 'none',
-        targetKind: segment.target?.kind ?? 'none',
-        targetValue: segment.target ? (segment.target.kind === 'time' ? displayTime(segment.target.value) : String(segment.target.value)) : '',
-      })),
+      segments: merged.segments,
     });
-    if (scaffold.length) setShowSegments(true);
+    setShowSegments(scaffold.length > 0);
     toast.success(scaffold.length ? 'Planned intervals added. Enter what you actually did.' : 'Workout notation saved as the plan.');
     return true;
   };
@@ -270,20 +277,24 @@ export function CompletedWorkoutEntry() {
     }
   };
 
-  const useSegmentTotals = () => update({
-    distance: segmentTotals.distance ? String(segmentTotals.distance / (form.distanceUnit === 'km' ? 1000 : 1)) : '',
-    duration: segmentTotals.duration ? displayTime(segmentTotals.duration) : '',
-    calories: segmentTotals.calories ? String(segmentTotals.calories) : form.calories,
-  });
-
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || saving) return;
+    if (rwnInput.trim() !== form.plannedRwn.trim()) {
+      setRwnError('Set up intervals to apply this RWN before saving, or restore the saved plan.');
+      document.getElementById('manual-entry-rwn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const normalized = normalizeCompletedWorkoutDraft(formToDraft(form, original), { requireConcept2IntervalTypes: true });
     if (!normalized.ok) {
       setErrors(normalized.errors);
-      if (Object.keys(normalized.errors).some((field) => field.startsWith('segments.') || field === 'segments' || field === 'detailCoverage')) setShowSegments(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const hasSegmentError = Object.keys(normalized.errors).some((field) => field.startsWith('segments.'));
+      if (hasSegmentError || normalized.errors.segments || normalized.errors.detailCoverage) setShowSegments(true);
+      if (hasSegmentError) {
+        window.requestAnimationFrame(() => document.querySelector('[data-segment-error]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
     setSaving(true);
@@ -308,7 +319,7 @@ export function CompletedWorkoutEntry() {
 
   return (
     <>
-      <main className="mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-6 sm:px-6 sm:pt-8">
+      <main className="mx-auto max-w-6xl space-y-5 px-4 pb-28 pt-6 sm:px-6 sm:pt-8">
         <Breadcrumb items={[{ label: 'Log Dashboard', to: '/' }, { label: id ? 'Edit completed workout' : 'Add completed workout' }]} />
         <div>
           <h1 className="text-2xl font-semibold text-content-primary sm:text-3xl">{id ? 'Edit completed workout' : 'Add completed workout'}</h1>
@@ -328,7 +339,7 @@ export function CompletedWorkoutEntry() {
               <p className="rounded-lg border border-accent-danger bg-surface-card p-3 text-sm text-accent-danger" role="alert">Check the highlighted values before saving.</p>
             )}
 
-            <Card>
+            <Card className="max-w-3xl">
               <CardHeader title="What did you do?" subtitle="Choose the activity first. Equipment is optional." />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {activities.map(({ value, label, icon: Icon }) => (
@@ -357,44 +368,7 @@ export function CompletedWorkoutEntry() {
               )}
             </Card>
 
-            <Card>
-              <CardHeader title="Your result" subtitle="A quick entry only needs the measurements you know." />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input label={`Finished at · ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time'}`} type="datetime-local" value={form.finishedLocal} onChange={(event) => update({ finishedLocal: event.target.value })} error={errors.completedAt} className="min-h-11" />
-                <Select label="Completion" value={form.status} onChange={(event) => update({ status: event.target.value as EntryForm['status'] })} className="min-h-11">
-                  <option value="completed">Completed</option>
-                  <option value="stopped_early">Stopped early</option>
-                </Select>
-                <div>
-                  <div className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1"><Input label={`Distance (${form.distanceUnit})`} inputMode="decimal" value={form.distance} onChange={(event) => update({ distance: event.target.value })} error={errors['summary.distanceMeters']} className="min-h-11" /></div>
-                    <Select aria-label="Distance unit" value={form.distanceUnit} onChange={(event) => {
-                      const next = event.target.value as DistanceUnit;
-                      const factor = next === 'km' ? 1 / 1000 : 1000;
-                      update({ distanceUnit: next, distance: form.distance ? String(Number(form.distance) * factor) : '', segments: form.segments.map((segment) => ({ ...segment, distance: segment.distance ? String(Number(segment.distance) * factor) : '' })) });
-                    }} className="min-h-11 w-20"><option value="m">m</option><option value="km">km</option></Select>
-                  </div>
-                </div>
-                <Input label="Time" inputMode="decimal" value={form.duration} onChange={(event) => update({ duration: event.target.value })} placeholder="20:10 or 1:02:03" hint="For intervals, include rest if this is the full elapsed time." error={errors['summary.durationSeconds']} className="min-h-11" />
-              </div>
-              {errors.summary && <p className="mt-3 text-sm text-accent-danger" role="alert">{errors.summary}</p>}
-              <details className="mt-4 border-t border-border-subtle pt-4" open={Object.keys(errors).some((field) => ['summary.calories', 'summary.watts', 'summary.heartRate', 'summary.strokeRate', 'summary.perceivedExertion'].includes(field)) || undefined}>
-                <summary className="cursor-pointer text-sm font-medium text-content-secondary">More measurements and notes</summary>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Input label="Calories" inputMode="numeric" value={form.calories} onChange={(event) => update({ calories: event.target.value })} error={errors['summary.calories']} className="min-h-11" />
-                  {form.activity !== 'run' && <Input label="Average watts" inputMode="numeric" value={form.watts} onChange={(event) => update({ watts: event.target.value })} error={errors['summary.watts']} className="min-h-11" />}
-                  <Input label="Average heart rate" inputMode="numeric" value={form.heartRate} onChange={(event) => update({ heartRate: event.target.value })} error={errors['summary.heartRate']} className="min-h-11" />
-                  {(form.activity === 'indoor_row' || form.activity === 'ski_erg') && <Input label="Average stroke rate" inputMode="numeric" value={form.strokeRate} onChange={(event) => update({ strokeRate: event.target.value })} error={errors['summary.strokeRate']} className="min-h-11" />}
-                  <Select label="Effort (optional)" error={errors['summary.perceivedExertion']} value={form.perceivedExertion} onChange={(event) => update({ perceivedExertion: event.target.value })} className="min-h-11"><option value="">Not entered</option>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} / 10</option>)}</Select>
-                  <div className="sm:col-span-2">
-                    <label htmlFor="completed-notes" className="mb-1 block text-xs font-medium text-content-muted">Notes</label>
-                    <textarea id="completed-notes" rows={3} value={form.notes} onChange={(event) => update({ notes: event.target.value })} className="w-full rounded-lg border border-border bg-surface-secondary p-3 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-focus" placeholder="How did it feel?" />
-                  </div>
-                </div>
-              </details>
-            </Card>
-
-            <Card>
+            <Card className="max-w-3xl">
               <CardHeader title="Start from a plan" subtitle="Find a saved template or paste workout notation. Either way, you enter the actual result below." />
               {form.plannedTemplate && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-secondary p-3 text-sm">
                 <span>Template: <span className="font-medium text-content-primary">{form.plannedTemplate.name}</span></span>
@@ -410,10 +384,52 @@ export function CompletedWorkoutEntry() {
                 </button></li>)}
               </ul>}
               <div className="mt-4 flex flex-col gap-3 border-t border-border-subtle pt-4 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1"><Input label="Or paste workout notation (RWN)" value={form.plannedRwn} onChange={(event) => { update({ plannedRwn: event.target.value, plannedTemplate: null }); setRwnError(''); }} placeholder="4x500m/1:00r" error={rwnError || errors.plannedTemplate} className="min-h-11" /></div>
-                <Button type="button" variant="secondary" className="min-h-11" disabled={!form.plannedRwn.trim()} onClick={() => applyPlan(form.plannedRwn, form.plannedTemplate)}>Set up intervals</Button>
+                <div className="min-w-0 flex-1"><Input id="manual-entry-rwn" label="Or paste workout notation (RWN)" value={rwnInput} onChange={(event) => { setRwnInput(event.target.value); setRwnError(''); }} placeholder="4x500m/1:00r" error={rwnError || errors.plannedTemplate} className="min-h-11" /></div>
+                <Button type="button" variant="secondary" className="min-h-11" disabled={!rwnInput.trim()} onClick={() => applyPlan(rwnInput, rwnInput.trim() === form.plannedRwn.trim() ? form.plannedTemplate : null)}>Set up intervals</Button>
               </div>
+              {form.plannedRwn && <Button type="button" variant="ghost" className="mt-2 min-h-11" onClick={() => { update({ plannedRwn: '', plannedTemplate: null }); setRwnInput(''); setRwnError(''); }}>Detach RWN, keep rows</Button>}
+              {rwnPreview && <p className="mt-2 text-sm text-content-secondary" role="status">
+                Preview: {rwnPreview.length ? rwnPreview.filter((segment) => segment.role === 'work').length + ' work and ' + rwnPreview.filter((segment) => segment.role === 'rest').length + ' rest rows' : 'single-piece plan'}. Planned targets never fill in actual results.
+              </p>}
               <p className="mt-2 text-xs text-content-muted">The plan sets targets only. Enter measured distance and time for each interval after the workout.</p>
+            </Card>
+
+            <Card className="max-w-3xl">
+              <CardHeader title="Your result" subtitle="A quick entry only needs the measurements you know." />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input label={`Finished at · ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time'}`} type="datetime-local" value={form.finishedLocal} onChange={(event) => update({ finishedLocal: event.target.value })} error={errors.completedAt} className="min-h-11" />
+                <Select label="Completion" value={form.status} onChange={(event) => update({ status: event.target.value as EntryForm['status'] })} className="min-h-11">
+                  <option value="completed">Completed</option>
+                  <option value="stopped_early">Stopped early</option>
+                </Select>
+                <div>
+                  <div className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1"><Input label={`Distance (${form.distanceUnit})`} inputMode="decimal" value={fullDetail ? measuredDistance ? String(measuredDistance / (form.distanceUnit === 'km' ? 1000 : 1)) : '' : form.distance} readOnly={fullDetail} onChange={(event) => update({ distance: event.target.value })} error={errors['summary.distanceMeters']} className="min-h-11" /></div>
+                    <Select aria-label="Distance unit" value={form.distanceUnit} onChange={(event) => {
+                      const next = event.target.value as DistanceUnit;
+                      const factor = next === 'km' ? 1 / 1000 : 1000;
+                      update({ distanceUnit: next, distance: form.distance ? String(Number(form.distance) * factor) : '', segments: form.segments.map((segment) => ({ ...segment, distance: segment.distance ? String(Number(segment.distance) * factor) : '' })) });
+                    }} className="min-h-11 w-20"><option value="m">m</option><option value="km">km</option></Select>
+                  </div>
+                </div>
+                <Input label="Time" inputMode="decimal" value={fullDetail ? measuredDuration ? displayTime(measuredDuration) : "" : form.duration} readOnly={fullDetail} onChange={(event) => update({ duration: event.target.value })} placeholder="20:10 or 1:02:03" hint={fullDetail ? "Calculated from all entered work and rest rows." : "For intervals, include rest if this is the full elapsed time."} error={errors['summary.durationSeconds']} className="min-h-11" />
+                {fullDetail && <p className="text-xs text-content-muted sm:col-span-2">Distance, time, and calories are calculated from the interval rows below. To enter a separate session total, choose partial detail.</p>}
+              </div>
+              {errors.summary && <p className="mt-3 text-sm text-accent-danger" role="alert">{errors.summary}</p>}
+              <details className="mt-4 border-t border-border-subtle pt-4" open={Object.keys(errors).some((field) => ['summary.calories', 'summary.watts', 'summary.heartRate', 'summary.strokeRate', 'summary.perceivedExertion'].includes(field)) || undefined}>
+                <summary className="cursor-pointer text-sm font-medium text-content-secondary">More measurements and notes</summary>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input label="Calories" inputMode="numeric" value={fullDetail ? segmentTotals.work.calories ? String(segmentTotals.work.calories) : '' : form.calories} readOnly={fullDetail} onChange={(event) => update({ calories: event.target.value })} error={errors['summary.calories']} className="min-h-11" />
+                  {form.activity !== 'run' && <Input label="Average watts" inputMode="numeric" value={form.watts} onChange={(event) => update({ watts: event.target.value })} error={errors['summary.watts']} className="min-h-11" />}
+                  <Input label="Average heart rate" inputMode="numeric" value={form.heartRate} onChange={(event) => update({ heartRate: event.target.value })} error={errors['summary.heartRate']} className="min-h-11" />
+                  {(form.activity === 'indoor_row' || form.activity === 'ski_erg') && <Input label="Average stroke rate" inputMode="numeric" value={form.strokeRate} onChange={(event) => update({ strokeRate: event.target.value })} error={errors['summary.strokeRate']} className="min-h-11" />}
+                  <Select label="Effort (optional)" error={errors['summary.perceivedExertion']} value={form.perceivedExertion} onChange={(event) => update({ perceivedExertion: event.target.value })} className="min-h-11"><option value="">Not entered</option>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} / 10</option>)}</Select>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="completed-notes" className="mb-1 block text-xs font-medium text-content-muted">Notes</label>
+                    <textarea id="completed-notes" rows={3} value={form.notes} onChange={(event) => update({ notes: event.target.value })} className="w-full rounded-lg border border-border bg-surface-secondary p-3 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-focus" placeholder="How did it feel?" />
+                  </div>
+                </div>
+              </details>
             </Card>
 
             <Card>
@@ -426,13 +442,25 @@ export function CompletedWorkoutEntry() {
                     <option value="full">The whole workout</option>
                     <option value="partial">Only part of it</option>
                   </Select>
-                  {form.segments.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-secondary p-3 text-sm">
-                      <div><p className="font-medium text-content-primary">Entered segments total</p><p className="text-content-secondary">{segmentTotals.distance ? `${segmentTotals.distance.toLocaleString()} m` : 'no distance'} · {segmentTotals.duration ? displayTime(segmentTotals.duration) : 'no time'}{segmentTotals.calories ? ` · ${segmentTotals.calories} cal` : ''}</p></div>
-                      {form.detailCoverage === 'full' && <Button type="button" variant="secondary" className="min-h-11" icon={<Check size={16} />} onClick={useSegmentTotals}>Use these totals</Button>}
-                    </div>
-                  )}
-                  <SegmentEditor segments={form.segments} onChange={(segments) => update({ segments, detailCoverage: segments.length ? (form.detailCoverage === 'none' ? 'full' : form.detailCoverage) : 'none' })} distanceUnit={form.distanceUnit} errors={errors} />
+                  {form.segments.length > 0 && <div className="rounded-lg border border-border bg-surface-secondary p-3 text-sm" aria-live="polite">
+                    <p className="font-medium text-content-primary">Measured rows {form.detailCoverage === 'partial' ? '(partial detail)' : '(whole workout)'}</p>
+                    <p className="mt-1 text-content-secondary">
+                      Work: {segmentTotals.work.distance.toLocaleString()} m · {displayTime(segmentTotals.work.duration)}
+                      {'  ·  '}Rest: {segmentTotals.rest.distance.toLocaleString()} m · {displayTime(segmentTotals.rest.duration)}
+                      {'  ·  '}Elapsed: {displayTime(measuredDuration)}
+                    </p>
+                  </div>}
+                  <SegmentGrid
+                    segments={form.segments}
+                    onChange={(segments, planChanged) => { if (planChanged) setRwnInput(''); update({
+                      segments,
+                      detailCoverage: segments.length ? (form.detailCoverage === 'none' ? 'full' : form.detailCoverage) : 'none',
+                      ...(planChanged ? { plannedRwn: '', plannedTemplate: null } : {}),
+                    }); }}
+                    distanceUnit={form.distanceUnit}
+                    errors={errors}
+                    hasLinkedPlan={Boolean(form.plannedRwn || form.plannedTemplate)}
+                  />
                   {errors.segments && <p className="text-sm text-accent-danger" role="alert">{errors.segments}</p>}
                   <Button type="button" variant="ghost" className="min-h-11" onClick={() => setShowSegments(false)}>Hide interval detail</Button>
                 </div>
