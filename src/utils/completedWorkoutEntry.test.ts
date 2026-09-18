@@ -143,4 +143,26 @@ describe('completed workout entry', () => {
       { intervalKind: 'distance', distanceMeters: 500 }, {}, { intervalKind: 'distance', distanceMeters: 500 },
     ] } });
   });
+
+  it('points to an unspecified work interval type before saving a complete Concept2 RowErg result', () => {
+    const segments: CompletedWorkoutDraft['segments'] = [
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 750, durationSeconds: 180 },
+      { role: 'rest', target: null, distanceMeters: 0, durationSeconds: 45 },
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 750, durationSeconds: 180 },
+      { role: 'rest', target: null, distanceMeters: 0, durationSeconds: 45 },
+      { role: 'work', target: null, distanceMeters: 750, durationSeconds: 180 },
+    ];
+    const draft: CompletedWorkoutDraft = { ...base, activity: 'indoor_row',
+      equipment: { brand: 'concept2', name: 'RowErg' },
+      summary: { distanceMeters: 2250, durationSeconds: 630 }, detailCoverage: 'full', segments };
+
+    expect(normalizeCompletedWorkoutDraft(draft)).toMatchObject({ ok: false, errors: {
+      'segments.4.intervalKind': 'Choose Distance or Time for this work interval before saving.',
+    } });
+    expect(normalizeCompletedWorkoutDraft({ ...draft, segments: segments.map((segment, index) =>
+      index === 4 ? { ...segment, intervalKind: 'time' } : segment) })).toMatchObject({ ok: true });
+    expect(normalizeCompletedWorkoutDraft({ ...draft, detailCoverage: 'partial' })).toMatchObject({ ok: true });
+    expect(normalizeCompletedWorkoutDraft({ ...draft, equipment: { brand: 'other', name: 'Gym rower' } }))
+      .toMatchObject({ ok: true });
+  });
 });
