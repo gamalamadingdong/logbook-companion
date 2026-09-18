@@ -258,7 +258,9 @@ export function CompletedWorkoutEntry() {
         navigate(`/completed-workout/${savedId}`);
       }
     } catch (error) {
-      setErrors({ page: error instanceof Error ? error.message : 'Could not save this workout. Try again.' });
+      const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+        ? error.message : 'Could not save this workout. Try again.';
+      setErrors({ page: message });
     } finally {
       setSaving(false);
     }
