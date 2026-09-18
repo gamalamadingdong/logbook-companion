@@ -5,6 +5,7 @@ export type SegmentTarget = { kind: 'distance' | 'time' | 'calories'; value: num
 
 export interface CompletedSegment {
   role: 'work' | 'rest';
+  intervalKind?: 'distance' | 'time';
   label?: string;
   target: SegmentTarget;
   distanceMeters?: number;
@@ -35,6 +36,7 @@ export interface CompletedWorkoutDraft {
   segments: CompletedSegment[];
   notes: string;
   plannedRwn: string | null;
+  plannedTemplate?: { id: string; name: string } | null;
 }
 
 export interface CompletedWorkoutEntryV1 extends CompletedWorkoutDraft {

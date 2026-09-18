@@ -10,6 +10,10 @@
 
 **Current status:** Fixed-distance and fixed-time summaries, three synthetic interval classes, and two saved general manual RowErg summaries are proven in Concept2 development with exact-ID readback. Sam confirmed provider-side interval breakdowns. The saved manual results are development IDs `86932` (7,500 m) and `86933` (10,000 m), each with one publication attempt and preserved LC source fields. These tests do not prove real PM5 capture. The general manual result page now uses the shared core; functional testing continues.
 
+## Manual interval bridge under review (local, 2026-09-18)
+
+The general LC completion flow now separates plan from result: searchable saved LC templates and pasted RWN set only planned targets, while manually entered work/rest measurements form the durable result. The optional template link and RWN snapshot stay with the LC row. Complete Concept2 RowErg distance, time, and variable intervals normalize server-side into `CompletedWorkoutV2` and use the existing mapper, publication fence, immutable payload snapshot, and exact-ID read-back. A new service-only SQL claim checks a payload reconstructed from the saved measurements. Local mapping, disposable PostgreSQL, full Vitest, Deno, lint, and staging build checks pass; this change is not yet deployed or provider-tested with a real manual interval result. Production publishing remains disabled, and ErgLink capture/telemetry proof is a separate track.
+
 ## Global constraints
 
 - Preserve LC row identity, source, original raw capture/strokes and template/assignment links. Publication is a reference, not an origin upgrade; manual and ErgLink inputs use the same publication core after source-specific normalization.

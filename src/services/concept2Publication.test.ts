@@ -45,6 +45,17 @@ describe('Concept2 completed-workout publication mapper', () => {
     })).toThrow(/timezone/);
   });
 
+  it('accepts a saved template link only when it matches the completed result', () => {
+    const id = '11111111-2222-4333-8444-555555555555';
+    const linked = { ...generalManual, template_id: id,
+      raw_data: { ...generalManual.raw_data, completed_result: {
+        ...generalManual.raw_data.completed_result, plannedRwn: '10000m',
+        plannedTemplate: { id, name: '10K' } } } };
+    expect(completedWorkoutFromRow(linked)).toMatchObject({ workoutId: generalManual.id,
+      shape: { kind: 'fixed_distance' } });
+    expect(() => completedWorkoutFromRow({ ...linked, template_id: '22222222-2222-4333-8444-555555555555' })).toThrow();
+  });
+
   it('rejects ineligible or tampered general manual results', () => {
     const changed = (patch: Record<string, unknown>) => ({ ...generalManual,
       raw_data: { ...generalManual.raw_data,
@@ -57,6 +68,66 @@ describe('Concept2 completed-workout publication mapper', () => {
     expect(() => completedWorkoutFromRow(changed({ summary: { distanceMeters: 10000, durationSeconds: 2400.01 } }))).toThrow();
     expect(() => completedWorkoutFromRow(changed({ timezone: 'Invalid/Zone' }))).toThrow();
     expect(() => completedWorkoutFromRow({ ...generalManual, user_id: undefined })).toThrow();
+  });
+
+  it.each([
+    ['fixed distance', [
+      { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: null, durationSeconds: 60 },
+      { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
+    ], 'FixedDistanceInterval', 1000, 300, 0, 240],
+    ['fixed time', [
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 480, durationSeconds: 120 },
+      { role: 'rest', target: null, durationSeconds: 45 },
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: null, durationSeconds: 45 },
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 520, durationSeconds: 120 },
+    ], 'FixedTimeInterval', 1500, 450, 0, 360],
+    ['variable with rest distance', [
+      { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: null, distanceMeters: 25, durationSeconds: 30 },
+      { role: 'work', intervalKind: 'time', target: null, distanceMeters: 700, durationSeconds: 180 },
+      { role: 'rest', target: null, distanceMeters: 15, durationSeconds: 15 },
+    ], 'VariableInterval', 1240, 345, 40, 300],
+  ] as const)('maps a saved %s manual interval result', (_label, segments, shape, totalDistance, elapsed, restDistance, workTime) => {
+    const row = { ...generalManual, distance_meters: totalDistance - restDistance,
+      rest_distance_meters: restDistance, duration_seconds: elapsed,
+      raw_data: { source: 'general_manual_entry', completed_result: {
+        ...generalManual.raw_data.completed_result, detailCoverage: 'full',
+        summary: { distanceMeters: totalDistance, durationSeconds: elapsed },
+        workTimeSeconds: workTime, segments,
+      } } };
+    const completed = completedWorkoutFromRow(row);
+    expect(completed).toMatchObject({ _v: 2, source: 'manual', ownerId: row.user_id,
+      distanceMeters: totalDistance - restDistance, workTimeSeconds: workTime,
+      restDistanceMeters: restDistance, restTimeSeconds: elapsed - workTime });
+    const payload = mapCompletedWorkoutToConcept2(completed, {
+      timezone: 'America/New_York', weightClass: 'H', privacy: 'private',
+    });
+    expect(payload).toMatchObject({ workout_type: shape, distance: totalDistance - restDistance,
+      time: workTime * 10, rest_distance: restDistance, rest_time: (elapsed - workTime) * 10 });
+    expect(payload.workout?.intervals).toHaveLength(segments.filter(item => item.role === 'work').length);
+  });
+
+  it('fails closed for incomplete or mismatched manual interval results', () => {
+    const segments = [
+      { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: null, durationSeconds: 60 },
+      { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
+    ];
+    const row = { ...generalManual, duration_seconds: 300, raw_data: { source: 'general_manual_entry',
+      completed_result: { ...generalManual.raw_data.completed_result,
+        detailCoverage: 'full', summary: { distanceMeters: 1000, durationSeconds: 300 },
+        workTimeSeconds: 240, segments } } };
+    const changed = (patch: Record<string, unknown>) => ({ ...row,
+      raw_data: { ...row.raw_data, completed_result: { ...row.raw_data.completed_result, ...patch } } });
+    expect(() => completedWorkoutFromRow(changed({ detailCoverage: 'partial' }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ segments: segments.map(({ intervalKind: ignored, ...rest }) => {
+      void ignored; return rest;
+    }) }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ workTimeSeconds: 250 }))).toThrow();
+    expect(() => completedWorkoutFromRow({ ...row, distance_meters: 999 })).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ status: 'stopped_early' }))).toThrow();
   });
 
   it('binds a named interval fixture to a durable owned LC identity', () => {

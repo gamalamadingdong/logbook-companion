@@ -35,15 +35,22 @@ export function buildCompletedWorkoutInsert(userId: string, result: CompletedWor
     ? result.segments.filter((segment) => segment.role === 'work').reduce((total, segment) => total + (segment.distanceMeters ?? 0), 0)
     : distance;
   const workTime = measuredWork ? result.workTimeSeconds ?? elapsed : elapsed;
+  const separateRestDistance = measuredWork && result.activity === 'indoor_row'
+    && result.equipment?.brand === 'concept2' && result.equipment.name === 'RowErg';
+  const indexedDistance = separateRestDistance ? workDistance : distance;
+  const restDistance = separateRestDistance && distance !== null && workDistance !== null
+    ? distance - workDistance : null;
   const activityName = completedActivityName(result.activity, result.activityName);
   const isErg = result.activity === 'indoor_row' || result.activity === 'ski_erg';
   return {
     user_id: userId,
+    template_id: result.plannedTemplate?.id ?? null,
     source: 'manual',
     workout_type: workoutTypes[result.activity],
     workout_name: distance ? `${activityName} · ${distance.toLocaleString()} m` : activityName,
     completed_at: result.completedAt,
-    distance_meters: distance,
+    distance_meters: indexedDistance,
+    rest_distance_meters: restDistance,
     duration_seconds: elapsed,
     duration_minutes: elapsed == null ? null : Math.round(elapsed / 60),
     avg_split_500m: isErg && workTime && workDistance ? (workTime / workDistance) * 500 : null,

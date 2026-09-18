@@ -8,17 +8,55 @@ import { developmentConcept2, getDevelopmentPublishBlockers, type DevelopmentCon
 import type { CompletedWorkoutEntryV1 } from '../../types/completedWorkoutEntry';
 import { formatCompletedDuration } from '../../utils/completedWorkoutEntry';
 
-export function canPublishManualRowErg(result: CompletedWorkoutEntryV1): boolean {
+type PublicationPreview = { label: string; distance: number; seconds: number; restSeconds: number; restDistance: number };
+
+function decisecond(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && Number.isInteger(Math.round(value * 10))
+    && Math.abs(value * 10 - Math.round(value * 10)) < 1e-7;
+}
+
+export function manualConcept2Preview(result: CompletedWorkoutEntryV1): PublicationPreview | null {
   const { distanceMeters: distance, durationSeconds: seconds } = result.summary;
-  try { new Intl.DateTimeFormat('en', { timeZone: result.timezone }).format(); } catch { return false; }
-  return result.activity === 'indoor_row' && result.equipment?.brand === 'concept2'
-    && result.equipment.name === 'RowErg' && result.status === 'completed'
-    && result.detailCoverage === 'none' && result.segments.length === 0
-    && result.workTimeSeconds === undefined && Number.isSafeInteger(distance)
-    && Number(distance) > 0 && Number(distance) <= 1_000_000
-    && typeof seconds === 'number' && Number.isFinite(seconds)
-    && seconds > 0 && seconds <= 86_400 && Number.isInteger(seconds * 10)
-    && new Date(result.completedAt).getTime() <= Date.now();
+  try { new Intl.DateTimeFormat('en', { timeZone: result.timezone }).format(); } catch { return null; }
+  if (result.activity !== 'indoor_row' || result.equipment?.brand !== 'concept2' ||
+      result.equipment.name !== 'RowErg' || result.status !== 'completed' ||
+      !Number.isSafeInteger(distance) || Number(distance) <= 0 || Number(distance) > 1_000_000 ||
+      typeof seconds !== 'number' || seconds <= 0 || seconds > 86_400 || !decisecond(seconds) ||
+      !Number.isFinite(new Date(result.completedAt).getTime()) ||
+      new Date(result.completedAt).getTime() > Date.now()) return null;
+  if (result.detailCoverage === 'none' && result.segments.length === 0 && result.workTimeSeconds === undefined) {
+    return { label: 'Single RowErg piece', distance: distance!, seconds, restSeconds: 0, restDistance: 0 };
+  }
+  if (result.detailCoverage !== 'full' || result.segments.length < 2) return null;
+  let workDistance = 0, workTime = 0, restDistance = 0, restSeconds = 0, workCount = 0;
+  let previousRole: string | undefined;
+  const workSegments = result.segments.filter(segment => segment.role === 'work');
+  for (const segment of result.segments) {
+    if (segment.role === 'work') {
+      if (!['distance', 'time'].includes(segment.intervalKind ?? '') ||
+          !Number.isSafeInteger(segment.distanceMeters) || !segment.distanceMeters || segment.distanceMeters <= 0 ||
+          segment.durationSeconds === undefined || segment.durationSeconds <= 0 || !decisecond(segment.durationSeconds)) return null;
+      workDistance += segment.distanceMeters; workTime += segment.durationSeconds; workCount += 1;
+    } else {
+      if (previousRole !== 'work' || segment.intervalKind !== undefined ||
+          (segment.distanceMeters === undefined && segment.durationSeconds === undefined) ||
+          (segment.distanceMeters !== undefined && (!Number.isSafeInteger(segment.distanceMeters) || segment.distanceMeters < 0)) ||
+          (segment.durationSeconds !== undefined && !decisecond(segment.durationSeconds))) return null;
+      restDistance += segment.distanceMeters ?? 0; restSeconds += segment.durationSeconds ?? 0;
+    }
+    previousRole = segment.role;
+  }
+  if (workCount < 2 || workDistance > 1_000_000 || workDistance + restDistance !== distance ||
+      Math.abs(workTime + restSeconds - seconds) > 1e-7 ||
+      result.workTimeSeconds === undefined || Math.abs(workTime - result.workTimeSeconds) > 1e-7) return null;
+  const fixedDistance = restDistance === 0 && workSegments.every(segment => segment.intervalKind === 'distance' && segment.distanceMeters === workSegments[0].distanceMeters);
+  const fixedTime = restDistance === 0 && workSegments.every(segment => segment.intervalKind === 'time' && segment.durationSeconds === workSegments[0].durationSeconds);
+  return { label: `${workCount} ${fixedDistance ? 'fixed-distance' : fixedTime ? 'fixed-time' : 'variable'} intervals`,
+    distance: workDistance, seconds: workTime, restSeconds, restDistance };
+}
+
+export function canPublishManualRowErg(result: CompletedWorkoutEntryV1): boolean {
+  return manualConcept2Preview(result) !== null;
 }
 
 type Props = { workoutId: string; result: CompletedWorkoutEntryV1 };
@@ -87,13 +125,14 @@ export function Concept2DevelopmentPublication({ workoutId, result }: Props) {
     } finally { setPending(false); }
   }
 
+  const preview = manualConcept2Preview(result);
   const blockers = getDevelopmentPublishBlockers({ connection, selectedId: workoutId, weightClass,
     timezone: result.timezone, confirmed, existingStatus: publication?.status });
   const canSend = !loading && !pending && blockers.length === 0;
   return <Card>
     <CardHeader title="Publish to Concept2 development" subtitle="Your saved LC result remains the training record. Publishing is a separate, explicit step." />
     <div className="space-y-4 text-sm text-content-secondary">
-      <p>Single RowErg piece · {result.summary.distanceMeters?.toLocaleString()} m · {formatCompletedDuration(result.summary.durationSeconds ?? 0)} · {result.timezone}</p>
+      <p>{preview?.label} · {preview?.distance.toLocaleString()} m work · {formatCompletedDuration(preview?.seconds ?? 0)} work{preview?.restSeconds ? ` · ${formatCompletedDuration(preview.restSeconds)} rest` : ''}{preview?.restDistance ? ` · ${preview.restDistance.toLocaleString()} m rest` : ''} · {result.timezone}</p>
       {loading ? <p role="status">Checking development connection and publication status…</p> : <>
         {publication?.status === 'published' ? <div role="status" className="rounded-lg border border-border bg-surface-secondary p-3">
           <p className="font-medium text-content-primary">Published as Concept2 development result {publication.result_id}.</p>
@@ -112,7 +151,7 @@ export function Concept2DevelopmentPublication({ workoutId, result }: Props) {
           </div>
           <label className="flex min-h-11 items-start gap-3 rounded-lg border border-border p-3">
             <input type="checkbox" className="mt-1 size-5 accent-accent-primary" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
-            <span>I completed this row at the saved distance and time, and I want to publish it to my Concept2 development Logbook.</span>
+            <span>I completed this row with the saved measurements, and I want to publish it to my Concept2 development Logbook.</span>
           </label>
           {blockers.length > 0 && <p role="status">{blockers[0]}</p>}
           <Button size="lg" className="min-h-11 w-full sm:w-auto" loading={pending} disabled={!canSend} onClick={() => void publish()}>

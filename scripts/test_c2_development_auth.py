@@ -177,7 +177,7 @@ try:
     sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
     sql((root / 'supabase/migrations/20260917172700_concept2_shared_publication_core.sql').read_text())
     sql((root / 'supabase/migrations/20260917190000_concept2_development_interval_fixtures.sql').read_text())
-    sql((root / 'supabase/migrations/20260918141130_concept2_general_manual_summary_publication.sql').read_text())
+    sql((root / 'supabase/migrations/20260918142512_concept2_general_manual_summary_publication.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
@@ -320,6 +320,86 @@ try:
       end $$;
     """)
     print('PASS: general manual RowErg claim, exact payload/timezone, ownership, mapper version, duplicate fence')
+    sql((root / 'supabase/migrations/20260918153000_concept2_general_manual_interval_publication.sql').read_text())
+    for role in ['anon', 'authenticated']:
+        denied = sql(f"set role {role}; select public.c2_development_manual_interval_payload(null,'UTC','H','private');", ok=False)
+        assert denied.returncode != 0 and 'permission denied' in denied.stderr
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+        w uuid; completed jsonb; segments jsonb; payload jsonb; claim jsonb; again jsonb;
+        shape text; distance integer; elapsed integer; work_time integer; rest_distance integer;
+        template uuid := 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+      begin
+        for i in 1..3 loop
+          w := ('99999999-8888-4777-8666-' || lpad(i::text,12,'0'))::uuid;
+          if i=1 then
+            segments := jsonb_build_array(
+              jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'durationSeconds',60),
+              jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',120));
+            shape:='FixedDistanceInterval'; distance:=1000; elapsed:=300; work_time:=240; rest_distance:=0;
+          elsif i=2 then
+            segments := jsonb_build_array(
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',480,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'durationSeconds',45),
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',500,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'durationSeconds',45),
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',520,'durationSeconds',120));
+            shape:='FixedTimeInterval'; distance:=1500; elapsed:=450; work_time:=360; rest_distance:=0;
+          else
+            segments := jsonb_build_array(
+              jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'distanceMeters',25,'durationSeconds',30),
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',700,'durationSeconds',180),
+              jsonb_build_object('role','rest','target',null,'distanceMeters',15,'durationSeconds',15));
+            shape:='VariableInterval'; distance:=1200; elapsed:=345; work_time:=300; rest_distance:=40;
+          end if;
+          completed := jsonb_build_object('_v',1,'activity','indoor_row','status','completed',
+            'equipment',jsonb_build_object('brand','concept2','name','RowErg'),
+            'detailCoverage','full','segments',segments,'timezone','America/New_York',
+            'completedAt','2026-09-17T12:30:00Z','workTimeSeconds',work_time,
+            'summary',jsonb_build_object('distanceMeters',distance+rest_distance,'durationSeconds',elapsed),
+            'plannedRwn',case when i=1 then '2x500m/1:00r' else null end);
+          if i=1 then completed := completed || jsonb_build_object('plannedTemplate',jsonb_build_object('id',template,'name','Two 500s')); end if;
+          insert into public.workout_logs(id,user_id,source,workout_type,completed_at,
+            distance_meters,rest_distance_meters,duration_seconds,template_id,raw_data) values
+            (w,u,'manual','row','2026-09-17T12:30:00Z',distance,rest_distance,elapsed,
+             case when i=1 then template else null end,
+             jsonb_build_object('source','general_manual_entry','completed_result',completed));
+          select public.c2_development_manual_interval_payload(wl,'America/New_York','H','private')
+            into payload from public.workout_logs wl where wl.id=w;
+          if payload->>'workout_type' is distinct from shape or
+             (payload->>'distance')::integer is distinct from distance or
+             (payload->>'time')::integer is distinct from work_time*10 or
+             (payload->>'rest_distance')::integer is distinct from rest_distance or
+             jsonb_array_length(payload->'workout'->'intervals') is distinct from (case when i=2 then 3 else 2 end) then
+             raise exception 'Interval payload shape/totals incorrect: %',payload; end if;
+          begin
+            perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+              'workout_id',w,'timezone','America/New_York','weight_class','H',
+              'privacy','private','confirmed_completed',true,'payload',payload || jsonb_build_object('distance',999)));
+            raise exception 'Tampered interval payload accepted';
+          exception when others then
+            if sqlerrm='Tampered interval payload accepted' then raise; end if;
+          end;
+          claim := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H',
+            'privacy','private','confirmed_completed',true,'payload',payload));
+          if claim->>'dispatch' is distinct from 'true' or claim->'payload' is distinct from payload or
+             (select mapper_version from public.c2_development_publications where workout_id=w) <> 2 then
+             raise exception 'Measured interval claim failed: %',claim; end if;
+          perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+            'attempt_id',claim->>'attempt_id','result_id',1100+i,'outcome','published'));
+          again := public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','America/New_York','weight_class','H',
+            'privacy','private','confirmed_completed',true,'payload',payload));
+          if again->>'dispatch' is distinct from 'false' or
+             (select attempt_count from public.c2_development_publications where workout_id=w) <> 1 then
+             raise exception 'Measured interval duplicate dispatched'; end if;
+        end loop;
+      end $$;
+    """)
+    print('PASS: measured manual fixed-distance, fixed-time, variable interval claims, template link, exact payload fence, duplicate fence')
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_fixture_workouts", "select public.c2_development_create_fixture_workout('00000000-0000-0000-0000-000000000001','fixed_distance_intervals_2x500m','{}')"]:
             p = sql(f'set role {role}; {statement};', ok=False)
