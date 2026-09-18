@@ -7,6 +7,7 @@ import {
     createWorkoutSearchController,
     filterWorkoutsByActivityCategory,
     formatAveragePace,
+    formatWorkoutPace,
     formatRelativeWorkoutDay,
     formatWorkoutSearchSummary,
     getActivityCategory,
@@ -146,6 +147,19 @@ describe('createWorkoutSearchController', () => {
         expect(clearTimeout).toHaveBeenCalledOnce();
         expect(focusSearchInput).toHaveBeenCalledOnce();
         expect(controller.isCurrent(inFlightSearch)).toBe(false);
+    });
+});
+
+describe('manual workout pace', () => {
+    it('uses a kilometre for runs and bike ergs and avoids inventing pace for other activities', () => {
+        const manual = (activity: string) => ({
+            id: 'workout-1', db_id: 'workout-1', date: '2026-09-18', distance: 5000, durationSeconds: 1500,
+            name: 'Manual workout', raw_data: { source: 'general_manual_entry', completed_result: { activity } },
+        });
+        expect(formatWorkoutPace(manual('run'))).toBe('5:00.0/km');
+        expect(formatWorkoutPace(manual('bike_erg'))).toBe('5:00.0/km');
+        expect(formatWorkoutPace(manual('other'))).toBe('–');
+        expect(formatWorkoutPace(manual('indoor_row'))).toBe('2:30.0/500m');
     });
 });
 

@@ -22,25 +22,31 @@ const workoutTypes: Record<CompletedActivity, string> = {
   other: 'other',
 };
 
-export function completedActivityName(activity: CompletedActivity): string {
-  return activityNames[activity];
+export function completedActivityName(activity: CompletedActivity, activityName?: string): string {
+  return activity === 'other' ? activityName || activityNames.other : activityNames[activity];
 }
 
 export function buildCompletedWorkoutInsert(userId: string, result: CompletedWorkoutEntryV1): WorkoutInsert {
   const distance = result.summary.distanceMeters ?? null;
   const elapsed = result.summary.durationSeconds ?? null;
-  const workTime = result.workTimeSeconds ?? elapsed;
+  const measuredWork = result.detailCoverage === 'full' && result.segments.length > 0
+    && result.segments.filter((segment) => segment.role === 'work').every((segment) => segment.distanceMeters !== undefined && segment.durationSeconds !== undefined);
+  const workDistance = measuredWork
+    ? result.segments.filter((segment) => segment.role === 'work').reduce((total, segment) => total + (segment.distanceMeters ?? 0), 0)
+    : distance;
+  const workTime = measuredWork ? result.workTimeSeconds ?? elapsed : elapsed;
+  const activityName = completedActivityName(result.activity, result.activityName);
   const isErg = result.activity === 'indoor_row' || result.activity === 'ski_erg';
   return {
     user_id: userId,
     source: 'manual',
     workout_type: workoutTypes[result.activity],
-    workout_name: distance ? `${activityNames[result.activity]} · ${distance.toLocaleString()} m` : activityNames[result.activity],
+    workout_name: distance ? `${activityName} · ${distance.toLocaleString()} m` : activityName,
     completed_at: result.completedAt,
     distance_meters: distance,
     duration_seconds: elapsed,
     duration_minutes: elapsed == null ? null : Math.round(elapsed / 60),
-    avg_split_500m: isErg && workTime && distance ? (workTime / distance) * 500 : null,
+    avg_split_500m: isErg && workTime && workDistance ? (workTime / workDistance) * 500 : null,
     calories_burned: result.summary.calories ?? null,
     watts: result.summary.watts ?? null,
     average_heart_rate: result.summary.heartRate ?? null,
@@ -60,8 +66,12 @@ export function readCompletedWorkoutFromRow(row: { source: WorkoutRow['source'];
   if (raw.source !== 'general_manual_entry' || !raw.completed_result || typeof raw.completed_result !== 'object' || Array.isArray(raw.completed_result)) return null;
   const candidate = raw.completed_result as unknown as Record<string, unknown>;
   if (candidate._v !== 1) return null;
-  const normalized = normalizeCompletedWorkoutDraft(candidate as unknown as CompletedWorkoutDraft);
-  return normalized.ok ? normalized.value : null;
+  try {
+    const normalized = normalizeCompletedWorkoutDraft(candidate as unknown as CompletedWorkoutDraft);
+    return normalized.ok ? normalized.value : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function createCompletedWorkout(userId: string, result: CompletedWorkoutEntryV1): Promise<string> {
@@ -88,7 +98,8 @@ export async function getCompletedWorkout(id: string, userId: string): Promise<{
 }
 
 export async function updateCompletedWorkout(id: string, userId: string, result: CompletedWorkoutEntryV1): Promise<void> {
-  const { user_id: _userId, ...changes } = buildCompletedWorkoutInsert(userId, result);
+  const { user_id: ignoredUserId, ...changes } = buildCompletedWorkoutInsert(userId, result);
+  void ignoredUserId;
   const { data, error } = await supabase
     .from('workout_logs')
     .update(changes)

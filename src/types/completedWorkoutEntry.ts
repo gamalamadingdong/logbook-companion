@@ -25,6 +25,7 @@ export interface CompletedSummary {
 
 export interface CompletedWorkoutDraft {
   activity: CompletedActivity;
+  activityName?: string;
   equipment: CompletedEquipment;
   status: CompletionStatus;
   completedAt: string;

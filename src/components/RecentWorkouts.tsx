@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bike, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
+import { Activity, Bike, Footprints, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
 import { getPersonalRecords } from '../services/personalRecordService';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { formatCompletedDuration } from '../utils/completedWorkoutEntry';
 
 interface RecentWorkoutSummary {
     id: number | string;
@@ -17,6 +18,7 @@ interface RecentWorkoutSummary {
     name: string;
     manual_rwn?: string | null;
     db_id?: string | null;
+    raw_data?: unknown;
 }
 
 interface RecentWorkoutsProps {
@@ -35,6 +37,20 @@ interface WorkoutSearchControllerOptions {
     focusSearchInput: () => void;
     clearTimeout: (handle: number) => void;
 }
+
+const manualResult = (workout: RecentWorkoutSummary): Record<string, unknown> | null => {
+    const raw = workout.raw_data;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+    const record = raw as Record<string, unknown>;
+    if (record.source !== 'general_manual_entry') return null;
+    const result = record.completed_result;
+    return typeof result === 'object' && result !== null && !Array.isArray(result)
+        ? result as Record<string, unknown> : null;
+};
+
+const workoutLink = (workout: RecentWorkoutSummary): string => manualResult(workout) && workout.db_id
+    ? '/completed-workout/' + workout.db_id
+    : '/workout/' + (workout.id || workout.db_id);
 
 type ActivityCategory = 'All' | string;
 
@@ -85,6 +101,24 @@ export const formatAveragePace = (distanceMeters?: number | null, durationSecond
     const seconds = ((paceTenths % 600) / 10).toFixed(1).padStart(4, '0');
 
     return `${minutes}:${seconds}/500m`;
+};
+
+const workoutTimeLabel = (workout: RecentWorkoutSummary): string => manualResult(workout) && typeof workout.durationSeconds === 'number'
+    ? formatCompletedDuration(workout.durationSeconds)
+    : workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-');
+
+export const formatWorkoutPace = (workout: RecentWorkoutSummary): string => {
+    const activity = manualResult(workout)?.activity;
+    if (activity === 'other') return '–';
+    const distanceUnit = activity === 'run' || activity === 'bike_erg' ? 1000 : 500;
+    if (distanceUnit === 500) return formatAveragePace(workout.distance, workout.durationSeconds);
+    const distance = workout.distance;
+    const duration = workout.durationSeconds;
+    if (!Number.isFinite(distance) || distance <= 0 || typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return '–';
+    const paceTenths = Math.round(duration / distance * distanceUnit * 10);
+    const minutes = Math.floor(paceTenths / 600);
+    const seconds = ((paceTenths % 600) / 10).toFixed(1).padStart(4, '0');
+    return `${minutes}:${seconds}/km`;
 };
 
 const getLocalCalendarDay = (date: Date): number => Date.UTC(
@@ -324,10 +358,18 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
         const t = type.toLowerCase();
         if (t.includes('bike')) return <Bike size={16} className="text-amber-400" />;
         if (t.includes('ski')) return <Snowflake size={16} className="text-cyan-400" />;
+        if (t === 'run') return <Footprints size={16} className="text-accent-primary" />;
+        if (t === 'other') return <Activity size={16} className="text-content-secondary" />;
         return <Waves size={16} className="text-emerald-400" />;
     };
 
-    const formatMachineType = (type: string) => {
+    const formatMachineType = (workout: RecentWorkoutSummary) => {
+        const manual = manualResult(workout);
+        if (manual) {
+            const labels: Record<string, string> = { indoor_row: 'Indoor row', ski_erg: 'Ski erg', bike_erg: 'Bike erg', run: 'Run' };
+            return manual.activity === 'other' ? String(manual.activityName || 'Other activity') : labels[String(manual.activity)] || 'Workout';
+        }
+        const type = workout.type ?? '';
         // Concept2 returns "rower", "bike", "skierg"
         if (type === 'rower') return 'RowErg';
         if (type === 'bike') return 'BikeErg';
@@ -430,14 +472,14 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                     {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
                                 </div>
                                 <p className="mt-1 text-xs text-content-secondary">
-                                    {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
+                                    {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout)}
                                 </p>
                             </div>
                             <Link
-                                to={`/workout/${workout.id || workout.db_id}`}
+                                to={workoutLink(workout)}
                                 className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-accent-coaching bg-accent-coaching-surface px-3 text-xs font-medium text-accent-coaching transition-colors hover:border-accent-coaching-hover hover:bg-accent-coaching hover:text-content-primary"
                             >
-                                Analyze
+                                {workoutLink(workout).startsWith('/completed-workout/') ? 'View' : 'Analyze'}
                             </Link>
                         </div>
                         <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
@@ -448,7 +490,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                             <div>
                                 <dt className="text-xs text-content-secondary">Time</dt>
                                 <dd className="mt-1 font-mono font-medium text-accent-primary">
-                                    {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
+                                    {workoutTimeLabel(workout)}
                                 </dd>
                             </div>
                         </dl>
@@ -482,10 +524,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 </td>
                                 <td className="py-4 font-mono text-white text-base">{workout.distance}m</td>
                                 <td className="py-4 font-mono text-emerald-400 font-medium">
-                                    {workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-')}
+                                    {workoutTimeLabel(workout)}
                                 </td>
                                 <td className="py-4 font-mono text-content-secondary font-medium whitespace-nowrap">
-                                    {formatAveragePace(workout.distance, workout.durationSeconds)}
+                                    {formatWorkoutPace(workout)}
                                 </td>
                                 <td className="py-4">
                                     <div className="flex items-center gap-3">
@@ -498,17 +540,17 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                                 {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
                                             </div>
                                             <div className="text-xs text-neutral-500">
-                                                {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout.type ?? '')}
+                                                {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout)}
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="py-4 pr-4 text-right">
                                     <Link
-                                        to={`/workout/${workout.id || workout.db_id}`}
+                                        to={workoutLink(workout)}
                                         className="text-indigo-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:border-indigo-500 transition-all inline-block"
                                     >
-                                        Analyze
+                                        {workoutLink(workout).startsWith('/completed-workout/') ? 'View' : 'Analyze'}
                                     </Link>
                                 </td>
                             </tr>

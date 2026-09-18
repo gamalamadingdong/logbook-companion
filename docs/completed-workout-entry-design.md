@@ -1,6 +1,6 @@
 # Add completed workout: product and data design
 
-Status: proposed design, 2026-09-17. This describes the general LC entry flow agreed in conversation. It does not enable Concept2 production publishing or claim that a manual result came from a PM5.
+Status: approved design, 2026-09-17. The first manual-entry implementation is in progress on `feature/general-completed-workout-flow` as of 2026-09-18. It does not enable Concept2 production publishing or claim that a manual result came from a PM5.
 
 ## Purpose
 
@@ -68,3 +68,9 @@ The server alone normalizes an eligible saved LC result into the Concept2 mapper
 5. **ErgLink producer:** ingest trustworthy completed captures into the same LC result boundary while retaining raw evidence and retry identity. PM5 sample semantics and real aggregate/interval proof are separate gates.
 
 The first usable release passes if a person without a training block can save and reopen a simple indoor row, a non-Concept2 erg, a run, and a variable interval session; can see precisely which details were saved; and cannot accidentally publish anything while entering or editing.
+
+## First implementation slice (2026-09-18)
+
+The new flow stores a versioned result under `workout_logs.raw_data.completed_result` with `source: general_manual_entry`. The existing `workout_logs` UUID remains the identity and its summary columns remain an index. Live schema and owner RLS were inspected; this slice needs no migration. It adds global/dashboard entry, activity-first quick entry, named Other activities, optional equipment, full or partial measured intervals, RWN target prefill, LC save/read/edit, and a dedicated saved-result view. No Concept2 write occurs in this entry flow.
+
+The planned-workout picker and durable plan/assignment link are not in this slice; a pasted RWN is retained as plan text. The Concept2 eligibility/publication bridge and ErgLink capture producer are separate later slices. The responsive layout and touch targets were reviewed in code; an interactive phone/desktop browser review remains required before staging merge.

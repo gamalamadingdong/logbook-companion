@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCompletedWorkoutDraft, parseDurationInput, scaffoldSegmentsFromRwn } from './completedWorkoutEntry';
+import { formatCompletedDuration, normalizeCompletedWorkoutDraft, parseDurationInput, scaffoldSegmentsFromRwn } from './completedWorkoutEntry';
 import type { CompletedWorkoutDraft } from '../types/completedWorkoutEntry';
 
 const base: CompletedWorkoutDraft = {
@@ -84,11 +84,28 @@ describe('completed workout entry', () => {
     });
   });
 
+  it('names an activity outside the quick choices', () => {
+    const result = normalizeCompletedWorkoutDraft({ ...base, activity: 'other', activityName: '  Hike  ' });
+    expect(result).toMatchObject({ ok: true, value: { activity: 'other', activityName: 'Hike' } });
+    expect(normalizeCompletedWorkoutDraft({ ...base, activity: 'other', activityName: '' })).toMatchObject({ ok: false, errors: { activityName: expect.any(String) } });
+  });
+
+  it('accepts UTC but rejects an absent timezone', () => {
+    expect(normalizeCompletedWorkoutDraft({ ...base, timezone: 'UTC' }).ok).toBe(true);
+    expect(normalizeCompletedWorkoutDraft({ ...base, timezone: '' })).toMatchObject({ ok: false, errors: { timezone: expect.any(String) } });
+  });
+
   it('parses familiar minute-second and hour-minute-second inputs without rounding', () => {
     expect(parseDurationInput('20:10.5')).toBe(1210.5);
     expect(parseDurationInput('1:02:03')).toBe(3723);
     expect(parseDurationInput('90')).toBe(90);
     expect(parseDurationInput('20:75')).toBeNull();
+  });
+
+  it('displays fractional seconds without rounding the saved result', () => {
+    expect(formatCompletedDuration(90.5)).toBe('1:30.5');
+    expect(formatCompletedDuration(3723.125)).toBe('1:02:03.125');
+    expect(formatCompletedDuration(59.9999999)).toBe('1:00');
   });
 
   it('prefills interval targets from RWN without inventing measured work or rest', () => {

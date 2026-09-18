@@ -1,6 +1,20 @@
 import { parseRWN } from './rwnParser';
 import type { CompletedSegment, CompletedSummary, CompletedWorkoutDraft, CompletedWorkoutEntryV1 } from '../types/completedWorkoutEntry';
 
+export function formatCompletedDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '–';
+  const micros = Math.round(seconds * 1_000_000);
+  const wholeSeconds = Math.floor(micros / 1_000_000);
+  const fractional = micros % 1_000_000;
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const remainingSeconds = wholeSeconds % 60;
+  const fraction = fractional ? '.' + String(fractional).padStart(6, '0').replace(/0+$/, '') : '';
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}${fraction}`
+    : `${minutes}:${String(remainingSeconds).padStart(2, '0')}${fraction}`;
+}
+
 export function parseDurationInput(input: string): number | null {
   const parts = input.trim().split(':');
   if (parts.length < 1 || parts.length > 3 || parts.some((part) => !/^\d+(?:\.\d+)?$/.test(part))) return null;
@@ -27,8 +41,16 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
   const errors: Record<string, string> = {};
   if (!['indoor_row', 'ski_erg', 'bike_erg', 'run', 'other'].includes(draft.activity)) errors.activity = 'Choose an activity.';
   if (!['completed', 'stopped_early'].includes(draft.status)) errors.status = 'Choose what happened.';
+  if (draft.activity === 'other' && !draft.activityName?.trim()) errors.activityName = 'Name this activity.';
   if (!draft.completedAt || Number.isNaN(Date.parse(draft.completedAt))) errors.completedAt = 'Enter a valid finish time.';
-  if (!draft.timezone || !Intl.supportedValuesOf('timeZone').includes(draft.timezone)) errors.timezone = 'Choose a valid timezone.';
+  if (!draft.timezone) errors.timezone = 'Choose a valid timezone.';
+  else {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: draft.timezone }).format();
+    } catch {
+      errors.timezone = 'Choose a valid timezone.';
+    }
+  }
   if (draft.equipment && (!['concept2', 'other'].includes(draft.equipment.brand) || !draft.equipment.name.trim())) {
     errors.equipment = 'Choose equipment or leave it unspecified.';
   }
@@ -93,6 +115,7 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
     value: {
       ...draft,
       _v: 1,
+      activityName: draft.activity === 'other' ? draft.activityName?.trim() : undefined,
       equipment: draft.equipment ? { ...draft.equipment, name: draft.equipment.name.trim() } : null,
       summary,
       notes: draft.notes.trim(),
