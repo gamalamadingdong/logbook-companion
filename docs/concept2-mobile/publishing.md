@@ -8,7 +8,7 @@
 
 **Tech stack:** Existing React/Vite/TypeScript, Supabase/Postgres/Edge Functions, Vitest, disposable PostgreSQL tests and Concept2 OAuth/API. Keep this Concept2-specific; do not create a generalized provider framework.
 
-**Current status:** Fixed-distance and fixed-time summaries and three synthetic interval classes are proven in Concept2 development with exact-ID imports. Sam confirmed provider-side interval breakdowns; repeated import retained nine distinct results. These tests do not prove real PM5 capture. The manual form proved the seam; it is not the expansion architecture.
+**Current status:** Fixed-distance and fixed-time summaries, three synthetic interval classes, and two saved general manual RowErg summaries are proven in Concept2 development with exact-ID readback. Sam confirmed provider-side interval breakdowns. The saved manual results are development IDs `86932` (7,500 m) and `86933` (10,000 m), each with one publication attempt and preserved LC source fields. These tests do not prove real PM5 capture. The general manual result page now uses the shared core; functional testing continues.
 
 ## Global constraints
 
@@ -91,6 +91,8 @@ The detailed stream may be absent for manual rows and should be retained for PM5
 | `distance`, `time` | Actual work meters and work time in deciseconds. Define rounding once in the mapper and test boundaries; do not use rest-inclusive elapsed time. |
 | `workout_type` / splits | Confirm the accepted fixed-distance representation with development/validator evidence. Do not manufacture split records from a prescription; block release if the selected shape requires unavailable measured splits. |
 | `weight_class`, `privacy` | Explicit account/user-confirmed values under current API requirements; no inferred athlete weight class or silently public default. |
+
+**Post-functional-testing UX follow-up:** Stop asking for weight class and visibility on every publication. Prefer reliable values from the connected Concept2 profile when exposed by its API; otherwise use user-managed, account-scoped LC publication settings. Show the chosen values before the explicit publish action, allow correction in settings, and retain a safe private default only if the user has confirmed it. Do not change this flow during the current functional testing round.
 | Optional SPM/HR/watts/rest | Omit unsupported/unreliable fields; never send final-stroke values as session averages. First no-rest slice does not need interval conversion. |
 | Strokes, targets, verification | Omit stroke/interval/target richness until separately validated; omit trusted verification claims. Preserve strokes locally regardless. |
 
