@@ -2,7 +2,7 @@ import { connectConcept2 } from '../services/concept2Auth';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Blocks, LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search } from 'lucide-react';
+import { Blocks, LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search, Plus } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
@@ -59,6 +59,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     const links = [
         { path: '/', label: 'Log Dashboard', icon: Home },
+        { path: '/completed-workout/new', label: 'Add completed workout', icon: Plus },
         { path: '/analytics', label: 'Analysis', icon: TrendingUp },
         { path: '/sync', label: 'Sync Data', icon: Database },
         { path: '/library', label: 'Training Library', icon: Library },

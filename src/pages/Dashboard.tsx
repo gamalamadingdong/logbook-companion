@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { RecentWorkouts } from '../components/RecentWorkouts';
 import { GoalProgressWidget } from '../components/analytics/GoalProgressWidget';
 import { TrainingSuggestionsWidget } from '../components/analytics/TrainingSuggestionsWidget';
-import { Waves, Link as LinkIcon, AlertCircle, RefreshCw, CalendarCheck } from 'lucide-react';
+import { Waves, Link as LinkIcon, AlertCircle, RefreshCw, CalendarCheck, Plus } from 'lucide-react';
 import { WeekAtAGlanceWidget } from '../components/analytics/WeekAtAGlanceWidget';
 import { TrainingStreakWidget } from '../components/analytics/TrainingStreakWidget';
 import { WeeklyVolumeSparkline } from '../components/analytics/WeeklyVolumeSparkline';
@@ -236,7 +236,7 @@ export const Dashboard: React.FC = () => {
 
                     <h1 className="text-3xl font-bold">Welcome, {user?.email?.split('@')[0]}!</h1>
                     <p className="text-neutral-400">
-                        To see your stats, you need to connect your Concept2 logbook account.
+                        Connect your Concept2 Logbook or start your LC training record with a manually entered workout.
                     </p>
 
                     <button
@@ -246,6 +246,10 @@ export const Dashboard: React.FC = () => {
                         <LinkIcon size={20} />
                         Connect Concept2 Logbook
                     </button>
+
+                    <Link to="/completed-workout/new" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-card px-4 text-sm font-medium text-content-primary hover:bg-surface-elevated">
+                        <Plus size={18} aria-hidden="true" /> Add completed workout
+                    </Link>
 
                     <button onClick={() => logout()} className="text-neutral-500 hover:text-white text-sm">
                         Sign Out
@@ -259,6 +263,15 @@ export const Dashboard: React.FC = () => {
         <div className="min-h-screen bg-neutral-900 text-white p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
+                    {!isGuest && <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h1 className="text-2xl font-semibold text-content-primary">Your training log</h1>
+                            <p className="mt-1 text-sm text-content-secondary">Capture what you did, with or without a connected device.</p>
+                        </div>
+                        <Link to="/completed-workout/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover">
+                            <Plus size={18} aria-hidden="true" /> Add completed workout
+                        </Link>
+                    </div>}
                     {/* Disconnected Alert (Partial State) */}
                     {!legacyConcept2Enabled && !isGuest && (
                         <div className="rounded-2xl border border-emerald-900 bg-emerald-950/30 p-4 mb-4">

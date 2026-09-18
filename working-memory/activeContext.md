@@ -1,6 +1,10 @@
 # Active Context
 
-Last updated: 2026-09-17
+Last updated: 2026-09-18
+
+## Current product slice — general completed workout entry
+
+PR #165 carries the approved [general entry design](../docs/completed-workout-entry-design.md) from `feature/general-completed-workout-flow` into staging for interactive review. It adds a global activity-first manual completion flow, versioned result detail in owned `workout_logs.raw_data`, measured variable intervals with full/partial coverage, optional RWN target prefill, save/read/edit, and a dedicated LC result detail. Runs, non-Concept2 ergs, and named Other activities remain LC records. No migration, Edge deployment, Concept2 POST, or production enablement is part of this slice. The plan picker/link, Concept2 bridge, and ErgLink capture are later work. Local tests/build and the PR preview passed. The staging UI is the phone/desktop review surface; visual and live save/reopen checks remain pending.
 
 ## Current effort — Concept2 production-write approval readiness
 

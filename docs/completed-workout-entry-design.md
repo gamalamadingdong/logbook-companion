@@ -1,6 +1,6 @@
 # Add completed workout: product and data design
 
-Status: proposed design, 2026-09-17. This describes the general LC entry flow agreed in conversation. It does not enable Concept2 production publishing or claim that a manual result came from a PM5.
+Status: approved design, 2026-09-17. The first manual-entry implementation is in PR #165 as of 2026-09-18; staging is the interactive review surface. It does not enable Concept2 production publishing or claim that a manual result came from a PM5.
 
 ## Purpose
 
@@ -17,6 +17,117 @@ This is a general LC workflow. Indoor rowing, ski erg, bike erg, running, and ot
 5. **Expand detail when useful.** `Add intervals or splits` opens an ordered list of work and rest cards. Each work card can be distance, time, calorie, or other supported target kind and holds the *measured* distance, work time, and relevant optional metrics. Different cards may use different kinds. The UI offers add, duplicate, repeat, reorder, and delete. A warmup or cooldown is just another labeled work segment. A user can also save a summary without segment detail.
 6. **Review and save in LC.** Show the summary and any mismatch between it and entered segments before saving. If the segments cover the whole session, calculate totals from them; if they cover only part, explicitly mark them as partial detail and retain the separately entered session total. Show field-level errors and save progress. Successful save opens the LC workout detail with a clear saved state.
 7. **Publish separately.** Only an eligible completed Concept2 workout shows a Concept2 publication action on the saved detail page. The action explains which result will be sent and requires an explicit user choice. All other activities remain normal LC workouts. LC preserves the result's own source and detail after provider read-back.
+
+## Screen sketches for the first staging slice
+
+These sketches show the flow implemented in PR #165. They describe the order and behavior of the controls, not exact spacing or colors. On a wider screen, result fields use two columns; interval cards still read from top to bottom.
+
+### Quick entry on a phone
+
+```text
++----------------------------------------+
+| Log Dashboard > Add completed workout  |
+|                                        |
+| Add completed workout                  |
+| Log what you actually did.             |
++----------------------------------------+
+| WHAT DID YOU DO?                       |
+| [Indoor row] [Ski erg]                 |
+| [Bike erg]   [Run]                     |
+| [Other]                                |
+| Equipment (optional): [Concept2 RowErg]|
++----------------------------------------+
+| YOUR RESULT                            |
+| Finished at: [local date and time]     |
+| Completion:  [Completed v]             |
+| Distance:    [5000] [m v]              |
+| Time:        [20:10]                   |
+| > More measurements and notes          |
++----------------------------------------+
+| INTERVALS OR SPLITS                    |
+| [+ Add intervals or splits]            |
++----------------------------------------+
+| FROM A PLANNED WORKOUT?                |
+| Workout notation (RWN): [__________]  |
+| [Set up intervals]                     |
++----------------------------------------+
+| Cancel                 [Save workout]  | <- stays reachable
++----------------------------------------+
+```
+
+Choosing **Other** reveals an activity-name field, such as `Hike`. Equipment is optional for the three erg choices. A quick entry can be saved with measured distance, time, or calories; the extra metrics and note stay tucked away until wanted.
+
+### Expanded variable intervals
+
+```text
++----------------------------------------+
+| INTERVALS OR SPLITS                    |
+| Coverage: [The whole workout v]        |
+| Entered total: 1,200 m · 5:30         |
+|                 [Use these totals]     |
+|                                        |
+| 1. WORK                      [Work v]   |
+| Label:           [Warmup________]      |
+| Actual distance: [400] [m]             |
+| Actual time:     [1:35]                |
+| Calories / watts (optional)            |
+| > Planned target (optional)            |
+| [Up] [Down] [Copy] [Remove]            |
+|                                        |
+| 2. REST                      [Rest v]   |
+| Actual time:     [0:30]                |
+| > Planned target (optional)            |
+| [Up] [Down] [Copy] [Remove]            |
+|                                        |
+| 3. WORK                      [Work v]   |
+| Actual distance: [800] [m]             |
+| Actual time:     [2:00]                |
+| ...                                    |
+| [+ Add work]  [+ Add rest]             |
++----------------------------------------+
+```
+
+Each card holds an **actual measurement**. An optional planned target, including one filled from RWN, stays separate. Choose **the whole workout** when the cards add up to the result; LC checks for mismatches and can use those totals. Choose **only part of it** when the cards describe selected intervals and the session total was entered separately. Work and rest can be copied and reordered.
+
+### After saving
+
+```text
++----------------------------------------+
+| Completed workout              [Edit]  |
+| Manually entered · Saved in LC         |
+| Indoor row · Completed                 |
+| Sep 18, 2026, 8:30 AM · local zone    |
++----------------------------------------+
+| RESULT                                 |
+| 1,200 m        4:05        250 W      |
+| Optional notes                         |
++----------------------------------------+
+| INTERVALS AND SPLITS (if entered)      |
+| 1. Warmup   400 m · 1:35               |
+| 2. Rest     0:30                       |
+| 3. Work     800 m · 2:00               |
++----------------------------------------+
+| [Back to log]        [Add another]     |
++----------------------------------------+
+```
+
+The save path is `entry -> validation -> owned LC workout_logs row -> saved result view`. The row retains its LC UUID, summary columns, and versioned measured detail. This first slice has no Concept2 publish control; the later bridge must make that a separate explicit choice on an eligible saved result.
+
+```text
+CURRENT IN STAGING
+Manual result (+ optional RWN targets)
+                 |
+                 v
+     LC workout_logs (UUID + detail)
+                 |
+                 v
+           Saved result page
+
+LATER, AFTER SEPARATE VALIDATION
+PM5 -> ErgLink capture -> LC completed result
+Eligible saved result -- user taps Publish --> Concept2
+Concept2 result ID -> exact-ID read-back -> LC link
+```
 
 ### Example: quick entry
 
@@ -68,3 +179,9 @@ The server alone normalizes an eligible saved LC result into the Concept2 mapper
 5. **ErgLink producer:** ingest trustworthy completed captures into the same LC result boundary while retaining raw evidence and retry identity. PM5 sample semantics and real aggregate/interval proof are separate gates.
 
 The first usable release passes if a person without a training block can save and reopen a simple indoor row, a non-Concept2 erg, a run, and a variable interval session; can see precisely which details were saved; and cannot accidentally publish anything while entering or editing.
+
+## First implementation slice (2026-09-18)
+
+The new flow stores a versioned result under `workout_logs.raw_data.completed_result` with `source: general_manual_entry`. The existing `workout_logs` UUID remains the identity and its summary columns remain an index. Live schema and owner RLS were inspected; this slice needs no migration. It adds global/dashboard entry, activity-first quick entry, named Other activities, optional equipment, full or partial measured intervals, RWN target prefill, LC save/read/edit, and a dedicated saved-result view. No Concept2 write occurs in this entry flow.
+
+The planned-workout picker and durable plan/assignment link are not in this slice; a pasted RWN is retained as plan text. The Concept2 eligibility/publication bridge and ErgLink capture producer are separate later slices. The responsive layout and touch targets were reviewed in code. Staging will provide the interactive phone and desktop review surface; saving there creates a real LC workout in the shared backend.
