@@ -1,6 +1,6 @@
 // Deliberately development-only: never accepts an environment, provider URL,
 // callback, credentials, user ID, or tokens from the caller.
-import { developmentResults } from './results.ts';
+import { developmentReadResult, developmentResults } from './results.ts';
 import { publishManual } from './publish.ts';
 import type { CompletedWorkoutV1 } from '../_shared/concept2/publication.ts';
 import type { CompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
@@ -62,7 +62,7 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape', 'fixture_name', 'confirmed_fixture'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape', 'fixture_name', 'confirmed_fixture', 'result_id'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
       }
       const callback = `${config.origin}/callback`;
@@ -100,6 +100,13 @@ export function createHandler(deps: Dependencies) {
         }
         try { return reply(200, await publishManual(deps, user, body)); }
         catch { return reply(409, { error: 'Development publication unavailable. Check the selected row and connection. An uncertain attempt needs operator review.' }); }
+      }
+      if (body.action === 'read_result') {
+        if (!Number.isSafeInteger(body.result_id) || body.result_id <= 0 || Object.keys(body).some(k => !['action', 'result_id'].includes(k))) {
+          return reply(400, { error: 'A valid Concept2 result ID is required.' });
+        }
+        try { return reply(200, await developmentReadResult(deps, user, body.result_id)); }
+        catch { return reply(409, { error: 'Could not read back this development result. Retry the check without publishing again.' }); }
       }
       if (body.action === 'sync' || body.action === 'results') {
         try { return reply(200, await developmentResults(deps, user, body.action, body.page)); }

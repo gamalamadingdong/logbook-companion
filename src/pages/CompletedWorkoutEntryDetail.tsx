@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CalendarDays, Clock3, Pencil, Plus } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
+import { canPublishManualRowErg, Concept2DevelopmentPublication } from '../components/completed-workout/Concept2DevelopmentPublication';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { Card, CardHeader } from '../components/ui/Card';
 import { useAuth } from '../hooks/useAuth';
@@ -92,6 +93,7 @@ export function CompletedWorkoutEntryDetail() {
               </ol>
             </Card>}
 
+            {id && canPublishManualRowErg(result) && <Concept2DevelopmentPublication workoutId={id} result={result} />}
             {result.plannedRwn && <Card><CardHeader title="Planned notation" /><p className="text-sm text-content-secondary">{result.plannedRwn}</p></Card>}
             <div className="flex flex-wrap gap-3">
               <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus">Back to log</Link>

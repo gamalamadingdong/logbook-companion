@@ -177,6 +177,7 @@ try:
     sql((root / 'supabase/migrations/20260917134500_add_concept2_development_publication_provenance.sql').read_text())
     sql((root / 'supabase/migrations/20260917172700_concept2_shared_publication_core.sql').read_text())
     sql((root / 'supabase/migrations/20260917190000_concept2_development_interval_fixtures.sql').read_text())
+    sql((root / 'supabase/migrations/20260918141130_concept2_general_manual_summary_publication.sql').read_text())
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_publications", "select public.c2_development_publish_operation('00000000-0000-0000-0000-000000000001','list')"]:
             p = sql(f'set role {role}; {statement}', ok=False)
@@ -268,6 +269,57 @@ try:
       end $$;
     """)
     print('PASS: fixed-time test row and exact shared-core payload are durably claimed')
+    sql("""
+      do $$declare u uuid := '00000000-0000-0000-0000-000000000001';
+        w uuid := '11111111-2222-4333-8444-555555555555'; completed jsonb;
+        payload jsonb; claim jsonb; again jsonb;
+      begin
+        completed:=jsonb_build_object('_v',1,'activity','indoor_row','status','completed',
+          'equipment',jsonb_build_object('brand','concept2','name','RowErg'),
+          'detailCoverage','none','segments','[]'::jsonb,'timezone','America/New_York',
+          'completedAt','2026-09-17T12:30:00Z',
+          'summary',jsonb_build_object('distanceMeters',10000,'durationSeconds',2400));
+        insert into public.workout_logs(id,user_id,source,workout_type,completed_at,
+          distance_meters,duration_seconds,raw_data) values
+          (w,u,'manual','row','2026-09-17T12:30:00Z',10000,2400,
+           jsonb_build_object('source','general_manual_entry','completed_result',completed));
+        payload:=jsonb_build_object('type','rower','date','2026-09-17 08:30:00',
+          'timezone','America/New_York','distance',10000,'time',24000,
+          'workout_type','unknown','weight_class','H','privacy','private',
+          'comments','Logbook Companion workout ID: ' || w::text);
+        begin
+          perform public.c2_development_publish_operation('00000000-0000-0000-0000-000000000002',
+            'claim',jsonb_build_object('workout_id',w,'timezone','America/New_York',
+            'weight_class','H','privacy','private','confirmed_completed',true,'payload',payload));
+          raise exception 'Cross-user manual claim accepted';
+        exception when others then
+          if sqlerrm='Cross-user manual claim accepted' then raise; end if;
+        end;
+        begin
+          perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+            'workout_id',w,'timezone','UTC','weight_class','H','privacy','private',
+            'confirmed_completed',true,'payload',payload));
+          raise exception 'Changed timezone accepted';
+        exception when others then
+          if sqlerrm='Changed timezone accepted' then raise; end if;
+        end;
+        claim:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true,'payload',payload));
+        if claim->>'dispatch' is distinct from 'true' or claim->'payload' is distinct from payload
+          or (select mapper_version from public.c2_development_publications where workout_id=w) <> 1 then
+          raise exception 'General manual claim failed: %',claim; end if;
+        perform public.c2_development_publish_operation(u,'finish',jsonb_build_object(
+          'attempt_id',claim->>'attempt_id','result_id',1010,'outcome','published'));
+        again:=public.c2_development_publish_operation(u,'claim',jsonb_build_object(
+          'workout_id',w,'timezone','America/New_York','weight_class','H',
+          'privacy','private','confirmed_completed',true,'payload',payload));
+        if again->>'dispatch' is distinct from 'false' or again->>'result_id' is distinct from '1010'
+          or (select attempt_count from public.c2_development_publications where workout_id=w) <> 1 then
+          raise exception 'General manual duplicate dispatched: %',again; end if;
+      end $$;
+    """)
+    print('PASS: general manual RowErg claim, exact payload/timezone, ownership, mapper version, duplicate fence')
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_fixture_workouts", "select public.c2_development_create_fixture_workout('00000000-0000-0000-0000-000000000001','fixed_distance_intervals_2x500m','{}')"]:
             p = sql(f'set role {role}; {statement};', ok=False)

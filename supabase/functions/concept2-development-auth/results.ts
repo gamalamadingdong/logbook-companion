@@ -50,3 +50,30 @@ export async function developmentResults(deps: Dependencies, user: string, actio
     throw new Error('Development import failed. Check / refresh connection and retry this page.');
   }
 }
+
+// Read one known provider result after a successful POST. The caller supplies only
+// its numeric ID; provider URLs, credentials, and result ownership stay server-side.
+export async function developmentReadResult(deps: Dependencies, user: string, resultId: number) {
+  if (!deps.syncOperation || !Number.isSafeInteger(resultId) || resultId <= 0) throw new Error('Invalid result ID');
+  const claim = await deps.syncOperation(user, 'claim');
+  const values = { operation_id: claim.operation_id };
+  try {
+    const response = await deps.fetch(`${PROVIDER}/api/users/me/results/${resultId}`, {
+      headers: { Authorization: `Bearer ${claim.access_token}`, Accept: 'application/vnd.c2logbook.v1+json' },
+      redirect: 'error', signal: AbortSignal.timeout(20_000),
+    });
+    if (response.status === 401) {
+      await deps.syncOperation(user, 'unauthorized', values);
+      throw new Error('Refresh the development connection before checking this result.');
+    }
+    if (!response.ok) throw new Error('Provider read failed');
+    const payload = await response.json();
+    const parsed = parseResults({ data: [payload?.data ?? payload] }, 1);
+    if (parsed.results.length !== 1 || parsed.results[0].id !== resultId) throw new Error('Result ID mismatch');
+    const saved = await deps.syncOperation(user, 'save', { ...values, results: parsed.results });
+    return { ...saved, result_id: resultId };
+  } catch {
+    await deps.syncOperation(user, 'release', values).catch(() => undefined);
+    throw new Error('Could not read back this development result. Retry its exact ID; do not publish again.');
+  }
+}
