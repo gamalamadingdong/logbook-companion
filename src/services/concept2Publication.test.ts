@@ -76,6 +76,11 @@ describe('Concept2 completed-workout publication mapper', () => {
       { role: 'rest', target: null, durationSeconds: 60 },
       { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
     ], 'FixedDistanceInterval', 1000, 300, 0, 240],
+    ['fixed distance with measured rest distance', [
+      { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 }, distanceMeters: 500, durationSeconds: 121 },
+      { role: 'rest', target: { kind: 'time', value: 60 }, distanceMeters: 1, durationSeconds: 60 },
+      { role: 'work', intervalKind: 'distance', target: { kind: 'distance', value: 500 }, distanceMeters: 500, durationSeconds: 115 },
+    ], 'FixedDistanceInterval', 1001, 296, 1, 236],
     ['fixed time', [
       { role: 'work', intervalKind: 'time', target: null, distanceMeters: 480, durationSeconds: 120 },
       { role: 'rest', target: null, durationSeconds: 45 },
@@ -83,6 +88,13 @@ describe('Concept2 completed-workout publication mapper', () => {
       { role: 'rest', target: null, durationSeconds: 45 },
       { role: 'work', intervalKind: 'time', target: null, distanceMeters: 520, durationSeconds: 120 },
     ], 'FixedTimeInterval', 1500, 450, 0, 360],
+    ['fixed time with measured rest distance', [
+      { role: 'work', intervalKind: 'time', target: { kind: 'time', value: 120 }, distanceMeters: 480, durationSeconds: 120 },
+      { role: 'rest', target: { kind: 'time', value: 45 }, distanceMeters: 10, durationSeconds: 45 },
+      { role: 'work', intervalKind: 'time', target: { kind: 'time', value: 120 }, distanceMeters: 500, durationSeconds: 120 },
+      { role: 'rest', target: { kind: 'time', value: 45 }, distanceMeters: 20, durationSeconds: 45 },
+      { role: 'work', intervalKind: 'time', target: { kind: 'time', value: 120 }, distanceMeters: 520, durationSeconds: 120 },
+    ], 'FixedTimeInterval', 1530, 450, 30, 360],
     ['variable with rest distance', [
       { role: 'work', intervalKind: 'distance', target: null, distanceMeters: 500, durationSeconds: 120 },
       { role: 'rest', target: null, distanceMeters: 25, durationSeconds: 30 },
@@ -107,6 +119,10 @@ describe('Concept2 completed-workout publication mapper', () => {
     expect(payload).toMatchObject({ workout_type: shape, distance: totalDistance - restDistance,
       time: workTime * 10, rest_distance: restDistance, rest_time: (elapsed - workTime) * 10 });
     expect(payload.workout?.intervals).toHaveLength(segments.filter(item => item.role === 'work').length);
+    for (const interval of payload.workout?.intervals ?? []) {
+      if (shape === 'VariableInterval') expect(interval).toHaveProperty('rest_distance');
+      else expect(interval).not.toHaveProperty('rest_distance');
+    }
   });
 
   it('fails closed for incomplete or mismatched manual interval results', () => {

@@ -321,6 +321,7 @@ try:
     """)
     print('PASS: general manual RowErg claim, exact payload/timezone, ownership, mapper version, duplicate fence')
     sql((root / 'supabase/migrations/20260918160118_concept2_general_manual_interval_publication.sql').read_text())
+    sql((root / 'supabase/migrations/20260918190410_concept2_fixed_interval_rest_distance.sql').read_text())
     for role in ['anon', 'authenticated']:
         denied = sql(f"set role {role}; select public.c2_development_manual_interval_payload(null,'UTC','H','private');", ok=False)
         assert denied.returncode != 0 and 'permission denied' in denied.stderr
@@ -330,7 +331,7 @@ try:
         shape text; distance integer; elapsed integer; work_time integer; rest_distance integer;
         template uuid := 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
       begin
-        for i in 1..3 loop
+        for i in 1..5 loop
           w := ('99999999-8888-4777-8666-' || lpad(i::text,12,'0'))::uuid;
           if i=1 then
             segments := jsonb_build_array(
@@ -346,13 +347,27 @@ try:
               jsonb_build_object('role','rest','target',null,'durationSeconds',45),
               jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',520,'durationSeconds',120));
             shape:='FixedTimeInterval'; distance:=1500; elapsed:=450; work_time:=360; rest_distance:=0;
-          else
+          elsif i=3 then
             segments := jsonb_build_array(
               jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',120),
               jsonb_build_object('role','rest','target',null,'distanceMeters',25,'durationSeconds',30),
               jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',700,'durationSeconds',180),
               jsonb_build_object('role','rest','target',null,'distanceMeters',15,'durationSeconds',15));
             shape:='VariableInterval'; distance:=1200; elapsed:=345; work_time:=300; rest_distance:=40;
+          elsif i=4 then
+            segments := jsonb_build_array(
+              jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',121),
+              jsonb_build_object('role','rest','target',null,'distanceMeters',1,'durationSeconds',60),
+              jsonb_build_object('role','work','intervalKind','distance','target',null,'distanceMeters',500,'durationSeconds',115));
+            shape:='FixedDistanceInterval'; distance:=1000; elapsed:=296; work_time:=236; rest_distance:=1;
+          else
+            segments := jsonb_build_array(
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',480,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'distanceMeters',10,'durationSeconds',45),
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',500,'durationSeconds',120),
+              jsonb_build_object('role','rest','target',null,'distanceMeters',20,'durationSeconds',45),
+              jsonb_build_object('role','work','intervalKind','time','target',null,'distanceMeters',520,'durationSeconds',120));
+            shape:='FixedTimeInterval'; distance:=1500; elapsed:=450; work_time:=360; rest_distance:=30;
           end if;
           completed := jsonb_build_object('_v',1,'activity','indoor_row','status','completed',
             'equipment',jsonb_build_object('brand','concept2','name','RowErg'),
@@ -372,8 +387,12 @@ try:
              (payload->>'distance')::integer is distinct from distance or
              (payload->>'time')::integer is distinct from work_time*10 or
              (payload->>'rest_distance')::integer is distinct from rest_distance or
-             jsonb_array_length(payload->'workout'->'intervals') is distinct from (case when i=2 then 3 else 2 end) then
+             jsonb_array_length(payload->'workout'->'intervals') is distinct from (case when i in (2,5) then 3 else 2 end) then
              raise exception 'Interval payload shape/totals incorrect: %',payload; end if;
+          if shape <> 'VariableInterval' and exists(
+             select 1 from jsonb_array_elements(payload->'workout'->'intervals') interval
+             where interval ? 'rest_distance') then
+             raise exception 'Fixed interval includes per-interval rest distance'; end if;
           begin
             perform public.c2_development_publish_operation(u,'claim',jsonb_build_object(
               'workout_id',w,'timezone','America/New_York','weight_class','H',
@@ -399,7 +418,7 @@ try:
         end loop;
       end $$;
     """)
-    print('PASS: measured manual fixed-distance, fixed-time, variable interval claims, template link, exact payload fence, duplicate fence')
+    print('PASS: measured manual fixed-distance, fixed-time, variable intervals with rest distance, template link, exact payload fence, duplicate fence')
     for role in ['anon', 'authenticated']:
         for statement in ["select * from public.c2_development_fixture_workouts", "select public.c2_development_create_fixture_workout('00000000-0000-0000-0000-000000000001','fixed_distance_intervals_2x500m','{}')"]:
             p = sql(f'set role {role}; {statement};', ok=False)

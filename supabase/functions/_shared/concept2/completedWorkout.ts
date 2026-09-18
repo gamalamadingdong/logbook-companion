@@ -112,9 +112,6 @@ export function validateCompletedWorkoutV2(workout: CompletedWorkoutV2): void {
         (interval.kind !== 'time' || intervalWorkTime !== toDeciseconds(first.workTimeSeconds, true))) {
       throw new Error('Fixed-time intervals require equal measured work times');
     }
-    if (workout.shape.kind !== 'variable_interval' && interval.restDistanceMeters !== 0) {
-      throw new Error('Fixed interval rest distance is unsupported');
-    }
     totalDistance += interval.distanceMeters;
     totalWorkTime += intervalWorkTime;
     totalRestDistance += interval.restDistanceMeters;
