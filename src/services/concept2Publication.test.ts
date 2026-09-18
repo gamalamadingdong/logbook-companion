@@ -16,6 +16,49 @@ const fixedDistance: CompletedWorkoutV1 = {
 };
 
 describe('Concept2 completed-workout publication mapper', () => {
+  const generalManual = {
+    id: '44444444-5555-4666-8777-888888888888',
+    user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    source: 'manual', workout_type: 'row', completed_at: '2026-09-18T12:30:00.000Z',
+    distance_meters: 10000, duration_seconds: 2400, rest_distance_meters: null,
+    manual_rwn: null, external_id: null, template_id: null,
+    raw_data: { source: 'general_manual_entry', completed_result: {
+      _v: 1, activity: 'indoor_row', equipment: { brand: 'concept2', name: 'RowErg' },
+      status: 'completed', completedAt: '2026-09-18T12:30:00.000Z',
+      timezone: 'America/New_York', summary: { distanceMeters: 10000, durationSeconds: 2400 },
+      detailCoverage: 'none', segments: [], notes: '', plannedRwn: null,
+    } },
+  };
+
+  it('maps an owned saved single-piece RowErg result without inventing a programmed shape', () => {
+    const completed = completedWorkoutFromRow(generalManual);
+    expect(completed).toMatchObject({ workoutId: generalManual.id, source: 'manual',
+      machine: 'rower', shape: { kind: 'fixed_distance' }, completedAt: generalManual.completed_at,
+      distanceMeters: 10000, workTimeSeconds: 2400, timezone: 'America/New_York' });
+    expect(mapCompletedWorkoutToConcept2(completed, {
+      timezone: 'America/New_York', weightClass: 'H', privacy: 'private',
+    })).toMatchObject({ type: 'rower', workout_type: 'unknown', distance: 10000,
+      time: 24000, date: '2026-09-18 08:30:00',
+      comments: `Logbook Companion workout ID: ${generalManual.id}` });
+    expect(() => mapCompletedWorkoutToConcept2(completed, {
+      timezone: 'America/Los_Angeles', weightClass: 'H', privacy: 'private',
+    })).toThrow(/timezone/);
+  });
+
+  it('rejects ineligible or tampered general manual results', () => {
+    const changed = (patch: Record<string, unknown>) => ({ ...generalManual,
+      raw_data: { ...generalManual.raw_data,
+        completed_result: { ...generalManual.raw_data.completed_result, ...patch } } });
+    expect(() => completedWorkoutFromRow(changed({ status: 'stopped_early' }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ equipment: { brand: 'other', name: 'Gym rower' } }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ activity: 'ski_erg' }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ segments: [{ role: 'work', distanceMeters: 10000 }] }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ summary: { distanceMeters: 9999, durationSeconds: 2400 } }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ summary: { distanceMeters: 10000, durationSeconds: 2400.01 } }))).toThrow();
+    expect(() => completedWorkoutFromRow(changed({ timezone: 'Invalid/Zone' }))).toThrow();
+    expect(() => completedWorkoutFromRow({ ...generalManual, user_id: undefined })).toThrow();
+  });
+
   it('binds a named interval fixture to a durable owned LC identity', () => {
     const bound = bindDevelopmentFixture('fixed_distance_intervals_2x500m',
       '44444444-5555-4666-8777-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

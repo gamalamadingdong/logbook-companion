@@ -5,7 +5,7 @@ import { parseResults } from '../../supabase/functions/concept2-development-auth
 
 const row = { id: 123, date: '2026-09-16 10:00:00', type: 'rower', distance: 5000, time: 12345 };
 function fixture() {
-  const sync = vi.fn(async (_user: string, action: string, _values?: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  const sync = vi.fn(async (_user: string, action: string): Promise<Record<string, unknown>> => {
     if (action === 'claim') return { operation_id: 'claim', access_token: 'server-only' };
     if (action === 'list') return { results: [row], total: 1, environment: 'development' };
     return { imported: 1, environment: 'development' };
@@ -21,6 +21,33 @@ function fixture() {
   return { deps, sync, network, request };
 }
 describe('isolated development import', () => {
+  it('reads back only the returned development result ID and saves its sanitized summary', async () => {
+    const f = fixture(); f.network.mockResolvedValue(new Response(JSON.stringify({ data: { ...row, private_token: 'discard' } })));
+    const res = await f.request({ action: 'read_result', result_id: 123 });
+    expect(res.status).toBe(200);
+    expect(f.network).toHaveBeenCalledWith(`${PROVIDER}/api/users/me/results/123`, expect.objectContaining({ redirect: 'error' }));
+    expect(f.sync).toHaveBeenLastCalledWith('owner', 'save', { operation_id: 'claim', results: [row] });
+  });
+  it('rejects an invalid or mismatched exact result ID without saving', async () => {
+    const invalid = fixture();
+    expect((await invalid.request({ action: 'read_result', result_id: '123' })).status).toBe(400);
+    expect(invalid.sync).not.toHaveBeenCalled();
+    const mismatched = fixture();
+    mismatched.network.mockResolvedValue(new Response(JSON.stringify({ data: { ...row, id: 124 } })));
+    expect((await mismatched.request({ action: 'read_result', result_id: 123 })).status).toBe(409);
+    expect(mismatched.sync.mock.calls.map(call => call[1])).toEqual(['claim', 'release']);
+  });
+  it('releases a failed exact-ID read and never stores malformed provider data', async () => {
+    const f = fixture(); f.network.mockResolvedValue(new Response(JSON.stringify({ data: { ...row, time: '12345' } })));
+    expect((await f.request({ action: 'read_result', result_id: 123 })).status).toBe(409);
+    expect(f.sync.mock.calls.map(call => call[1])).toEqual(['claim', 'release']);
+  });
+  it('marks an unauthorized exact-ID read for refresh without retrying the GET', async () => {
+    const f = fixture(); f.network.mockResolvedValue(new Response('{}', { status: 401 }));
+    expect((await f.request({ action: 'read_result', result_id: 123 })).status).toBe(409);
+    expect(f.sync).toHaveBeenCalledWith('owner', 'unauthorized', { operation_id: 'claim' });
+    expect(f.network).toHaveBeenCalledTimes(1);
+  });
   it('fetches only development, preserves tenths, strips extra fields, ignores pagination links', async () => {
     const f = fixture(); const res = await f.request({ action: 'sync', page: 1 });
     expect(res.status).toBe(200); expect(await res.json()).toEqual({ environment: 'development', imported: 1, next_page: 2 });

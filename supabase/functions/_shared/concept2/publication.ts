@@ -9,6 +9,7 @@ export type CompletedWorkoutV1 = {
   machine: 'rower';
   shape: CompletedWorkoutShape;
   completedAt: string;
+  timezone?: string;
   distanceMeters: number;
   workTimeSeconds: number;
   restDistanceMeters: number;
@@ -67,6 +68,44 @@ function formatProviderDate(completedAt: string, timezone: string) {
 
 export function completedWorkoutFromRow(row: PublicationWorkoutRow): CompletedWorkoutV1 | CompletedWorkoutV2 {
   const raw = row.raw_data as Record<string, unknown> | null;
+  if (raw?.source === 'general_manual_entry') {
+    const completed = raw.completed_result as Record<string, unknown> | null;
+    const equipment = completed?.equipment as Record<string, unknown> | null;
+    const summary = completed?.summary as Record<string, unknown> | null;
+    const seconds = summary?.durationSeconds;
+    const distance = summary?.distanceMeters;
+    const finishedAt = typeof completed?.completedAt === 'string'
+      ? new Date(completed.completedAt).getTime() : NaN;
+    if (row.source !== 'manual' || row.workout_type !== 'row' ||
+        !row.user_id || row.external_id !== null || row.template_id !== null ||
+        row.manual_rwn !== null || (row.rest_distance_meters ?? 0) !== 0 ||
+        !completed || completed._v !== 1 || completed.activity !== 'indoor_row' ||
+        completed.status !== 'completed' || equipment?.brand !== 'concept2' ||
+        equipment.name !== 'RowErg' || completed.detailCoverage !== 'none' ||
+        !Array.isArray(completed.segments) || completed.segments.length !== 0 ||
+        completed.workTimeSeconds !== undefined ||
+        typeof completed.timezone !== 'string' ||
+        !Number.isFinite(finishedAt) || finishedAt > Date.now() ||
+        finishedAt !== new Date(row.completed_at).getTime() ||
+        !Number.isSafeInteger(distance) || Number(distance) <= 0 ||
+        distance !== row.distance_meters ||
+        typeof seconds !== 'number' || !Number.isFinite(seconds) ||
+        seconds <= 0 || seconds > 86_400 || seconds !== row.duration_seconds) {
+      throw new Error('Only a completed single-piece Concept2 RowErg result is eligible');
+    }
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: completed.timezone }).format();
+      toDeciseconds(seconds, true);
+    } catch {
+      throw new Error('Saved manual result timezone or work time is invalid');
+    }
+    return {
+      _v: 1, workoutId: row.id, source: 'manual', machine: 'rower',
+      shape: { kind: 'fixed_distance' }, completedAt: completed.completedAt as string,
+      timezone: completed.timezone, distanceMeters: distance as number,
+      workTimeSeconds: seconds, restDistanceMeters: 0, restTimeSeconds: 0,
+    };
+  }
   if (raw?.source === 'concept2_development_fixture') {
     const completed = raw.completed_workout as CompletedWorkoutV2 | undefined;
     if (row.source !== 'manual' || row.workout_type !== 'row' ||
@@ -154,6 +193,9 @@ export function mapCompletedWorkoutToConcept2(
   if (workout._v !== 1 || workout.machine !== 'rower' ||
       !['fixed_distance', 'fixed_time'].includes(workout.shape.kind)) {
     throw new Error('Unsupported completed workout');
+  }
+  if (workout.timezone && workout.timezone !== options.timezone) {
+    throw new Error('Completed workout timezone differs from publication timezone');
   }
   if (!Number.isSafeInteger(workout.distanceMeters) || workout.distanceMeters <= 0 ||
       !Number.isFinite(workout.workTimeSeconds) || workout.workTimeSeconds <= 0 ||

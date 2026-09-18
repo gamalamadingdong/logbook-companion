@@ -44,7 +44,7 @@ export function getDevelopmentPublishBlockers(input: {
   return blockers;
 }
 
-export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout' | 'create_fixture', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; confirmed_fixture?: boolean; fixture_name?: string; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
+export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout' | 'create_fixture' | 'read_result', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; confirmed_fixture?: boolean; fixture_name?: string; result_id?: number; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
     const detail = error.context instanceof Response ? await error.context.json().catch(() => null) : null;
