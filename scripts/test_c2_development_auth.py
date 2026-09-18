@@ -321,7 +321,7 @@ try:
     """)
     print('PASS: general manual RowErg claim, exact payload/timezone, ownership, mapper version, duplicate fence')
     sql((root / 'supabase/migrations/20260918160118_concept2_general_manual_interval_publication.sql').read_text())
-    sql((root / 'supabase/migrations/20260918190410_concept2_fixed_interval_rest_distance.sql').read_text())
+    sql((root / 'supabase/migrations/20260918192002_concept2_fixed_interval_rest_distance.sql').read_text())
     for role in ['anon', 'authenticated']:
         denied = sql(f"set role {role}; select public.c2_development_manual_interval_payload(null,'UTC','H','private');", ok=False)
         assert denied.returncode != 0 and 'permission denied' in denied.stderr
