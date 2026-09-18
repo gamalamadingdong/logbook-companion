@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CalendarDays, Clock3, Pencil, Plus } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
-import { canPublishManualRowErg, Concept2DevelopmentPublication } from '../components/completed-workout/Concept2DevelopmentPublication';
+import { canPublishManualRowErg, Concept2DevelopmentPublication, manualConcept2PublishBlocker } from '../components/completed-workout/Concept2DevelopmentPublication';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { Card, CardHeader } from '../components/ui/Card';
 import { useAuth } from '../hooks/useAuth';
@@ -93,7 +93,15 @@ export function CompletedWorkoutEntryDetail() {
               </ol>
             </Card>}
 
-            {id && canPublishManualRowErg(result) && <Concept2DevelopmentPublication workoutId={id} result={result} />}
+            {id && result.activity === 'indoor_row' && result.equipment?.brand !== 'other' && (
+              canPublishManualRowErg(result) ? <Concept2DevelopmentPublication workoutId={id} result={result} /> : (
+                <Card>
+                  <CardHeader title="Concept2 development publishing" subtitle="Your workout is saved in LC. Publishing is a separate choice." />
+                  <p className="text-sm text-content-secondary">{manualConcept2PublishBlocker(result)}</p>
+                  <Link to={`/completed-workout/${id}/edit`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-primary underline">Edit workout details</Link>
+                </Card>
+              )
+            )}
             {(result.plannedRwn || result.plannedTemplate) && <Card><CardHeader title="Plan used" />{result.plannedTemplate && <Link to={`/library/${result.plannedTemplate.id}`} className="text-sm font-medium text-accent-primary underline">{result.plannedTemplate.name}</Link>}{result.plannedRwn && <p className="mt-1 text-sm text-content-secondary">Saved RWN: {result.plannedRwn}</p>}</Card>}
             <div className="flex flex-wrap gap-3">
               <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus">Back to log</Link>
