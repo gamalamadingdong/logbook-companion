@@ -35,9 +35,10 @@ function hasMeasurement(summary: CompletedSummary): boolean {
   return summary.distanceMeters !== undefined || summary.durationSeconds !== undefined || summary.calories !== undefined;
 }
 
-export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
-  | { ok: true; value: CompletedWorkoutEntryV1 }
-  | { ok: false; errors: Record<string, string> } {
+export function normalizeCompletedWorkoutDraft(
+  draft: CompletedWorkoutDraft,
+  options: { requireConcept2IntervalTypes?: boolean } = {},
+): { ok: true; value: CompletedWorkoutEntryV1 } | { ok: false; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
   if (!['indoor_row', 'ski_erg', 'bike_erg', 'run', 'other'].includes(draft.activity)) errors.activity = 'Choose an activity.';
   if (!['completed', 'stopped_early'].includes(draft.status)) errors.status = 'Choose what happened.';
@@ -70,6 +71,10 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
   if (draft.detailCoverage === 'none' && draft.segments.length) errors.detailCoverage = 'Choose full or partial detail for these segments.';
   if (draft.detailCoverage !== 'none' && !draft.segments.length) errors.segments = 'Add a segment or close interval detail.';
 
+  const requiresIntervalTypes = options.requireConcept2IntervalTypes && draft.activity === 'indoor_row' &&
+    draft.equipment?.brand === 'concept2' && draft.equipment.name === 'RowErg' &&
+    draft.status === 'completed' && draft.detailCoverage === 'full' &&
+    draft.segments.filter(segment => segment.role === 'work').length >= 2;
   let distance = 0;
   let elapsed = 0;
   let workTime = 0;
@@ -77,7 +82,9 @@ export function normalizeCompletedWorkoutDraft(draft: CompletedWorkoutDraft):
   draft.segments.forEach((segment, index) => {
     const prefix = 'segments.' + index;
     if (!['work', 'rest'].includes(segment.role)) errors[prefix + '.role'] = 'Choose work or rest.';
-    if (segment.intervalKind !== undefined && (segment.role !== 'work' || !['distance', 'time'].includes(segment.intervalKind))) {
+    if (requiresIntervalTypes && segment.role === 'work' && segment.intervalKind === undefined) {
+      errors[prefix + '.intervalKind'] = 'Choose Distance or Time for this work interval before saving.';
+    } else if (segment.intervalKind !== undefined && (segment.role !== 'work' || !['distance', 'time'].includes(segment.intervalKind))) {
       errors[prefix + '.intervalKind'] = 'Choose distance or time for a work interval.';
     }
     if (!validNonnegative(segment.distanceMeters, true) || !validNonnegative(segment.durationSeconds) ||
