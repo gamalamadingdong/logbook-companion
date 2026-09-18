@@ -55,8 +55,18 @@ export function manualConcept2Preview(result: CompletedWorkoutEntryV1): Publicat
     distance: workDistance, seconds: workTime, restSeconds, restDistance };
 }
 
+export function manualConcept2PublishBlocker(result: CompletedWorkoutEntryV1): string | null {
+  if (result.activity !== 'indoor_row') return 'Concept2 development publishing currently supports indoor rows only.';
+  if (result.equipment?.brand !== 'concept2' || result.equipment.name !== 'RowErg') {
+    return 'Choose Concept2 RowErg as the equipment to publish this workout.';
+  }
+  if (result.status !== 'completed') return 'Only completed workouts can be published to Concept2 development.';
+  if (manualConcept2Preview(result)) return null;
+  return 'This result needs complete, supported distance and time measurements before it can be published.';
+}
+
 export function canPublishManualRowErg(result: CompletedWorkoutEntryV1): boolean {
-  return manualConcept2Preview(result) !== null;
+  return manualConcept2PublishBlocker(result) === null;
 }
 
 type Props = { workoutId: string; result: CompletedWorkoutEntryV1 };

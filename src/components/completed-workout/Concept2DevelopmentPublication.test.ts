@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manualConcept2Preview } from './Concept2DevelopmentPublication';
+import { manualConcept2Preview, manualConcept2PublishBlocker } from './Concept2DevelopmentPublication';
 import type { CompletedWorkoutEntryV1 } from '../../types/completedWorkoutEntry';
 
 const result: CompletedWorkoutEntryV1 = {
@@ -16,6 +16,12 @@ const result: CompletedWorkoutEntryV1 = {
 };
 
 describe('manual Concept2 publication preview', () => {
+  it('explains why a saved indoor row with unspecified equipment cannot publish', () => {
+    const withoutEquipment = { ...result, equipment: null };
+    expect(manualConcept2Preview(withoutEquipment)).toBeNull();
+    expect(manualConcept2PublishBlocker(withoutEquipment)).toBe('Choose Concept2 RowErg as the equipment to publish this workout.');
+    expect(manualConcept2PublishBlocker(result)).toBeNull();
+  });
   it('shows the measured work and rest for variable intervals', () => {
     expect(manualConcept2Preview(result)).toEqual({ label: '2 variable intervals',
       distance: 1200, seconds: 300, restSeconds: 45, restDistance: 40 });

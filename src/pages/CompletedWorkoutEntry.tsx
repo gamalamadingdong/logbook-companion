@@ -363,6 +363,9 @@ export function CompletedWorkoutEntry() {
                     <option value="concept2">Concept2 {concept2Models[form.activity]}</option>
                     <option value="other">Another machine</option>
                   </Select>
+                  {form.activity === 'indoor_row' && form.equipmentChoice === 'unspecified' && (
+                    <p className="text-xs text-content-muted">If you used a Concept2 RowErg and want the option to publish later, choose it here. Your result saves in LC either way.</p>
+                  )}
                   {form.equipmentChoice === 'other' && <Input label="Machine name" value={form.equipmentName} onChange={(event) => update({ equipmentName: event.target.value })} error={errors.equipment} className="min-h-11" placeholder="Gym rower, home erg…" />}
                 </div>
               )}
