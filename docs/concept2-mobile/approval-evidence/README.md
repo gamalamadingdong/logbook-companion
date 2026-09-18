@@ -24,10 +24,17 @@ Provider reference fixture:
 | Fixed-distance intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86847`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Fixed-time intervals + rest | Passed | Passed with strict checking (Sam-reported) | Passed: result `86848`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
 | Variable intervals | Passed | Passed with strict checking (Sam-reported) | Passed: result `86849`; Concept2 breakdown confirmed by Sam | Passed; exact LC ID and one imported row | Named synthetic fixture; [exact validator input](interval-validator-inputs.md). |
+| General manual RowErg summary | Passed | Covered by the proven single-piece mappings | Passed: results `86932` and `86933` | Passed on recheck and repeat first-page import | Both were entered through Add completed workout, explicitly published from their LC result pages, and confirmed on Concept2 by Sam. See [manual result round trip](#general-manual-result-round-trip). |
 | Duplicate `409` | Automated behavior covered | N/A | Pending controlled development evidence | N/A | Must not be marked published without a proven remote ID. See [controlled error protocol](controlled-error-protocol.md). |
 | Invalid `422` | Automated behavior covered | Validator should reject matching invalid fixture | Pending controlled development evidence | N/A | Must permit correction without treating outcome as unknown. See [controlled error protocol](controlled-error-protocol.md). |
 | Expired-token rotating refresh | Passed | N/A | Passed | N/A | Real expired access-token refresh retained `results:write` with no reconnect or stuck operation. |
 | Uncertain POST outcome | Automated/disposable-DB coverage passed | N/A | Do not induce against provider without an approved fault-injection method | N/A | No blind retry; explicit review/recovery. |
+
+## General manual result round trip
+
+On 2026-09-18, Sam saved and explicitly published two single-piece RowErg workouts from the general completed-workout flow in the separate staging account. The 7,500 m / 1,800 s LC workout `462ed6c8-5bcd-41a8-9a11-519bc408e3ad` became development result `86932`; the 10,000 m / 2,535 s LC workout `cabd2143-f776-40a3-a5ef-f95ef3fffc4e` became result `86933`. Sam confirmed both on Concept2. Recheck confirmed the same result ID, and a repeat first-page import displayed two saved results with their exact LC workout links.
+
+A read-only live database check after that import found one `c2_development_results` row per result, `published` status, `attempt_count = 1` and `mapper_version = 1` for both publications. Both saved summaries were refreshed at 2026-09-18 14:55:50 UTC. Focused local publication tests passed (33 tests), including simulated `409` and `422` responses. These simulations do not close the live provider-error evidence rows above; the [controlled error protocol](controlled-error-protocol.md) still applies.
 
 ## Interval strict validator evidence
 
