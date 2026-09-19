@@ -53,12 +53,25 @@ Concept2 fields:   distance=1000, rest_distance=400
 
 The shared volume change passed 531 Vitest tests, the production build, focused training-block tests, and lint with zero errors. PR #182 merged at `8cf70935bab61b5d66409fee66be1aa10c4b0087`.
 
+### PM5 connectivity checkpoint
+
+ErgLink's PM5 path has now been audited against Concept2 CSAFE revision 0.34 and exercised on a real RowErg PM5 (`hardware 907`, firmware `212.000`). The branch proves read-only device discovery, GATT capability inspection, public CSAFE `GETSTATUS` write/notify responses, basic live metrics, actual stroke/split/end-summary notifications, and paired completed-workout summaries.
+
+Two completed 100 m workouts established the capture semantics:
+
+- PM5 status and summary units reconcile exactly with distance, pace, watts, elapsed time, and stroke rate.
+- Twenty stroke-characteristic notifications represented ten actual strokes; normalized strokes must deduplicate by PM5 `strokeCount` while preserving all raw notifications.
+- Initial `strokeCount: 0` notifications are raw evidence, not normalized strokes.
+- Paired PM5 end summaries—not the last live/stroke sample—are authoritative for final totals.
+
+ErgLink now produces `PM5CompletedCaptureV1` with stable capture ID/version, lifecycle, raw evidence, normalized strokes/splits, and authoritative summary. Browser IndexedDB and Capacitor SQLite implement one retry/acknowledgement `CaptureStore` contract. The browser remains a development/boathouse-racing path; LC Capacitor mobile is the destination athlete capture path.
+
 ## Evidence boundaries
 
 - Manual entry and synthetic fixtures prove application storage, mapping, publication, provider display, exact-ID read-back, and duplicate prevention.
-- They do not prove PM5 capture fidelity, sampling semantics, stroke identity, force curves, or measured power/calorie accuracy.
+- Real PM5 evidence now proves the bounded connectivity, stroke/split/summary parsing, deduplication, and completed-capture envelope described above. It does not yet prove aborted/retried upload behavior, force curves, HR-belt capture, or LC ingestion.
 - Concept2-generated calorie and watt displays are not LC capture evidence.
-- `CompletedWorkoutV2` has space for source evidence and normalized samples, but ErgLink is not yet producing the required stable completed-capture envelope.
+- `CompletedWorkoutV2` has space for source evidence and normalized samples. ErgLink now produces a stable capture envelope; LC ingestion and canonical normalization remain unimplemented.
 - The deployed legacy production `publish-to-c2` function remains separate, absent from source control, and unsuitable as the shared core.
 
 ## Ordered next steps
@@ -84,15 +97,19 @@ Use the staging-only account and browser profile:
 
 When a user edits a result in Concept2, refresh the linked provider snapshot, compare it with the immutable published payload, and surface divergence. An explicit adoption action should create an auditable LC revision. Do not silently overwrite the LC source row or automatically repost.
 
-### 4. Strengthen the ErgLink capture contract
+### 4. Accept PM5CompletedCaptureV1 into LC
 
-Add one stable capture UUID and schema version at workout start. Preserve actual start/finish/timezone, completion state, final summary, completed intervals, assignment/template/session provenance, and the original notification/sample stream. LC ingestion must be idempotent by owner and capture ID and return an owned LC workout UUID before the device clears its buffer.
+Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owner + capture ID/version. Reconstruct trusted searchable columns from the accepted summary, store raw evidence separately, return the owned LC workout UUID, and only then allow the device `CaptureStore` to acknowledge the upload. Do not reuse the legacy last-sample `ErgLinkUploadMeta` write path.
 
-### 5. Validate real PM5 evidence
+### 5. Build the LC → RWN → PM5 programming service
 
-Collect consented completed, aborted, interrupted, and retried captures. Determine whether current buffered records are strokes, periodic telemetry samples, or a mixture. Verify interval reset behavior, work/rest elapsed meanings, cumulative distance, averages, finish time, and retry durability before projecting `stroke_data`.
+LC already has `parseRWN`/`WorkoutStructure` and `lowerWorkoutStructureToPm5`, and ErgLink has a CSAFE command core. What is missing is one reviewed delivery/acknowledgement boundary that sends the lowered `ActiveWorkoutSpec` to the connected mobile PM5, checks GATT capabilities, receives the PM5 CSAFE response, and reports exact/prompt-only/unsupported outcomes. The older `ergLinkAdapter.ts` is not the service and should not become a second lowering implementation.
 
-### 6. Enrich Concept2 projection from measured evidence
+### 6. Complete adverse-path PM5 evidence
+
+Collect consented aborted, interrupted, retried, interval-with-rest, and HR-belt captures. Verify interval reset behavior, work/rest elapsed meanings, retry durability, and optional HR fields before projecting `stroke_data`.
+
+### 7. Enrich Concept2 projection from measured evidence
 
 After PM5 semantics are proven, normalize interval and sample detail into the shared completed-workout model. Add calories, watt-minutes, watts, stroke rate/count, drag factor, heart rate, and Concept2 `stroke_data` only when backed by trustworthy source evidence. Compare each immutable submitted payload with exact-ID provider detail.
 
@@ -106,8 +123,11 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Source preservation, incomplete-total guard, published edit guard | Merged; targeted live smoke remains |
 | Work/recovery/total volume semantics | Merged in PR #182 |
 | Provider association and remote-edit reconciliation | Designed direction; implementation remains |
-| Stable ErgLink completed-capture envelope | Not implemented |
-| Real PM5 detailed evidence and `stroke_data` projection | Not proven |
+| Stable PM5 completed-capture envelope | Proven in ErgLink; LC ingestion remains |
+| PM5 stroke/split/end-summary evidence | Proven for completed 100 m workouts |
+| Browser/mobile durable CaptureStore | IndexedDB + Capacitor SQLite adapters implemented |
+| LC → RWN → PM5 programming service | Lowering exists; delivery/acknowledgement service remains |
+| Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
 ## Resume references

@@ -14,10 +14,12 @@
  *
  * DATA FLOW:
  * 1. Coach creates session in LC → sets erg_sessions.active_workout (ActiveWorkoutSpec)
- * 2. Athletes join in EL → read active_workout → program PM5 via CSAFE
- * 3. Athletes row → EL buffers strokes locally (IndexedDB)
- * 4. Session ends → EL uploads to workout_logs with ErgLinkUploadMeta in raw_data
- * 5. LC reconciliation picks up the upload (source: 'erg_link_live', Silver priority)
+ * 2. LC lowers RWN/WorkoutStructure into an ActiveWorkoutSpec; the mobile PM5
+ *    delivery/acknowledgement service remains the next implementation slice.
+ * 3. PM5 capture preserves a versioned evidence envelope in browser IndexedDB
+ *    or mobile SQLite behind one CaptureStore contract.
+ * 4. The device retries by capture ID until LC acknowledges an owned workout UUID.
+ * 5. LC remains the training record and sole Concept2 API client.
  *
  * VERSIONING: Field `_v` on ActiveWorkoutSpec. EL must handle missing fields gracefully.
  */
@@ -111,6 +113,8 @@ export interface ActiveWorkoutInterval {
 /**
  * The shape of `workout_logs.raw_data` when `source = 'erg_link_live'`.
  * LC reads this to extract stroke data, session context, and reconciliation keys.
+ *
+ * @deprecated Transitional legacy upload. New capture ingestion uses PM5CompletedCaptureV1.
  */
 export interface ErgLinkUploadMeta {
   /** Identifies this as an EL upload (for type discrimination) */
@@ -169,7 +173,107 @@ export interface ErgLinkStroke {
 }
 
 // ============================================================================
-// 3. RECONCILIATION CONTRACT
+// 3. PM5 COMPLETED CAPTURE V1 (device writes → LC ingestion accepts)
+// ============================================================================
+
+export type CaptureStatus = 'recording' | 'completed' | 'aborted' | 'incomplete_capture';
+
+export interface RawCaptureNotification {
+  sequence: number;
+  characteristic: string;
+  receivedAt: string;
+  bytes: number[];
+}
+
+export interface NormalizedStroke {
+  strokeCount: number;
+  elapsedSeconds: number;
+  cumulativeDistanceMeters: number;
+  driveLengthMeters: number;
+  driveTimeSeconds: number;
+  recoveryTimeSeconds: number;
+  strokeDistanceMeters: number;
+  peakDriveForcePounds: number;
+  averageDriveForcePounds: number;
+  workPerStrokeJoules: number;
+}
+
+export interface NormalizedSplit {
+  intervalNumber: number;
+  intervalType: number;
+  elapsedSeconds: number;
+  cumulativeDistanceMeters: number;
+  workTimeSeconds: number;
+  workDistanceMeters: number;
+  restTimeSeconds: number;
+  restDistanceMeters: number;
+}
+
+export interface CompletedCaptureSummary {
+  workDistanceMeters: number;
+  workTimeSeconds: number;
+  averagePaceSecondsPer500m: number;
+  averageStrokeRate: number;
+  averageWatts: number;
+  totalCalories: number;
+  restDistanceMeters: number;
+  restTimeSeconds: number;
+  strokeCount: number;
+}
+
+export interface PM5RawEndSummary {
+  logDate: number;
+  logTime: number;
+  elapsedTime: number;
+  distance: number;
+  averageStrokeRate: number;
+  endingHeartRate: number;
+  averageHeartRate: number;
+  minHeartRate: number;
+  maxHeartRate: number;
+  averageDragFactor: number;
+  recoveryHeartRate: number;
+  workoutType: number;
+  averagePace: number;
+}
+
+export interface PM5RawAdditionalEndSummary {
+  logDate: number;
+  logTime: number;
+  intervalType: number;
+  intervalSize: number;
+  intervalCount: number;
+  totalCalories: number;
+  watts: number;
+  totalRestDistance: number;
+  restTime: number;
+  averageCalories: number;
+}
+
+/**
+ * Versioned, provider-independent PM5 capture accepted by future LC ingestion.
+ * Raw notifications are immutable source evidence. Normalized strokes are
+ * deduplicated by PM5 strokeCount; summary totals come from paired PM5 end
+ * summaries rather than the final live/status sample.
+ */
+export interface PM5CompletedCaptureV1 {
+  _v: 1;
+  captureId: string;
+  captureVersion: 1;
+  status: CaptureStatus;
+  startedAt: string;
+  completedAt?: string;
+  timezone: string;
+  rawNotifications: RawCaptureNotification[];
+  strokes: NormalizedStroke[];
+  splits: NormalizedSplit[];
+  summary?: CompletedCaptureSummary;
+  rawEndSummary?: PM5RawEndSummary;
+  rawAdditionalEndSummary?: PM5RawAdditionalEndSummary;
+}
+
+// ============================================================================
+// 4. RECONCILIATION CONTRACT
 // ============================================================================
 
 /**
@@ -211,7 +315,7 @@ export interface ReconciliationMatch {
 }
 
 // ============================================================================
-// 4. COLUMN-LEVEL CONTRACT (workout_logs fields EL must populate)
+// 5. LEGACY COLUMN-LEVEL CONTRACT (transitional upload only)
 // ============================================================================
 
 /**
