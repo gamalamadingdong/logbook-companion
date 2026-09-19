@@ -1,6 +1,6 @@
 {
   "name": "@readyall/rwn",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Rowing Workout Notation (RWN) — parser, serializer, and whiteboard renderer for rowing workouts",
   "type": "module",
   "main": "./dist/index.js",
