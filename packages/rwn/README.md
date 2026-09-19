@@ -19,7 +19,7 @@ npm install @readyall/rwn
 ## Quick Start
 
 ```typescript
-import { parseRWN, structureToRWN, structureToWhiteboard, validateRWN } from '@readyall/rwn';
+import { parseRWN, structureToRWN, structureToWhiteboard, translateWorkoutToPm5, validateRWN } from '@readyall/rwn';
 
 // Parse an RWN string into a structured object
 const structure = parseRWN('4x500m/1:00r');
@@ -36,6 +36,10 @@ const rwn = structureToRWN(structure);
 // Generate whiteboard lines for coaches
 const lines = structureToWhiteboard(structure);
 // → ['4× 500m / 1:00r']
+
+// Translate the workout into the subset a Concept2 PM5 can program
+const pm5 = translateWorkoutToPm5(structure);
+// → { mode: 'exact', workout: { type: 'interval_distance', ... }, notes: [] }
 ```
 
 ## API
@@ -65,6 +69,16 @@ Serializes a `WorkoutStructure` back to an RWN string.
 ### `structureToWhiteboard(structure: WorkoutStructure): string[]`
 
 Converts a workout structure into terse whiteboard-style lines — the kind of thing a coach would write on a dry-erase board before practice.
+
+### `translateWorkoutToPm5(structure: WorkoutStructure): Pm5TranslationResult`
+
+Translates RWN's richer workout structure into the subset a Concept2 PM5 can program. The result is explicit:
+
+- `exact`: the PM5 can represent the workout directly;
+- `prompt_only`: the PM5 can run the core workout, while human/session guidance remains outside the monitor;
+- `unsupported`: nothing should be sent to the PM5.
+
+RWN remains authoritative; PM5 limitations never weaken or redefine the notation.
 
 ## RWN Syntax Examples
 
