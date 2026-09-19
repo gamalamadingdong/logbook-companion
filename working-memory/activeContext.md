@@ -1,122 +1,122 @@
 # Active Context
 
-Last updated: 2026-09-18
+Last updated: 2026-09-19
 
-## Current capture/storage integrity review
+## Current objective
 
-The 2026-09-18 [capture and storage audit](../docs/concept2-mobile/capture-storage-audit.md) checked live schema/types, LC manual persistence, legacy Concept2 import, development read-back, and ErgLink buffering. The live checked schema and generated types align. The development publisher keeps the original LC row and immutable payload/result-ID snapshot, but development read-back stores only summary fields. PM5 capture identity, durable acknowledged upload, raw evidence, and normalized sample semantics are not yet proven. Legacy browser/server Concept2 import can fuzzy-overwrite a manual or ErgLink source row; the source-preservation code fix is in PR #179 and is not deployed. A published manual result can still be edited without a revision trail, and incomplete manual interval rows can currently produce misleading aggregate totals. These are the next data-integrity priorities before production publishing; no live backend change was made for this audit.
+Converge manual completion, Concept2 import, and future ErgLink/PM5 capture on one durable completed-workout model. Logbook Companion remains the training record and sole Concept2 API client. Capture producers preserve measured evidence; Concept2 publication is an explicit user action through the server-owned mapper and fenced publication state machine.
 
-## Current correction — fixed intervals with measured rest distance
+Production Concept2 publishing remains disabled. Concept2 has not replied to the production-write requirements inquiry sent to `ranking@concept2.com` on 2026-09-17.
 
-Sam confirmed that a manually entered 2 × 500 m workout with 1 m traveled during rest is still a fixed-distance interval workout. Development result `86938` for LC workout `e1fb99b0-0d58-4f80-a1cf-109799624996` was already published once as `VariableInterval`; preserve its immutable payload and exact-ID link. Concept2 documents nonzero workout-level `rest_distance` on `FixedDistanceInterval`. In branch `fix/concept2-fixed-rest-distance`, the shared mapper, V2 validator, and service-only SQL claim now classify equal work distances/times as fixed regardless of measured rest distance, while retaining the rest total. Local 521-test Vitest, disposable PostgreSQL, Deno, lint, build and staging bundle checks passed. PR #177 merged into staging at `a91d6a7`. Migration `20260918192002` is recorded live; `concept2-development-auth` version 10 is active with JWT verification on, and all seven deployed files match the merged staging source. Read-only live reconstruction of the saved workout yields `FixedDistanceInterval`, 1,000 m work and 1 m rest distance. The existing result `86938` remains `published` with its original `VariableInterval` snapshot and one attempt. Service-only grants and unauthenticated 401 were verified. A strict validator/development round trip for the corrected shape remains pending. Production publishing stays disabled.
+## Current implementation state
 
-## Current staging slice — manual intervals and plan selection
+### Manual completed workouts
 
-PR #171 merged into staging at `dafa2e8`; Vercel marked that merge deployment successful. The Add completed workout form now offers a searchable LC template or pasted RWN as optional plan sources. Selecting a template saves `workout_logs.template_id`, its name and an RWN snapshot; planned targets never become measured values. Complete manually entered Concept2 RowErg interval results normalize server-side to `CompletedWorkoutV2`; runs and other machines remain LC-only. The shared backend migration was applied via Supabase MCP and recorded as `20260918160118`, then `concept2-development-auth` was deployed as version 9 with JWT verification on. Live checks found service-role-only execution on the new helper and publication claim, two existing published rows unchanged, zero unknown outcomes, and an unauthenticated Edge request rejected with 401. Local 514-test Vitest, disposable PostgreSQL, Deno, staging and production build, lint (zero errors), and staging secret-scan checks passed. Sam saved and published the first real manually entered fixed-distance interval workout on the staging account: 1,000 m / 240 s work, LC workout 4f037c45-e792-4896-9b90-bcbbb4c4e997, development result 86935. Sam reports a successful check and import; read-only live verification found one imported row, one publication attempt, published status, mapper version 2, and FixedDistanceInterval payload type. Sam then published a manually entered mixed interval workout: LC workout `f4704481-8523-48de-bdbf-097634b3745f` became development result `86936`. Live verification found one imported row, one publication attempt, mapper version 2, and a `VariableInterval` payload with ordered 500 m / 2:00 work, 1:00 rest, then 700 m / 3:00 work. Sam supplied the Concept2 result page: it displays Variable Interval, 1,200 m / 5:00 work, 1:00 rest, 6:00 overall, and the correct 500 m / 2:00 and 700 m / 3:00 interval rows. The odd provider page title is not taken from the LC row name or an RWN field; the published payload has no title field. Calories and watts shown by Concept2 were not sent as measured LC data. The manually entered fixed-time test row (LC workout `0de81a5a-bd5d-40df-8e59-1aa2248c35a5`) initially saved its third work interval without an interval type, so the result page hid publishing. Sam edited that segment to Time and published the same row as development result `86937`. Exact-ID readback succeeded. Read-only live verification found one publication attempt, one imported row, mapper version 2, and a `FixedTimeInterval` payload with 2,250 m / 9:00 work and 1:30 rest. Form validation for this missing-field case is in PR #173; the staging UI has not yet changed. Provider-page inspection and saved-template selection remain to be checked. Production publishing stays disabled; the legacy `publish-to-c2` function remains untouched. Controlled live 409/422 checks and Concept2's requirements reply remain pending.
+The global **Add completed workout** flow supports RowErg, SkiErg, BikeErg, runs, other activities, single distance/time results, and fixed or variable work/rest segments. Saved templates and pasted RWN provide an optional plan; entered measurements remain the result. The LC workout UUID, source, completion time/timezone, plan snapshot, template link, ordered work/rest detail, and summary indexes persist in the owned `workout_logs` row.
 
-## Current staging slice — saved manual RowErg development publication
+The desktop interval editor uses a row grid; mobile uses the corresponding compact layout. Missing required interval types block Concept2 eligibility. Incomplete measurements remain unknown rather than being summed into false whole-workout totals.
 
-PR #167 merged into staging at `685535b`. The general completed-workout result page now offers an explicit Concept2 development publish action for completed, single-piece Concept2 RowErg summaries with measured distance and decisecond time. It uses the shared server-side mapper, an exact service-role database claim, and a returned-result-ID GET/readback; LC remains the source record. The shared backend migration was applied through Supabase MCP and recorded live as `20260918142512`; the development Edge Function is version 8 with JWT verification. The Git migration file was renamed to that recorded version. Vercel staging passed. Sam completed two staging-account manual publications: 7,500 m / 1,800 s became development result `86932`, and 10,000 m / 2,535 s became `86933`. Sam confirmed both provider pages, rechecked the same result ID, and re-imported first page with two saved results linked to the exact LC workout IDs. A read-only live check after re-import showed one saved row and one publication attempt per result, mapper version 1, and untouched original LC production Concept2 fields. Focused local publisher tests passed (33), including simulated `409` and `422`; live provider responses remain open under the [controlled error protocol](../docs/concept2-mobile/approval-evidence/controlled-error-protocol.md) while Concept2's requirements reply is pending. After that testing, remove the repeated weight-class and visibility prompts by using reliable connected Concept2 profile values when available or account-scoped LC settings; keep publication explicit and never assume public visibility. No production publishing or legacy production function change occurred. Other machines and interval-shaped manual entries remain LC-only until their result mappings are defined.
+### Shared Concept2 publication core
 
-## Current product slice — general completed workout entry
+Development publishing is proven for fixed-distance and fixed-time summaries plus fixed-distance, fixed-time, and variable intervals. The server reconstructs a versioned `CompletedWorkout`, maps it to Concept2, snapshots the immutable mapper-versioned payload, fences dispatch, records uncertain outcomes, and reads back the exact returned Concept2 result ID. Repeat imports update the same provider result rather than adding another result with that ID.
 
-PR #165 merged the approved [general entry design](../docs/completed-workout-entry-design.md) into staging. It adds a global activity-first manual completion flow, versioned result detail in owned `workout_logs.raw_data`, measured variable intervals with full/partial coverage, optional RWN target prefill, save/read/edit, and a dedicated LC result detail. Runs, non-Concept2 ergs, and named Other activities remain LC records. The first staging save exposed an overbroad client request guard that blocked all `workout_logs` writes; the follow-up fix permits only versioned general manual-entry saves/edits while preserving legacy Concept2 sync blocks. The plan picker/link, Concept2 publication bridge, and ErgLink capture remain later work. No migration, Edge deployment, Concept2 POST, or production enablement is part of this slice. Staging phone/desktop visual and live save/reopen checks remain pending.
+Representative manually entered development results:
 
-## Current effort — completed-result convergence
+| Shape | LC workout | Concept2 result |
+| --- | --- | --- |
+| Fixed-distance summary | `462ed6c8-5bcd-41a8-9a11-519bc408e3ad` | `86932` |
+| Fixed-distance summary | `cabd2143-f776-40a3-a5ef-f95ef3fffc4e` | `86933` |
+| Fixed-distance intervals | `4f037c45-e792-4896-9b90-bcbbb4c4e997` | `86935` |
+| Variable intervals | `f4704481-8523-48de-bdbf-097634b3745f` | `86936` |
+| Fixed-time intervals | `0de81a5a-bd5d-40df-8e59-1aa2248c35a5` | `86937` |
 
-PR #181 is merged into staging, and Sam reports applying `20260918210000_guard_published_manual_results.sql`. Published or uncertain general manual development results are now protected from result-bearing edits; rejected and unpublished results remain editable.
+The fixed-interval classifier now uses equal work distance or equal work time to determine a fixed shape even when recovery distance is nonzero. Historical result `86938` retains its immutable earlier `VariableInterval` payload; current reconstruction yields the corrected fixed-distance shape.
 
-The current narrow follow-up makes distance semantics consistent without changing workout identity or performance calculations: `distance_meters` is measured work, `rest_distance_meters` is measured recovery, and cumulative training volume is their sum. RWN, pace, watts, PRs, template comparison and Concept2 `distance` remain work-based. Recent-workout displays show work and total explicitly when recovery meters exist.
+### Source and result integrity
 
-After this follow-up, resume the shared completed-workout path from `docs/concept2-mobile/capture-storage-audit.md`: finish manual save/reopen verification, preserve exact-ID provider associations without overwriting LC source evidence, define a stable versioned ErgLink capture envelope and retry acknowledgement, verify PM5 sample semantics, then normalize rich captured detail into the same completed-workout model used by manual entry. Production Concept2 publishing remains disabled pending provider and operator approval.
+PRs #179–#182 are merged into staging:
 
-## Earlier effort — Concept2 production-write approval readiness
+- PR #179 prevents legacy Concept2 import from replacing manual or ErgLink source identity and raw evidence. A near match is retained as a separate exact-ID provider row until an explicit association rule exists.
+- PR #180 keeps incomplete manual measurements unknown and prevents partial interval rows from becoming claimed full-result totals.
+- PR #181 preserves imported provider detail, uses measured manual work/rest metrics, and adds a database edit guard. Sam reports applying migration `20260918210000_guard_published_manual_results.sql`. Published or uncertain general manual development results reject result-bearing edits; definite rejections and unpublished results remain editable.
+- PR #182 makes cumulative training volume equal measured work distance plus measured recovery distance. RWN, pace, watts, PRs, template comparison, and Concept2 `distance` remain based on work distance. Recent-workout UI shows work and total explicitly when recovery meters exist.
 
-The auth slice merged into staging. Sam reports deploying its migration/function, configuring the three server-side secrets, registering `https://logbook-dev.readyall.org/callback`, and successfully connecting a Concept2 development account. A genuine expired-token refresh now passes. Production retains its existing connection flow.
+Distance contract example:
 
-PR #140 merged into staging; Sam reports applying its migration and deploying the updated function. User-confirmed smoke passed: empty import, result import/re-import/reload, three LC-originated writes, exact-ID read-back and real expired-token refresh. Normal staging history still reads shared production records; development summaries use their own service-only table. Multi-page behavior remains unverified.
+```text
+RWN:               2x500m/2:00r
+Measured work:     1,000 m
+Measured recovery:   400 m
+Training volume:   1,400 m
+Concept2 fields:   distance=1000, rest_distance=400
+```
 
-PRs #141 and #142 are merged into staging. The targeted development write migrations and Edge Function version 5 are live. Sam saved LC workout `f7e75f35-2dda-4a5a-87b8-bbbecf1e8013` (8455 m / 2400 s) and Concept2 development accepted exactly one POST as result `86800`. Import page 1 returned that result with the exact original LC UUID; repeat import retained one record per provider result ID and total remained two. Live publication state is `published` with `attempt_count = 1`; the original LC row's production Concept2 fields remain untouched. The initial test-entry failure was traced to an old workout-statistics trigger's unqualified table reference under the restricted function path and fixed by targeted migration `20260917130000`, verified with a rolled-back live insert. Unknown provider outcomes still cannot POST again automatically; service-only recovery records operator evidence.
+The shared volume change passed 531 Vitest tests, the production build, focused training-block tests, and lint with zero errors. PR #182 merged at `8cf70935bab61b5d66409fee66be1aa10c4b0087`.
 
-The real refresh path also passed: after the development expiry was deliberately moved into the past, Sam used **Check / refresh connection** and live verification showed a fresh expiry, retained write scope, no reconnect requirement and no stuck operation.
+## Evidence boundaries
 
-Refreshed-token writes also produced results `86805` and `86807`; import retained one snapshot per provider ID and exact LC links. Sam then identified missing provider-side LC provenance and confusing post-success form state. Targeted migration `20260917134500` is live and adds `Logbook Companion workout ID: <uuid>` to future Concept2 comments; a rolled-back live claim verified it without leaving data or a lock. Existing results were not edited. PR #145 merged the paired form reset/status fix.
+- Manual entry and synthetic fixtures prove application storage, mapping, publication, provider display, exact-ID read-back, and duplicate prevention.
+- They do not prove PM5 capture fidelity, sampling semantics, stroke identity, force curves, or measured power/calorie accuracy.
+- Concept2-generated calorie and watt displays are not LC capture evidence.
+- `CompletedWorkoutV2` has space for source evidence and normalized samples, but ErgLink is not yet producing the required stable completed-capture envelope.
+- The deployed legacy production `publish-to-c2` function remains separate, absent from source control, and unsuitable as the shared core.
 
-Post-fix result `86817` completed the final fixed-distance check: Concept2 displayed `Logbook Companion workout ID: 733e80e4-cfef-44c8-b851-d097fda0f432`, the form cleared after success, and import persisted five total snapshots with result `86817` linked to that exact LC UUID. Fixed-distance development writing is complete.
+## Ordered next steps
 
-The [publishing specification](../docs/concept2-mobile/publishing.md) now replaces form-by-form expansion with one server-side canonical completed-workout model, pure mapper/validator, provider adapter and existing durable publication state machine. ErgLink is a capture producer: reuse its PM5 workout vocabulary, IndexedDB stroke buffer, session/participant/template/assignment provenance and raw samples, but first add stable capture identity/version, completion state, true finish/timezone, final summary, measured intervals and real aggregates. The deployed legacy production `publish-to-c2` function is not in source control and is unsafe as the foundation; audit and replace it only after the shared core is proven.
-The completed-workout requirement includes the entire detailed result when available, not only summary totals: preserve versioned lossless PM5/ErgLink telemetry, derive provider-independent normalized samples/intervals, and generate Concept2 `stroke_data` as a projection. Current ErgLink buffer records must not be called one-per-stroke until PM5 sampling semantics are proven.
+### 1. Close the post-merge manual integrity smoke
 
-Sam sent the Concept2 production-write requirements inquiry to `ranking@concept2.com` on 2026-09-17; response is pending.
+Use the staging-only account and browser profile:
 
-PR #153 merged into staging. Its frontend deployed at merge commit `1cf6443`. On 2026-09-17, the shared Supabase migration `concept2_shared_publication_core` was applied through MCP (recorded version `20260917172700`), and `concept2-development-auth` was deployed as version 6 with JWT verification on. The migration added `mapper_version` and replaced only the two development RPCs; four earlier publications remained `published` with version `0`, and both RPCs remained service-role only. A no-JWT endpoint request returned 401. The deployed legacy production `publish-to-c2` function remains untouched. Fixed-time development publication now has one provider round trip: result `86844` for LC workout `038c5e27-8220-4ff9-88cf-10555a20abe5` was published once with mapper version 1, read back through the development import, and linked by exact result ID. Concept2 displayed Fixed Time and the LC UUID comment. Repeat import refreshed the same result without a duplicate (six rows, six distinct IDs) or a second publication attempt. Fixed-time development publishing is complete for this manual test row; it is not ErgLink/PM5 capture evidence.
+1. Confirm a published manual result rejects result-bearing edits while still allowing an unrelated template association.
+2. Confirm an unpublished manual result remains editable.
+3. Save and reopen one complete and one incomplete work/rest result; blank measurements must remain unknown in JSON and indexed columns.
+4. Record a result with measured recovery meters and verify work, recovery, and total volume separately in the result detail, recent workouts, dashboard totals, Analytics, goals, and reports.
+5. Keep RWN and performance calculations based on measured work, and confirm the Concept2 projection still sends work and recovery separately.
 
-PRs #156–#159 merged the `CompletedWorkoutV2` interval contract, three named synthetic fixtures, mapper-generated validator JSON, Sam-reported strict Online Validator success, and the development UI/service-only fixture publishing path. The optional validator suggestions (overall stroke rate, stroke count, drag factor) remain absent because the fixtures contain no measured values. The user applied migration `20260917190000`; its live objects and service-only grants were verified, then its already-applied state was recorded in Supabase migration history. The merged `concept2-development-auth` function was deployed as version 7 with JWT verification on, and an unauthenticated request returned 401. All three synthetic interval fixtures were explicitly published to development and imported by exact ID: fixed distance `86847` / LC `a136492a-2205-41b1-8e60-2aed510d26ec`, fixed time `86848` / LC `b5d2250d-4962-4392-8317-e954420e7166`, and mixed variable `86849` / LC `1d6a4ebb-4ec0-4b5a-9169-a8df75d92386`. Sam reports that all three Concept2 interval breakdowns display correctly. Live state shows one attempt and mapper version 2 each, with original LC production Concept2 fields empty. Repeat import left nine saved development results with nine distinct IDs. The remaining approval matrix includes controlled duplicate `409` and invalid `422` evidence; future coverage explicitly includes calorie/watt-minute workout shapes and measured calorie/power data. Production publishing remains disabled; the legacy production `publish-to-c2` function remains untouched. See [interval rollout](../docs/concept2-mobile/development-interval-rollout.md).
+### 2. Prove import identity and source preservation end to end
 
-**Resume at [Concept2 publishing handoff](../docs/concept2-mobile/resume-publishing.md).** Summary and three synthetic interval shapes now pass development publishing and exact-ID import. Next, complete controlled duplicate `409` and invalid `422` evidence, then prepare the formal production-write request unless Concept2 gives different instructions. Calorie/watt-minute workout shapes and measured calorie/power evidence are explicit later validation tracks; they are not established by the current synthetic fixtures. ErgLink capture hardening and occasional batched PM5 tests continue separately; production activation remains a later gate.
+1. Re-sync an already imported Concept2 result by exact provider ID and confirm the provider row refreshes.
+2. Exercise a near-time/manual match and confirm the LC-owned row keeps its source and raw result while the provider result is saved under its exact ID.
+3. Do not hide the possible two-row representation until an association is proven.
+4. Design an explicit provider-link/display rule that associates one real session without rewriting origin evidence.
 
+### 3. Define published-result reconciliation
 
-## Architecture references — Concept2/mobile
+When a user edits a result in Concept2, refresh the linked provider snapshot, compare it with the immutable published payload, and surface divergence. An explicit adoption action should create an auditable LC revision. Do not silently overwrite the LC source row or automatically repost.
 
-Specifications and bounded plans are in [docs/concept2-mobile/README.md](../docs/concept2-mobile/README.md), linked from the [roadmap](../docs/logbook-concept2-mobile-roadmap.md). The current handoff above governs implementation sequencing; older planning and slice documents contain historical status.
+### 4. Strengthen the ErgLink capture contract
 
-- [Publishing](../docs/concept2-mobile/publishing.md): prerequisite owned capture identity/version and completed-versus-prescribed data; preserve ErgLink origin/strokes and LC UUID through exact-ID import; manual single fixed-distance development publication first; durable claim plus explicit unknown-POST recovery, not blind retries. Concept2 production write approval is unverified.
-- [Mobile delivery](../docs/concept2-mobile/mobile-delivery.md): independent Apple registration/signing/archive/TestFlight track, then signed compatible OTA and rollback. Sam confirms ScheduleBoard's GitHub Actions native pipeline and self-hosted Capgo/Vercel updates are reliable; Appflow was retired for cost and must not return. ScheduleBoard was read as reference only and not modified.
-- Inspected gaps to resolve before code enablement: shared types use `erg_link_live` but reconciliation priority uses `erg_link`; current import can replace origin/raw data with Concept2 data; `publish-to-c2` is mentioned in client comments but absent from inspected functions; OAuth callback/refresh reference a browser `VITE_CONCEPT2_CLIENT_SECRET`. No secret values were read. Capture completion/final-summary semantics and live database constraints require evidence.
-- Current priority is development publishing, not the mobile shell. Embedded PM5, force curves, automatic publication and broad platform/machine expansion remain deferred.
+Add one stable capture UUID and schema version at workout start. Preserve actual start/finish/timezone, completion state, final summary, completed intervals, assignment/template/session provenance, and the original notification/sample stream. LC ingestion must be idempotent by owner and capture ID and return an owned LC workout UUID before the device clears its buffer.
 
-## Prior Product Focus — Support work (retained from 2026-07-09)
+### 5. Validate real PM5 evidence
 
-Support-work management is the current product slice after the training-block scheduling/config work. The intended direction is a reusable support-work library for strength, core, mobility, stretching, and similar prescriptions, without turning this into a general workout builder.
+Collect consented completed, aborted, interrupted, and retried captures. Determine whether current buffered records are strokes, periodic telemetry samples, or a mixture. Verify interval reset behavior, work/rest elapsed meanings, cumulative distance, averages, finish time, and retry durability before projecting `stroke_data`.
 
-## Current Implementation State
+### 6. Enrich Concept2 projection from measured evidence
 
-- Added user-owned support-work library schema in `supabase/migrations/20260709165000_add_user_owned_support_library.sql`.
-- Live Supabase migration was applied and verified through MCP-first checks.
-- Regenerated DB types in `src/types/database.types.ts`.
-- Added `<meta name="mobile-web-app-capable" content="yes" />` in `index.html`.
-- Added support-work service layer in `src/services/supportWorkService.ts`.
-- Added Support Work Library page in `src/pages/SupportWorkLibrary.tsx`.
-- Expanded the support exercise/template seed to 120 canonical rows and added starter standard sessions in `supabase/migrations/20260709190000_seed_expanded_support_work_library.sql`.
-- Wired the route in `src/App.tsx` and navigation in `src/components/Layout.tsx`.
-- Fixed Vercel SPA rewrites in `vercel.json` so `/assets/*` chunk requests are no longer rewritten to `index.html`, resolving module MIME errors on production.
-- Added support-work equipment compatibility filtering and family-ranked alternatives in `src/pages/SupportWorkLibrary.tsx`.
-- Applied live Supabase metadata migrations through MCP for strict Landmine Press equipment, strict Weighted Pull-Up equipment, and support-work alternative families.
+After PM5 semantics are proven, normalize interval and sample detail into the shared completed-workout model. Add calories, watt-minutes, watts, stroke rate/count, drag factor, heart rate, and Concept2 `stroke_data` only when backed by trustworthy source evidence. Compare each immutable submitted payload with exact-ID provider detail.
 
-## Instruction Cleanup State
+## Progress snapshot
 
-- `AGENTS.md` is now a real repo-local file, not a symlink into `~/apps/codex-config`.
-- Repo instructions now include context budget rules, a corrected workspace map, local skill routing, and a Project Fit Check.
-- `.github/copilot-instructions.md` and `.github/instructions/copilot-instructions.md` are compact mirrors that route to `AGENTS.md`, current working memory, system patterns, and matching skills only.
-- `.github/skills/supabase-schema-guard/SKILL.md` now points at `src/types/database.types.ts`.
-- The shared global instruction file keeps only generic behavior and the generic Project Fit Check; Logbook-specific skill routing is repo-local.
+| Area | State |
+| --- | --- |
+| Development OAuth, rotating refresh, write consent | Proven |
+| Fixed-distance/fixed-time/interval development publication | Proven |
+| Manual completed-workout entry and shared mapper | Functional; final smoke remains |
+| Source preservation, incomplete-total guard, published edit guard | Merged; targeted live smoke remains |
+| Work/recovery/total volume semantics | Merged in PR #182 |
+| Provider association and remote-edit reconciliation | Designed direction; implementation remains |
+| Stable ErgLink completed-capture envelope | Not implemented |
+| Real PM5 detailed evidence and `stroke_data` projection | Not proven |
+| Production Concept2 publishing | Disabled pending approval |
 
-## Verified Checks
+## Resume references
 
-- `npm run types:supabase` passed after migration.
-- `npm run build` passed after support-work compatibility and alternative-family changes.
-- Supabase MCP verified new live migrations: `set_landmine_press_required_equipment`, `set_strict_required_equipment_for_weighted_pull_up`, and `set_support_work_alternative_families`.
-- `npm run lint` passed with existing warnings only.
-- Focused training-block tests passed.
-- `git diff --check` passed.
-- Copilot instruction mirrors are byte-for-byte identical.
-
-## Current Risks And Notes
-
-- The Support Work Library UX still needs an in-browser review before deeper product expansion.
-- Support-work compatibility is intentionally metadata-light: strict equipment only for truly strict cases, and alternatives are ranked by `support_work_family`, movement pattern, and equipment profile.
-- The recent production path issue was routing-related (rewrites), not data-model related; support-work data remains unchanged by the fix.
-- Support-work templates should remain reusable support prescriptions. Do not add arbitrary erg workout building here.
-- Next likely architecture decision: whether training-block support prescriptions should link to support-session templates directly, or whether the support library needs one more edit/review polish pass first.
-- Historical working-memory and decision-log entries contain older multi-app names and paths. Treat those as historical until verified against the current filesystem and live service config.
-
-## Next Small Step For Fresh Session
-
-1. Confirm in-browser on both desktop and mobile that the library route is stable after the routing fix, then do a focused browser UX pass on the Support Work Library (empty state, list/detail scanning, create/edit flows, and deletion safety).
-2. Make only small polish fixes from that UX pass unless a blocking data bug appears.
-3. After UX polish, decide whether the next product slice should link training-block support prescriptions to support-session templates. Do not start that linking work before the UX pass.
-
-## Ongoing Context Hygiene
-
-- Keep future instruction additions short: routing rules and durable constraints only, not long background essays.
-- Keep `activeContext.md` current-state only. Move history to `implementationLog.md` or `decisionLog.md`.
+- [Concept2/mobile router](../docs/concept2-mobile/README.md)
+- [Completed result storage and capture audit](../docs/concept2-mobile/capture-storage-audit.md)
+- [Publishing specification](../docs/concept2-mobile/publishing.md)
+- [Development publishing history](../docs/concept2-mobile/resume-publishing.md)
+- [Manual entry design](../docs/completed-workout-entry-design.md)
+- [Manual interval grid design](../docs/completed-workout-entry-grid-design.md)
+- [Concept2 approval evidence](../docs/concept2-mobile/approval-evidence/README.md)
+- [System patterns](systemPatterns.md)

@@ -1,6 +1,6 @@
 # Concept2 publishing and mobile delivery
 
-Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. Manual entry is in staging. PM5 capture and production write approval remain separate work.
+Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. General manual entry, source-preserving import, incomplete-result guards, published-result edit protection, and work/recovery/total volume semantics are merged into staging. Targeted live smoke, provider association/revision, PM5 capture, and production write approval remain separate work.
 
 ## Start here / resume
 
