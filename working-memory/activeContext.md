@@ -101,9 +101,9 @@ When a user edits a result in Concept2, refresh the linked provider snapshot, co
 
 Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owner + capture ID/version. Reconstruct trusted searchable columns from the accepted summary, store raw evidence separately, return the owned LC workout UUID, and only then allow the device `CaptureStore` to acknowledge the upload. Do not reuse the legacy last-sample `ErgLinkUploadMeta` write path.
 
-### 5. Build the LC → RWN → PM5 programming service
+### 5. Prove the LC → RWN → PM5 programming service on hardware
 
-LC already has `parseRWN`/`WorkoutStructure` and `lowerWorkoutStructureToPm5`, and ErgLink has a CSAFE command core. What is missing is one reviewed delivery/acknowledgement boundary that sends the lowered `ActiveWorkoutSpec` to the connected mobile PM5, checks GATT capabilities, receives the PM5 CSAFE response, and reports exact/prompt-only/unsupported outcomes. The older `ergLinkAdapter.ts` is not the service and should not become a second lowering implementation.
+LC now stamps idempotent programming requests from either RWN lowering or the existing manual controls. ErgLink serializes and deduplicates those requests, converts variable-workout rest steps, sends CSAFE against the connected PM5 using negotiated GATT capabilities, and writes received/final participant receipts that LC displays. `exact`, `prompt_only`, and `unsupported` outcomes preserve the original RWN as the canonical superset. Hardware proof remains for each supported lowering shape and PM5 rejection/not-ready behavior. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
 
 ### 6. Complete adverse-path PM5 evidence
 
@@ -126,7 +126,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Stable PM5 completed-capture envelope | Proven in ErgLink; LC ingestion remains |
 | PM5 stroke/split/end-summary evidence | Proven for completed 100 m workouts |
 | Browser/mobile durable CaptureStore | IndexedDB + Capacitor SQLite adapters implemented |
-| LC → RWN → PM5 programming service | Lowering exists; delivery/acknowledgement service remains |
+| LC → RWN → PM5 programming service | Implemented; real-PM5 workout matrix remains |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 

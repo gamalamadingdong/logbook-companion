@@ -40,6 +40,13 @@ export interface ActiveWorkoutSpec {
   /** Schema version — increment when adding breaking fields */
   _v: 1;
 
+  /** Stable idempotency key for one PM5 programming request. */
+  programming_request_id?: string;
+  programming_requested_at?: string;
+  source_rwn?: string;
+  lowering_mode?: 'exact' | 'prompt_only';
+  lowering_notes?: string[];
+
   // ─── PM5 Programming ─────────────────────────────────────────────────────
 
   /** Workout type for CSAFE command selection */
@@ -93,6 +100,23 @@ export interface ActiveWorkoutSpec {
 
   /** Human-readable title for display (e.g. "Morning 5K Test") */
   title?: string | null;
+}
+
+export type PM5ProgrammingStatus =
+  | 'received'
+  | 'programmed'
+  | 'rejected'
+  | 'not_ready'
+  | 'unsupported'
+  | 'transport_error';
+
+export interface PM5ProgrammingReceiptV1 {
+  _v: 1;
+  request_id: string;
+  status: PM5ProgrammingStatus;
+  received_at: string;
+  completed_at?: string;
+  error?: string;
 }
 
 /** A single interval step within a variable_interval workout */

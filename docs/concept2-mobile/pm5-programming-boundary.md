@@ -1,6 +1,6 @@
 # LC → RWN → PM5 programming boundary
 
-Status: next implementation slice after the PM5 connectivity/capture checkpoint.
+Status: implementation checkpoint; request creation, serialized delivery, and participant acknowledgement are implemented. Real PM5 programming evidence remains.
 
 ## Existing capabilities to reuse
 
@@ -11,9 +11,9 @@ Status: next implementation slice after the PM5 connectivity/capture checkpoint.
 
 `src/utils/ergLinkAdapter.ts` predates the reviewed lowering path and contains overlapping defaults. It is not the missing service. Do not add a third conversion path; retire or route it through `lowerWorkoutStructureToPm5` when implementation begins.
 
-## Missing service
+## Service boundary
 
-The missing boundary is a mobile programming coordinator, not a remote ErgLink network service:
+The boundary is a mobile programming coordinator, not a remote ErgLink network service:
 
 ```text
 LC plan/template/RWN
@@ -40,6 +40,17 @@ The coordinator must:
 - parse PM5 `ok`, `reject`, `bad`, and `not_ready` outcomes;
 - report accepted configuration separately from workout start and completed capture;
 - remain independent of Concept2 Logbook OAuth and publication.
+
+## Implemented checkpoint
+
+- LC accepts optional RWN in the coach session flow and uses `lowerWorkoutStructureToPm5`; manual controls use the same request-stamping path.
+- Every request carries a stable request ID, timestamp, original RWN, lowering mode, and notes.
+- ErgLink deduplicates request IDs, serializes programming, converts variable-workout rest steps into PM5 work/rest commands, and writes received/final receipts into participant data.
+- LC displays each participant's latest PM5 programming status.
+- Both BLE transports serialize CSAFE exchanges and select read versus notify from actual GATT capabilities.
+- PM5 control-value limits derive from negotiated/read ATT MTU while retaining a 20-byte fallback.
+
+Still required: exercise each supported lowering shape on the real PM5 and retain exact rejection evidence for unsupported or unavailable commands.
 
 ## Result contract
 
