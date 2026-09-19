@@ -25,6 +25,21 @@ Keep prescription, performance, and accumulated training volume distinct:
 
 For a result with 1,000 m of work and 400 m measured during recovery, LC retains a 1,000 m work result and counts 1,400 m toward accumulated volume. RWN does not invent recovery meters; only completed measurements do.
 
+## PM5 connectivity and capture result
+
+The ErgLink PM5 path was audited against Concept2 CSAFE revision 0.34 and exercised on a real RowErg PM5. Proven evidence now includes:
+
+- GATT capability discovery plus public CSAFE `GETSTATUS` write/notify responses;
+- live time, distance, pace, stroke rate, and watts;
+- actual stroke (`0x0035`), split (`0x0037`), base summary (`0x0039`), and additional summary (`0x003A`) notifications;
+- two completed 100 m captures with exact distance/time/pace/watts/stroke-rate reconciliation;
+- twenty stroke notifications representing ten actual strokes, requiring deduplication by PM5 `strokeCount` while retaining all raw notifications;
+- paired end summaries as the authoritative final result rather than the final live or stroke sample.
+
+ErgLink now produces `PM5CompletedCaptureV1`, retained in one `CaptureStore` lifecycle. Browser/boathouse operation uses IndexedDB; Capacitor mobile uses SQLite following the proven ScheduleBoard pattern. Both retain pending/attempt/failed/acknowledged states keyed by capture ID. LC does not yet ingest or acknowledge this envelope.
+
+Heart-rate compatibility is preserved: PM5 live status and end summaries already carry optional live, ending, average, minimum, maximum, and recovery HR. Normalized HR fields can be added after an HR-belt hardware run without changing capture identity.
+
 ## Boundaries that still need work
 
 | Boundary | Current evidence | Required next step |
@@ -32,8 +47,9 @@ For a result with 1,000 m of work and 400 m measured during recovery, LC retains
 | Post-merge manual behavior | Unit and integration tests cover incomplete totals, work/rest normalization, edit guarding, and cumulative volume. | Smoke the merged behavior in staging: published versus unpublished editing, save/reopen of complete and incomplete rows, and a recovery-distance result across all volume displays. |
 | Provider association | Exact provider IDs are preserved and nearby LC rows retain origin evidence. One real session can temporarily appear as an LC row plus a Concept2 provider row. | Prove same-ID refresh and near-match preservation end to end, then add an explicit provider link/display rule without rewriting source identity. |
 | Remote Concept2 edits | Provider-owned imported rows can refresh by exact ID. LC-originated published rows retain immutable publication snapshots. | Refresh the linked provider snapshot, detect divergence, and offer an explicit auditable LC revision/adoption flow. Do not silently overwrite or repost. |
-| ErgLink upload | Existing session/buffer concepts are useful, but there is no stable completed-capture ID/version, trustworthy finish time, completion state, or durable acknowledgement. BLE notifications currently look like aggregate snapshots. | Persist one capture UUID/version at workout start; retain raw notifications, actual timing/timezone, completion state, final summary, intervals, and provenance. Clear the buffer only after LC returns a durable owned workout UUID. |
-| Detailed result | `CompletedWorkoutV2` reserves source-evidence and normalized-sample fields. Manual entry supplies intervals; PM5 detail is not wired. | Store immutable raw capture evidence separately from normalized intervals/samples and provider projection. Determine PM5 sampling semantics before calling records strokes. |
+| PM5 capture envelope | Stable ID/version, raw evidence, deduplicated strokes, splits, paired summaries, lifecycle, and browser/mobile durable stores are implemented and proven for completed 100 m workouts. | Add idempotent owner + capture ID/version LC ingestion and return an owned workout UUID before device acknowledgement. Do not reuse legacy last-sample upload. |
+| PM5 programming | RWN parsing and `lowerWorkoutStructureToPm5` exist in LC; CSAFE command framing and response validation exist in ErgLink. There is no single LC/mobile delivery service joining them. | Build one LC → WorkoutStructure → PM5 lowering → mobile delivery/acknowledgement boundary. Retire `ergLinkAdapter.ts` as a competing lowering path rather than extending it. |
+| Detailed result | `CompletedWorkoutV2` reserves source-evidence and normalized-sample fields; PM5 capture now supplies trustworthy raw and normalized detail. | Normalize the accepted capture into the shared completed-workout model, preserving raw evidence outside provider projection. |
 | Rich metrics | Concept2 pages may calculate calories and watts even when LC did not send measured values. | Add calories, watt-minutes, watts, SPM, stroke count, drag, HR, and samples only from trustworthy PM5 summary/telemetry evidence. |
 | Provider equivalence | Exact-ID summary read-back works. It does not prove interval/stroke equivalence. | Compare each immutable submitted payload with exact-ID provider detail, including intervals, rest, and `stroke_data` when present. |
 
@@ -42,9 +58,10 @@ For a result with 1,000 m of work and 400 m measured during recovery, LC retains
 1. **Manual integrity smoke:** published edit block, allowed template association, unpublished edit, complete/incomplete save/reopen, and 1,000 m work + 400 m recovery = 1,400 m accumulated volume.
 2. **Import identity:** exact-ID refresh plus near-time manual/ErgLink match; original source/raw evidence must survive and provider detail must remain available under the exact ID.
 3. **Association and revision:** define provider linking, duplicate display, remote divergence, and explicit adoption as an auditable LC revision.
-4. **ErgLink capture envelope:** stable capture ID/version, actual timing, completion state, final summary, intervals, raw stream, provenance, and retry acknowledgement.
-5. **Real PM5 evidence:** completed, aborted, interrupted, and retried captures; verify sampling and work/rest semantics before normalization.
-6. **Detailed projection:** map proven normalized detail into Concept2 intervals and `stroke_data`, then compare exact-ID provider detail.
+4. **LC capture ingestion:** accept `PM5CompletedCaptureV1` idempotently by owner + capture ID/version; return the owned workout UUID for device acknowledgement.
+5. **PM5 programming service:** connect existing RWN lowering to the mobile CSAFE transport with exact/prompt-only/unsupported and PM5 acknowledgement states.
+6. **Adverse-path evidence:** aborted, interrupted, retried, interval-with-rest, and HR-belt captures.
+7. **Detailed projection:** map proven normalized detail into Concept2 intervals and `stroke_data`, then compare exact-ID provider detail.
 
 ## Operational boundaries
 

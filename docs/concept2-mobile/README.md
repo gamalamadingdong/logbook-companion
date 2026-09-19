@@ -1,6 +1,6 @@
 # Concept2 publishing and mobile delivery
 
-Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. General manual entry, source-preserving import, incomplete-result guards, published-result edit protection, and work/recovery/total volume semantics are merged into staging. Targeted live smoke, provider association/revision, PM5 capture, and production write approval remain separate work.
+Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. General manual integrity work is merged into staging. Real PM5 connectivity, stroke/split/end-summary parsing, a versioned completed-capture envelope, and browser/mobile durable capture stores are proven in ErgLink; LC ingestion and LC → RWN → PM5 programming remain separate implementation slices.
 
 ## Start here / resume
 
@@ -10,7 +10,7 @@ Current implementation: [development auth](staging-auth-slice.md), followed by [
 
 API background: [official Concept2 Logbook API documentation snapshot](concept2-logbook-api-reference.md). This searchable Markdown capture covers OAuth, scopes, result reads/writes, bulk results, intervals, targets, strokes, metadata, webhooks and error behavior. Recheck the linked live source before relying on it for provider behavior.
 
-Data boundary: [completed result storage and capture audit](capture-storage-audit.md) records the current LC, ErgLink, and Concept2 evidence and next integrity checks.
+Data boundary: [completed result storage and capture audit](capture-storage-audit.md) records the current LC, ErgLink, PM5, and Concept2 evidence and next integrity checks. The [LC → RWN → PM5 programming boundary](pm5-programming-boundary.md) records the existing lowering/CSAFE capabilities and the missing delivery/acknowledgement service.
 
 Production-write approval: [evidence matrix](approval-evidence/README.md) and [requirements-inquiry draft](approval-evidence/requirements-inquiry-draft.md).
 
