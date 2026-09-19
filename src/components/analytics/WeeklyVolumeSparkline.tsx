@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { getTotalTrainingDistanceMeters, type TrainingDistanceFields } from '../../utils/workoutDistance';
 
 interface WeeklyVolumeSparklineProps {
-    workouts: { completed_at: string; distance_meters: number }[];
+    workouts: Array<{ completed_at: string } & TrainingDistanceFields>;
 }
 
 interface WeekBucket {
@@ -20,7 +21,7 @@ function getWeekStart(date: Date): Date {
     return d;
 }
 
-function buildWeekBuckets(workouts: { completed_at: string; distance_meters: number }[]): WeekBucket[] {
+function buildWeekBuckets(workouts: Array<{ completed_at: string } & TrainingDistanceFields>): WeekBucket[] {
     const now = new Date();
     const currentWeekStart = getWeekStart(now);
     const weeks: WeekBucket[] = [];
@@ -43,7 +44,7 @@ function buildWeekBuckets(workouts: { completed_at: string; distance_meters: num
             bucketEnd.setDate(bucketEnd.getDate() + 7);
 
             if (wWeekStart.getTime() === bucketStart.getTime()) {
-                weeks[i].meters += w.distance_meters || 0;
+                weeks[i].meters += getTotalTrainingDistanceMeters(w);
                 break;
             }
         }

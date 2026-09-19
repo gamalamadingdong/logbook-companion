@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { workoutService } from '../services/workoutService';
 import { getProfile } from '../api/concept2';
 import { DEMO_WORKOUTS, GUEST_PROFILE } from '../data/demoData';
+import { getTotalTrainingDistanceMeters } from '../utils/workoutDistance';
 
 /** Per-section error tracking */
 export interface DashboardErrors {
@@ -90,13 +91,13 @@ export const useDashboardData = () => {
         try {
             const { data, error: metersErr } = await supabase
                 .from('workout_logs')
-                .select('distance_meters')
+                .select('distance_meters, rest_distance_meters')
                 .eq('user_id', user.id);
 
             if (metersErr) {
                 sectionErrors.meters = 'Unable to load lifetime meters.';
             } else if (data) {
-                setTotalMeters(data.reduce((sum, log) => sum + (log.distance_meters || 0), 0));
+                setTotalMeters(data.reduce((sum, log) => sum + getTotalTrainingDistanceMeters(log), 0));
             }
         } catch {
             sectionErrors.meters = 'Unable to load lifetime meters.';
@@ -114,7 +115,7 @@ export const useDashboardData = () => {
         try {
             const { data, error: histErr } = await supabase
                 .from('workout_logs')
-                .select('id, completed_at, distance_meters, duration_seconds, duration_minutes, watts, avg_split_500m, source, workout_name, canonical_name, manual_rwn, workout_type, template_id')
+                .select('id, completed_at, distance_meters, rest_distance_meters, duration_seconds, duration_minutes, watts, avg_split_500m, source, workout_name, canonical_name, manual_rwn, workout_type, template_id')
                 .eq('user_id', user.id)
                 .gte('completed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 

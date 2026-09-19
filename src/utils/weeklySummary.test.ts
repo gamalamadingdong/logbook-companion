@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { summarizeWeeklyLogs } from './weeklySummary';
 
-const log = (completed_at: string, distance_meters: number) => ({
+const log = (completed_at: string, distance_meters: number, rest_distance_meters = 0) => ({
   completed_at,
   distance_meters,
+  rest_distance_meters,
 });
 
 describe('summarizeWeeklyLogs', () => {
@@ -31,6 +32,15 @@ describe('summarizeWeeklyLogs', () => {
       workoutCount: 3,
       streakWeeks: 1,
     });
+  });
+
+  it('includes measured recovery distance in weekly training volume', () => {
+    expect(
+      summarizeWeeklyLogs(
+        [log('2026-08-05T08:00:00Z', 1000, 400)],
+        '2026-08-05',
+      ),
+    ).toMatchObject({ totalDistanceMeters: 1400 });
   });
 
   it('counts consecutive active prior weeks in the streak', () => {

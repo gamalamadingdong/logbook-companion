@@ -22,7 +22,15 @@ PR #167 merged into staging at `685535b`. The general completed-workout result p
 
 PR #165 merged the approved [general entry design](../docs/completed-workout-entry-design.md) into staging. It adds a global activity-first manual completion flow, versioned result detail in owned `workout_logs.raw_data`, measured variable intervals with full/partial coverage, optional RWN target prefill, save/read/edit, and a dedicated LC result detail. Runs, non-Concept2 ergs, and named Other activities remain LC records. The first staging save exposed an overbroad client request guard that blocked all `workout_logs` writes; the follow-up fix permits only versioned general manual-entry saves/edits while preserving legacy Concept2 sync blocks. The plan picker/link, Concept2 publication bridge, and ErgLink capture remain later work. No migration, Edge deployment, Concept2 POST, or production enablement is part of this slice. Staging phone/desktop visual and live save/reopen checks remain pending.
 
-## Current effort — Concept2 production-write approval readiness
+## Current effort — completed-result convergence
+
+PR #181 is merged into staging, and Sam reports applying `20260918210000_guard_published_manual_results.sql`. Published or uncertain general manual development results are now protected from result-bearing edits; rejected and unpublished results remain editable.
+
+The current narrow follow-up makes distance semantics consistent without changing workout identity or performance calculations: `distance_meters` is measured work, `rest_distance_meters` is measured recovery, and cumulative training volume is their sum. RWN, pace, watts, PRs, template comparison and Concept2 `distance` remain work-based. Recent-workout displays show work and total explicitly when recovery meters exist.
+
+After this follow-up, resume the shared completed-workout path from `docs/concept2-mobile/capture-storage-audit.md`: finish manual save/reopen verification, preserve exact-ID provider associations without overwriting LC source evidence, define a stable versioned ErgLink capture envelope and retry acknowledgement, verify PM5 sample semantics, then normalize rich captured detail into the same completed-workout model used by manual entry. Production Concept2 publishing remains disabled pending provider and operator approval.
+
+## Earlier effort — Concept2 production-write approval readiness
 
 The auth slice merged into staging. Sam reports deploying its migration/function, configuring the three server-side secrets, registering `https://logbook-dev.readyall.org/callback`, and successfully connecting a Concept2 development account. A genuine expired-token refresh now passes. Production retains its existing connection flow.
 

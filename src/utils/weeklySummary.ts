@@ -1,6 +1,9 @@
+import { getTotalTrainingDistanceMeters } from './workoutDistance';
+
 export type WeeklyLog = {
   completed_at: string;
   distance_meters: number;
+  rest_distance_meters?: number | null;
 };
 
 export type WeeklySummary = {
@@ -35,7 +38,7 @@ export function summarizeWeeklyLogs(
     activeWeeks.add(week);
 
     if (week === referenceWeek) {
-      totalDistanceMeters += workout.distance_meters;
+      totalDistanceMeters += getTotalTrainingDistanceMeters(workout);
       workoutCount += 1;
     }
   }
