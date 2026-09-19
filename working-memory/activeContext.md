@@ -101,9 +101,9 @@ When a user edits a result in Concept2, refresh the linked provider snapshot, co
 
 Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owner + capture ID/version. Reconstruct trusted searchable columns from the accepted summary, store raw evidence separately, return the owned LC workout UUID, and only then allow the device `CaptureStore` to acknowledge the upload. Do not reuse the legacy last-sample `ErgLinkUploadMeta` write path.
 
-### 5. Prove the LC → RWN → PM5 programming service on hardware
+### 5. Build the direct athlete RWN → PM5 mobile path
 
-LC now stamps idempotent programming requests from either RWN lowering or the existing manual controls. ErgLink serializes and deduplicates those requests, converts variable-workout rest steps, sends CSAFE against the connected PM5 using negotiated GATT capabilities, and writes received/final participant receipts that LC displays. `exact`, `prompt_only`, and `unsupported` outcomes preserve the original RWN as the canonical superset. Hardware proof remains for each supported lowering shape and PM5 rejection/not-ready behavior. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
+RWN is the canonical superset. The shared `@readyall/rwn` package now owns `translateWorkoutToPm5`, which returns explicit `exact`, `prompt_only`, or `unsupported` outcomes without weakening the notation. The existing coach/session relay remains useful for boathouse operation, but it is not the primary athlete flow. The next implementation binds this shared translation and the audited PM5 transport directly inside LC Capacitor mobile, with no coach session or Supabase programming relay required. Real-PM5 proof remains for each supported translation shape and PM5 rejection/not-ready behavior. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
 
 ### 6. Complete adverse-path PM5 evidence
 
@@ -126,7 +126,8 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Stable PM5 completed-capture envelope | Proven in ErgLink; LC ingestion remains |
 | PM5 stroke/split/end-summary evidence | Proven for completed 100 m workouts |
 | Browser/mobile durable CaptureStore | IndexedDB + Capacitor SQLite adapters implemented |
-| LC → RWN → PM5 programming service | Implemented; real-PM5 workout matrix remains |
+| Shared RWN → PM5 translation | Implemented in `@readyall/rwn`; package publication remains |
+| Direct athlete LC mobile → PM5 | Not implemented; coach/session relay is secondary only |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 

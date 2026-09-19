@@ -5,11 +5,11 @@ Status: implementation checkpoint; request creation, serialized delivery, and pa
 ## Existing capabilities to reuse
 
 1. LC parses RWN into `WorkoutStructure`.
-2. `src/utils/rwnPm5Lowering.ts` lowers supported structures into `ActiveWorkoutSpec` with `exact`, `prompt_only`, or `unsupported` outcomes.
+2. `@readyall/rwn.translateWorkoutToPm5` translates supported structures into a PM5 workout with `exact`, `prompt_only`, or `unsupported` outcomes.
 3. ErgLink's audited CSAFE core builds validated PM5 commands, applies byte stuffing/checksums, inspects GATT capabilities, and parses PM5 acceptance/rejection responses.
 4. The mobile PM5 connection already owns BLE permissions, device selection, notifications, and capture lifecycle.
 
-`src/utils/ergLinkAdapter.ts` predates the reviewed lowering path and contains overlapping defaults. It is not the missing service. Do not add a third conversion path; retire or route it through `lowerWorkoutStructureToPm5` when implementation begins.
+`src/utils/ergLinkAdapter.ts` predates the reviewed translation path and contains overlapping defaults. It is not the missing service. Do not add a third conversion path; retire or route it through `translateWorkoutToPm5`.
 
 ## Service boundary
 
@@ -20,7 +20,7 @@ LC plan/template/RWN
         ↓
 WorkoutStructure
         ↓
-lowerWorkoutStructureToPm5
+translateWorkoutToPm5
         ↓
 ActiveWorkoutSpec + exact/prompt-only/unsupported
         ↓
@@ -32,7 +32,7 @@ CSAFE frames → GATT RX → GATT TX acknowledgement
 The coordinator must:
 
 - assign one programming request ID and retain the source RWN/template/assignment identity;
-- refuse `unsupported` lowerings and require explicit confirmation for `prompt_only` lowerings;
+- refuse `unsupported` translations and require explicit confirmation for `prompt_only` translations;
 - verify connected PM5 model/firmware and advertised GATT capabilities;
 - choose the transport operation from actual characteristic properties;
 - send only a reviewed frame strategy, including values larger than the legacy 20-byte documentation limit;
@@ -43,14 +43,15 @@ The coordinator must:
 
 ## Implemented checkpoint
 
-- LC accepts optional RWN in the coach session flow and uses `lowerWorkoutStructureToPm5`; manual controls use the same request-stamping path.
+- The shared RWN package owns PM5 translation; LC no longer owns a competing implementation.
+- The merged coach-session relay remains available for boathouse/group operation, but it is secondary rather than the primary athlete experience.
 - Every request carries a stable request ID, timestamp, original RWN, lowering mode, and notes.
 - ErgLink deduplicates request IDs, serializes programming, converts variable-workout rest steps into PM5 work/rest commands, and writes received/final receipts into participant data.
 - LC displays each participant's latest PM5 programming status.
 - Both BLE transports serialize CSAFE exchanges and select read versus notify from actual GATT capabilities.
 - PM5 control-value limits derive from negotiated/read ATT MTU while retaining a 20-byte fallback.
 
-Still required: exercise each supported lowering shape on the real PM5 and retain exact rejection evidence for unsupported or unavailable commands.
+Still required: bind the shared translation and audited transport directly inside LC Capacitor mobile, then exercise each supported translation shape on the real PM5.
 
 ## Result contract
 
@@ -58,7 +59,7 @@ The eventual result should distinguish at least:
 
 - `accepted`: PM5 acknowledged the complete configuration;
 - `prompt_only`: PM5 received the native portion; athlete/coach prompts remain;
-- `unsupported`: lowering or PM5 capabilities cannot represent the request;
+- `unsupported`: translation or PM5 capabilities cannot represent the request;
 - `rejected`: PM5 explicitly rejected a frame;
 - `not_ready`: PM5 state does not allow programming yet;
 - `transport_error`: BLE disconnected, timed out, or returned malformed evidence.
@@ -82,4 +83,4 @@ For each accepted workout, compare PM5 screen configuration, split/interval noti
 
 ## Exit gate
 
-The service is ready for LC mobile only when one request can be traced from source RWN through lowering, PM5 acknowledgement, actual completed capture, and LC-owned workout acknowledgement without inventing measurements or losing source identity.
+The service is ready for LC mobile only when one request can be traced from source RWN through translation, local PM5 acknowledgement, actual completed capture, and LC-owned workout acknowledgement without a coach session, invented measurements, or lost source identity.

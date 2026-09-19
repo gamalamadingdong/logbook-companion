@@ -36,3 +36,14 @@ export { structureToRWN } from './serializer';
 
 // ── Whiteboard (Structure → coach whiteboard lines) ────────────
 export { structureToWhiteboard } from './whiteboard';
+
+// ── PM5 translation (RWN structure → PM5-applicable subset) ──────
+export { lowerWorkoutStructureToPm5, translateWorkoutToPm5 } from './pm5';
+export type {
+    Pm5LoweringMode,
+    Pm5LoweringResult,
+    Pm5TranslationMode,
+    Pm5TranslationResult,
+    Pm5WorkoutInterval,
+    Pm5WorkoutSpec,
+} from './pm5';
