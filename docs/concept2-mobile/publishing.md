@@ -123,7 +123,7 @@ Use a database transaction/conditional claim to prevent double-click and multi-d
 
 Recovery is **not** exactly-once guaranteed by a local lock. If a verified provider lookup can identify the accepted result, validate account/environment and measured identity, then link the remote ID without POST. Attribute similarity alone is not a unique identifier; multiple candidates require review. Until a dependable lookup/correlation mechanism is demonstrated, use explicit operator review in Concept2 and an audited link action. No result seen immediately is not proof of non-acceptance. A reset for resubmission requires evidence of non-acceptance or explicit informed duplicate-risk resolution; do not release a blind retry button. Record who resolved the case, evidence and remote ID, excluding tokens.
 
-Edits after publication are local-only in this slice: display divergence from the published snapshot and do not automatically republish. Remote deletion is likewise not propagated; retain link history and surface unavailable remote results. Disconnecting/replacing the account must not silently change an existing publication's target identity.
+Once the publication edit-guard migration is applied, manual result edits after a published or uncertain development attempt are blocked by the database until an explicit revision and audit workflow exists. Definite rejections remain editable; no edit automatically republishes. Remote deletion is likewise not propagated; retain link history and surface unavailable remote results. Disconnecting/replacing the account must not silently change an existing publication's target identity.
 
 ## Implementation tasks
 

@@ -1,3 +1,4 @@
+import { concept2ImportTarget } from '../_shared/concept2/importTarget.ts';
 // @ts-expect-error -- Deno resolves remote URL imports at runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -692,16 +693,6 @@ async function findMatchingWorkout(
   }) ?? null;
 }
 
-function shouldUpgrade(
-  existingSource: string | null | undefined,
-  newSource: string,
-  existingExternalId: string | null | undefined,
-  incomingExternalId: string,
-) {
-  return existingSource === 'concept2' && newSource === 'concept2' &&
-    existingExternalId === incomingExternalId;
-}
-
 async function matchWorkoutToTemplate(
   supabase: ReturnType<typeof createClient>,
   workoutId: string,
@@ -876,16 +867,10 @@ async function processWorkoutSummary(
     };
 
     const match = await findMatchingWorkout(supabase, job.user_id, summary);
-    if (match) {
-      if (shouldUpgrade(match.source, 'concept2', match.external_id, String(summary.id))) {
-        record.id = match.id;
-      } else {
-        await markJobItem(supabase, job, summary, 'skipped_existing', {
-          metadata: { matched_log_id: match.id, matched_source: match.source },
-        });
-        return 'skipped_existing' as const;
-      }
-    }
+    // Keep LC-owned evidence intact and save the Concept2 result under its exact provider ID.
+    // Fuzzy matches are candidates, never authority to consume an import.
+    const targetId = concept2ImportTarget(match, String(summary.id));
+    if (targetId) record.id = targetId;
 
     const writeQuery = record.id
       ? supabase

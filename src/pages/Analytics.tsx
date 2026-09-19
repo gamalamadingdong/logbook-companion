@@ -20,6 +20,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTrainingBlockMatchingContext } from '../hooks/useTrainingBlockMatchingContext';
 import { getUserBaseline2kWatts } from '../utils/paceCalculator';
 import { workoutService } from '../services/workoutService';
+import { measuredManualWorkSeconds } from '../utils/completedWorkoutMetrics';
 import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
 import { getLinearRegressionStats } from '../utils/math';
 import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
@@ -63,6 +64,8 @@ const getEffectiveZoneDistribution = (workout: any, baselineWatts: number): Reco
 };
 
 const getWorkoutWorkSeconds = (workout: any, baselineWatts: number) => {
+    const measuredSeconds = measuredManualWorkSeconds(workout.raw_data);
+    if (measuredSeconds !== null) return measuredSeconds;
     const distribution = getEffectiveZoneDistribution(workout, baselineWatts);
     if (distribution) {
         return (Object.values(distribution) as number[]).reduce((sum, seconds) => sum + seconds, 0);

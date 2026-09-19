@@ -159,7 +159,10 @@ try:
         canonical_signature text, duration_minutes numeric,
         raw_data jsonb, manual_rwn text, completed_at timestamptz,
         distance_meters integer, duration_seconds numeric, rest_distance_meters integer,
-        external_id text, notes text, template_id uuid
+        external_id text, notes text, template_id uuid,
+        avg_split_500m numeric, calories_burned numeric, watts numeric,
+        average_heart_rate numeric, max_heart_rate numeric,
+        average_stroke_rate numeric, perceived_exertion numeric
       );
       insert into public.workout_logs(id,user_id,source,workout_type,raw_data,manual_rwn,
         completed_at,distance_meters,duration_seconds,notes) values
@@ -584,6 +587,36 @@ try:
       end $$;
     """)
     print('PASS: read scope blocked; auth rejection requires reconnect; definite rejection retries once; unknown attempt cannot redispatch and requires audited operator resolution')
+    sql((root / 'supabase/migrations/20260918210000_guard_published_manual_results.sql').read_text())
+    sql('grant select, update on public.workout_logs to authenticated;')
+    blocked = sql("set role authenticated; update public.workout_logs set notes='client edit' where id='11111111-2222-4333-8444-555555555555';", ok=False)
+    assert blocked.returncode != 0 and 'cannot be edited' in blocked.stderr, blocked.stderr
+    sql("""
+      do $$declare w uuid := '11111111-2222-4333-8444-555555555555';
+      begin
+        begin
+          update public.workout_logs set raw_data=jsonb_set(raw_data,'{completed_result,notes}','"changed"') where id=w;
+          raise exception 'Published manual result was edited';
+        exception when others then
+          if sqlerrm='Published manual result was edited' then raise; end if;
+          if sqlerrm not like '%cannot be edited%' then raise; end if;
+        end;
+        update public.workout_logs set template_id='77777777-7777-4777-8777-777777777777' where id=w;
+        update public.c2_development_publications set status='outcome_unknown' where workout_id=w;
+        begin
+          update public.workout_logs set duration_seconds=999 where id=w;
+          raise exception 'Uncertain manual result was edited';
+        exception when others then
+          if sqlerrm='Uncertain manual result was edited' then raise; end if;
+          if sqlerrm not like '%cannot be edited%' then raise; end if;
+        end;
+        update public.c2_development_publications set status='rejected' where workout_id=w;
+        update public.workout_logs set raw_data=jsonb_set(raw_data,'{completed_result,notes}','"corrected"') where id=w;
+        if (select raw_data #>> '{completed_result,notes}' from public.workout_logs where id=w) is distinct from 'corrected' then
+          raise exception 'Rejected result could not be revised'; end if;
+      end $$;
+    """)
+    print('PASS: published and uncertain manual results are immutable; unrelated metadata and rejected edits remain possible')
 
 finally:
     subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
