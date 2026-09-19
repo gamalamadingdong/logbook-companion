@@ -3,6 +3,7 @@ import { type UserGoal, getUserGoals } from '../../services/supabase';
 import { calculateWatts, calculatePaceFromWatts, formatPace, type PRRecord } from '../../utils/prCalculator';
 import { fetchUserPRs } from '../../utils/prDetection';
 import { Trophy, Target, Calendar, Clock, CheckCircle2 } from 'lucide-react';
+import { getTotalTrainingDistanceMeters } from '../../utils/workoutDistance';
 
 interface GoalProgressWidgetProps {
     userId: string;
@@ -30,7 +31,7 @@ export const GoalProgressWidget: React.FC<GoalProgressWidgetProps> = ({ userId, 
     // Calculate Weekly Metrics
     const weeklyStats = useMemo(() => {
         return currentWeekWorkouts.reduce((acc, w) => ({
-            distance: acc.distance + (w.distance_meters || 0),
+            distance: acc.distance + getTotalTrainingDistanceMeters(w),
             time: acc.time + (w.duration_seconds || (w.duration_minutes * 60) || 0),
             sessions: acc.sessions + 1
         }), { distance: 0, time: 0, sessions: 0 });

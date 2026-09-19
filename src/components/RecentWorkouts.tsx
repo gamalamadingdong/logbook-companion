@@ -12,6 +12,7 @@ interface RecentWorkoutSummary {
     id: number | string;
     date: string;
     distance: number;
+    totalDistance?: number;
     durationSeconds?: number | null;
     time_formatted?: string | null;
     time?: number | null;
@@ -57,6 +58,7 @@ type ActivityCategory = 'All' | string;
 
 interface VisibleWorkoutTotalsInput {
     distance?: unknown;
+    totalDistance?: unknown;
     time?: unknown;
 }
 
@@ -104,6 +106,16 @@ export const formatAveragePace = (distanceMeters?: number | null, durationSecond
     return `${minutes}:${seconds}/500m`;
 };
 
+export const formatWorkoutDistance = (workout: Pick<RecentWorkoutSummary, 'distance' | 'totalDistance'>): string => {
+    const workDistance = Number.isFinite(workout.distance) ? workout.distance : 0;
+    const totalDistance = typeof workout.totalDistance === 'number' && Number.isFinite(workout.totalDistance)
+        ? workout.totalDistance
+        : workDistance;
+    return totalDistance > workDistance
+        ? `${workDistance}m work · ${totalDistance}m total`
+        : `${workDistance}m`;
+};
+
 const workoutTimeLabel = (workout: RecentWorkoutSummary): string => manualResult(workout) && typeof workout.durationSeconds === 'number'
     ? formatCompletedDuration(workout.durationSeconds)
     : workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-');
@@ -147,9 +159,11 @@ export const calculateVisibleWorkoutTotals = (
 ): VisibleWorkoutTotals => visibleWorkouts.reduce<VisibleWorkoutTotals>((totals, workout) => ({
     count: totals.count + 1,
     distance: totals.distance + (
-        typeof workout.distance === 'number' && Number.isFinite(workout.distance)
-            ? workout.distance
-            : 0
+        typeof workout.totalDistance === 'number' && Number.isFinite(workout.totalDistance)
+            ? workout.totalDistance
+            : typeof workout.distance === 'number' && Number.isFinite(workout.distance)
+                ? workout.distance
+                : 0
     ),
     duration: totals.duration + (
         typeof workout.time === 'number' && Number.isFinite(workout.time)
@@ -487,7 +501,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                         <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
                             <div>
                                 <dt className="text-xs text-content-secondary">Distance</dt>
-                                <dd className="mt-1 font-mono text-base text-content-primary">{workout.distance}m</dd>
+                                <dd className="mt-1 font-mono text-base text-content-primary">{formatWorkoutDistance(workout)}</dd>
                             </div>
                             <div>
                                 <dt className="text-xs text-content-secondary">Time</dt>
@@ -524,7 +538,7 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                         {formatRelativeWorkoutDay(workout.date)}
                                     </span>
                                 </td>
-                                <td className="py-4 font-mono text-white text-base">{workout.distance}m</td>
+                                <td className="py-4 font-mono text-white text-base">{formatWorkoutDistance(workout)}</td>
                                 <td className="py-4 font-mono text-emerald-400 font-medium">
                                     {workoutTimeLabel(workout)}
                                 </td>

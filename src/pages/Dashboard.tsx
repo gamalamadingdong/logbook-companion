@@ -401,7 +401,7 @@ export const Dashboard: React.FC = () => {
                             ) : (
                                 <GoalProgressWidget
                                     userId={user.id}
-                                    workouts={recentWorkouts}
+                                    workouts={statsHistory}
                                     initialGoals={userGoals}
                                     initialPRs={isGuest ? [
                                         { label: '2k', pace: 105, date: '', distance: 2000, workoutId: 'mock1', time: 420, shortLabel: '2k', source: 'distance', watts: 302 },

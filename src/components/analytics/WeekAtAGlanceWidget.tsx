@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { WorkoutLog } from '../../services/supabase';
 import { classifyWorkout, ZONES } from '../../utils/zones';
 import type { TrainingZone } from '../../utils/zones';
+import { getTotalTrainingDistanceMeters } from '../../utils/workoutDistance';
 
 interface WeekAtAGlanceWidgetProps {
     workouts: WorkoutLog[];
@@ -48,7 +49,7 @@ export const WeekAtAGlanceWidget: React.FC<WeekAtAGlanceWidgetProps> = ({ workou
         const distribution: Record<TrainingZone, number> = { UT2: 0, UT1: 0, AT: 0, TR: 0, AN: 0 };
 
         logs.forEach(w => {
-            totalDistance += w.distance_meters || 0;
+            totalDistance += getTotalTrainingDistanceMeters(w);
             const sec = w.duration_seconds || (w.duration_minutes ? w.duration_minutes * 60 : 0);
             totalSeconds += sec;
 

@@ -5,6 +5,7 @@ import { Download, X, Trophy, Activity, Calendar } from 'lucide-react';
 import { ZONES } from '../../utils/zones';
 import type { WorkoutLog } from '../../services/supabase';
 import type { TrainingZone } from '../../utils/zones';
+import { getTotalTrainingDistanceMeters } from '../../utils/workoutDistance';
 
 interface WeeklyReportProps {
     workouts: WorkoutLog[];
@@ -18,7 +19,7 @@ export const WeeklyReport: React.FC<WeeklyReportProps> = ({ workouts, startDate,
     const [generating, setGenerating] = useState(false);
 
     // --- Calculations ---
-    const totalDistance = workouts.reduce((acc, w) => acc + (w.distance_meters || 0), 0);
+    const totalDistance = workouts.reduce((sum, workout) => sum + getTotalTrainingDistanceMeters(workout), 0);
     const totalTimeSeconds = workouts.reduce((acc, w) => acc + (w.duration_seconds || (w.duration_minutes * 60) || 0), 0);
     const count = workouts.length;
 

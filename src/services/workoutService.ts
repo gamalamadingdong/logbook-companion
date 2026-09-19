@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type { C2Interval, C2ResultDetail, C2Stroke } from '../api/concept2.types';
 import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, normalizeCanonicalName } from '../utils/workoutCanonical';
 import { resolveWorkoutDurationSeconds } from '../utils/trainingBlockMatching';
+import { getTotalTrainingDistanceMeters } from '../utils/workoutDistance';
 import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService';
 import type { Database, Json } from '../types/database.types';
 
@@ -316,6 +317,7 @@ export const workoutService = {
                 db_id: log.id, // Keep internal DB ID accessible
                 date: log.completed_at,
                 distance: log.distance_meters ?? 0,
+                totalDistance: getTotalTrainingDistanceMeters(log),
                 durationSeconds,
                 time: durationSeconds ? durationSeconds * 10 : 0,
                 time_formatted: timeFormatted,
@@ -501,7 +503,7 @@ export const workoutService = {
 
         const { data, error } = await supabase
             .from('workout_logs')
-            .select('id, external_id, completed_at, workout_name, distance_meters, duration_seconds, duration_minutes, canonical_name, manual_rwn, source')
+            .select('id, external_id, completed_at, workout_name, distance_meters, rest_distance_meters, duration_seconds, duration_minutes, canonical_name, manual_rwn, source')
             .in('source', [...workoutService.viewableSources])
             .or(`workout_name.ilike.%${escaped}%,canonical_name.ilike.%${escaped}%,manual_rwn.ilike.%${escaped}%`)
             .order('completed_at', { ascending: false })
@@ -514,6 +516,7 @@ export const workoutService = {
             date: log.completed_at,
             name: log.canonical_name || log.workout_name,
             distance: log.distance_meters,
+            totalDistance: getTotalTrainingDistanceMeters(log),
             durationSeconds: resolveWorkoutDurationSeconds({
                 duration_seconds: log.duration_seconds,
                 duration_minutes: log.duration_minutes,

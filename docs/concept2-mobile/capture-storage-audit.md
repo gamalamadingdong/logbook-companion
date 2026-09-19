@@ -1,10 +1,11 @@
 # Completed result storage and Concept2 boundary audit
 
-Status: 2026-09-18 code and live-schema review. PR #179 is merged into staging; live deployment of the legacy import paths was not verified in this review. This is the next capture and persistence work list, not a claim that PM5 capture or production publishing is ready.
+Status: 2026-09-19 code and live-schema review. PR #179 is merged into staging; live deployment of the legacy import paths was not verified in this review. This is the next capture and persistence work list, not a claim that PM5 capture or production publishing is ready.
 
 ## What is already durable
 
 - General manual entry saves a versioned `completed_result` in the owner's `workout_logs.raw_data`, alongside searchable summary columns. Its LC workout UUID stays the source identity. Ordered work/rest rows, actual measurements, targets, plan RWN, template link, completion status, finish instant, and timezone are in that result.
+- Distance meanings remain separate: `distance_meters` is measured work, `rest_distance_meters` is measured recovery, and cumulative training volume is their sum. RWN, pace, watts, PRs and provider work-distance fields remain work-based.
 - Development publication stores an immutable, mapper-versioned Concept2 payload and the exact returned Concept2 result ID in separate service-owned tables. The original workout's production `external_id`, `source`, and `raw_data` are untouched. A development import reuses the same result ID rather than adding another result row.
 - The live schema matches the checked generated types for `workout_logs`, `c2_development_publications`, and `c2_development_results`. Owner RLS covers `workout_logs`; the development publication/result tables have service-only writes.
 

@@ -79,6 +79,12 @@ describe('calculateVisibleWorkoutTotals', () => {
         ])).toEqual({ count: 2, distance: 3500, duration: 8400 });
     });
 
+    it('uses total meters rowed when measured recovery distance is available', () => {
+        expect(calculateVisibleWorkoutTotals([
+            { distance: 1000, totalDistance: 1400, time: 2400 },
+        ])).toEqual({ count: 1, distance: 1400, duration: 2400 });
+    });
+
     it('ignores missing and non-numeric durations without producing NaN', () => {
         expect(calculateVisibleWorkoutTotals([
             { distance: 2000, time: 4800 },

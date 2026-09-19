@@ -21,6 +21,7 @@ import { useTrainingBlockMatchingContext } from '../hooks/useTrainingBlockMatchi
 import { getUserBaseline2kWatts } from '../utils/paceCalculator';
 import { workoutService } from '../services/workoutService';
 import { measuredManualWorkSeconds } from '../utils/completedWorkoutMetrics';
+import { getTotalTrainingDistanceMeters } from '../utils/workoutDistance';
 import { DEMO_WORKOUTS, GUEST_USER_GOALS } from '../data/demoData';
 import { getLinearRegressionStats } from '../utils/math';
 import { ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
@@ -398,7 +399,7 @@ export const Analytics: React.FC = () => {
         };
     }, [weeklyVolume, volumeMetric]);
 
-    const totalDistance = filteredWorkouts.reduce((sum, w) => sum + (w.distance_meters || 0) + (w.rest_distance_meters || 0), 0);
+    const totalDistance = filteredWorkouts.reduce((sum, workout) => sum + getTotalTrainingDistanceMeters(workout), 0);
     const totalTimeSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutElapsedSeconds(w), 0);
     const totalWorkSeconds = filteredWorkouts.reduce((sum, w) => sum + getWorkoutWorkSeconds(w, baselineWatts), 0);
 
