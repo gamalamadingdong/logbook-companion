@@ -100,14 +100,27 @@ const buildBaseWorkout = (structure: WorkoutStructure): Pm5TranslationResult => 
 export const translateWorkoutToPm5 = (structure: WorkoutStructure): Pm5TranslationResult => {
     const base = buildBaseWorkout(structure);
     if (base.mode === 'unsupported') return base;
-    if (!structure.sessionExtension) return base;
+    const notes: string[] = [];
+    if (structure.type === 'interval') {
+        notes.push(`PM5 fixed-interval mode repeats until stopped; complete ${structure.repeats} reps.`);
+        if (structure.work.target_rate || structure.work.target_rate_max || structure.work.target_pace || structure.work.target_pace_max) {
+            notes.push('PM5 programming does not yet apply the RWN rate/pace guidance.');
+        }
+    } else if (structure.type === 'steady_state') {
+        if (structure.target_rate || structure.target_rate_max || structure.target_pace || structure.target_pace_max) {
+            notes.push('PM5 programming does not yet apply the RWN rate/pace guidance.');
+        }
+    } else if (structure.steps.some((step) => step.target_rate || step.target_rate_max || step.target_pace || step.target_pace_max)) {
+        notes.push('PM5 programming does not yet apply the RWN rate/pace guidance.');
+    }
+    if (structure.sessionExtension) {
+        notes.push(`Session extension '${structure.sessionExtension.kind}' requires coach/athlete prompts and is not PM5-native.`);
+    }
+    if (notes.length === 0) return base;
     return {
         mode: 'prompt_only',
         workout: base.workout,
-        notes: [
-            `Session extension '${structure.sessionExtension.kind}' requires coach/athlete prompts and is not PM5-native.`,
-            ...base.notes,
-        ],
+        notes,
     };
 };
 

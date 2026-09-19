@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createPM5ProgrammingRequest } from './pm5ProgrammingService';
 
 describe('PM5 programming request service', () => {
-  it('creates an idempotent request from existing RWN lowering', () => {
+  it('creates an idempotent request from exact RWN translation', () => {
     const result = createPM5ProgrammingRequest(
-      '4x500m/1:00r',
-      { title: 'Intervals', templateId: 'template-1' },
+      '2000m',
+      { title: '2K', templateId: 'template-1' },
       {
         requestId: () => 'request-1',
         now: () => '2026-09-19T18:00:00.000Z',
@@ -17,13 +17,11 @@ describe('PM5 programming request service', () => {
       _v: 1,
       programming_request_id: 'request-1',
       programming_requested_at: '2026-09-19T18:00:00.000Z',
-      source_rwn: '4x500m/1:00r',
+      source_rwn: '2000m',
       lowering_mode: 'exact',
-      type: 'interval_distance',
-      split_value: 500,
-      rest: 60,
-      repeats: 4,
-      title: 'Intervals',
+      type: 'fixed_distance',
+      value: 2000,
+      title: '2K',
       template_id: 'template-1',
     });
   });
@@ -36,7 +34,7 @@ describe('PM5 programming request service', () => {
     );
 
     expect(result.mode).toBe('prompt_only');
-    expect(result.request?.lowering_notes?.[0]).toContain("Session extension 'partner'");
+    expect(result.request?.lowering_notes?.some((note) => note.includes("Session extension 'partner'"))).toBe(true);
     expect(result.request?.type).toBe('interval_distance');
   });
 

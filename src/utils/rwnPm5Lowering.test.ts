@@ -3,12 +3,12 @@ import { parseRWN } from './rwnParser';
 import { lowerWorkoutStructureToPm5 } from './rwnPm5Lowering';
 
 describe('RWN PM5 Lowering', () => {
-  it('returns exact for PM5-native fixed interval workout', () => {
+  it('returns prompt_only when PM5 cannot enforce the fixed-interval repeat cap', () => {
     const parsed = parseRWN('4x500m/1:00r');
     expect(parsed).not.toBeNull();
 
     const lowered = lowerWorkoutStructureToPm5(parsed!);
-    expect(lowered.mode).toBe('exact');
+    expect(lowered.mode).toBe('prompt_only');
     expect(lowered.activeWorkoutSpec).toMatchObject({
       _v: 1,
       type: 'interval_distance',
@@ -16,6 +16,7 @@ describe('RWN PM5 Lowering', () => {
       rest: 60,
       repeats: 4,
     });
+    expect(lowered.notes[0]).toContain('complete 4 reps');
   });
 
   it('returns prompt_only for partner orchestration while preserving PM5 core workout', () => {
@@ -31,7 +32,7 @@ describe('RWN PM5 Lowering', () => {
       rest: 60,
       repeats: 4,
     });
-    expect(lowered.notes[0]).toContain("Session extension 'partner'");
+    expect(lowered.notes.some((note) => note.includes("Session extension 'partner'"))).toBe(true);
   });
 
   it('returns prompt_only for rotate orchestration with variable core', () => {
