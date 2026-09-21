@@ -37,6 +37,35 @@ function createDriver(programWorkout: (workout: WorkoutConfig) => Promise<void>)
 }
 
 describe('direct PM5 service', () => {
+  it('retries pending captures on initialization and retains successful programming context', async () => {
+    const persistence = {
+      setOwnerId: vi.fn(),
+      clearOwnerId: vi.fn(),
+      setProgrammingContext: vi.fn(),
+      getState: vi.fn(() => null),
+      subscribe: vi.fn(() => () => undefined),
+      retryPending: vi.fn(async () => undefined),
+    };
+    const service = new DirectPM5Service(
+      createDriver(async () => undefined),
+      () => '2026-09-21T15:00:00.000Z',
+      persistence,
+    );
+    const request: ActiveWorkoutSpec = {
+      _v: 1,
+      programming_request_id: 'request-context',
+      type: 'fixed_distance',
+      value: 500,
+      source_rwn: '500m',
+    };
+
+    await service.initialize();
+    await expect(service.program(request)).resolves.toMatchObject({ status: 'programmed' });
+
+    expect(persistence.retryPending).toHaveBeenCalledOnce();
+    expect(persistence.setProgrammingContext).toHaveBeenCalledWith(request);
+  });
+
   it('maps fixed interval work from split_value', () => {
     const config = activeWorkoutSpecToWorkoutConfig({
       _v: 1,

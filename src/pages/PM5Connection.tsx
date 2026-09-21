@@ -5,7 +5,9 @@ import { toast } from 'sonner';
 import { Badge, Breadcrumb, Button, Card, CardHeader, Input } from '../components/ui';
 import { createPM5ProgrammingRequest, type PM5ProgrammingRequestResult } from '../services/pm5ProgrammingService';
 import { directPM5Service } from '../services/pm5DirectService';
+import type { PM5CapturePersistenceState } from '../services/pm5CapturePersistence';
 import type { ActiveWorkoutSpec, PM5ProgrammingReceiptV1 } from '../types/ergSession.types';
+import { useAuth } from '../hooks/useAuth';
 
 type ConnectionStatus = 'idle' | 'initializing' | 'scanning' | 'connecting' | 'connected' | 'error';
 
@@ -18,6 +20,14 @@ const statusLabel: Record<ConnectionStatus, string> = {
   error: 'Connection error',
 };
 
+const capturePhaseLabel: Record<PM5CapturePersistenceState['phase'], string> = {
+  saved: 'Saved on device',
+  ingesting: 'Saving to LC',
+  ingested: 'Saved to LC',
+  failed: 'Retry pending',
+  held: 'Capture retained',
+};
+
 function formatPace(seconds?: number): string {
   if (!seconds || !Number.isFinite(seconds)) return '—';
   const minutes = Math.floor(seconds / 60);
@@ -26,6 +36,7 @@ function formatPace(seconds?: number): string {
 }
 
 export function PM5Connection() {
+  const { user } = useAuth();
   const [status, setStatus] = useState<ConnectionStatus>(directPM5Service.isConnected() ? 'connected' : 'idle');
   const [devices, setDevices] = useState<PM5Device[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<PM5Device | null>(directPM5Service.getConnectedDevice());
@@ -38,6 +49,10 @@ export function PM5Connection() {
   const [error, setError] = useState<string | null>(null);
   const [programming, setProgramming] = useState(false);
   const [diagnosticPending, setDiagnosticPending] = useState(false);
+  const [captureRetrying, setCaptureRetrying] = useState(false);
+  const [captureState, setCaptureState] = useState<PM5CapturePersistenceState | null>(
+    directPM5Service.getCapturePersistenceState(),
+  );
 
   useEffect(() => {
     directPM5Service.onDeviceDiscovered((device) => {
@@ -48,6 +63,24 @@ export function PM5Connection() {
     });
     directPM5Service.onData(setLiveData);
   }, []);
+
+  useEffect(() => directPM5Service.onCapturePersistenceState(setCaptureState), []);
+
+  useEffect(() => {
+    const ownerId = user?.id;
+    directPM5Service.setCaptureOwner(ownerId ?? null);
+    if (!ownerId) return;
+    void directPM5Service.retryPendingCaptures().catch((retryError) => {
+      const message = retryError instanceof Error ? retryError.message : 'Could not retry saved PM5 captures.';
+      setError(message);
+      toast.error(message);
+    });
+    return () => {
+      void directPM5Service.disconnect()
+        .catch(() => undefined)
+        .finally(() => directPM5Service.clearCaptureOwner(ownerId));
+    };
+  }, [user?.id]);
 
   const statusVariant = useMemo(() => {
     if (status === 'connected') return 'success' as const;
@@ -168,6 +201,20 @@ export function PM5Connection() {
       toast.error(message);
     } finally {
       setDiagnosticPending(false);
+    }
+  };
+
+  const retryCapture = async () => {
+    setCaptureRetrying(true);
+    setError(null);
+    try {
+      await directPM5Service.retryPendingCaptures();
+    } catch (retryError) {
+      const message = retryError instanceof Error ? retryError.message : 'Could not retry the saved PM5 capture.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setCaptureRetrying(false);
     }
   };
 
@@ -303,6 +350,44 @@ export function PM5Connection() {
             <div><dt className="text-content-muted">Control limit</dt><dd className="font-medium text-content-primary">{diagnostic ? `${diagnostic.controlValueLimit} bytes` : '—'}</dd></div>
             <div><dt className="text-content-muted">Read errors</dt><dd className="font-medium text-content-primary">{diagnostic ? diagnostic.readErrors.length : '—'}</dd></div>
           </dl>
+        </Card>
+      )}
+
+      {captureState && (
+        <Card>
+          <CardHeader
+            title="Completed PM5 capture"
+            subtitle="The PM5 evidence is saved locally before Logbook Companion ingestion."
+            action={(
+              <Badge variant={captureState.phase === 'ingested' ? 'success' : captureState.phase === 'failed' ? 'danger' : 'info'}>
+                {capturePhaseLabel[captureState.phase]}
+              </Badge>
+            )}
+          />
+          {captureState.capture.summary ? (
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div><dt className="text-content-muted">Distance</dt><dd className="font-medium text-content-primary">{Math.round(captureState.capture.summary.workDistanceMeters)} m</dd></div>
+              <div><dt className="text-content-muted">Work time</dt><dd className="font-medium text-content-primary">{captureState.capture.summary.workTimeSeconds.toFixed(1)} s</dd></div>
+              <div><dt className="text-content-muted">Average pace</dt><dd className="font-medium text-content-primary">{formatPace(captureState.capture.summary.averagePaceSecondsPer500m)}</dd></div>
+              <div><dt className="text-content-muted">Stroke rate</dt><dd className="font-medium text-content-primary">{Math.round(captureState.capture.summary.averageStrokeRate)} spm</dd></div>
+            </dl>
+          ) : (
+            <p className="text-sm text-content-secondary">The capture ended without a complete PM5 summary and is being retained for review.</p>
+          )}
+          {captureState.workoutId && (
+            <p className="mt-3 text-xs text-content-muted">LC workout: {captureState.workoutId}</p>
+          )}
+          {captureState.error && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-accent-danger bg-accent-danger/10 p-3 text-sm text-accent-danger-text" role="alert">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span>{captureState.error}. The local capture remains available for retry.</span>
+            </div>
+          )}
+          {captureState.phase === 'failed' && (
+            <Button className="mt-3 min-h-11" onClick={() => void retryCapture()} loading={captureRetrying}>
+              Retry saving to LC
+            </Button>
+          )}
         </Card>
       )}
     </main>

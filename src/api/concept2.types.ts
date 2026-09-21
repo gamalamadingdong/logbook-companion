@@ -57,6 +57,8 @@ export interface C2Stroke {
 }
 
 export interface C2ResultDetail extends C2Result {
+    db_id?: string;
+    source?: string;
     stroke_data: boolean;
     rest_distance?: number;
     rest_time?: number;

@@ -64,7 +64,7 @@ Two completed 100 m workouts established the capture semantics:
 - Initial `strokeCount: 0` notifications are raw evidence, not normalized strokes.
 - Paired PM5 end summaries—not the last live/stroke sample—are authoritative for final totals.
 
-The hardware-proven envelope remains capture v1. The merged shared package now extends it with backward-readable `PM5CompletedCaptureV2`: `0x0036`, `0x0038`, `0x003C`, and `0x003E`; interval identity and interval-relative stroke values; time-aligned optional pace/rate/HR; PM verification evidence; machine type; PM log timestamp; and retained start-state evidence. Browser IndexedDB and Capacitor SQLite now ship behind the shared `CaptureStore` contract in published `@readyall/erglink@0.4.0`.
+The hardware-proven envelope remains capture v1. Published `@readyall/erglink@0.6.0` extends it with backward-readable `PM5CompletedCaptureV2`: `0x0036`, `0x0038`, `0x003C`, and `0x003E`; interval identity and interval-relative stroke values; time-aligned optional pace/rate/HR; PM verification evidence; machine type; PM log timestamp; retained start-state evidence; shared IndexedDB/SQLite stores; and interrupted-upload recovery.
 
 The package also exposes the pure `validatePm5Capture` evidence validator. It reconciles raw PM summaries with normalized totals, workout/interval types, stroke identity/cadence, interval-local progression, PM rounding, retained start/verification notifications, machine type, and the known fixed/Pete Plan matrix. Capture-v2 fields and the validator have automated proof only; no new physical-PM5 claim is made.
 
@@ -105,13 +105,13 @@ When a user edits a result in Concept2, refresh the linked provider snapshot, co
 
 Full field-level contract and work order: [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md).
 
-Implementation now spans merged `erg-link@origin/main` through PR #10 and this LC branch from `origin/staging` through PR #192. Hardware-proven foundations remain CSAFE, packetization, programming acknowledgement, and capture-v1 summary semantics. Device-independent E0–E2 are merged and published in `@readyall/erglink@0.4.0`; E3 is implemented in this branch. Ordered slices:
+Implementation now spans merged `erg-link@origin/main` through PR #12 and this LC E4 branch from `origin/staging` after merged PR #192. Hardware-proven foundations remain CSAFE, packetization, programming acknowledgement, and capture-v1 summary semantics. Device-independent E0–E2 plus crash recovery are published in `@readyall/erglink@0.6.0`; E3 is merged in LC. Ordered slices:
 
 0. **Storage port — complete.** The shared `CaptureStore`, IndexedDB, and SQLite adapters ship from `@readyall/erglink`; ErgLink consumes the package.
 1. **Capture v2 — complete, automated proof.** The four additional characteristics, richer interval/stroke evidence, PM verification, machine type, PM timestamp, and start-state evidence are merged. Physical capture-v2 proof remains for E6.
 2. **Evidence validator — complete.** `validatePm5Capture` covers fixed pieces, intervals, PM raw/normalized reconciliation, retained evidence, and the known Pete Plan workout matrix with specific violation codes.
 3. **Concept2 projection — implemented in PR #192.** `projectCaptureToConcept2` emits official PM log time, exact Concept2 units, splits/intervals, measured optional metrics, and per-interval stroke data without claiming provider verification.
-4. **LC capture wiring and ingestion — next.** Pass `persistCapture` from `pm5DirectService`, surface the completed summary, persist idempotently by owner + capture ID/version, retain raw evidence separately, and acknowledge only after LC returns its owned workout UUID.
+4. **LC capture wiring and ingestion — implemented in this branch.** The driver saves to IndexedDB/SQLite first, binds immutable owner/programming context to the local capture, recovers interrupted uploads, validates and inserts idempotently under owner + capture ID/version, surfaces summary/retry state, and acknowledges only after LC returns its owned workout UUID. No live row was written by automated verification.
 5. **Development API proof — pending.** Run projected fixed and interval fixtures through Concept2's Online Validator/development API and exact-ID read-back.
 6. **Hardware confirmation — blocked on hardware.** Capture, validate, ingest, project, and publish a real fixed 2,000 m through the full installed-mobile path.
 
@@ -145,14 +145,14 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Provider association and remote-edit reconciliation | Designed direction; implementation remains |
 | Stable PM5 completed-capture envelope | Capture v1 hardware-proven; backward-readable capture v2 merged with automated proof |
 | PM5 stroke/split/end-summary evidence | Capture-v1 summary path proven for completed 100 m workouts; v2 enrichment awaits hardware |
-| Browser/mobile durable CaptureStore | Published from `@readyall/erglink@0.4.0`; IndexedDB + Capacitor SQLite tested |
+| Browser/mobile durable CaptureStore | Published from `@readyall/erglink@0.6.0`; IndexedDB + Capacitor SQLite plus interrupted-upload recovery tested |
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
-| Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.4.0` |
+| Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.6.0` |
 | Direct athlete LC mobile → PM5 | Code merged; web, Android debug, and iOS simulator builds pass; installed-device proof remains |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
-| LC capture wiring | Not implemented — `pm5DirectService` passes no `persistCapture`; completed captures are discarded |
-| LC capture ingestion | Not implemented; E4 is the next evidence-pipeline slice |
+| LC capture wiring | Implemented in this branch; local-first persistence and summary/retry UI are fixture-proven |
+| LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
 | Mobile shell and PM5 flow states | Specified; implementation not started |
 | Mobile route adaptation | 7 of 24 dense pages carry `md:hidden` alternatives; the rest need adaptation |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |

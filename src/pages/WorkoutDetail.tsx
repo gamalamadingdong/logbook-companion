@@ -642,7 +642,7 @@ export const WorkoutDetail: React.FC = () => {
                                 onClick={async () => {
                                     setIsSaving(true);
                                     try {
-                                        await workoutService.updateWorkoutName(detail.id.toString(), { manualRWN: manualRWN || '', isBenchmark });
+                                        await workoutService.updateWorkoutName(detail.db_id ?? dbId ?? detail.id.toString(), { manualRWN: manualRWN || '', isBenchmark });
                                         // Optimistic update
                                         setDetail(prev => prev ? ({ ...prev, manual_rwn: manualRWN, is_benchmark: isBenchmark }) : null);
                                         setIsEditing(false);
@@ -836,7 +836,7 @@ export const WorkoutDetail: React.FC = () => {
                                     setApplyingWarmup(true);
                                     try {
                                         // 1. Save the suggested RWN as manual_rwn
-                                        await workoutService.updateWorkoutName(detail.id.toString(), {
+                                        await workoutService.updateWorkoutName(detail.db_id ?? dbId ?? detail.id.toString(), {
                                             manualRWN: warmupDetection.suggestedRWN,
                                             isBenchmark: detail.is_benchmark || false
                                         });
@@ -985,15 +985,17 @@ export const WorkoutDetail: React.FC = () => {
                     <Pencil size={16} />
                     Edit Structure
                 </button>
-                <a
-                    href={`https://log.concept2.com/profile/${detail.user_id}/log/${detail.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
-                >
-                    <ExternalLink size={16} />
-                    View on Logbook
-                </a>
+                {detail.source === 'concept2' && (
+                    <a
+                        href={`https://log.concept2.com/profile/${detail.user_id}/log/${detail.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700 flex items-center gap-2"
+                    >
+                        <ExternalLink size={16} />
+                        View on Logbook
+                    </a>
+                )}
                 <Link
                     to={`/history/${encodeURIComponent(detail.workout_name || '')}`}
                     className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white px-4 py-2 rounded-xl transition-colors text-sm font-medium border border-neutral-700"

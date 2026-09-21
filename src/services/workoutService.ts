@@ -360,14 +360,24 @@ export const workoutService = {
             // Fallback
             if (!canonicalName) canonicalName = data.workout_name;
 
+            const raw = data.raw_data as unknown as Record<string, unknown>;
+            const rawId = raw.id;
+            const rawUserId = raw.user_id;
             return {
-                ...data.raw_data,
+                ...raw,
+                id: typeof rawId === 'string' || typeof rawId === 'number'
+                    ? rawId
+                    : data.external_id ?? data.id,
+                user_id: typeof rawUserId === 'string' || typeof rawUserId === 'number'
+                    ? rawUserId
+                    : data.user_id,
+                db_id: data.id,
                 workout_name: canonicalName, // Inject Canonical Name for UI consistency
                 template_id: data.template_id, // Include linked template ID
                 manual_rwn: data.manual_rwn, // Include manual RWN override
                 is_benchmark: data.is_benchmark, // Include benchmark flag
                 source: data.source
-            } as C2ResultDetail;
+            } as unknown as C2ResultDetail;
         }
 
         // Fallback or migrated data without raw_data (shouldn't happen for new syncs)

@@ -1,6 +1,6 @@
 # PM5 evidence pipeline: telemetry → LC result → Concept2 payload
 
-Status: 2026-09-21 after ErgLink PRs #8–#10 and LC PR #192. Capture-v1 normalization remains hardware-proven at summary level. Device-independent E0–E2 are merged and published in `@readyall/erglink@0.4.0`; E3 is implemented and tested in LC PR #192. LC capture ingestion is now the first open pipeline gap. Capture-v2 fields, validation, and projection do not yet have new physical-PM5 proof.
+Status: 2026-09-21 after ErgLink PRs #8–#12, merged LC PR #192, and the current E4 branch. Capture-v1 normalization remains hardware-proven at summary level. `@readyall/erglink@0.6.0` supplies capture v2, validation, durable stores, and interrupted-upload recovery; LC supplies projection plus owner-bound local-first ingestion. E5 development API proof is next. Capture-v2 fields, ingestion, validation, and projection do not yet have new physical-PM5 proof.
 
 The original gap analysis was verified against `erg-link@origin/main` (`1bf1241`) and `logbook-companion@origin/staging` (`374053a`). Status annotations below record what has since closed; the detailed gap text remains as design rationale.
 
@@ -42,8 +42,8 @@ PM5 BLE notifications
   → PM5CaptureAccumulator            (@readyall/erglink)
   → PM5CompletedCaptureV2            automated proof; v1 hardware baseline
   → validatePm5Capture               deterministic evidence gate
-  → [MISSING] LC ingestion           next: E4
-  → [MISSING] CompletedWorkoutV2 with retained source evidence
+  → LC local store + owned ingestion       E4, implemented in branch
+  → workout_logs + retained raw evidence   fixture-proven; live smoke remains
   → projectCaptureToConcept2         exact splits/intervals/stroke_data
   → POST /api/users/me/results
   → [MISSING] exact-ID read-back of splits/strokes
@@ -148,13 +148,9 @@ The projection now represents `workout.splits`, `stroke_data`, `stroke_rate`, `s
 
 Concept2's documentation recommends its [Online Validator](https://log.concept2.com/developers/validator) before posting, especially for interval workouts.
 
-## Open gap 4 — LC never receives a capture (next: E4)
+## Closed gap 4 — LC capture wiring and ingestion
 
-Verified on `origin/staging`. `PM5CompletedCapture` appears only as a type import in `src/types/ergSession.types.ts`. `src/services/pm5DirectService.ts` contains no capture wiring, and `src/pages/PM5Connection.tsx` shows live metrics but no completed-capture surface.
-
-The `PM5CapacitorDriver` accepts an optional `persistCapture` callback. LC still passes nothing, so completed captures are discarded at the end of a workout. The durable store contract and IndexedDB/SQLite adapters now ship in `@readyall/erglink@0.4.0`; the remaining work is to instantiate the correct LC adapter, surface the completed summary, ingest idempotently, and acknowledge only after LC returns its owned workout UUID.
-
-This decides slice ordering: publishing the storage port is a prerequisite for LC ingestion, and neither depends on hardware.
+Implemented in the current E4 branch. `pm5DirectService` passes a persistence callback; web uses IndexedDB and native uses SQLite. The local envelope binds immutable owner and programming context before queued work, coalesces terminal snapshots, recovers interrupted uploads, retries only for the matching signed-in athlete, validates before insertion, writes searchable totals plus root-compatible detail and retained raw evidence, and acknowledges only after LC returns the owned workout UUID. Existing live `workout_logs.external_id` uniqueness and owner RLS provide idempotency without schema change. Automated tests perform no live write.
 
 ## Fixed 2,000 m validity rules
 
@@ -215,7 +211,7 @@ Extend `Concept2ResultPayload` with `workout.splits`, `stroke_data`, and the mea
 
 Evidence: unit-exact fixed 2,000 m, 8×500 m, and speed-pyramid fixtures pass; malformed captures refuse projection. Tests cover PM date encoding, time-undefined-rest intervals, final-rest preservation, variable-only per-interval rest distance, optional metrics, and omission of unavailable drag/verification claims.
 
-### E4 — LC capture wiring and ingestion — next
+### E4 — LC capture wiring and ingestion — implemented in branch
 
 Pass a `persistCapture` callback from LC's `pm5DirectService` into `PM5CapacitorDriver`, backed by the published storage port. Surface the completed capture in the PM5 summary state. Then add idempotent ingestion keyed by owner + capture ID + capture version, storing raw evidence separately from searchable columns and returning the owned LC workout UUID so the device store can acknowledge. Do not reuse the legacy `ErgLinkUploadMeta` path.
 
