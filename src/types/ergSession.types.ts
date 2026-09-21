@@ -138,7 +138,7 @@ export interface ActiveWorkoutInterval {
  * The shape of `workout_logs.raw_data` when `source = 'erg_link_live'`.
  * LC reads this to extract stroke data, session context, and reconciliation keys.
  *
- * @deprecated Transitional legacy upload. New capture ingestion uses PM5CompletedCaptureV1.
+ * @deprecated Transitional legacy upload. New capture ingestion uses the shared PM5CompletedCapture contract.
  */
 export interface ErgLinkUploadMeta {
   /** Identifies this as an EL upload (for type discrimination) */
@@ -197,104 +197,21 @@ export interface ErgLinkStroke {
 }
 
 // ============================================================================
-// 3. PM5 COMPLETED CAPTURE V1 (device writes → LC ingestion accepts)
+// 3. PM5 COMPLETED CAPTURE (shared package authority)
 // ============================================================================
 
-export type CaptureStatus = 'recording' | 'completed' | 'aborted' | 'incomplete_capture';
-
-export interface RawCaptureNotification {
-  sequence: number;
-  characteristic: string;
-  receivedAt: string;
-  bytes: number[];
-}
-
-export interface NormalizedStroke {
-  strokeCount: number;
-  elapsedSeconds: number;
-  cumulativeDistanceMeters: number;
-  driveLengthMeters: number;
-  driveTimeSeconds: number;
-  recoveryTimeSeconds: number;
-  strokeDistanceMeters: number;
-  peakDriveForcePounds: number;
-  averageDriveForcePounds: number;
-  workPerStrokeJoules: number;
-}
-
-export interface NormalizedSplit {
-  intervalNumber: number;
-  intervalType: number;
-  elapsedSeconds: number;
-  cumulativeDistanceMeters: number;
-  workTimeSeconds: number;
-  workDistanceMeters: number;
-  restTimeSeconds: number;
-  restDistanceMeters: number;
-}
-
-export interface CompletedCaptureSummary {
-  workDistanceMeters: number;
-  workTimeSeconds: number;
-  averagePaceSecondsPer500m: number;
-  averageStrokeRate: number;
-  averageWatts: number;
-  totalCalories: number;
-  restDistanceMeters: number;
-  restTimeSeconds: number;
-  strokeCount: number;
-}
-
-export interface PM5RawEndSummary {
-  logDate: number;
-  logTime: number;
-  elapsedTime: number;
-  distance: number;
-  averageStrokeRate: number;
-  endingHeartRate: number;
-  averageHeartRate: number;
-  minHeartRate: number;
-  maxHeartRate: number;
-  averageDragFactor: number;
-  recoveryHeartRate: number;
-  workoutType: number;
-  averagePace: number;
-}
-
-export interface PM5RawAdditionalEndSummary {
-  logDate: number;
-  logTime: number;
-  intervalType: number;
-  intervalSize: number;
-  intervalCount: number;
-  totalCalories: number;
-  watts: number;
-  totalRestDistance: number;
-  restTime: number;
-  averageCalories: number;
-}
-
-/**
- * Versioned, provider-independent PM5 capture accepted by future LC ingestion.
- * Raw notifications are immutable source evidence. Normalized strokes are
- * deduplicated by PM5 strokeCount; summary totals come from paired PM5 end
- * summaries rather than the final live/status sample.
- */
-export interface PM5CompletedCaptureV1 {
-  _v: 1;
-  captureId: string;
-  captureVersion: 1;
-  status: CaptureStatus;
-  startedAt: string;
-  completedAt?: string;
-  timezone: string;
-  rawNotifications: RawCaptureNotification[];
-  strokes: NormalizedStroke[];
-  splits: NormalizedSplit[];
-  summary?: CompletedCaptureSummary;
-  rawEndSummary?: PM5RawEndSummary;
-  rawAdditionalEndSummary?: PM5RawAdditionalEndSummary;
-}
+export type {
+  CaptureStatus,
+  CompletedCaptureSummary,
+  NormalizedSplit,
+  NormalizedSplitV2,
+  NormalizedStroke,
+  NormalizedStrokeV2,
+  PM5CompletedCapture,
+  PM5CompletedCaptureV1,
+  PM5CompletedCaptureV2,
+  RawCaptureNotification,
+} from '@readyall/erglink/pm5';
 
 // ============================================================================
 // 4. RECONCILIATION CONTRACT

@@ -13,6 +13,19 @@ import type {
   PM5ProgrammingReceiptV1,
   PM5ProgrammingStatus,
 } from '../types/ergSession.types';
+import {
+  pm5CapturePersistence,
+  type PM5CapturePersistenceState,
+} from './pm5CapturePersistence';
+
+export interface PM5CapturePersistencePort {
+  setOwnerId(ownerId: string | null): void;
+  clearOwnerId(ownerId: string): void;
+  setProgrammingContext(context: ActiveWorkoutSpec): void;
+  getState(): PM5CapturePersistenceState | null;
+  subscribe(listener: (state: PM5CapturePersistenceState) => void): () => void;
+  retryPending(limit?: number): Promise<void>;
+}
 
 export function activeWorkoutSpecToWorkoutConfig(workout: ActiveWorkoutSpec): WorkoutConfig {
   const fixedInterval = workout.type === 'interval_distance' || workout.type === 'interval_time';
@@ -55,17 +68,21 @@ function classifyProgrammingError(error: unknown): { status: PM5ProgrammingStatu
 export class DirectPM5Service {
   private readonly driver: PM5Driver;
   private readonly now: () => string;
+  private readonly capturePersistence?: PM5CapturePersistencePort;
 
   constructor(
     driver: PM5Driver,
     now: () => string = () => new Date().toISOString(),
+    capturePersistence?: PM5CapturePersistencePort,
   ) {
     this.driver = driver;
     this.now = now;
+    this.capturePersistence = capturePersistence;
   }
 
-  initialize(): Promise<void> {
-    return this.driver.initialize();
+  async initialize(): Promise<void> {
+    await this.driver.initialize();
+    await this.capturePersistence?.retryPending();
   }
 
   isAvailable(): Promise<boolean> {
@@ -116,6 +133,26 @@ export class DirectPM5Service {
     return this.driver.getCaptureEvidence();
   }
 
+  getCapturePersistenceState(): PM5CapturePersistenceState | null {
+    return this.capturePersistence?.getState() ?? null;
+  }
+
+  onCapturePersistenceState(callback: (state: PM5CapturePersistenceState) => void): () => void {
+    return this.capturePersistence?.subscribe(callback) ?? (() => undefined);
+  }
+
+  setCaptureOwner(ownerId: string | null): void {
+    this.capturePersistence?.setOwnerId(ownerId);
+  }
+
+  clearCaptureOwner(ownerId: string): void {
+    this.capturePersistence?.clearOwnerId(ownerId);
+  }
+
+  retryPendingCaptures(limit = 20): Promise<void> {
+    return this.capturePersistence?.retryPending(limit) ?? Promise.resolve();
+  }
+
   async program(request: ActiveWorkoutSpec): Promise<PM5ProgrammingReceiptV1> {
     const receivedAt = this.now();
     const requestId = request.programming_request_id;
@@ -132,6 +169,7 @@ export class DirectPM5Service {
 
     try {
       await this.driver.programWorkout(activeWorkoutSpecToWorkoutConfig(request));
+      this.capturePersistence?.setProgrammingContext(request);
       return {
         _v: 1,
         request_id: requestId,
@@ -153,4 +191,12 @@ export class DirectPM5Service {
   }
 }
 
-export const directPM5Service = new DirectPM5Service(new PM5CapacitorDriver());
+const directPM5Driver = new PM5CapacitorDriver({
+  persistCapture: (capture, savedAt) => pm5CapturePersistence.persist(capture, savedAt),
+});
+
+export const directPM5Service = new DirectPM5Service(
+  directPM5Driver,
+  () => new Date().toISOString(),
+  pm5CapturePersistence,
+);
