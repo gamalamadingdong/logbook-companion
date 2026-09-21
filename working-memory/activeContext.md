@@ -103,7 +103,7 @@ Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owne
 
 ### 5. Prove the direct athlete RWN → PM5 mobile path
 
-RWN is the canonical superset. Published `@readyall/rwn` owns `translateWorkoutToPm5`, and published `@readyall/erglink` owns the PM5 protocol and Capacitor driver. LC now has Android/iOS Capacitor shells plus an athlete `/pm5` flow for local discovery, connection, diagnostics, exact/prompt-only/unsupported handling, and explicit PM5 acknowledgement without a coach session or Supabase programming relay. Real-device proof remains for the LC-built native app, each supported translation shape, and rejection/not-ready behavior. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
+RWN is the canonical superset. Published `@readyall/rwn` owns `translateWorkoutToPm5`, and published `@readyall/erglink` owns the PM5 protocol and Capacitor driver. LC now has Android/iOS Capacitor source scaffolding plus an athlete `/pm5` flow for local discovery, connection, diagnostics, exact/prompt-only/unsupported handling, and explicit PM5 acknowledgement without a coach session or Supabase programming relay. This is code integration, not mobile delivery readiness: Android still needs a Java 17+/SDK/device development environment, iOS needs macOS/Xcode/CocoaPods/signing, and both platforms still need installed-app authentication, deep-link, device, CI, and release proof. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
 
 ### 6. Complete adverse-path PM5 evidence
 
@@ -128,7 +128,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Browser/mobile durable CaptureStore | IndexedDB + Capacitor SQLite adapters implemented |
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.2.0` |
-| Direct athlete LC mobile → PM5 | Implemented; native-device proof remains |
+| Direct athlete LC mobile → PM5 | Code and native scaffolding implemented; mobile dev environment and installed-device proof remain |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
