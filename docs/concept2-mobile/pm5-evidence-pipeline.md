@@ -2,6 +2,24 @@
 
 Status: 2026-09-21. Capture normalization is proven on real hardware for summary-level evidence. Split/stroke projection into Concept2 is **not** implemented and **not** tested. This document records the field-level contract, the measured gaps, and the pre-device work order.
 
+Every gap below was verified against `erg-link@origin/main` (merge `1bf1241`) and `logbook-companion@origin/staging` (merge `374053a`), not inferred from earlier notes.
+
+## Already built — do not rebuild
+
+| Capability | Where |
+|---|---|
+| CSAFE framing, stuffing, checksums, response parsing | `@readyall/erglink/pm5/protocol` |
+| Command-aware 20-byte packetization | `commands.ts`, hardware-proven |
+| PM5 programming with explicit acknowledgement | `pm5ProgrammingService`, hardware-proven |
+| Capture accumulator with dedup, terminal states, paired-summary completion | `capture.ts`, hardware-proven |
+| Seven characteristic parsers | `parser.ts` |
+| Capacitor BLE driver | `@readyall/erglink/pm5/capacitor` |
+| Durable capture store contract + IndexedDB + SQLite adapters | ErgLink app `src/services/` |
+| RWN → PM5 translation with exact/prompt-only/unsupported | `@readyall/rwn@0.2.1` |
+| LC direct connect/program UI, Capacitor projects, unsigned native CI | LC staging |
+
+The work below is what is genuinely absent.
+
 ## The four validity states
 
 Keep these distinct in code, storage and UI. They are not synonyms.
@@ -45,7 +63,7 @@ This proves the capture envelope and summary semantics. It proves nothing about 
 
 ## Gap 1 — characteristics not subscribed
 
-`@readyall/erglink` `PM5CapacitorDriver` currently subscribes to seven characteristics:
+Verified in `origin/main:packages/erglink/src/pm5/capacitor.ts`. `PM5CapacitorDriver` subscribes to seven characteristics:
 
 ```text
 0x0031 general status
@@ -66,7 +84,9 @@ Not subscribed, and needed:
 | `0x003C` | end-of-workout additional summary 2 | **Workout Verified flag**, erg machine type, average pace, PM log date/time |
 | `0x003E` | additional status 3 | operational state / workout verification state during the piece |
 
-`0x003C` is not even declared in `PM5_CHARACTERISTICS`. Per the Concept2 CSAFE specification, its Game Identifier / Workout Verified byte packs the game ID in the lower nibble and the Workout Verified flag in the upper nibble:
+`0x0036`, `0x0038` and `0x003E` **are** declared in `PM5_CHARACTERISTICS` as `ADDITIONAL_STROKE_DATA`, `ADDITIONAL_SPLIT_INTERVAL_DATA` and `ROWING_ADDITIONAL_STATUS3` — they are simply not in the subscription list and have no parsers. `0x003C` is absent entirely: the constant table jumps from `0x003B` (`HEART_RATE_BELT_INFO`) to `0x003D` (`FORCE_CURVE_DATA`).
+
+Per the Concept2 CSAFE specification, the `0x003C` Game Identifier / Workout Verified byte packs the game ID in the lower nibble and the Workout Verified flag in the upper nibble:
 
 ```c
 #define LOGMAP_GAMETYPEIDENT_PM5_MSK 0x0F
@@ -119,6 +139,14 @@ Not represented: `workout.splits`, `stroke_data`, `stroke_rate`, `stroke_count`,
 
 Concept2's documentation recommends its [Online Validator](https://log.concept2.com/developers/validator) before posting, especially for interval workouts.
 
+## Gap 4 — LC never receives a capture
+
+Verified on `origin/staging`. `PM5CompletedCapture` appears only as a type import in `src/types/ergSession.types.ts`. `src/services/pm5DirectService.ts` contains no capture wiring, and `src/pages/PM5Connection.tsx` shows live metrics but no completed-capture surface.
+
+The `PM5CapacitorDriver` accepts an optional `persistCapture` callback. The ErgLink app passes its SQLite store; LC passes nothing, so completed captures are discarded at the end of a workout. The durable store adapters (`captureStore.ts`, `indexedDbCaptureStore.ts`, `mobileSQLiteCaptureStore.ts`) are proven but still live in the ErgLink app — they are **not** part of the published package, so LC cannot import them.
+
+This decides slice ordering: publishing the storage port is a prerequisite for LC ingestion, and neither depends on hardware.
+
 ## Fixed 2,000 m validity rules
 
 Deterministic checks LC must pass before calling a captured 2,000 m evidence-valid:
@@ -154,9 +182,15 @@ and only display **Verified** or **Ranked** after exact-ID read-back returns the
 
 ## Work order (no mobile device required)
 
+### E0 — Publish the storage port
+
+Move `captureStore.ts` and the IndexedDB/SQLite adapters from the ErgLink app into `@readyall/erglink` behind `./pm5/storage/indexeddb` and `./pm5/storage/sqlite`, with the platform-neutral contract at the package root. Behavior unchanged; ErgLink consumes the package.
+
+Exit: ErgLink store tests pass against the package; package release published; ErgLink pinned to it.
+
 ### E1 — Capture v2
 
-Add `0x0036`, `0x0038`, `0x003C`, `0x003E` to the characteristic table and subscription set. Extend `PM5CompletedCapture` to `_v: 2` with interval identity, interval-relative stroke time/distance, time-aligned optional pace/rate/HR, retained `0x003C` verification evidence, erg machine type and PM log timestamp. Keep `_v: 1` readable.
+Declare `0x003C`, then add `0x0036`, `0x0038`, `0x003C` and `0x003E` to the subscription set with parsers for each. Extend `PM5CompletedCapture` to `_v: 2` with interval identity, interval-relative stroke time/distance, time-aligned optional pace/rate/HR, retained `0x003C` verification evidence, erg machine type and PM log timestamp. Keep `_v: 1` readable.
 
 Exit: byte-vector tests for each new characteristic; capture tests proving alignment tolerance and omission-on-absence; `_v: 1` fixtures still parse.
 
@@ -172,11 +206,11 @@ Extend `Concept2ResultPayload` with `workout.splits`, `stroke_data`, and the mea
 
 Exit: unit-exact fixtures for fixed distance, fixed-distance intervals and variable intervals; malformed captures refuse to project.
 
-### E4 — LC ingestion
+### E4 — LC capture wiring and ingestion
 
-Idempotent ingestion keyed by owner + capture ID + capture version. Store raw evidence separately from searchable columns. Return the owned LC workout UUID so the device `CaptureStore` can acknowledge. Do not reuse the legacy `ErgLinkUploadMeta` path.
+Pass a `persistCapture` callback from LC's `pm5DirectService` into `PM5CapacitorDriver`, backed by the published storage port. Surface the completed capture in the PM5 summary state. Then add idempotent ingestion keyed by owner + capture ID + capture version, storing raw evidence separately from searchable columns and returning the owned LC workout UUID so the device store can acknowledge. Do not reuse the legacy `ErgLinkUploadMeta` path.
 
-Exit: replaying the same capture returns the same workout UUID and writes once.
+Exit: a simulated completed capture persists locally, appears in the summary state, and replaying it returns the same workout UUID with a single write.
 
 ### E5 — Development API proof
 
