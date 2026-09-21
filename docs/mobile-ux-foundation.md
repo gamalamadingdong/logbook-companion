@@ -111,11 +111,13 @@ Twenty-four page files currently contain table, wide-grid, or horizontal-overflo
 
 ## Work order (no mobile device required)
 
-### M1 — Shell
+### M1 — Shell — implemented in current branch
 
 Bottom navigation below `md`, safe-area insets, sidebar preserved at `md`+, active-state parity with the sidebar.
 
 Exit: every bottom tab routes correctly; no layout shift at the `md` boundary; existing tests pass.
+
+Implementation: a focused five-tab mobile navigation component maps route groups to Home, Train, PM5, History, and More; More opens the existing full menu. Safe-area padding protects content and controls, the feedback action is lifted above the bar, and the desktop sidebar remains unchanged at `md` and above.
 
 ### M2 — PM5 flow
 

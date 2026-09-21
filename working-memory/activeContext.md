@@ -105,14 +105,14 @@ When a user edits a result in Concept2, refresh the linked provider snapshot, co
 
 Full field-level contract and work order: [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md).
 
-Implementation now spans merged `erg-link@origin/main` through PR #12 and this LC E4 branch from `origin/staging` after merged PR #192. Hardware-proven foundations remain CSAFE, packetization, programming acknowledgement, and capture-v1 summary semantics. Device-independent E0–E2 plus crash recovery are published in `@readyall/erglink@0.6.0`; E3 is merged in LC. Ordered slices:
+Implementation now spans merged `erg-link@origin/main` through PR #12 and merged LC PRs #192–#193. Hardware-proven foundations remain CSAFE, packetization, programming acknowledgement, and capture-v1 summary semantics. Device-independent E0–E2 plus crash recovery are published in `@readyall/erglink@0.6.0`; E3–E4 are merged in LC. Ordered slices:
 
 0. **Storage port — complete.** The shared `CaptureStore`, IndexedDB, and SQLite adapters ship from `@readyall/erglink`; ErgLink consumes the package.
 1. **Capture v2 — complete, automated proof.** The four additional characteristics, richer interval/stroke evidence, PM verification, machine type, PM timestamp, and start-state evidence are merged. Physical capture-v2 proof remains for E6.
 2. **Evidence validator — complete.** `validatePm5Capture` covers fixed pieces, intervals, PM raw/normalized reconciliation, retained evidence, and the known Pete Plan workout matrix with specific violation codes.
 3. **Concept2 projection — implemented in PR #192.** `projectCaptureToConcept2` emits official PM log time, exact Concept2 units, splits/intervals, measured optional metrics, and per-interval stroke data without claiming provider verification.
-4. **LC capture wiring and ingestion — implemented in this branch.** The driver saves to IndexedDB/SQLite first, binds immutable owner/programming context to the local capture, recovers interrupted uploads, validates and inserts idempotently under owner + capture ID/version, surfaces summary/retry state, and acknowledges only after LC returns its owned workout UUID. No live row was written by automated verification.
-5. **Development API proof — deployed; authenticated fixture run pending.** The development-only migration and Edge Function support server-owned fixed 2,000 m, 8×500 m, and deliberately invalid PM5 projections, embedded-stroke exact-ID read-back, field comparison, and provider `verified`/`ranked` persistence. The signed-in staging operator must execute the three fixtures from the PR preview.
+4. **LC capture wiring and ingestion — complete in merged PR #193.** The driver saves to IndexedDB/SQLite first, binds immutable owner/programming context to the local capture, recovers interrupted uploads, validates and inserts idempotently under owner + capture ID/version, surfaces summary/retry state, and acknowledges only after LC returns its owned workout UUID. No live row was written by automated verification.
+5. **Development API proof — complete.** Concept2 development accepted the fixed 2,000 m and 8×500 m PM5 projection fixtures; exact-ID read-back with embedded strokes reported field-for-field parity. The deliberately invalid stroke payload was rejected and not published. Provider-owned `verified`/`ranked` were retained; result IDs are not stored in-repo.
 6. **Hardware confirmation — blocked on hardware.** Capture, validate, ingest, project, and publish a real fixed 2,000 m through the full installed-mobile path.
 
 ### 5. Prove the direct athlete RWN → PM5 mobile path
@@ -153,7 +153,8 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Implemented in this branch; local-first persistence and summary/retry UI are fixture-proven |
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
-| Mobile shell and PM5 flow states | Specified; implementation not started |
+| Mobile shell | M1 implemented in the current branch: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
+| PM5 flow states | M2 specified; implementation not started |
 | Mobile route adaptation | 7 of 24 dense pages carry `md:hidden` alternatives; the rest need adaptation |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
