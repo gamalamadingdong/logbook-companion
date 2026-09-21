@@ -32,6 +32,7 @@ const Analytics = lazyNamed(() => import('./pages/Analytics'), 'Analytics');
 const WorkoutDetail = lazyNamed(() => import('./pages/WorkoutDetail'), 'WorkoutDetail');
 const CompletedWorkoutEntry = lazyNamed(() => import('./pages/CompletedWorkoutEntry'), 'CompletedWorkoutEntry');
 const CompletedWorkoutEntryDetail = lazyNamed(() => import('./pages/CompletedWorkoutEntryDetail'), 'CompletedWorkoutEntryDetail');
+const PM5Connection = lazyNamed(() => import('./pages/PM5Connection'), 'PM5Connection');
 const Preferences = lazyNamed(() => import('./pages/Preferences'), 'Preferences');
 const WorkoutHistory = lazyNamed(() => import('./pages/WorkoutHistory'), 'WorkoutHistory');
 const WorkoutComparison = lazyNamed(() => import('./pages/WorkoutComparison'), 'WorkoutComparison');
@@ -200,6 +201,7 @@ const AppContent: React.FC = () => {
           <Route path="/completed-workout/new" element={<ProtectedRoute><CompletedWorkoutEntry /></ProtectedRoute>} />
           <Route path="/completed-workout/:id/edit" element={<ProtectedRoute><CompletedWorkoutEntry /></ProtectedRoute>} />
           <Route path="/completed-workout/:id" element={<ProtectedRoute><CompletedWorkoutEntryDetail /></ProtectedRoute>} />
+          <Route path="/pm5" element={<ProtectedRoute><PM5Connection /></ProtectedRoute>} />
           <Route
             path="/preferences"
             element={
