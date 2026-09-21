@@ -1,7 +1,7 @@
 import {
   translateWorkoutToPm5,
   type Pm5TranslationMode,
-} from '../../packages/rwn/src/pm5';
+} from '@readyall/rwn';
 import type { ActiveWorkoutSpec } from '../types/ergSession.types';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 

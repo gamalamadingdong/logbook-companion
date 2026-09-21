@@ -49,4 +49,19 @@ describe('PM5 programming request service', () => {
     expect(result.request).toBeNull();
     expect(result.notes[0]).toContain('calorie');
   });
+
+  it('rejects a partially parsed variable workout instead of programming the valid prefix', () => {
+    const malformed = createPM5ProgrammingRequest(
+      '250m/1:30r+500m/3:00r+750m/4:30r+1000m/6:00r+750m/4:30r+500/3:00r+250/1:30r',
+    );
+    expect(malformed.mode).toBe('unsupported');
+    expect(malformed.request).toBeNull();
+    expect(malformed.notes[0]).toContain('Nothing was sent');
+
+    const complete = createPM5ProgrammingRequest(
+      '250m/1:30r+500m/3:00r+750m/4:30r+1000m/6:00r+750m/4:30r+500m/3:00r+250m/1:30r',
+    );
+    expect(complete.mode).toBe('exact');
+    expect(complete.request?.intervals).toHaveLength(14);
+  });
 });

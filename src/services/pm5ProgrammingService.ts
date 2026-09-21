@@ -27,6 +27,24 @@ const defaultDependencies: PM5ProgrammingDependencies = {
   now: () => new Date().toISOString(),
 };
 
+function countTopLevelPlusSegments(rwn: string): number {
+  let depth = 0;
+  let segments = 1;
+  for (const character of rwn) {
+    if (character === '(' || character === '[') depth += 1;
+    else if (character === ')' || character === ']') depth = Math.max(0, depth - 1);
+    else if (character === '+' && depth === 0) segments += 1;
+  }
+  return segments;
+}
+
+function hasDroppedVariableSegments(rwn: string, structure: ReturnType<typeof parseRWN>): boolean {
+  if (!structure || structure.type !== 'variable') return false;
+  const segmentCount = countTopLevelPlusSegments(rwn);
+  const workStepCount = structure.steps.filter((step) => step.type === 'work').length;
+  return workStepCount < segmentCount;
+}
+
 export function stampPM5ProgrammingRequest(
   spec: ActiveWorkoutSpec,
   sourceRwn: string | null,
@@ -57,6 +75,13 @@ export function createPM5ProgrammingRequest(
   const structure = parseRWN(rwn);
   if (!structure) {
     return { mode: 'unsupported', request: null, notes: ['RWN could not be parsed.'] };
+  }
+  if (hasDroppedVariableSegments(rwn, structure)) {
+    return {
+      mode: 'unsupported',
+      request: null,
+      notes: ['RWN contains one or more variable-workout pieces that could not be parsed. Nothing was sent to the PM5.'],
+    };
   }
 
   const lowered = lowerWorkoutStructureToPm5(structure);
