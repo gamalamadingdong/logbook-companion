@@ -151,11 +151,11 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Direct athlete LC mobile → PM5 | Code merged; web, Android debug, and iOS simulator builds pass; installed-device proof remains |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
-| LC capture wiring | Implemented in this branch; local-first persistence and summary/retry UI are fixture-proven |
+| LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
-| Mobile shell | M1 implemented in the current branch: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
-| PM5 flow states | M2 implemented in the current branch; explicit preflight/connect/ready/live/summary tests pass |
-| Mobile route adaptation | 7 of 24 dense pages carry `md:hidden` alternatives; the rest need adaptation |
+| Mobile shell | M1 merged in PR #195: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
+| PM5 flow states | M2 merged in PR #196; explicit preflight/connect/ready/live/summary tests pass |
+| Mobile route adaptation | M3a adapts dashboard plus completed-workout new/detail/edit; `/workout/:id`, training block, library, analytics, sync, and preferences remain |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
