@@ -119,11 +119,13 @@ Exit: every bottom tab routes correctly; no layout shift at the `md` boundary; e
 
 Implementation: a focused five-tab mobile navigation component maps route groups to Home, Train, PM5, History, and More; More opens the existing full menu. Safe-area padding protects content and controls, the feedback action is lifted above the bar, and the desktop sidebar remains unchanged at `md` and above.
 
-### M2 — PM5 flow
+### M2 — PM5 flow — implemented in current branch
 
 Split `PM5Connection.tsx` into preflight, connect, ready, live and summary states with explicit transitions. Preflight shows the translation outcome before any monitor traffic.
 
 Exit: state-by-state render tests; unsupported RWN never reaches a connect action.
+
+Implementation: `/pm5` now derives explicit Preflight, Connect, Ready, Live, and Summary states. Translation occurs before scanning; unsupported RWN remains in Preflight with no connection/programming action. Exact and prompt-only workouts advance through connection and acknowledgement, live PM5 metrics own the workout surface, and durable terminal captures reopen in Summary after retry/restart.
 
 ### M3 — Athlete-critical adaptation
 

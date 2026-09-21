@@ -154,7 +154,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | LC capture wiring | Implemented in this branch; local-first persistence and summary/retry UI are fixture-proven |
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
 | Mobile shell | M1 implemented in the current branch: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
-| PM5 flow states | M2 specified; implementation not started |
+| PM5 flow states | M2 implemented in the current branch; explicit preflight/connect/ready/live/summary tests pass |
 | Mobile route adaptation | 7 of 24 dense pages carry `md:hidden` alternatives; the rest need adaptation |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
