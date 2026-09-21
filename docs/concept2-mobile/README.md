@@ -12,6 +12,8 @@ API background: [official Concept2 Logbook API documentation snapshot](concept2-
 
 Data boundary: [completed result storage and capture audit](capture-storage-audit.md) records the current LC, ErgLink, PM5, and Concept2 evidence and next integrity checks. The [LC → RWN → PM5 programming boundary](pm5-programming-boundary.md) records the implemented local delivery/acknowledgement path and remaining installed-device matrix.
 
+Evidence pipeline: the [PM5 evidence pipeline](pm5-evidence-pipeline.md) records the field-level contract from PM5 notifications through capture, validation, LC ingestion and the Concept2 splits/`stroke_data` payload, plus the ordered pre-device work. Mobile surface: the [mobile UX foundation](../mobile-ux-foundation.md) records the athlete flow, navigation and route-by-route adaptation classification.
+
 Production-write approval: [evidence matrix](approval-evidence/README.md) and [requirements-inquiry draft](approval-evidence/requirements-inquiry-draft.md).
 
 1. Read the [roadmap](../logbook-concept2-mobile-roadmap.md) for product direction and deferred milestones.

@@ -97,17 +97,28 @@ Use the staging-only account and browser profile:
 
 When a user edits a result in Concept2, refresh the linked provider snapshot, compare it with the immutable published payload, and surface divergence. An explicit adoption action should create an auditable LC revision. Do not silently overwrite the LC source row or automatically repost.
 
-### 4. Accept PM5CompletedCaptureV1 into LC
+### 4. Build the PM5 evidence pipeline (current focus, no device required)
 
-Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owner + capture ID/version. Reconstruct trusted searchable columns from the accepted summary, store raw evidence separately, return the owned LC workout UUID, and only then allow the device `CaptureStore` to acknowledge the upload. Do not reuse the legacy last-sample `ErgLinkUploadMeta` write path.
+Full field-level contract and work order: [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md).
+
+Verified against `erg-link@origin/main` (`1bf1241`) and `logbook-companion@origin/staging` (`374053a`). Already built and hardware-proven: CSAFE core, 20-byte packetization, programming with acknowledgement, the capture accumulator, seven characteristic parsers, the Capacitor driver, and the durable store adapters. Not built: splits/stroke projection to Concept2, and any LC capture wiring at all — `pm5DirectService` passes no `persistCapture` callback, so completed captures are discarded. Ordered slices:
+
+0. **Publish the storage port** — move the proven `CaptureStore` contract and IndexedDB/SQLite adapters out of the ErgLink app into `@readyall/erglink` so LC can import them. Prerequisite for slice 4.
+1. **Capture v2** — declare `0x003C`; subscribe and parse `0x0036`, `0x0038`, `0x003C`, `0x003E`; add interval identity, interval-relative stroke time/distance, time-aligned optional pace/rate/HR, Workout Verified evidence, erg machine type, PM log timestamp. Keep `_v: 1` readable.
+2. **Evidence validator** — pure `validatePm5Capture` implementing the fixed-piece and interval rules with specific violation codes.
+3. **Concept2 projection** — extend `Concept2ResultPayload` with `workout.splits` and `stroke_data` in exact Concept2 units, with per-interval resetting `t`/`d`. Never emit `verified: true`.
+4. **LC capture wiring and ingestion** — pass `persistCapture` from `pm5DirectService`, surface the capture in the PM5 summary state, then add owner-authenticated idempotent ingestion keyed by owner + capture ID + version. Do not reuse the legacy `ErgLinkUploadMeta` path.
+5. **Development API proof** — Online Validator plus development POST and exact-ID read-back of intervals, splits and `stroke_data`; persist Concept2's `verified`/`ranked` without rewriting LC provenance.
 
 ### 5. Prove the direct athlete RWN → PM5 mobile path
 
 RWN is the canonical superset. Published `@readyall/rwn` owns `translateWorkoutToPm5`, and published `@readyall/erglink` owns the PM5 protocol and Capacitor driver. LC now has Android/iOS Capacitor source projects plus an athlete `/pm5` flow for local discovery, connection, diagnostics, exact/prompt-only/unsupported handling, and explicit PM5 acknowledgement without a coach session or Supabase programming relay. Full web gates, an Android Java 21 debug build, and an iOS simulator build pass in GitHub Actions. This is not mobile release readiness: installed-app authentication/deep links, physical-device PM5 proof, signing, store delivery, and OTA remain. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
 
-### 6. Add ranking-grade PM5 result validation
+### 6. Build the mobile UX foundation (current focus, no device required)
 
-Keep LC evidence-valid, Concept2 API-valid, Concept2 verified, and Concept2 ranked as separate states. Add PM5 `0x003C` Workout Verified/machine-type evidence, retain initial workout/flywheel state, validate fixed-piece totals and PM rounding deterministically, use the Concept2 development validator/API, and preserve exact-ID `verified`/`ranked` read-back. Never set `verified: true` from LC consistency checks alone.
+Flow, navigation and route classification: [mobile UX foundation](../docs/mobile-ux-foundation.md).
+
+One application, one router. Capacitor already renders every existing route; the work is a bottom-navigation shell below `md`, a five-state PM5 flow (preflight → connect → ready → live → summary), athlete-critical route adaptation, then coach/team adaptation using the `md:hidden` pattern already present in `WorkoutHistory` and the coaching pages. Reference patterns: ErgData connection persistence, ErgZone workout-first programming, Strava recorder/summary separation. Use `src/components/ui/` primitives and theme tokens only.
 
 ### 7. Complete adverse-path PM5 evidence
 
@@ -133,13 +144,22 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.2.0` |
 | Direct athlete LC mobile → PM5 | Code merged; web, Android debug, and iOS simulator builds pass; installed-device proof remains |
-| Ranking-grade PM5 validation | Internal consistency rules defined; `0x003C`, start-state, verification-code/trusted-client, validator/API, and exact-ID proof remain |
+| Durable CaptureStore port published | Not started — adapters still ErgLink-app-local, so LC cannot import them |
+| PM5 capture v2 (`0x0036`/`0x0038`/`0x003C`/`0x003E`) | Not started — blocks verification evidence and stroke projection |
+| PM5 evidence validator | Rules specified; implementation not started |
+| Concept2 splits + `stroke_data` projection | Not implemented; payload type has no stroke fields |
+| LC capture wiring | Not implemented — `pm5DirectService` passes no `persistCapture`; completed captures are discarded |
+| LC capture ingestion | Not implemented |
+| Mobile shell and PM5 flow states | Specified; implementation not started |
+| Mobile route adaptation | 7 of 24 dense pages carry `md:hidden` alternatives; the rest need adaptation |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
 ## Resume references
 
 - [Concept2/mobile router](../docs/concept2-mobile/README.md)
+- [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md)
+- [Mobile UX foundation](../docs/mobile-ux-foundation.md)
 - [Completed result storage and capture audit](../docs/concept2-mobile/capture-storage-audit.md)
 - [Publishing specification](../docs/concept2-mobile/publishing.md)
 - [Development publishing history](../docs/concept2-mobile/resume-publishing.md)

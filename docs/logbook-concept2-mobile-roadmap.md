@@ -6,6 +6,8 @@ Start with [the Concept2/mobile index](concept2-mobile/README.md), then choose a
 
 - [Publishing specification and implementation plan](concept2-mobile/publishing.md): owned capture identity and provenance, actual completed data, exact-ID import preservation, uncertain POST recovery, and the first manual single-workout development slice.
 - [Mobile delivery specification and status](concept2-mobile/mobile-delivery.md): merged Capacitor Android/iOS projects and unsigned native CI, followed by installed-device proof, signing/TestFlight/Play delivery, and self-hosted Capgo/Vercel OTA integrity and rollback.
+- [PM5 evidence pipeline](concept2-mobile/pm5-evidence-pipeline.md): PM5 characteristics, capture v2, the deterministic evidence validator, Concept2 splits/`stroke_data` projection, LC ingestion, and development-API proof. This is the current pre-device track.
+- [Mobile UX foundation](mobile-ux-foundation.md): athlete flow, bottom navigation, five-state PM5 surface, and route-by-route mobile adaptation classification. This is the parallel pre-device track.
 
 These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming code, Capacitor projects, and unsigned Android/iOS compilation now exist. Physical-device use, capture ingestion, ranking-grade telemetry validation, production API approval, signing/store delivery, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
 

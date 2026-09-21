@@ -73,6 +73,8 @@ Current gaps before LC can claim ranking-grade capture evidence:
 
 Primary references: the repository's [official Logbook API snapshot](concept2-logbook-api-reference.md), Concept2's live [ranking rules](https://log.concept2.com/rankings), and Concept2's [PM5 verification-code instructions](https://www.concept2.com/support/monitors/pm5/how-to-use). Recheck the live sources before implementation or production claims.
 
+The field-level contract and ordered implementation slices for closing these gaps now live in the [PM5 evidence pipeline](pm5-evidence-pipeline.md).
+
 Heart-rate compatibility is preserved: PM5 live status and end summaries already carry optional live, ending, average, minimum, maximum, and recovery HR. Normalized HR fields can be added after an HR-belt hardware run without changing capture identity.
 
 ## Boundaries that still need work
