@@ -1,18 +1,23 @@
-# Mobile Delivery Implementation Plan and Specification
-
-> **For agentic workers:** Use `executing-plans` or `subagent-driven-development` when authorized to implement, task-by-task. These are planned checks, not evidence of completed builds.
+# Mobile Delivery Specification and Status
 
 **Goal:** Deliver the existing LC application through an independently releasable iOS/TestFlight foundation, then prove LC-owned self-hosted OTA installation and rollback.
 
 **Architecture:** Wrap the existing Vite application with Capacitor, following ScheduleBoard's working GitHub Actions native pipeline and Capgo/Vercel update pattern. Native binary delivery and web-bundle delivery are distinct release paths with independent approval and rollback controls.
 
-**Tech stack:** React/Vite/TypeScript, Capacitor, GitHub Actions macOS/Xcode, App Store Connect/TestFlight, `@capgo/capacitor-updater`, self-hosted Vercel updates. Select compatible tool/plugin versions during implementation, not by copying stale pins.
+**Tech stack:** React/Vite/TypeScript, Capacitor, GitHub Actions Android/Java 21 and macOS/Xcode, App Store Connect/TestFlight, `@capgo/capacitor-updater`, self-hosted Vercel updates.
+
+## 2026-09-21 implementation checkpoint
+
+- Merged: Capacitor Android/iOS source projects, LC identity, Bluetooth permissions/privacy text, direct athlete `/pm5` flow, and published shared RWN/ErgLink dependencies.
+- Proven in CI: full web tests/lint/build, unsigned Android debug APK compilation with Java 21, and unsigned iOS simulator compilation with CocoaPods/Xcode.
+- Proven on a real PM5 through the shared browser harness: fixed-distance programming and initial variable-workout work/rest transitions.
+- Not yet proven: installed LC app authentication/deep links, physical Android/iOS PM5 use, native capture persistence/LC ingestion, signing, TestFlight/Play distribution, or OTA delivery/rollback.
 
 ## Global constraints
 
-- ADR-004 remains the direction: Capacitor, not React Native. Existing [LC package scripts](../../package.json) have no Capacitor dependency or native release scripts in the inspected state.
+- ADR-004 remains the direction: Capacitor, not React Native. LC now has Capacitor dependencies, Android/iOS projects, sync scripts, and unsigned native CI.
 - GitHub Actions builds the binary; self-hosted Capgo/Vercel distributes compatible web bundles. **Do not reintroduce Appflow**, retired for cost.
-- iOS first; Android is a separate later adaptation, not a first-release gate. Embedded PM5, BLE permissions/background capture, force curves and automatic publishing are out of scope.
+- Android and iOS source scaffolding now advance together. Direct foreground PM5 programming and BLE permissions are implemented; background capture, force curves, capture ingestion, and automatic publishing remain out of scope.
 - LC owns bundle ID, app record, profiles, endpoint and release configuration. Do not copy ScheduleBoard secrets or identity, Firebase, push, SQLite, camera/location permissions, mixed-content settings or unrelated plugins.
 - Apple account actions, signing provisioning, uploads, hosted deployment and public release require operator authorization. A documentation PR authorizes none of them.
 - TestFlight archive work does not require Concept2 write approval. Safe Concept2 OAuth remains required for the completed mobile foundation; reuse the server auth prerequisite in [publishing P1](publishing.md), not the publishing service itself.
@@ -69,16 +74,16 @@ Test cold launch and already-running return, cancellation, browser dismissal, re
 
 ## Implementation tasks
 
-### M1 — Minimal LC shell and archive-only CI
+### M1 — Minimal LC shell and unsigned native CI
 
-**Files:** create `capacitor.config.ts`, generated `ios/` project, `.github/workflows/build-mobile.yml` and `docs/concept2-mobile/release-operations.md` at implementation; modify `package.json`/lockfile and only required Vite/asset configuration. Use one explicit production config selection, not an untested config-copy convention.
+**Files:** implemented as `capacitor.config.ts`, generated `android/` and `ios/` projects, `.github/workflows/mobile-native-checks.yml`, package scripts/dependencies, and the direct PM5 route/service. A release-operations runbook remains for signed distribution work.
 
-- [ ] Close Apple ownership/identity decisions and choose compatible Capacitor/plugin/Xcode/Node versions using current documentation. Record this in the release runbook.
-- [ ] Add minimum shell dependencies/assets and workflow adapted from ScheduleBoard. Avoid Android and unrelated services/plugins. Configure archive-only default and explicit protected upload approval.
+- [ ] Close Apple ownership/app-record/signing decisions and record them in a release runbook. LC bundle/application identity and compatible Capacitor/Node/Xcode build versions are implemented for unsigned compilation.
+- [x] Add minimal Android/iOS shell dependencies and an unsigned native workflow adapted from ScheduleBoard without copying Firebase, push, camera/location, signing, store upload, or Capgo configuration.
 - [ ] Add automated config checks: LC bundle ID/profile agreement, no dev server URL or client secret, only approved capabilities, unique build number, and upload disabled without approval.
-- [ ] Run `npm ci`, `npm run build`, `npm run lint`, focused tests and Capacitor sync; inspect generated project/config. On the authorized macOS workflow, verify signed archive/export and artifact metadata without uploading. Commit shell/CI separately.
+- [x] Run `npm ci`, full tests, lint, build, Capacitor sync, Android Java 21 debug compilation, and iOS simulator compilation. The signed archive/export part remains unstarted.
 
-**Exit:** reproducible LC archive with LC identity and no unauthorized store upload. This task can proceed while publishing API access remains blocked.
+**Exit:** partially met. Reproducible unsigned Android and iOS simulator builds exist with LC identity and no unauthorized store upload. Signed archive/export remains.
 
 ### M2 — Safe native auth and TestFlight usability proof
 

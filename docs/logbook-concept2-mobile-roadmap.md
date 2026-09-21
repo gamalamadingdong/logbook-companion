@@ -5,20 +5,20 @@
 Start with [the Concept2/mobile index](concept2-mobile/README.md), then choose an independent track:
 
 - [Publishing specification and implementation plan](concept2-mobile/publishing.md): owned capture identity and provenance, actual completed data, exact-ID import preservation, uncertain POST recovery, and the first manual single-workout development slice.
-- [Mobile delivery specification and implementation plan](concept2-mobile/mobile-delivery.md): Apple app registration/signing checklist, independent Capacitor/TestFlight foundation, and GitHub Actions plus self-hosted Capgo/Vercel OTA integrity, compatibility and rollback.
+- [Mobile delivery specification and status](concept2-mobile/mobile-delivery.md): merged Capacitor Android/iOS projects and unsigned native CI, followed by installed-device proof, signing/TestFlight/Play delivery, and self-hosted Capgo/Vercel OTA integrity and rollback.
 
-These bounded plans define the first implementation gates. Broader workout mapping, automatic publication and embedded PM5 capture below remain subsequent roadmap work, not prerequisites for the first manual fixed-distance publication or Apple archive. All implementation and operator checkboxes are proposed; no API approval, native build or live update was verified by this documentation pass. Appflow is retired for cost and is not part of the delivery path.
+These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming code, Capacitor projects, and unsigned Android/iOS compilation now exist. Physical-device use, capture ingestion, ranking-grade telemetry validation, production API approval, signing/store delivery, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
 
 ## Status
 
-Proposed direction, with a bounded first-release plan below. This is not one combined implementation assignment: Concept2 publishing and the mobile delivery foundation can ship independently. Native PM5 integration and richer capture are later milestones.
+Implementation checkpoint. Development publishing and direct PM5 programming have independent working foundations. The direct feature now compiles as Android and iOS apps; installed-device authentication/PM5 proof, LC completed-capture ingestion, ranking-grade validation, production publishing approval, and release delivery remain independent milestones.
 
 This document captures the intended relationship between:
 
 * Logbook Companion (LC)
 * ErgLink (EL)
 * Concept2 Logbook
-* the future Logbook Companion mobile application
+* the Logbook Companion Capacitor mobile application
 
 The goal is to finish several pieces of infrastructure that already exist in partial form and make the boundaries between the projects explicit.
 
@@ -32,7 +32,7 @@ The broader ecosystem should separate three concerns:
 describes a rowing workout.
 
 **ErgLink**
-communicates with the rowing machine and captures high-fidelity PM5 data.
+provides the shared monitor-driver/PM5 package and remains a browser hardware-development/boathouse harness.
 
 **Logbook Companion**
 stores, organizes, analyzes, schedules, and publishes rowing training data.
@@ -45,23 +45,18 @@ The intended workflow is:
 Workout Library / RWN
         |
         v
-Logbook Companion
+Logbook Companion mobile
         |
-        | workout prescription
+        | @readyall/rwn translation
+        | @readyall/erglink PM5 driver
         v
-     ErgLink
-        |
-        | CSAFE / BLE
-        v
-       PM5
+PM5 via local CSAFE / BLE
         |
         | live telemetry
         | strokes
         | future force data
         v
-     ErgLink
-        |
-        | completed workout
+PM5CompletedCaptureV1
         v
 Logbook Companion
         |
@@ -73,7 +68,7 @@ Logbook Companion
              Concept2 Logbook
 ```
 
-This makes LC the system coordinating the overall workout lifecycle while preserving ErgLink as a useful standalone PM5 integration layer.
+This makes LC the system coordinating the overall workout lifecycle while preserving ErgLink as both a reusable device package and a useful standalone hardware harness.
 
 ---
 
