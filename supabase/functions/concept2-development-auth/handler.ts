@@ -5,6 +5,7 @@ import { publishManual } from './publish.ts';
 import type { CompletedWorkoutV1 } from '../_shared/concept2/publication.ts';
 import type { CompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
 import { completedWorkoutFixtures } from '../_shared/concept2/fixtures/index.ts';
+import { pm5ProjectionFixtures } from '../_shared/concept2/fixtures/pm5ProjectionFixtures.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
 const WRITE_SCOPE = 'user:read,results:write';
 const READ_SCOPE = 'user:read,results:read';
@@ -28,6 +29,8 @@ export type Dependencies = {
   createWorkout?: (user: string, values: Row) => Promise<Row>;
   createFixture?: (user: string, name: string) => Promise<Row>;
   loadWorkout?: (user: string, workoutId: string) => Promise<CompletedWorkoutV1 | CompletedWorkoutV2>;
+  loadProjection?: (user: string, workoutId: string) => Promise<Record<string, unknown> | null>;
+  loadPublication?: (user: string, resultId: number) => Promise<Record<string, unknown> | null>;
   fetch: typeof fetch;
 };
 export function configuration(get: (name: string) => string | undefined): Config | null {
@@ -78,7 +81,8 @@ export function createHandler(deps: Dependencies) {
       }
       if (body.action === 'create_fixture') {
         if (!deps.createFixture || typeof body.fixture_name !== 'string' ||
-            !Object.prototype.hasOwnProperty.call(completedWorkoutFixtures, body.fixture_name) ||
+            (!Object.prototype.hasOwnProperty.call(completedWorkoutFixtures, body.fixture_name)
+              && !Object.prototype.hasOwnProperty.call(pm5ProjectionFixtures, body.fixture_name)) ||
             Object.keys(body).some(k => !['action', 'fixture_name'].includes(k))) {
           return reply(400, { error: 'Select a named development interval fixture.' });
         }

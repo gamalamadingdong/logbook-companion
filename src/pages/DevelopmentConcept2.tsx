@@ -94,13 +94,20 @@ export function DevelopmentConcept2() {
         timezone, weight_class: weightClass, privacy, ...(fixture ? { confirmed_fixture: true } : { confirmed_completed: true }) });
       setPublications((await developmentConcept2('publications')).publications ?? []);
       setConnection(await developmentConcept2('status'));
-      setMessage(result.status === 'published' ? `Published development result ${result.result_id}. Import to link it back to this LC workout.` :
-        result.status === 'rejected' ? 'Concept2 rejected the result. Correct the workout or reconnect if required, then you may retry this definite rejection.' :
-        'Publication outcome is uncertain. Do not retry; review the development logbook and request operator recovery.');
       if (result.status === 'published') {
+        if (!result.result_id) throw new Error('Published result is missing its Concept2 ID.');
+        const readBack = await developmentConcept2('read_result', { result_id: result.result_id });
+        const comparison = readBack.comparison;
+        setMessage(comparison?.matches
+          ? `Published and read back development result ${result.result_id}; splits/intervals and stroke data match field-for-field. Concept2 reports verified=${String(readBack.detail?.verified)} and ranked=${String(readBack.detail?.ranked)}.`
+          : `Published development result ${result.result_id}, but exact-ID comparison differs: ${comparison?.differences.join(', ') || 'comparison unavailable'}.`);
         setSelectedId(''); setWeightClass(''); setConfirmed(false);
         setNewDistance(''); setNewDuration(''); setNewCompletedAt('');
         setPublicationShape('fixed_distance');
+      } else {
+        setMessage(result.status === 'rejected'
+          ? 'Concept2 rejected the result. This definite rejection may be corrected and retried.'
+          : 'Publication outcome is uncertain. Do not retry; review the development logbook and request operator recovery.');
       }
     } catch (err) { setError(err instanceof Error ? err.message : 'Publication failed.'); }
     finally { setPending(false); }
@@ -192,12 +199,15 @@ export function DevelopmentConcept2() {
         </div>
         <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected} onClick={() => void createWorkout()}>Save completed LC row</Button>
         <div className="space-y-3 rounded border border-neutral-600 p-3">
-          <h3 className="font-semibold">Synthetic interval test fixtures</h3>
-          <p>These are invented results for checking Concept2 development publication. They are saved as labelled LC test rows and are not PM5 captures or workouts you completed. Because they live in workout history, they may also affect LC training totals.</p>
+          <h3 className="font-semibold">Synthetic development test fixtures</h3>
+          <p>These are invented results for checking Concept2 development publication, including the PM5 projection contract. They are saved as labelled LC test rows and are not workouts you completed. Because they live in workout history, they may also affect LC training totals.</p>
           <Select label="Interval fixture" value={fixtureName} onChange={event => setFixtureName(event.target.value)}>
             <option value="fixed_distance_intervals_2x500m">2 × 500 m, fixed distance intervals</option>
             <option value="fixed_time_intervals_3x120s">3 × 120 s, fixed time intervals</option>
             <option value="variable_intervals_mixed">Mixed distance and time intervals</option>
+            <option value="pm5_fixed_2000m">PM5 projection · fixed 2,000 m with strokes</option>
+            <option value="pm5_8x500m">PM5 projection · 8 × 500 m with strokes</option>
+            <option value="pm5_invalid_stroke_data">PM5 projection · deliberately invalid stroke data</option>
           </Select>
           <Button variant="secondary" size="lg" loading={pending} disabled={!connection?.connected}
             onClick={() => void createFixture()}>Save synthetic LC test row</Button>

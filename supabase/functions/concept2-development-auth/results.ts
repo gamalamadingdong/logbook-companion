@@ -2,7 +2,38 @@
 import { PROVIDER, type Dependencies } from './handler.ts';
 export type DevelopmentResult = {
   id: number; date: string; type: string; distance: number; time: number;
+  workout?: { splits?: Record<string, unknown>[]; intervals?: Record<string, unknown>[] };
+  stroke_data?: Record<string, number>[];
+  verified?: boolean; ranked?: boolean;
+  rest_distance?: number; rest_time?: number; stroke_rate?: number; stroke_count?: number;
+  calories_total?: number; wattminutes_total?: number; drag_factor?: number;
 };
+
+export type DevelopmentProjectionComparison = {
+  matches: boolean;
+  differences: string[];
+};
+
+function optionalInteger(row: Record<string, unknown>, key: string): number | undefined {
+  const value = row[key];
+  if (value === undefined || value === null) return undefined;
+  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`Invalid ${key}`);
+  return Number(value);
+}
+
+function detailRows(value: unknown, limit: number, keys: string[]): Record<string, unknown>[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > limit) throw new Error('Invalid result detail');
+  return value.map(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Invalid result detail row');
+    const row = item as Record<string, unknown>;
+    for (const key of keys) optionalInteger(row, key);
+    if (row.type !== undefined && !['time', 'distance', 'calorie', 'wattminute'].includes(String(row.type))) {
+      throw new Error('Invalid interval type');
+    }
+    return Object.fromEntries(Object.entries(row).filter(([key]) => keys.includes(key) || key === 'type'));
+  });
+}
 export function parseResults(payload: unknown, page: number) {
   const value = payload as { data?: unknown; meta?: { pagination?: { current_page?: unknown; total_pages?: unknown } } };
   if (!value || !Array.isArray(value.data) || value.data.length > 25) throw new Error('Invalid results');
@@ -13,7 +44,28 @@ export function parseResults(payload: unknown, page: number) {
       typeof row.distance !== 'number' || !Number.isFinite(row.distance) || row.distance < 0 ||
       typeof row.time !== 'number' || !Number.isFinite(row.time) || row.time < 0) throw new Error('Invalid result');
     // C2 time is tenths of seconds. Preserve native units, not rounded seconds.
-    return { id: row.id, date: row.date, type: row.type, distance: row.distance, time: row.time };
+    const raw = row as Record<string, unknown>;
+    const workoutValue = raw.workout as Record<string, unknown> | undefined;
+    const splits = detailRows(workoutValue?.splits, 100, ['distance', 'time', 'stroke_rate', 'calories_total', 'wattminutes_total']);
+    const intervals = detailRows(workoutValue?.intervals, 100, ['distance', 'time', 'stroke_rate', 'calories_total', 'wattminutes_total', 'rest_time', 'rest_distance']);
+    const strokeData = detailRows(raw.strokes ?? raw.stroke_data, 5000, ['t', 'd', 'p', 'spm', 'hr']) as Record<string, number>[] | undefined;
+    if (raw.verified !== undefined && typeof raw.verified !== 'boolean') throw new Error('Invalid verified state');
+    if (raw.ranked !== undefined && typeof raw.ranked !== 'boolean') throw new Error('Invalid ranked state');
+    const optional = Object.fromEntries([
+      'rest_distance', 'rest_time', 'stroke_rate', 'stroke_count', 'calories_total',
+      'wattminutes_total', 'drag_factor',
+    ].flatMap(key => {
+      const value = optionalInteger(raw, key);
+      return value === undefined ? [] : [[key, value]];
+    }));
+    return {
+      id: row.id, date: row.date, type: row.type, distance: row.distance, time: row.time,
+      ...optional,
+      ...(splits || intervals ? { workout: { ...(splits ? { splits } : {}), ...(intervals ? { intervals } : {}) } } : {}),
+      ...(strokeData ? { stroke_data: strokeData } : {}),
+      ...(typeof raw.verified === 'boolean' ? { verified: raw.verified } : {}),
+      ...(typeof raw.ranked === 'boolean' ? { ranked: raw.ranked } : {}),
+    };
   });
   if (new Set(results.map(row => row.id)).size !== results.length) throw new Error('Duplicate IDs');
   const pagination = value.meta?.pagination;
@@ -23,6 +75,23 @@ export function parseResults(payload: unknown, page: number) {
   return { results, next_page: pagination ? (page < Number(pagination.total_pages) ? page + 1 : null)
     : (results.length === 25 ? page + 1 : null) };
 }
+export function compareDevelopmentProjection(
+  expected: Record<string, unknown>, actual: DevelopmentResult,
+): DevelopmentProjectionComparison {
+  const differences: string[] = [];
+  const actualRecord = actual as unknown as Record<string, unknown>;
+  for (const key of [
+    'type', 'date', 'distance', 'time', 'workout_type', 'rest_distance', 'rest_time',
+    'stroke_rate', 'stroke_count', 'calories_total', 'wattminutes_total', 'drag_factor',
+    'workout', 'stroke_data',
+  ]) {
+    if (expected[key] !== undefined && JSON.stringify(expected[key]) !== JSON.stringify(actualRecord[key])) {
+      differences.push(key);
+    }
+  }
+  return { matches: differences.length === 0, differences };
+}
+
 export async function developmentResults(deps: Dependencies, user: string, action: string, page: unknown) {
   if (!deps.syncOperation) throw new Error('Development import unavailable');
   const number = page ?? 1;
@@ -58,7 +127,7 @@ export async function developmentReadResult(deps: Dependencies, user: string, re
   const claim = await deps.syncOperation(user, 'claim');
   const values = { operation_id: claim.operation_id };
   try {
-    const response = await deps.fetch(`${PROVIDER}/api/users/me/results/${resultId}`, {
+    const response = await deps.fetch(`${PROVIDER}/api/users/me/results/${resultId}?include=strokes`, {
       headers: { Authorization: `Bearer ${claim.access_token}`, Accept: 'application/vnd.c2logbook.v1+json' },
       redirect: 'error', signal: AbortSignal.timeout(20_000),
     });
@@ -71,7 +140,9 @@ export async function developmentReadResult(deps: Dependencies, user: string, re
     const parsed = parseResults({ data: [payload?.data ?? payload] }, 1);
     if (parsed.results.length !== 1 || parsed.results[0].id !== resultId) throw new Error('Result ID mismatch');
     const saved = await deps.syncOperation(user, 'save', { ...values, results: parsed.results });
-    return { ...saved, result_id: resultId };
+    const expected = await deps.loadPublication?.(user, resultId);
+    const comparison = expected ? compareDevelopmentProjection(expected, parsed.results[0]) : null;
+    return { ...saved, result_id: resultId, detail: parsed.results[0], comparison };
   } catch {
     await deps.syncOperation(user, 'release', values).catch(() => undefined);
     throw new Error('Could not read back this development result. Retry its exact ID; do not publish again.');
