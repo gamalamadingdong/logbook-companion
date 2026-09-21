@@ -1,8 +1,8 @@
 # PM5 evidence pipeline: telemetry → LC result → Concept2 payload
 
-Status: 2026-09-21. Capture normalization is proven on real hardware for summary-level evidence. Split/stroke projection into Concept2 is **not** implemented and **not** tested. This document records the field-level contract, the measured gaps, and the pre-device work order.
+Status: 2026-09-21 after ErgLink PRs #8–#10 and LC PR #192. Capture-v1 normalization remains hardware-proven at summary level. Device-independent E0–E2 are merged and published in `@readyall/erglink@0.4.0`; E3 is implemented and tested in LC PR #192. LC capture ingestion is now the first open pipeline gap. Capture-v2 fields, validation, and projection do not yet have new physical-PM5 proof.
 
-Every gap below was verified against `erg-link@origin/main` (merge `1bf1241`) and `logbook-companion@origin/staging` (merge `374053a`), not inferred from earlier notes.
+The original gap analysis was verified against `erg-link@origin/main` (`1bf1241`) and `logbook-companion@origin/staging` (`374053a`). Status annotations below record what has since closed; the detailed gap text remains as design rationale.
 
 ## Already built — do not rebuild
 
@@ -11,14 +11,16 @@ Every gap below was verified against `erg-link@origin/main` (merge `1bf1241`) an
 | CSAFE framing, stuffing, checksums, response parsing | `@readyall/erglink/pm5/protocol` |
 | Command-aware 20-byte packetization | `commands.ts`, hardware-proven |
 | PM5 programming with explicit acknowledgement | `pm5ProgrammingService`, hardware-proven |
-| Capture accumulator with dedup, terminal states, paired-summary completion | `capture.ts`, hardware-proven |
-| Seven characteristic parsers | `parser.ts` |
+| Capture-v1 accumulator with dedup and summary semantics | `capture.ts`, hardware-proven |
+| Capture v2, four additional parsers/subscriptions, start/verification evidence | `@readyall/erglink@0.4.0`, automated proof |
+| Deterministic PM evidence validator | `validatePm5Capture`, automated fixed/interval/Pete Plan matrix |
 | Capacitor BLE driver | `@readyall/erglink/pm5/capacitor` |
-| Durable capture store contract + IndexedDB + SQLite adapters | ErgLink app `src/services/` |
+| Durable capture store contract + IndexedDB + SQLite adapters | `@readyall/erglink` storage exports |
+| Pure Concept2 splits/intervals/`stroke_data` projection | LC `projectCaptureToConcept2`, PR #192 |
 | RWN → PM5 translation with exact/prompt-only/unsupported | `@readyall/rwn@0.2.1` |
 | LC direct connect/program UI, Capacitor projects, unsigned native CI | LC staging |
 
-The work below is what is genuinely absent.
+The first genuinely absent boundary is LC capture wiring and ingestion (E4).
 
 ## The four validity states
 
@@ -38,10 +40,11 @@ LC must never set `verified: true` from its own consistency checks. After a succ
 ```text
 PM5 BLE notifications
   → PM5CaptureAccumulator            (@readyall/erglink)
-  → PM5CompletedCaptureV1            proven on hardware
-  → [MISSING] LC ingestion
-  → [MISSING] CompletedWorkoutV2 with samples
-  → mapCompletedWorkoutToConcept2    summary + intervals only
+  → PM5CompletedCaptureV2            automated proof; v1 hardware baseline
+  → validatePm5Capture               deterministic evidence gate
+  → [MISSING] LC ingestion           next: E4
+  → [MISSING] CompletedWorkoutV2 with retained source evidence
+  → projectCaptureToConcept2         exact splits/intervals/stroke_data
   → POST /api/users/me/results
   → [MISSING] exact-ID read-back of splits/strokes
 ```
@@ -61,9 +64,11 @@ Internal reconciliation held: `26.40 s × 500 / 144.5 s = 100 m`; Concept2's pac
 
 This proves the capture envelope and summary semantics. It proves nothing about Concept2 splits, intervals, or `stroke_data`.
 
-## Gap 1 — characteristics not subscribed
+## Closed gap 1 — additional PM5 evidence
 
-Verified in `origin/main:packages/erglink/src/pm5/capacitor.ts`. `PM5CapacitorDriver` subscribes to seven characteristics:
+Closed in ErgLink capture v2. `0x0036`, `0x0038`, `0x003C`, and `0x003E` are declared, subscribed, parsed, retained, and covered by byte-vector tests. The inventory below records the original gap.
+
+Original baseline at `1bf1241`: `PM5CapacitorDriver` subscribed to seven characteristics:
 
 ```text
 0x0031 general status
@@ -75,7 +80,7 @@ Verified in `origin/main:packages/erglink/src/pm5/capacitor.ts`. `PM5CapacitorDr
 0x003A end-of-workout additional summary 1
 ```
 
-Not subscribed, and needed:
+Originally not subscribed, and needed:
 
 | UUID | Content | Why it matters |
 |---|---|---|
@@ -93,9 +98,11 @@ Per the Concept2 CSAFE specification, the `0x003C` Game Identifier / Workout Ver
 #define LOGMAP_LOGHEADER_STRUCT_VERIFIED_MSK 0xF0
 ```
 
-Without `0x003C` we cannot report the monitor's own verification state, and we cannot confirm erg machine type from the workout log rather than from the connection.
+Capture v2 now retains the parsed `0x003C` verification nibble, machine type, PM log timestamp, and original raw evidence. This is LC evidence; it is not permission to emit Concept2 `verified: true`.
 
-## Gap 2 — normalized strokes lack Concept2's fields
+## Closed gap 2 — normalized strokes lacked Concept2 fields
+
+Closed in capture v2. Each normalized stroke now carries interval identity and interval-relative time/distance. Pace, rate, and HR are aligned from retained status samples within a bounded tolerance and omitted when no trustworthy sample is close enough.
 
 Concept2's `stroke_data` array expects per stroke:
 
@@ -120,13 +127,15 @@ Concept2's `stroke_data` array expects per stroke:
 }
 ```
 
-Missing: interval identity, interval-relative time and distance, pace, stroke rate, heart rate.
+Original missing fields: interval identity, interval-relative time and distance, pace, stroke rate, heart rate.
 
 Pace, rate and HR arrive on the status characteristics at a different cadence than stroke events. They must be **time-aligned** from retained status snapshots, never interpolated or invented. A stroke with no aligned status sample within tolerance omits the optional field rather than guessing.
 
-## Gap 3 — Concept2 payload type has no splits or strokes
+## Closed gap 3 — Concept2 payload lacked splits and strokes
 
-`Concept2ResultPayload` currently supports:
+Closed in LC PR #192. `Concept2ResultPayload` now represents fixed splits, intervals, `stroke_data`, and measured optional metrics. `projectCaptureToConcept2` validates first, decodes the PM-native log date/time, emits integer provider units, resets stroke `t`/`d` by interval, preserves the prescribed final rest in interval detail, and never claims provider verification.
+
+Before PR #192, `Concept2ResultPayload` supported:
 
 ```ts
 type, date, timezone, distance, time, workout_type,
@@ -135,15 +144,15 @@ workout?: { intervals: [...] },
 weight_class, privacy, comments
 ```
 
-Not represented: `workout.splits`, `stroke_data`, `stroke_rate`, `stroke_count`, `drag_factor`, `calories_total`, `wattminutes_total`, `heart_rate`, `verification_code`, `verified`.
+The projection now represents `workout.splits`, `stroke_data`, `stroke_rate`, `stroke_count`, measured `drag_factor`, `calories_total`, `wattminutes_total`, and `heart_rate`. `verification_code` is unavailable and `verified: true` remains provider-owned.
 
 Concept2's documentation recommends its [Online Validator](https://log.concept2.com/developers/validator) before posting, especially for interval workouts.
 
-## Gap 4 — LC never receives a capture
+## Open gap 4 — LC never receives a capture (next: E4)
 
 Verified on `origin/staging`. `PM5CompletedCapture` appears only as a type import in `src/types/ergSession.types.ts`. `src/services/pm5DirectService.ts` contains no capture wiring, and `src/pages/PM5Connection.tsx` shows live metrics but no completed-capture surface.
 
-The `PM5CapacitorDriver` accepts an optional `persistCapture` callback. The ErgLink app passes its SQLite store; LC passes nothing, so completed captures are discarded at the end of a workout. The durable store adapters (`captureStore.ts`, `indexedDbCaptureStore.ts`, `mobileSQLiteCaptureStore.ts`) are proven but still live in the ErgLink app — they are **not** part of the published package, so LC cannot import them.
+The `PM5CapacitorDriver` accepts an optional `persistCapture` callback. LC still passes nothing, so completed captures are discarded at the end of a workout. The durable store contract and IndexedDB/SQLite adapters now ship in `@readyall/erglink@0.4.0`; the remaining work is to instantiate the correct LC adapter, surface the completed summary, ingest idempotently, and acknowledge only after LC returns its owned workout UUID.
 
 This decides slice ordering: publishing the storage port is a prerequisite for LC ingestion, and neither depends on hardware.
 
@@ -166,7 +175,7 @@ Deterministic checks LC must pass before calling a captured 2,000 m evidence-val
 13. `0x003C` verification evidence is retained alongside the result.
 14. Start-state evidence supports the ranking rule that the flywheel was stationary at the start.
 
-Rules 13 and 14 cannot be satisfied until Gap 1 is closed.
+The validator now implements these rules, including retained `0x0031` start-state and `0x003C` verification notifications. Hardware confirmation remains E6.
 
 ## Ranking eligibility
 
@@ -182,31 +191,31 @@ and only display **Verified** or **Ranked** after exact-ID read-back returns the
 
 ## Work order (no mobile device required)
 
-### E0 — Publish the storage port
+### E0 — Publish the storage port — complete
 
 Move `captureStore.ts` and the IndexedDB/SQLite adapters from the ErgLink app into `@readyall/erglink` behind `./pm5/storage/indexeddb` and `./pm5/storage/sqlite`, with the platform-neutral contract at the package root. Behavior unchanged; ErgLink consumes the package.
 
-Exit: ErgLink store tests pass against the package; package release published; ErgLink pinned to it.
+Evidence: store tests pass from the package; `@readyall/erglink@0.3.0` introduced the port and `0.4.0` carries it forward; ErgLink and LC consume the package.
 
-### E1 — Capture v2
+### E1 — Capture v2 — complete, automated proof
 
 Declare `0x003C`, then add `0x0036`, `0x0038`, `0x003C` and `0x003E` to the subscription set with parsers for each. Extend `PM5CompletedCapture` to `_v: 2` with interval identity, interval-relative stroke time/distance, time-aligned optional pace/rate/HR, retained `0x003C` verification evidence, erg machine type and PM log timestamp. Keep `_v: 1` readable.
 
-Exit: byte-vector tests for each new characteristic; capture tests proving alignment tolerance and omission-on-absence; `_v: 1` fixtures still parse.
+Evidence: byte-vector tests cover every new characteristic; capture tests cover alignment tolerance, omission-on-absence, late notifications, lifecycle ordering, and `_v: 1` readability. Physical capture-v2 confirmation remains E6.
 
-### E2 — Evidence validator
+### E2 — Evidence validator — complete
 
 Pure function `validatePm5Capture(capture) -> { valid, violations[] }` implementing the rules above, plus the interval analogues. No network, no storage.
 
-Exit: valid 2,000 m fixture passes; each rule has a deliberately violating fixture that fails with a specific violation code.
+Evidence: valid fixed 500 m/2,000 m/10,000 m, fixed-time, and full documented Pete Plan fixtures pass. Deliberate violations cover every rule with specific codes, including PM raw/normalized parity and interval-local evidence.
 
-### E3 — Concept2 projection
+### E3 — Concept2 projection — implemented in PR #192
 
 Extend `Concept2ResultPayload` with `workout.splits`, `stroke_data`, and the measured optional metrics. Add `projectCaptureToConcept2(capture)` producing exact Concept2 units: meters, deciseconds, integer SPM, decimeter stroke distance, per-interval resetting `t`/`d`. Never emit `verified: true`.
 
-Exit: unit-exact fixtures for fixed distance, fixed-distance intervals and variable intervals; malformed captures refuse to project.
+Evidence: unit-exact fixed 2,000 m, 8×500 m, and speed-pyramid fixtures pass; malformed captures refuse projection. Tests cover PM date encoding, time-undefined-rest intervals, final-rest preservation, variable-only per-interval rest distance, optional metrics, and omission of unavailable drag/verification claims.
 
-### E4 — LC capture wiring and ingestion
+### E4 — LC capture wiring and ingestion — next
 
 Pass a `persistCapture` callback from LC's `pm5DirectService` into `PM5CapacitorDriver`, backed by the published storage port. Surface the completed capture in the PM5 summary state. Then add idempotent ingestion keyed by owner + capture ID + capture version, storing raw evidence separately from searchable columns and returning the owned LC workout UUID so the device store can acknowledge. Do not reuse the legacy `ErgLinkUploadMeta` path.
 

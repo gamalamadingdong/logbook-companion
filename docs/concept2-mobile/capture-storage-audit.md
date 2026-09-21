@@ -1,6 +1,6 @@
 # Completed result storage and Concept2 boundary audit
 
-Status: 2026-09-21 checkpoint after PRs #179–#189. Manual/development integrity, shared PM5 packages, direct LC programming code, Capacitor projects, and unsigned Android/iOS compilation are merged. This document separates that implementation evidence from physical-device, capture-ingestion, provider-association, and release proof that remains.
+Status: 2026-09-21 checkpoint including ErgLink PRs #8–#10 and LC PR #192. Manual/development integrity, direct LC programming, shared PM5 storage/capture-v2/validation, exact Concept2 projection, Capacitor projects, and unsigned Android/iOS compilation exist. This document separates automated evidence from physical capture-v2, LC ingestion, provider-association, development-API, and release proof that remains.
 
 ## Durable contracts now in place
 
@@ -36,7 +36,7 @@ The ErgLink PM5 path was audited against Concept2 CSAFE revision 0.34 and exerci
 - twenty stroke notifications representing ten actual strokes, requiring deduplication by PM5 `strokeCount` while retaining all raw notifications;
 - paired end summaries as the authoritative final result rather than the final live or stroke sample.
 
-ErgLink now produces `PM5CompletedCaptureV1`, retained in one `CaptureStore` lifecycle. Browser/boathouse operation uses IndexedDB; Capacitor mobile uses SQLite following the proven ScheduleBoard pattern. Both retain pending/attempt/failed/acknowledged states keyed by capture ID. The protocol/capture core and PM5 Capacitor driver are published in `@readyall/erglink`; LC consumes the driver for direct programming but does not yet persist, ingest, or acknowledge this completed-capture envelope.
+The hardware-proven baseline is `PM5CompletedCaptureV1`. Published `@readyall/erglink@0.4.0` adds backward-readable capture v2, the deterministic evidence validator, and the shared `CaptureStore` with IndexedDB/SQLite adapters. Both stores retain pending/attempt/failed/acknowledged states keyed by capture ID. LC PR #192 consumes v2 for pure Concept2 projection but still does not persist, ingest, surface, or acknowledge the completed-capture envelope.
 
 ## PM5 result validity, verification and ranking
 
@@ -64,11 +64,10 @@ Ranking is separate from verification. Concept2's published rules say ranking pi
 
 Current gaps before LC can claim ranking-grade capture evidence:
 
-- subscribe to and parse PM5 end-of-workout additional summary characteristic 2 (`0x003C`), retaining its upper-nibble Workout Verified flag and erg machine type;
-- retain initial PM workout/rowing/flywheel-state evidence sufficient to evaluate the non-moving-flywheel rule;
+- wire and ingest completed captures durably in LC before any outward publication;
+- confirm capture-v2 additional characteristics and retained start/verification evidence on real PM5 hardware;
 - determine through official documentation/Concept2 approval whether a PM verification code is programmatically available to LC, or whether trusted-client status is required;
-- implement the deterministic evidence validator and Concept2 payload projection as separate pure steps;
-- exercise accepted, rejected and deliberately inconsistent fixtures against the Concept2 development Online Validator/API;
+- exercise accepted, rejected and deliberately inconsistent projected fixtures against the Concept2 development Online Validator/API;
 - read back the created result by exact ID and preserve Concept2's `verified`/`ranked` response without rewriting LC provenance.
 
 Primary references: the repository's [official Logbook API snapshot](concept2-logbook-api-reference.md), Concept2's live [ranking rules](https://log.concept2.com/rankings), and Concept2's [PM5 verification-code instructions](https://www.concept2.com/support/monitors/pm5/how-to-use). Recheck the live sources before implementation or production claims.
@@ -84,10 +83,10 @@ Heart-rate compatibility is preserved: PM5 live status and end summaries already
 | Post-merge manual behavior | Unit and integration tests cover incomplete totals, work/rest normalization, edit guarding, and cumulative volume. | Smoke the merged behavior in staging: published versus unpublished editing, save/reopen of complete and incomplete rows, and a recovery-distance result across all volume displays. |
 | Provider association | Exact provider IDs are preserved and nearby LC rows retain origin evidence. One real session can temporarily appear as an LC row plus a Concept2 provider row. | Prove same-ID refresh and near-match preservation end to end, then add an explicit provider link/display rule without rewriting source identity. |
 | Remote Concept2 edits | Provider-owned imported rows can refresh by exact ID. LC-originated published rows retain immutable publication snapshots. | Refresh the linked provider snapshot, detect divergence, and offer an explicit auditable LC revision/adoption flow. Do not silently overwrite or repost. |
-| PM5 capture envelope | Stable ID/version, raw evidence, deduplicated strokes, splits, paired summaries, lifecycle, and browser/mobile durable stores are implemented and proven for completed 100 m workouts. | Add idempotent owner + capture ID/version LC ingestion and return an owned workout UUID before device acknowledgement. Do not reuse legacy last-sample upload. |
+| PM5 capture envelope | Stable v2 ID/version, raw evidence, deduplicated/time-aligned strokes, splits, three summaries, start/verification evidence, lifecycle, validator, and shared browser/mobile stores are implemented. Capture-v1 summary semantics are hardware-proven; v2 is fixture-proven. | Add idempotent owner + capture ID/version LC ingestion and return an owned workout UUID before device acknowledgement. Do not reuse legacy last-sample upload. |
 | PM5 programming | Published RWN/ErgLink packages, direct LC `/pm5` flow, Android/iOS projects, explicit acknowledgement receipts, real browser/PM5 fixed-distance and initial variable-interval evidence, Android debug compilation, and iOS simulator compilation are proven. | Install LC on physical Android/iOS hardware; prove auth/deep links and the exact/prompt-only/unsupported, rejection/not-ready, interval, and reconnect matrix through the LC-built app. Retire `ergLinkAdapter.ts` rather than extending the duplicate path. |
-| Detailed result | `CompletedWorkoutV2` reserves source-evidence and normalized-sample fields; PM5 capture now supplies trustworthy raw and normalized detail. | Normalize the accepted capture into the shared completed-workout model, preserving raw evidence outside provider projection. |
-| Rich metrics | Concept2 pages may calculate calories and watts even when LC did not send measured values. | Add calories, watt-minutes, watts, SPM, stroke count, drag, HR, and samples only from trustworthy PM5 summary/telemetry evidence. |
+| Detailed result | Capture v2 plus `validatePm5Capture` and `projectCaptureToConcept2` preserve and project trustworthy raw/normalized detail in exact Concept2 units. | Ingest the accepted capture into the shared completed-workout model while preserving raw evidence outside provider projection. |
+| Rich metrics | Projection includes measured calories, watt-minutes, SPM, stroke count, drag, HR, splits/intervals, and stroke samples only when available. | Prove projected fixtures through the Concept2 development validator/API and exact-ID read-back. |
 | Provider equivalence | Exact-ID summary read-back works. It does not prove interval/stroke equivalence. | Compare each immutable submitted payload with exact-ID provider detail, including intervals, rest, and `stroke_data` when present. |
 
 ## Next verification sequence
@@ -95,11 +94,11 @@ Heart-rate compatibility is preserved: PM5 live status and end summaries already
 1. **Manual integrity smoke:** published edit block, allowed template association, unpublished edit, complete/incomplete save/reopen, and 1,000 m work + 400 m recovery = 1,400 m accumulated volume.
 2. **Import identity:** exact-ID refresh plus near-time manual/ErgLink match; original source/raw evidence must survive and provider detail must remain available under the exact ID.
 3. **Association and revision:** define provider linking, duplicate display, remote divergence, and explicit adoption as an auditable LC revision.
-4. **LC capture ingestion:** accept `PM5CompletedCaptureV1` idempotently by owner + capture ID/version; return the owned workout UUID for device acknowledgement.
-5. **Ranking-grade evidence:** add `0x003C`, start-state evidence, and a deterministic fixed-piece validator; keep LC-valid, API-valid, verified and ranked states distinct.
-6. **LC installed-device PM5 matrix:** install the LC native build, prove authentication/deep links, then exercise exact/prompt-only/unsupported lowering, PM5 acknowledgement, rejection/not-ready, and reconnect deduplication on physical Android/iOS hardware.
+4. **LC capture ingestion (E4):** accept capture v2 idempotently by owner + capture ID/version; surface the completed summary; preserve raw evidence separately; return the owned workout UUID for device acknowledgement.
+5. **Development projection proof (E5):** run fixed and interval projections through the Concept2 Online Validator/development API, then compare exact-ID intervals, rests, and `stroke_data`; preserve provider `verified`/`ranked` without rewriting origin.
+6. **LC installed-device PM5 matrix:** install the LC native build, prove authentication/deep links, then exercise exact/prompt-only/unsupported lowering, PM5 acknowledgement, rejection/not-ready, reconnect deduplication, and capture-v2 persistence on physical Android/iOS hardware.
 7. **Adverse-path evidence:** aborted, interrupted, retried, interval-with-rest, and HR-belt captures.
-8. **Detailed projection:** map proven normalized detail into Concept2 intervals and `stroke_data`, validate on the development API, then compare exact-ID provider detail.
+8. **Hardware end-to-end (E6):** capture, validate, ingest, project, and publish a real fixed 2,000 m through the installed LC path.
 
 ## Operational boundaries
 
