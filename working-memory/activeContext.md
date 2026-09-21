@@ -103,13 +103,17 @@ Implement an owner-authenticated, idempotent LC ingestion boundary keyed by owne
 
 ### 5. Prove the direct athlete RWN → PM5 mobile path
 
-RWN is the canonical superset. Published `@readyall/rwn` owns `translateWorkoutToPm5`, and published `@readyall/erglink` owns the PM5 protocol and Capacitor driver. LC now has Android/iOS Capacitor source scaffolding plus an athlete `/pm5` flow for local discovery, connection, diagnostics, exact/prompt-only/unsupported handling, and explicit PM5 acknowledgement without a coach session or Supabase programming relay. This is code integration, not mobile delivery readiness: Android still needs a Java 17+/SDK/device development environment, iOS needs macOS/Xcode/CocoaPods/signing, and both platforms still need installed-app authentication, deep-link, device, CI, and release proof. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
+RWN is the canonical superset. Published `@readyall/rwn` owns `translateWorkoutToPm5`, and published `@readyall/erglink` owns the PM5 protocol and Capacitor driver. LC now has Android/iOS Capacitor source projects plus an athlete `/pm5` flow for local discovery, connection, diagnostics, exact/prompt-only/unsupported handling, and explicit PM5 acknowledgement without a coach session or Supabase programming relay. Full web gates, an Android Java 21 debug build, and an iOS simulator build pass in GitHub Actions. This is not mobile release readiness: installed-app authentication/deep links, physical-device PM5 proof, signing, store delivery, and OTA remain. The older `ergLinkAdapter.ts` remains a legacy path and should be retired rather than extended.
 
-### 6. Complete adverse-path PM5 evidence
+### 6. Add ranking-grade PM5 result validation
+
+Keep LC evidence-valid, Concept2 API-valid, Concept2 verified, and Concept2 ranked as separate states. Add PM5 `0x003C` Workout Verified/machine-type evidence, retain initial workout/flywheel state, validate fixed-piece totals and PM rounding deterministically, use the Concept2 development validator/API, and preserve exact-ID `verified`/`ranked` read-back. Never set `verified: true` from LC consistency checks alone.
+
+### 7. Complete adverse-path PM5 evidence
 
 Collect consented aborted, interrupted, retried, interval-with-rest, and HR-belt captures. Verify interval reset behavior, work/rest elapsed meanings, retry durability, and optional HR fields before projecting `stroke_data`.
 
-### 7. Enrich Concept2 projection from measured evidence
+### 8. Enrich Concept2 projection from measured evidence
 
 After PM5 semantics are proven, normalize interval and sample detail into the shared completed-workout model. Add calories, watt-minutes, watts, stroke rate/count, drag factor, heart rate, and Concept2 `stroke_data` only when backed by trustworthy source evidence. Compare each immutable submitted payload with exact-ID provider detail.
 
@@ -128,7 +132,8 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Browser/mobile durable CaptureStore | IndexedDB + Capacitor SQLite adapters implemented |
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.2.0` |
-| Direct athlete LC mobile → PM5 | Code and native scaffolding implemented; mobile dev environment and installed-device proof remain |
+| Direct athlete LC mobile → PM5 | Code merged; web, Android debug, and iOS simulator builds pass; installed-device proof remains |
+| Ranking-grade PM5 validation | Internal consistency rules defined; `0x003C`, start-state, verification-code/trusted-client, validator/API, and exact-ID proof remain |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 

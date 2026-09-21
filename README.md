@@ -29,20 +29,25 @@ We provide tools to go beyond simple logbook summaries:
 - **Weekly Volume**: Visual trend lines of your total volume and zone distribution.
 - **Comparison**: Head-to-head overlay of any two workouts with support for Watts, Pace, Rate, and HR metrics.
 
-### 4. Live Sessions & Connectivity (Experimental)
-> **⚠️ Note:** Live Sessions and Group Workouts are currently under active development and considered experimental. Use with caution.
+### 4. Direct PM5 Connectivity (Beta)
+Logbook Companion can translate RWN and program a nearby Concept2 PM5 directly over Bluetooth—without creating a coach session or sending the programming request through a server.
 
-Powered by **[erg-link](../erg-link/README.md)**, the Live Sessions feature connects your browser directly to your Concept2 PM5 monitor via Bluetooth.
-- **Program**: Send your structured workout directly to the PM5.
-- **Race**: Host synchronized sessions where you control the "Set" and "Go" for connected machines.
-- **Monitor**: View real-time data streaming from the flywheel.
+- **Connect locally**: Discover and connect to a PM5 from the protected **Connect PM5** page.
+- **Program from RWN**: Send fixed-distance, fixed-time, fixed-interval, and supported variable workouts through the shared [`@readyall/erglink`](https://www.npmjs.com/package/@readyall/erglink) CSAFE implementation.
+- **Preserve intent**: Device translation reports `exact`, `prompt_only`, or `unsupported`; prompt-only guidance requires confirmation and unsupported workouts are not sent.
+- **Verify acknowledgement**: The app waits for and parses the PM5 response instead of treating a Bluetooth write as success.
+- **Monitor live data**: View elapsed time, distance, pace, and stroke rate while connected.
+
+The protocol and browser harness have been exercised on a real PM5, including a 2,000 m workout and the first work/rest transitions of a variable speed pyramid. LC's Android debug build and iOS simulator build pass in GitHub Actions. Physical Android/iOS installation, installed-app authentication/deep links, and PM5 testing from the LC-built app remain the final feature-validation gates.
+
+Coach/boathouse live sessions and synchronized racing remain separate experimental workflows; they are not required for direct athlete programming.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20+
 - A Concept2 Logbook OAuth app for sync flows
-- A Concept2 PM5 Monitor only if you are testing Live Sessions
+- A Concept2 PM5 only if you are testing direct Bluetooth programming or live sessions
 
 ### Installation
 
@@ -73,6 +78,16 @@ For local maintenance scripts that need to bypass RLS, add `SUPABASE_SERVICE_ROL
 npm run dev
 ```
 
+### Mobile development
+
+The repository includes Capacitor Android and iOS projects:
+
+```bash
+npm run mobile:sync
+```
+
+Pull requests that change mobile code run web tests plus an unsigned Android debug build and iOS simulator build. Local Android compilation requires Java 11 or newer (Java 21 is used in CI); local iOS compilation requires macOS, Xcode, and CocoaPods. Signing, store delivery, and OTA updates are separate release concerns.
+
 ## 📚 Documentation
 
 ### User Guides
@@ -91,7 +106,10 @@ For developers and advanced users:
 
 - **[RWN Specification](rwn/RWN_spec.md)** - Formal specification of Rowers Workout Notation
 - **[Template Matching Guide](docs/template-matching-guide.md)** - How automatic template matching works
-- **[erg-link](../erg-link/README.md)** - Bluetooth connectivity library for PM5
+- **[PM5 programming boundary](docs/concept2-mobile/pm5-programming-boundary.md)** - RWN translation, Bluetooth delivery, acknowledgements, and hardware evidence
+- **[PM5 capture, validity, and Concept2 boundary](docs/concept2-mobile/capture-storage-audit.md)** - Completed capture evidence, API validation, verification, and ranking eligibility
+- **[Mobile delivery status](docs/concept2-mobile/mobile-delivery.md)** - Capacitor builds, installed-device gates, signing, and OTA roadmap
+- **[`@readyall/erglink`](https://www.npmjs.com/package/@readyall/erglink)** - Shared monitor-driver, PM5 protocol, programming, and capture package
 
 ## License
 
