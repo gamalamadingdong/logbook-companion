@@ -4,7 +4,11 @@ import { toast } from 'sonner';
 
 export type DevelopmentConnection = { connected: boolean; busy?: boolean; can_publish?: boolean;
   environment: 'development'; provider_user_id?: string };
-export type DevelopmentResult = { id: number; date: string; type: string; distance: number; time: number; lc_workout_id?: string };
+export type DevelopmentResult = {
+  id: number; date: string; type: string; distance: number; time: number; lc_workout_id?: string;
+  workout?: { splits?: Record<string, unknown>[]; intervals?: Record<string, unknown>[] };
+  stroke_data?: Record<string, number>[]; verified?: boolean; ranked?: boolean;
+};
 export type DevelopmentPublication = { workout_id: string; status: 'published' | 'rejected' | 'outcome_unknown'; result_id?: number; created_at?: string };
 
 type DevelopmentWorkoutDraft = { distance: string; duration: string; completedAt: string };
@@ -51,7 +55,7 @@ export async function developmentConcept2(action: 'begin' | 'exchange' | 'refres
     throw new Error(typeof detail?.error === 'string' ? detail.error : 'Development Concept2 is unavailable. Sign in and check staging configuration.');
   }
   if (data?.error || !data) throw new Error(data?.error || 'Development Concept2 is unavailable.');
-  return data as DevelopmentConnection & { authorization_url?: string; results?: DevelopmentResult[]; total?: number; imported?: number; next_page?: number | null; publications?: DevelopmentPublication[]; status?: DevelopmentPublication['status']; result_id?: number; workout_id?: string };
+  return data as DevelopmentConnection & { authorization_url?: string; results?: DevelopmentResult[]; detail?: DevelopmentResult; comparison?: { matches: boolean; differences: string[] } | null; total?: number; imported?: number; next_page?: number | null; publications?: DevelopmentPublication[]; status?: DevelopmentPublication['status']; result_id?: number; workout_id?: string };
 }
 export async function connectConcept2() {
   try {

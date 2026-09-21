@@ -25,7 +25,7 @@ describe('isolated development import', () => {
     const f = fixture(); f.network.mockResolvedValue(new Response(JSON.stringify({ data: { ...row, private_token: 'discard' } })));
     const res = await f.request({ action: 'read_result', result_id: 123 });
     expect(res.status).toBe(200);
-    expect(f.network).toHaveBeenCalledWith(`${PROVIDER}/api/users/me/results/123`, expect.objectContaining({ redirect: 'error' }));
+    expect(f.network).toHaveBeenCalledWith(`${PROVIDER}/api/users/me/results/123?include=strokes`, expect.objectContaining({ redirect: 'error' }));
     expect(f.sync).toHaveBeenLastCalledWith('owner', 'save', { operation_id: 'claim', results: [row] });
   });
   it('rejects an invalid or mismatched exact result ID without saving', async () => {

@@ -4,7 +4,7 @@ Status: development publishing covers fixed distance, fixed time, and interval s
 
 ## Start here / resume
 
-**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E3 are merged; E4 is implemented in the current branch; E5 development validator/API proof is next. The [storage audit](capture-storage-audit.md) retains the broader evidence and persistence boundary. The [development publishing handoff](resume-publishing.md) retains earlier rollout detail; check dates before acting on its next steps.
+**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E4 are merged. E5's development-only fixture fence and Edge Function are deployed; the authenticated fixed/interval/invalid fixture run is the final pre-device gate. The [storage audit](capture-storage-audit.md) retains the broader evidence and persistence boundary. The [development publishing handoff](resume-publishing.md) retains earlier rollout detail; check dates before acting on its next steps.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 

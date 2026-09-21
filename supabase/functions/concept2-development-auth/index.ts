@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { configuration, createHandler } from './handler.ts';
 import { completedWorkoutFromRow } from '../_shared/concept2/publication.ts';
 import { bindDevelopmentFixture } from '../_shared/concept2/fixtures/index.ts';
+import { bindPM5ProjectionFixture, pm5ProjectionFixtures } from '../_shared/concept2/fixtures/pm5ProjectionFixtures.ts';
 import { validateCompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
 
 const url = Deno.env.get('SUPABASE_URL');
@@ -45,7 +46,9 @@ Deno.serve(createHandler({
   },
   createFixture: async (user, name) => {
     const workoutId = crypto.randomUUID();
-    const completed = bindDevelopmentFixture(name, workoutId, user, new Date(Date.now() - 600_000).toISOString());
+    const completed = Object.prototype.hasOwnProperty.call(pm5ProjectionFixtures, name)
+      ? bindPM5ProjectionFixture(name as keyof typeof pm5ProjectionFixtures, workoutId, user)
+      : bindDevelopmentFixture(name, workoutId, user, new Date(Date.now() - 600_000).toISOString());
     validateCompletedWorkoutV2(completed);
     const { data, error } = await client!.rpc('c2_development_create_fixture_workout', {
       p_user_id: user, p_fixture_name: name, p_completed: completed,
@@ -68,6 +71,23 @@ Deno.serve(createHandler({
       }
     }
     return completedWorkoutFromRow(data);
+  },
+  loadProjection: async (user, workoutId) => {
+    const { data, error } = await client!.from('c2_development_fixture_workouts')
+      .select('completed_result').eq('workout_id', workoutId).eq('user_id', user).maybeSingle();
+    if (error) throw new Error('Development fixture projection lookup failed');
+    const projection = (data?.completed_result as { concept2Payload?: unknown } | undefined)?.concept2Payload;
+    return projection && typeof projection === 'object' && !Array.isArray(projection)
+      ? projection as Record<string, unknown>
+      : null;
+  },
+  loadPublication: async (user, resultId) => {
+    const { data, error } = await client!.from('c2_development_publications')
+      .select('payload').eq('user_id', user).eq('result_id', resultId).eq('status', 'published').maybeSingle();
+    if (error) throw new Error('Development publication lookup failed');
+    return data?.payload && typeof data.payload === 'object' && !Array.isArray(data.payload)
+      ? data.payload as Record<string, unknown>
+      : null;
   },
   fetch,
 }));

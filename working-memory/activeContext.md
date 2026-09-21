@@ -112,7 +112,7 @@ Implementation now spans merged `erg-link@origin/main` through PR #12 and this L
 2. **Evidence validator — complete.** `validatePm5Capture` covers fixed pieces, intervals, PM raw/normalized reconciliation, retained evidence, and the known Pete Plan workout matrix with specific violation codes.
 3. **Concept2 projection — implemented in PR #192.** `projectCaptureToConcept2` emits official PM log time, exact Concept2 units, splits/intervals, measured optional metrics, and per-interval stroke data without claiming provider verification.
 4. **LC capture wiring and ingestion — implemented in this branch.** The driver saves to IndexedDB/SQLite first, binds immutable owner/programming context to the local capture, recovers interrupted uploads, validates and inserts idempotently under owner + capture ID/version, surfaces summary/retry state, and acknowledges only after LC returns its owned workout UUID. No live row was written by automated verification.
-5. **Development API proof — pending.** Run projected fixed and interval fixtures through Concept2's Online Validator/development API and exact-ID read-back.
+5. **Development API proof — deployed; authenticated fixture run pending.** The development-only migration and Edge Function support server-owned fixed 2,000 m, 8×500 m, and deliberately invalid PM5 projections, embedded-stroke exact-ID read-back, field comparison, and provider `verified`/`ranked` persistence. The signed-in staging operator must execute the three fixtures from the PR preview.
 6. **Hardware confirmation — blocked on hardware.** Capture, validate, ingest, project, and publish a real fixed 2,000 m through the full installed-mobile path.
 
 ### 5. Prove the direct athlete RWN → PM5 mobile path

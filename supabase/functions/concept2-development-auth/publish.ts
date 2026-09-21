@@ -14,11 +14,19 @@ export async function publishManual(
     throw new Error('Development publishing is unavailable.');
   }
   const workout = await deps.loadWorkout(user, fields.workout_id);
-  const payload = mapCompletedWorkoutToConcept2(workout, {
-    timezone: String(fields.timezone),
-    weightClass: fields.weight_class as 'H' | 'L',
-    privacy: fields.privacy as 'private' | 'partners' | 'logged_in' | 'everyone',
-  });
+  const storedProjection = await deps.loadProjection?.(user, fields.workout_id);
+  const payload = storedProjection
+    ? {
+      ...storedProjection,
+      weight_class: fields.weight_class,
+      privacy: fields.privacy,
+      comments: `Logbook Companion workout ID: ${fields.workout_id}`,
+    }
+    : mapCompletedWorkoutToConcept2(workout, {
+      timezone: String(fields.timezone),
+      weightClass: fields.weight_class as 'H' | 'L',
+      privacy: fields.privacy as 'private' | 'partners' | 'logged_in' | 'everyone',
+    });
   const claim = await deps.publishOperation(user, 'claim', { ...fields, payload }) as Claim;
   if (!claim.dispatch) return {
     status: claim.status, result_id: claim.result_id, workout_id: claim.workout_id,

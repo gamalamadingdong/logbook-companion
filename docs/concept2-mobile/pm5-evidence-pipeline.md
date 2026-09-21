@@ -217,11 +217,13 @@ Pass a `persistCapture` callback from LC's `pm5DirectService` into `PM5Capacitor
 
 Exit: a simulated completed capture persists locally, appears in the summary state, and replaying it returns the same workout UUID with a single write.
 
-### E5 — Development API proof
+### E5 — Development API proof — deployed; authenticated run pending
 
 Post projected fixtures to the Concept2 development API and the Online Validator. Read back by exact ID and compare intervals, splits and `stroke_data`. Persist Concept2's `verified`/`ranked` without rewriting LC provenance.
 
 Exit: one valid fixed 2,000 m and one interval workout accepted and read back field-for-field; one deliberately invalid payload rejected with the expected error.
+
+Implementation: the development-only SQL fence and `concept2-development-auth` function are deployed. Server-owned named fixtures prevent arbitrary browser payloads. Successful posts automatically read back exact IDs with embedded strokes, persist sanitized detail, compare splits/intervals and `stroke_data`, and retain provider `verified`/`ranked`. The remaining gate is running the three named fixtures from an authenticated staging session.
 
 ### E6 — Hardware confirmation
 
