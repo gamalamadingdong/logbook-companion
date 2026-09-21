@@ -1,10 +1,10 @@
 # Concept2 publishing and mobile delivery
 
-Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. General manual integrity work is merged into staging. Real PM5 connectivity, programming, stroke/split/end-summary parsing, a versioned completed-capture envelope, and browser/mobile durable capture stores are proven in ErgLink. LC now includes Capacitor Android/iOS projects and a direct athlete RWN → PM5 flow backed by published `@readyall/rwn` and `@readyall/erglink`; web gates, Android debug compilation, and iOS simulator compilation pass in GitHub Actions. Installed-app authentication, physical Android/iOS PM5 proof, LC capture ingestion, signing, and distribution remain.
+Status: development publishing covers fixed distance, fixed time, and interval shapes through the shared completed-workout mapper. General manual integrity work is merged into staging. Real PM5 connectivity, programming, capture-v1 stroke/split/end-summary semantics, and completed 100 m runs are hardware-proven. Published `@readyall/erglink@0.4.0` now adds the shared durable stores, capture v2, and the deterministic evidence validator; LC PR #192 adds exact Concept2 splits/intervals/`stroke_data` projection. LC capture wiring and ingestion (E4) are the next evidence-pipeline slice. LC also includes Capacitor Android/iOS projects and unsigned native CI. Installed-app authentication, physical capture-v2 proof, signing, and distribution remain.
 
 ## Start here / resume
 
-**Current state:** Read the [active context](../../working-memory/activeContext.md) and the [storage audit](capture-storage-audit.md). The [development publishing handoff](resume-publishing.md) retains earlier rollout detail; check dates before acting on its next steps.
+**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E2 are complete; E3 is implemented in PR #192; E4 LC capture wiring/ingestion is next. The [storage audit](capture-storage-audit.md) retains the broader evidence and persistence boundary. The [development publishing handoff](resume-publishing.md) retains earlier rollout detail; check dates before acting on its next steps.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 

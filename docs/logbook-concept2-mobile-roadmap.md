@@ -9,11 +9,11 @@ Start with [the Concept2/mobile index](concept2-mobile/README.md), then choose a
 - [PM5 evidence pipeline](concept2-mobile/pm5-evidence-pipeline.md): PM5 characteristics, capture v2, the deterministic evidence validator, Concept2 splits/`stroke_data` projection, LC ingestion, and development-API proof. This is the current pre-device track.
 - [Mobile UX foundation](mobile-ux-foundation.md): athlete flow, bottom navigation, five-state PM5 surface, and route-by-route mobile adaptation classification. This is the parallel pre-device track.
 
-These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming code, Capacitor projects, and unsigned Android/iOS compilation now exist. Physical-device use, capture ingestion, ranking-grade telemetry validation, production API approval, signing/store delivery, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
+These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming, Capacitor projects, unsigned Android/iOS compilation, capture v2, deterministic evidence validation, and exact Concept2 splits/`stroke_data` projection now exist. LC capture ingestion, development-API proof of the projected payload, physical capture-v2 confirmation, production API approval, signing/store delivery, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
 
 ## Status
 
-Implementation checkpoint. Development publishing and direct PM5 programming have independent working foundations. The direct feature now compiles as Android and iOS apps; installed-device authentication/PM5 proof, LC completed-capture ingestion, ranking-grade validation, production publishing approval, and release delivery remain independent milestones.
+Implementation checkpoint after ErgLink PRs #8–#10 and LC PR #192. The reusable device package now owns capture v2, durable stores, and evidence validation; LC owns provider projection. E4—durable LC capture wiring and ingestion—is the next integration milestone. Installed-device authentication/PM5 proof, development-API read-back, production publishing approval, and release delivery remain independent milestones.
 
 This document captures the intended relationship between:
 
@@ -58,7 +58,9 @@ PM5 via local CSAFE / BLE
         | strokes
         | future force data
         v
-PM5CompletedCaptureV1
+PM5CompletedCaptureV2
+        |
+        | validatePm5Capture
         v
 Logbook Companion
         |
