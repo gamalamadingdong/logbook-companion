@@ -8,6 +8,8 @@ on:
       - 'android/**'
       - 'ios/**'
       - 'capacitor.config.ts'
+      - 'src/components/Layout.tsx'
+      - 'src/components/MobileBottomNavigation*.tsx'
       - 'src/pages/PM5Connection.tsx'
       - 'src/services/pm5Capture*.ts'
       - 'src/services/pm5DirectService.ts'
