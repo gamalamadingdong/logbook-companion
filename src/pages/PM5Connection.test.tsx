@@ -8,10 +8,11 @@ vi.mock('../hooks/useAuth', () => ({
 }));
 
 describe('PM5Connection', () => {
-  it('renders the direct athlete connect and program flow', () => {
+  it('renders preflight before any connection action', () => {
     const html = renderToStaticMarkup(<MemoryRouter><PM5Connection /></MemoryRouter>);
-    expect(html).toContain('Connect PM5');
-    expect(html).toContain('Program workout');
-    expect(html).toContain('Find PM5');
+    expect(html).toContain('Train with PM5');
+    expect(html).toContain('Workout preflight');
+    expect(html).toContain('Review workout');
+    expect(html).not.toContain('Find PM5');
   });
 });
