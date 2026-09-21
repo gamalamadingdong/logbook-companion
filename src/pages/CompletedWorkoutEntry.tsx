@@ -496,7 +496,7 @@ export function CompletedWorkoutEntry() {
               )}
             </Card>
 
-            <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-surface-page/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+            <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-surface-page/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border">
               <Link to={id ? `/completed-workout/${id}` : '/'} className="inline-flex min-h-11 items-center px-3 text-sm text-content-secondary hover:text-content-primary">Cancel</Link>
               <Button type="submit" loading={saving} className="min-h-11 min-w-36" icon={<Check size={16} />}>{id ? 'Save changes' : 'Save workout'}</Button>
             </div>

@@ -31,10 +31,10 @@ import {
 } from '../services/trainingBlockService';
 
 const DashboardSkeleton: React.FC = () => (
-    <div className="min-h-screen bg-neutral-900 text-white p-8" aria-busy="true" role="status">
+    <div className="min-h-screen bg-neutral-900 p-4 text-white sm:p-8" aria-busy="true" role="status">
         <span className="sr-only">Loading dashboard…</span>
         <div className="max-w-6xl mx-auto space-y-8 mt-6 animate-pulse">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
                 <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 space-y-3">
                     <div className="h-3 w-20 bg-neutral-700 rounded"></div>
                     <div className="h-8 w-48 bg-neutral-700 rounded"></div>
@@ -226,7 +226,7 @@ export const Dashboard: React.FC = () => {
 
     if (showConnectSplash) {
         return (
-            <div className="min-h-screen bg-neutral-950 text-white p-8 flex flex-col items-center justify-center">
+            <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-4 text-white sm:p-8">
                 <div className="max-w-md text-center space-y-8">
                     <div className="flex justify-center">
                         <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
@@ -260,15 +260,15 @@ export const Dashboard: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-900 text-white p-8">
+        <div className="min-h-screen bg-neutral-900 p-4 text-white sm:p-8">
             <div className="max-w-6xl mx-auto">
                 <main className="space-y-8 mt-6">
-                    {!isGuest && <div className="flex flex-wrap items-center justify-between gap-3">
+                    {!isGuest && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h1 className="text-2xl font-semibold text-content-primary">Your training log</h1>
                             <p className="mt-1 text-sm text-content-secondary">Capture what you did, with or without a connected device.</p>
                         </div>
-                        <Link to="/completed-workout/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover">
+                        <Link to="/completed-workout/new" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover sm:w-auto">
                             <Plus size={18} aria-hidden="true" /> Add completed workout
                         </Link>
                     </div>}
@@ -280,7 +280,7 @@ export const Dashboard: React.FC = () => {
                         </div>
                     )}
                     {legacyConcept2Enabled && !c2Connected && !showConnectSplash && !isGuest && (
-                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+                        <div className="flex flex-col gap-4 rounded-2xl border border-red-900/30 bg-red-900/10 p-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-3 text-red-200">
                                 <AlertCircle size={24} className="text-red-500 shrink-0" />
                                 <div>
@@ -290,7 +290,7 @@ export const Dashboard: React.FC = () => {
                             </div>
                             <button
                                 onClick={handleConnect}
-                                className="bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+                                className="min-h-11 w-full whitespace-nowrap rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-500 sm:w-auto"
                             >
                                 Reconnect
                             </button>
@@ -298,12 +298,12 @@ export const Dashboard: React.FC = () => {
                     )}
 
                     {hasErrors && (
-                        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-4 flex items-center gap-3 text-red-200">
+                        <div className="flex flex-col gap-3 rounded-2xl border border-red-900/30 bg-red-900/10 p-4 text-red-200 sm:flex-row sm:items-center">
                             <AlertCircle size={20} className="text-red-500 shrink-0" />
                             <span className="text-sm flex-1">Some sections couldn't load. Check below for details.</span>
                             <button
                                 onClick={retry}
-                                className="flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-colors"
+                                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-red-900/20 px-3 py-2 text-xs font-medium text-red-400 transition-colors hover:bg-red-900/30 hover:text-red-300 sm:w-auto"
                             >
                                 <RefreshCw size={12} />
                                 Retry All
@@ -312,10 +312,10 @@ export const Dashboard: React.FC = () => {
                     )}
 
                     {/* Top Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                        <div className="flex min-w-0 flex-col justify-center rounded-2xl border border-neutral-700/50 bg-neutral-800/50 p-4 sm:p-6">
                             <div className="text-neutral-400 text-sm mb-1">Hello,</div>
-                            <div className="text-3xl font-bold text-white">{userProfile?.display_name || user?.email?.split('@')[0]}</div>
+                            <div className="truncate text-xl font-bold text-white sm:text-3xl">{userProfile?.display_name || user?.email?.split('@')[0]}</div>
                             <div className="text-sm text-neutral-500 mt-1">
                                 C2: {c2Profile?.username ? (
                                     <span className="font-bold italic">{c2Profile.username}</span>
@@ -325,13 +325,13 @@ export const Dashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="bg-neutral-800/50 p-6 rounded-2xl border border-neutral-700/50 flex flex-col justify-center">
+                        <div className="flex min-w-0 flex-col justify-center rounded-2xl border border-neutral-700/50 bg-neutral-800/50 p-4 sm:p-6">
                             <div className="text-neutral-400 text-sm mb-1">Lifetime Meters</div>
                             {errors.meters ? (
                                 <SectionError message={errors.meters} onRetry={retry} compact />
                             ) : (
-                                <div className="text-4xl font-bold text-emerald-400">
-                                    {totalMeters.toLocaleString()} <span className="text-lg font-normal text-neutral-500">m</span>
+                                <div className="text-2xl font-bold text-emerald-400 sm:text-4xl">
+                                    {totalMeters.toLocaleString()} <span className="text-sm font-normal text-neutral-500 sm:text-lg">m</span>
                                 </div>
                             )}
                         </div>

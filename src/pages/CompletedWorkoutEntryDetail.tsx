@@ -60,7 +60,7 @@ export function CompletedWorkoutEntryDetail() {
           <Card><p className="text-accent-danger" role="alert">{error || 'Workout not found.'}</p><Link to="/" className="mt-3 inline-block text-accent-primary underline">Back to dashboard</Link></Card>
         ) : (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-content-muted">Manually entered · Saved in LC</p>
                 <h1 className="mt-1 text-2xl font-semibold text-content-primary sm:text-3xl">{completedActivityName(result.activity, result.activityName)}</h1>
@@ -73,7 +73,7 @@ export function CompletedWorkoutEntryDetail() {
               {publication?.status === 'published' || publication?.status === 'outcome_unknown' ? (
                 <p className="rounded-lg border border-border bg-surface-secondary px-3.5 py-2 text-sm text-content-secondary">Published result · read-only</p>
               ) : checkingPublication ? <p className="text-sm text-content-muted" role="status">Checking publication…</p> : (
-                <Link to={`/completed-workout/${id}/edit`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus"><Pencil size={16} aria-hidden="true" />Edit</Link>
+                <Link to={`/completed-workout/${id}/edit`} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus sm:w-auto"><Pencil size={16} aria-hidden="true" />Edit</Link>
               )}
             </div>
 
@@ -112,7 +112,7 @@ export function CompletedWorkoutEntryDetail() {
             {id && result.activity === 'indoor_row' && result.equipment?.brand === 'concept2' &&
               <Concept2DevelopmentPublication workoutId={id} result={result} />}
             {(result.plannedRwn || result.plannedTemplate) && <Card><CardHeader title="Plan used" />{result.plannedTemplate && <Link to={`/library/${result.plannedTemplate.id}`} className="text-sm font-medium text-accent-primary underline">{result.plannedTemplate.name}</Link>}{result.plannedRwn && <p className="mt-1 text-sm text-content-secondary">Saved RWN: {result.plannedRwn}</p>}</Card>}
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface-secondary px-3.5 text-sm font-medium text-content-secondary transition-colors hover:bg-surface-well focus:outline-none focus:ring-2 focus:ring-focus">Back to log</Link>
               <Link to="/completed-workout/new" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-accent-primary px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover focus:outline-none focus:ring-2 focus:ring-focus"><Plus size={16} aria-hidden="true" />Add another</Link>
             </div>
