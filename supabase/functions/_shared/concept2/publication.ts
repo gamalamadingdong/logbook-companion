@@ -41,16 +41,42 @@ export type Concept2PublicationOptions = {
   privacy: 'private' | 'partners' | 'logged_in' | 'everyone';
 };
 
+export type Concept2HeartRatePayload = {
+  average?: number; min?: number; max?: number; ending?: number; recovery?: number; rest?: number;
+};
+
+export type Concept2SplitPayload = {
+  type?: 'distance' | 'time' | 'calorie' | 'wattminute';
+  distance: number;
+  time: number;
+  rest_time?: number;
+  rest_distance?: number;
+  stroke_rate?: number;
+  calories_total?: number;
+  wattminutes_total?: number;
+  heart_rate?: Concept2HeartRatePayload;
+};
+
+export type Concept2StrokePayload = { t: number; d: number; p?: number; spm?: number; hr?: number };
+
 export type Concept2ResultPayload = {
   type: 'rower';
   date: string;
   timezone: string;
   distance: number;
   time: number;
-  workout_type: 'unknown' | 'FixedTimeSplits' | 'FixedDistanceInterval' | 'FixedTimeInterval' | 'VariableInterval';
+  workout_type: 'unknown' | 'FixedDistanceSplits' | 'FixedTimeSplits' | 'FixedDistanceInterval' | 'FixedTimeInterval' | 'VariableInterval' | 'VariableIntervalUndefinedRest';
+  stroke_rate?: number;
+  heart_rate?: Concept2HeartRatePayload;
+  stroke_count?: number;
+  calories_total?: number;
+  wattminutes_total?: number;
+  drag_factor?: number;
+  verified?: false;
   rest_distance?: number;
   rest_time?: number;
-  workout?: { intervals: Array<{ type: 'distance' | 'time'; distance: number; time: number; rest_time: number; rest_distance?: number }> };
+  workout?: { splits?: Concept2SplitPayload[]; intervals?: Concept2SplitPayload[] };
+  stroke_data?: Concept2StrokePayload[];
   weight_class: 'H' | 'L';
   privacy: Concept2PublicationOptions['privacy'];
   comments: string;
