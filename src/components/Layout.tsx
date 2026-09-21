@@ -7,6 +7,7 @@ import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { CommandPalette } from './CommandPalette';
+import { MobileBottomNavigation } from './MobileBottomNavigation';
 import { supabase } from '../services/supabase';
 
 interface LayoutProps {
@@ -228,7 +229,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
                 <div className="md:hidden fixed inset-0 z-40 bg-neutral-950/95 pt-20 px-6 backdrop-blur-sm animate-in fade-in slide-in-from-top-4 duration-200 overflow-y-auto">
-                    <nav className="space-y-4 pb-8">
+                    <nav className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
                         {links.map(link => {
                             const Icon = link.icon;
                             return (
@@ -262,15 +263,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
 
             {/* Main Content Area */}
-            <main id="main-content" className="flex-1 md:ml-64 min-h-screen">
+            <main id="main-content" className="min-h-screen flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:ml-64 md:pb-0">
                 {children}
             </main>
+
+            <MobileBottomNavigation
+                menuOpen={mobileMenuOpen}
+                onMore={() => setMobileMenuOpen(current => !current)}
+            />
 
             {/* Floating Feedback Button */}
             <button
                 type="button"
                 onClick={() => setFeedbackOpen(true)}
-                className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-3 md:p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center gap-2 group"
+                className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white p-3 md:p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center gap-2 group"
                 aria-label="Send Feedback"
                 title="Send Feedback"
             >
