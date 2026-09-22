@@ -520,8 +520,8 @@ export function TeamAnalytics() {
 
         {/* Tab switcher + Share */}
         {!isLoading && (hasLeaderboardData || hasErgData) && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1 rounded-lg border border-neutral-300 bg-neutral-100 p-1 w-fit dark:border-neutral-700/60 dark:bg-neutral-900/70">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex w-full items-center gap-1 overflow-x-auto rounded-lg sm:w-fit border border-neutral-300 bg-neutral-100 p-1 w-fit dark:border-neutral-700/60 dark:bg-neutral-900/70">
               <button
                 onClick={() => setAnalyticsTab('leaderboard')}
                 className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
@@ -584,7 +584,7 @@ export function TeamAnalytics() {
 
         {/* Leaderboard — full width */}
         {!isLoading && hasLeaderboardData && analyticsTab === 'leaderboard' && (
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900" aria-label="Team leaderboard; scroll horizontally for all performance columns">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200 bg-neutral-100 text-xs font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/95 dark:text-neutral-200">
@@ -760,7 +760,7 @@ export function TeamAnalytics() {
 
         {/* Erg Comparison — tab content */}
         {!isLoading && hasErgData && analyticsTab === 'erg-comparison' && (
-          <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
+          <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none sm:p-6">
             <ErgComparisonChart data={filteredErgData} />
           </div>
         )}
@@ -770,7 +770,7 @@ export function TeamAnalytics() {
           <div className="space-y-6">
             {/* Workout Compliance Trend */}
             {filteredComplianceAssignments.length > 0 && (
-              <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none">
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-none sm:p-6">
                 <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-4">Workout Compliance</h3>
                 <ComplianceTrendChart
                   assignments={filteredComplianceAssignments}

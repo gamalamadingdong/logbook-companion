@@ -850,7 +850,7 @@ function CreateAssignmentForm({
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-6 space-y-5">
+        <div className="space-y-5 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-neutral-100">Assign Workout</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -1667,7 +1667,7 @@ export function ResultsEntryModal({
               <span className="ml-2 text-xs text-neutral-500">{shape.label}</span>
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Close">
+          <button onClick={onClose} className="min-h-11 min-w-11 p-2 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Close">
             <X className="w-5 h-5 text-neutral-400" />
           </button>
         </div>
@@ -2043,7 +2043,7 @@ function AssignmentListView({
   }
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900" aria-label="Assignment compliance table; scroll horizontally for additional athletes">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-neutral-500 border-b border-neutral-800 bg-neutral-900/50">
@@ -2162,8 +2162,8 @@ function ComplianceGrid({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+    <div className="overflow-x-auto" aria-label="Assignment matrix; scroll horizontally for additional athletes">
+      <table className="min-w-[42rem] w-full border-collapse text-sm">
         <thead>
           <tr>
             <th className="sticky left-0 bg-neutral-900 z-10 text-left px-3 py-2 text-xs font-medium text-neutral-500 uppercase border-b border-neutral-800">
@@ -2377,7 +2377,7 @@ function EditAssignmentModal({
       <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
           <h2 className="text-lg font-semibold text-neutral-100">Edit Assignment</h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Close">
+          <button onClick={onClose} className="min-h-11 min-w-11 p-2 hover:bg-neutral-800 rounded-lg transition-colors" aria-label="Close">
             <X className="w-5 h-5 text-neutral-400" />
           </button>
         </div>

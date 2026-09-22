@@ -413,13 +413,13 @@ export function CoachingSettings() {
         )}
 
         {/* Team Info */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Team Info</h2>
           <TeamInfoEditorList teams={teams} onTeamsChanged={handleTeamInfoChanged} />
         </div>
 
         {/* Organization */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-indigo-400" />
             Organization
@@ -575,7 +575,7 @@ export function CoachingSettings() {
         </div>
 
         {/* Invite Code */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Invite Code</h2>
           <p className="text-neutral-400 text-sm">
             Share this code with team members so they can join your team.
@@ -624,12 +624,12 @@ export function CoachingSettings() {
         </div>
 
         {/* Add Member by Email */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Add Member</h2>
           <p className="text-neutral-400 text-sm">
             Add someone who already has an account, or send an invite email for self-join.
           </p>
-          <div className="flex items-end gap-3 flex-wrap">
+          <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end">
             <div className="flex-1 min-w-[200px]">
               <label htmlFor="add-email" className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
               <input
@@ -710,7 +710,7 @@ export function CoachingSettings() {
         </div>
 
         {/* Members */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-white">
               Team Members
@@ -794,7 +794,7 @@ export function CoachingSettings() {
       </div>
 
       {/* ── Analytics Settings ──────────────────────────────────────── */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4 sm:p-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-500/10 rounded-lg">
             <BarChart3 className="w-5 h-5 text-indigo-400" />
@@ -863,7 +863,7 @@ export function CoachingSettings() {
       </div>
 
       {/* ── Danger Zone ─────────────────────────────────────────────── */}
-      <div className="bg-neutral-900 border border-red-900/40 rounded-xl p-6 space-y-4">
+      <div className="bg-neutral-900 border border-red-900/40 rounded-xl p-4 space-y-4 sm:p-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-red-900/30 rounded-lg">
             <TriangleAlert className="w-5 h-5 text-red-400" />
@@ -874,7 +874,7 @@ export function CoachingSettings() {
           </div>
         </div>
 
-        <div className="border border-red-900/30 rounded-lg p-4 flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 rounded-lg border border-red-900/30 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-white font-medium text-sm">Delete this team</p>
             <p className="text-neutral-500 text-xs mt-0.5">

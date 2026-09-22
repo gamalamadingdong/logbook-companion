@@ -96,7 +96,7 @@ export function MyTeamNotes() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-6 pb-24">
+    <div className="min-h-screen bg-neutral-950 text-white px-4 py-4 pb-24 sm:p-6 sm:pb-24">
       <div className="max-w-2xl mx-auto space-y-6">
         <Breadcrumb items={[
           { label: 'My Team', to: '/team' },

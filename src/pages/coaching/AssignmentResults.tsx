@@ -377,7 +377,7 @@ function SplitBarChart({ rows }: { rows: EnrichedRow[] }) {
   const max = Math.max(...data.map((d) => d.split));
 
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+    <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
       <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
         <TrendingUp className="w-4 h-4 text-indigo-400" />
         Split /500m (faster = smaller)
@@ -546,7 +546,7 @@ function WattsBarChart({ rows }: { rows: EnrichedRow[] }) {
   if (data.length === 0) return null;
 
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+    <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
       <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
         <BarChart3 className="w-4 h-4 text-amber-400" />
         Watts (higher = better)
@@ -610,7 +610,7 @@ function WpkgBarChart({ rows }: { rows: EnrichedRow[] }) {
   const missing = rows.filter((r) => r.completed && r.wpkg == null);
 
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+    <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-emerald-400" />
@@ -747,7 +747,7 @@ function PercentileDotPlot({ rows, isImperial }: { rows: EnrichedRow[]; isImperi
     .sort((a, b) => b.watts - a.watts);
 
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+    <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
       <h3 className="text-sm font-semibold text-neutral-300">Power vs Body Weight</h3>
       <p className="text-xs text-neutral-500">X = body weight ({isImperial ? 'lb' : 'kg'}), Y = power (watts). Diagonal lines are {isImperial ? 'W/lb' : 'W/kg'} percentile benchmarks.</p>
       {teamNames.length > 1 && (
@@ -963,7 +963,7 @@ function RepProgressionChart({
 
   return (
     <>
-      <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+      <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-neutral-300 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-cyan-400" />
@@ -1139,7 +1139,7 @@ function RepHeatmap({
   const firstDnfIdx = sorted.findIndex((r) => r.dnf);
 
   return (
-    <div className="bg-neutral-800/50 rounded-xl p-4 space-y-3">
+    <div className="space-y-3 rounded-xl bg-neutral-800/50 p-3 sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-neutral-300">Rep Heatmap — vs. Team Median</h3>
         <div className="inline-flex rounded-lg border border-neutral-700 overflow-hidden text-[10px]">
@@ -1166,8 +1166,8 @@ function RepHeatmap({
       {metric === 'wpkg' && (
         <p className="text-[10px] text-neutral-500">Rep cells show per-rep {isImperial ? 'W/lb' : 'W/kg'} derived from split and assignment/profile weight.</p>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+      <div className="overflow-x-auto" aria-label="Rep heatmap; scroll horizontally for all intervals">
+        <table className="min-w-[42rem] w-full text-xs border-collapse">
           <thead>
             <tr>
               <th
@@ -1530,8 +1530,8 @@ function SummaryTable({
           <span className="text-[11px] text-neutral-500">{visibleRows.length} shown</span>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
+      <div className="overflow-x-auto" aria-label="Assignment results; scroll horizontally for all result columns">
+        <table className="min-w-[44rem] w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-neutral-700/50">
               <th className="px-1.5 py-1.5 text-xs font-medium text-neutral-400 uppercase text-left">#</th>
@@ -2241,7 +2241,7 @@ export function AssignmentResults() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
               <div className="text-[11px] text-neutral-500 uppercase tracking-wider">Avg Finisher Split</div>
               <div className="text-lg font-semibold text-neutral-100 font-mono">{fmtSplit(avgFinisherSplit)}</div>
