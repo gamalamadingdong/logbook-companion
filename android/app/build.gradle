@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.readyall.logbookcompanion"
+    namespace "org.readyall.logbookcompanion"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.readyall.logbookcompanion"
+        applicationId "org.readyall.logbookcompanion"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
