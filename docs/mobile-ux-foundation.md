@@ -147,7 +147,7 @@ M4b/c complete the secondary coach-management and athlete-team routes. Mature ca
 
 Requires a device or emulator: auth, deep links, back-button behavior, and the PM5 flow end to end.
 
-The current branch adds an installed API 35 Android-emulator gate for bundled cold/offline launch, guest auth entry, warm PM5 deep link, hardware Back, and cold auth-callback routing. The same LC custom scheme is registered on iOS and Android. Real Supabase recovery/invite delivery, iOS runtime behavior, Bluetooth permission prompts, and physical PM5 operation remain device/operator gates. See [M5 installed-app verification](concept2-mobile/approval-evidence/m5-installed-app-verification.md).
+The current branch adds an installed API 35 Android-emulator gate for bundled cold/offline launch, warm PM5 deep-link delivery, hardware Back delivery, and cold auth-callback routing. The same LC custom scheme is registered on iOS and Android. Real auth UI/session behavior, iOS runtime behavior, Bluetooth permission prompts, and physical PM5 operation remain device/operator gates. See [M5 installed-app verification](concept2-mobile/approval-evidence/m5-installed-app-verification.md).
 
 ## References
 

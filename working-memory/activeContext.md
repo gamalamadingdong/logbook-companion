@@ -161,7 +161,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 
 ### Mobile pause point
 
-Responsive mobile work is complete through M4. The current M5 branch adds strict native URL routing, installed Android guest/deep-link/back/offline smoke coverage, and matching Android/iOS custom-scheme registration. Real Supabase recovery/invite delivery, iOS runtime checks, Bluetooth prompts, and PM5 operation remain device/operator gates; E6 still requires a physical PM5.
+Responsive mobile work is complete through M4. The current M5 branch adds strict native URL routing, installed Android shell/deep-link/back/offline smoke coverage, and matching Android/iOS custom-scheme registration. Real auth UI/session behavior, iOS runtime checks, Bluetooth prompts, and PM5 operation remain device/operator gates; E6 still requires a physical PM5.
 
 ## Resume references
 

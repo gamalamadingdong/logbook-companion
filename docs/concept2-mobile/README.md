@@ -4,7 +4,7 @@ Status: development publishing covers fixed distance, fixed time, and interval s
 
 ## Start here / resume
 
-**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on physical PM5 access. Mobile UX M1–M4 are complete. The current M5 branch adds installed Android emulator proof for guest auth entry, cold/warm deep links, Back, and offline bundled launch; real provider auth, iOS runtime, Bluetooth prompts, and PM5 operation remain device/operator gates.
+**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on physical PM5 access. Mobile UX M1–M4 are complete. The current M5 branch adds installed Android emulator proof for cold/warm deep-link delivery, Back delivery, and offline bundled launch; real auth UI/session behavior, iOS runtime, Bluetooth prompts, and PM5 operation remain device/operator gates.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 

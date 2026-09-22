@@ -11,11 +11,19 @@ export function NativeAppBridge() {
     let active = true;
     const open = (url?: string) => {
       const route = url ? parseNativeAppUrl(url) : null;
-      if (active && route) navigate(route);
+      if (active && route) {
+        console.info(`[native-app] route ${route}`);
+        navigate(route);
+      }
+    };
+    const handleBack = (canGoBack: boolean) => {
+      console.info(`[native-app] back ${canGoBack ? 'history' : 'exit'}`);
+      if (canGoBack) window.history.back();
+      else void App.exitApp();
     };
     const handles = [
       App.addListener('appUrlOpen', event => open(event.url)),
-      App.addListener('backButton', event => event.canGoBack ? window.history.back() : void App.exitApp()),
+      App.addListener('backButton', event => handleBack(event.canGoBack)),
     ];
     void App.getLaunchUrl().then(result => open(result?.url));
     return () => {
