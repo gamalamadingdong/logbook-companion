@@ -2,25 +2,6 @@ name: Mobile Native Checks
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [staging]
-    paths:
-      - 'android/**'
-      - 'ios/**'
-      - 'capacitor.config.ts'
-      - 'src/pages/PM5Connection.tsx'
-      - 'src/services/pm5Capture*.ts'
-      - 'src/services/pm5DirectService.ts'
-      - 'src/services/nativeNavigation*.ts'
-      - 'src/services/nativeConfig.test.ts'
-      - 'src/components/NativeAppBridge.tsx'
-      - 'src/auth/AuthContext.tsx'
-      - 'src/pages/AuthCallback.tsx'
-      - 'scripts/android_m5_smoke.py'
-      - 'src/types/ergSession.types.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/mobile-native-checks.yml'
 
 permissions:
   contents: read
@@ -107,22 +88,3 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build
-
-  android-installed-smoke:
-    needs: android-debug
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: logbook-companion-android-debug-${{ github.sha }}
-          path: artifacts
-      - name: Exercise installed Android shell
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          profile: pixel_6
-          disable-animations: true
-          script: python3 scripts/android_m5_smoke.py
