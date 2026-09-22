@@ -4,7 +4,7 @@ Status: development publishing covers fixed distance, fixed time, and interval s
 
 ## Start here / resume
 
-**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on PM5/installed-device access. Mobile UX M1–M2 are merged and M3a adapts the dashboard plus completed-workout new/detail/edit flow in the current branch. The next mobile slice starts with workout detail, training block, and library. The [storage audit](capture-storage-audit.md) retains the broader evidence and persistence boundary.
+**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on PM5/installed-device access. Mobile UX M1–M2 and M3a are merged; M3b adapts workout detail, training block, and library list/detail in the current branch. The remaining first-wave mobile slice is analytics, sync, preferences, and workout comparison.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 

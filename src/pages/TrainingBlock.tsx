@@ -1999,7 +1999,7 @@ export const TrainingBlock: React.FC = () => {
 
     if (authLoading || templatesLoading || !hasLoadedEnrollment || (!hasLoadedLogs && loading)) {
         return (
-            <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-8 lg:p-10 font-sans">
+            <div className="min-h-screen bg-neutral-950 p-4 font-sans text-white sm:p-6 md:p-8 lg:p-10">
                 <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
                     <div className="h-10 w-64 bg-neutral-800 rounded-lg" />
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2029,7 +2029,7 @@ export const TrainingBlock: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-8 lg:p-10 font-sans">
+        <div className="min-h-screen bg-neutral-950 p-4 font-sans text-white sm:p-6 md:p-8 lg:p-10">
             <div className="max-w-6xl mx-auto space-y-6">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div>
@@ -2052,8 +2052,8 @@ export const TrainingBlock: React.FC = () => {
                             </p>
                         )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                        <div className="rounded-lg border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-300">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
+                        <div className="col-span-2 rounded-lg border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-300 sm:col-span-1">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <span className="font-medium text-white">{selectedTemplate.name}</span>
                                 <span>{formatDateLabel(plan.start_date)} - {formatDateLabel(plan.end_date)}</span>
@@ -2065,7 +2065,7 @@ export const TrainingBlock: React.FC = () => {
                         <button
                             type="button"
                             onClick={openSetup}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
                         >
                             <Settings size={16} />
                             Configure
@@ -2608,7 +2608,7 @@ export const TrainingBlock: React.FC = () => {
                                         style={{ width: `${weekCoverage}%` }}
                                     />
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1">
                                     {planLogSummaries.map((weekSummary) => {
                                         const firstDay = plan.days.find((day) => day.week_number === weekSummary.week_number);
                                         const isSelected = weekSummary.week_number === selectedWeekSummary?.week_number;
@@ -2621,7 +2621,7 @@ export const TrainingBlock: React.FC = () => {
                                                 onClick={() => {
                                                     if (firstDay) setSelectedDate(firstDay.date);
                                                 }}
-                                                className={`h-8 min-w-10 rounded-md border px-2 text-xs font-medium transition-colors ${
+                                                className={`min-h-11 min-w-12 shrink-0 rounded-md border px-2 text-xs font-medium transition-colors ${
                                                     isSelected
                                                         ? 'border-emerald-500/70 bg-emerald-500/15 text-content-primary'
                                                         : 'border-border bg-surface-card text-content-muted hover:border-emerald-500/40 hover:text-content-primary'
@@ -2635,7 +2635,7 @@ export const TrainingBlock: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+                            <div className="grid grid-cols-4 gap-2 xl:grid-cols-7">
                                 {selectedWeekDays.map((day) => {
                                     const daySummary = daySummariesByDate.get(day.date) ?? summarizeDayProgress(day, [], templateMatchingContext);
                                     const isSelected = day.date === selectedDay.date;
@@ -2666,7 +2666,7 @@ export const TrainingBlock: React.FC = () => {
                                                     {dailyLogCount}
                                                 </Badge>
                                             </div>
-                                            <p className="mt-1 text-xs text-content-muted">
+                                            <p className="mt-1 hidden text-xs text-content-muted sm:block">
                                                 {formatDistanceMeters(day.planned_distance_meters)} planned
                                             </p>
                                             {dayAssignments.length > 0 && (

@@ -490,8 +490,8 @@ export const WorkoutDetail: React.FC = () => {
 
 
     // --- Early Returns (Conditionals) ---
-    if (loading) return <div className="p-8 text-neutral-400">Loading workout details...</div>;
-    if (!detail) return <div className="p-8 text-neutral-400">Workout not found.</div>;
+    if (loading) return <div className="p-4 text-neutral-400 sm:p-8">Loading workout details...</div>;
+    if (!detail) return <div className="p-4 text-neutral-400 sm:p-8">Workout not found.</div>;
 
     // Helper must be available to render
     const formatTime = (time: number) => {
@@ -505,7 +505,7 @@ export const WorkoutDetail: React.FC = () => {
 
 
     return (
-        <div className="min-h-screen bg-neutral-950 p-6 md:p-12 space-y-8 max-w-7xl mx-auto font-sans">
+        <div className="mx-auto min-h-screen max-w-7xl space-y-5 bg-neutral-950 p-4 font-sans sm:p-6 md:space-y-8 md:p-12">
             {/* Header / Nav */}
             <div className="space-y-6">
                 <Breadcrumb items={[
@@ -514,7 +514,7 @@ export const WorkoutDetail: React.FC = () => {
                 ]} />
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-neutral-800">
                     <div>
-                        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent flex items-center gap-3">
+                        <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight mb-2 bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent flex items-center gap-3">
                             {canonicalName}
                             {detail.is_benchmark && (
                                 <span className="text-xs font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 px-2 py-1 rounded align-middle">
@@ -1013,7 +1013,7 @@ export const WorkoutDetail: React.FC = () => {
 
 
             {/* Stats Grid - Row 1: Distance & Time Metrics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
                 {
                     [
                         {
@@ -1049,12 +1049,12 @@ export const WorkoutDetail: React.FC = () => {
                             subtext: restTime > 0 ? `+${Math.round(restTime)}s rest` : null
                         },
                     ].map((stat, i) => (
-                        <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
+                        <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 sm:rounded-2xl sm:p-5 hover:border-neutral-700 transition-colors group">
                             <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
                                 {stat.icon}
                                 <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
                             </div>
-                            <div className="text-3xl font-bold text-white tracking-tight">
+                            <div className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                                 {stat.value || '-'} {stat.unit && <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>}
                             </div>
                             {stat.subtext && (
@@ -1066,7 +1066,7 @@ export const WorkoutDetail: React.FC = () => {
             </div>
 
             {/* Stats Grid - Row 2: Performance Metrics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
                 {
                     [
                         {
@@ -1097,12 +1097,12 @@ export const WorkoutDetail: React.FC = () => {
                         },
                         { label: 'Stroke Rate', value: detail.stroke_rate, unit: 'spm', icon: <Activity size={18} />, color: 'text-emerald-400' },
                     ].map((stat, i) => (
-                        <div key={i} className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl hover:border-neutral-700 transition-colors group">
+                        <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 sm:rounded-2xl sm:p-5 hover:border-neutral-700 transition-colors group">
                             <div className={`flex items-center gap-2 ${stat.color} mb-3 opacity-80 group-hover:opacity-100 transition-opacity`}>
                                 {stat.icon}
                                 <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-400 transition-colors">{stat.label}</span>
                             </div>
-                            <div className="text-3xl font-bold text-white tracking-tight">
+                            <div className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                                 {stat.value || '-'} <span className="text-base text-neutral-600 font-medium ml-0.5">{stat.unit}</span>
                             </div>
                         </div>
@@ -1113,7 +1113,7 @@ export const WorkoutDetail: React.FC = () => {
             {/* Charts */}
             {
                 strokes.length > 0 && (
-                    <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3 sm:p-6 md:p-8">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                             <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                 Performance Analysis
@@ -1147,7 +1147,7 @@ export const WorkoutDetail: React.FC = () => {
                             )}
                         </div>
 
-                        <div className="h-[400px] w-full">
+                        <div className="h-64 w-full sm:h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
@@ -1215,12 +1215,12 @@ export const WorkoutDetail: React.FC = () => {
             {/* Power Distribution Chart */}
             {
                 Object.keys(activeBuckets).length > 0 && (
-                    <div className="bg-neutral-900/40 border border-neutral-800 p-6 md:p-8 rounded-2xl">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3 sm:p-6 md:p-8">
                         <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                             <Zap size={18} className="text-yellow-400" />
                             Power Distribution
                         </h3>
-                        <div className="h-[300px] w-full">
+                        <div className="h-56 w-full sm:h-[300px]">
                             <PowerDistributionChart buckets={activeBuckets} baselineWatts={baselineWatts} />
                         </div>
                     </div>
@@ -1238,7 +1238,7 @@ export const WorkoutDetail: React.FC = () => {
                             </span>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
+                            <table className="min-w-[42rem] w-full text-left text-sm">
                                 <thead className="bg-neutral-900/80 text-neutral-400 font-medium uppercase tracking-wider text-xs border-b border-neutral-800">
                                     <tr>
                                         <th className="p-4 pl-6 font-semibold">#</th>

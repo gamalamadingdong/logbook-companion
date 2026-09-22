@@ -177,7 +177,7 @@ export const TemplateLibrary: React.FC = () => {
     };
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
+        <div className="mx-auto max-w-7xl p-4 sm:p-6">
             <div className="mb-6 flex flex-col gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Training Library</h1>
@@ -186,12 +186,12 @@ export const TemplateLibrary: React.FC = () => {
                     </p>
                 </div>
                 <TrainingLibraryTabs activeMode="rowing" />
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
                     {isAdmin && selectedIds.size > 0 && (
                         <button
                             onClick={handleBulkDelete}
                             disabled={deleting}
-                            className="flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-red-800 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-800"
                         >
                             <Trash2 size={18} />
                             Delete {selectedIds.size} Selected
@@ -200,7 +200,7 @@ export const TemplateLibrary: React.FC = () => {
                     {isAdmin && (
                         <Link
                             to="/library/review"
-                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition-colors"
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-white transition-colors hover:bg-neutral-700"
                         >
                             <ShieldCheck size={18} />
                             Review Proposals
@@ -209,7 +209,7 @@ export const TemplateLibrary: React.FC = () => {
                     {user && (
                         <button
                             onClick={() => setEditingId('new')}
-                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition-colors"
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-neutral-800 px-4 py-2 text-white transition-colors hover:bg-neutral-700"
                         >
                             <Plus size={18} />
                             New Draft
@@ -217,7 +217,7 @@ export const TemplateLibrary: React.FC = () => {
                     )}
                     <Link
                         to="/library/propose"
-                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors"
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white transition-colors hover:bg-emerald-500"
                     >
                         <FilePlus2 size={18} />
                         Propose Workout
@@ -226,16 +226,16 @@ export const TemplateLibrary: React.FC = () => {
             </div>
 
             {/* Filters Row */}
-            <div className="flex flex-wrap gap-4 mb-6">
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap">
                 {/* Search */}
-                <div className="relative flex-1 min-w-[200px]">
+                <div className="relative min-w-0 flex-1 sm:col-span-2 lg:col-span-1 lg:min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={18} />
                     <input
                         type="text"
                         placeholder="Search templates..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                        className="min-h-11 w-full rounded-lg border border-neutral-800 bg-neutral-900 py-2 pl-10 pr-4 text-white placeholder-neutral-500 focus:border-emerald-500 focus:outline-none"
                     />
                 </div>
 
@@ -243,7 +243,7 @@ export const TemplateLibrary: React.FC = () => {
                 <select
                     value={zoneFilter}
                     onChange={e => setZoneFilter(e.target.value)}
-                    className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                    className="min-h-11 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-2 text-white focus:border-emerald-500 focus:outline-none lg:w-auto"
                     aria-label="Filter by training zone"
                 >
                     <option value="">All Zones</option>
@@ -256,7 +256,7 @@ export const TemplateLibrary: React.FC = () => {
                 <select
                     value={sortOrder}
                     onChange={e => setSortOrder(e.target.value as 'popular' | 'recent')}
-                    className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                    className="min-h-11 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-2 text-white focus:border-emerald-500 focus:outline-none lg:w-auto"
                     aria-label="Sort templates by"
                 >
                     <option value="popular">Most Popular</option>
@@ -264,7 +264,7 @@ export const TemplateLibrary: React.FC = () => {
                 </select>
 
                 {/* Structure Filter */}
-                <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-3">
+                <div className="flex min-h-11 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3">
                     <Filter size={16} className="text-neutral-500" />
                     <select
                         value={structureFilter}
@@ -280,7 +280,7 @@ export const TemplateLibrary: React.FC = () => {
             </div>
 
             {/* Summary */}
-            <div className="flex gap-4 mb-4 text-sm">
+            <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
                 <span className="text-neutral-400">
                     {templates.length} templates
                 </span>
@@ -318,7 +318,43 @@ export const TemplateLibrary: React.FC = () => {
                         }
                     />
                 ) : (
-                    <table className="w-full">
+                    <>
+                    <div className="divide-y divide-neutral-800 md:hidden">
+                        {templates.map(template => {
+                            const badge = getTierBadge(getTemplateTier(template));
+                            return (
+                                <article key={template.id} className="space-y-3 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <span className={`${badge.className} inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium`}>
+                                                {badge.icon}{badge.label}
+                                            </span>
+                                            <h2 className="mt-2 text-base font-semibold text-white">{template.name}</h2>
+                                            <p className="mt-1 text-xs text-neutral-400">{template.training_zone || 'No zone'} · {template.difficulty_level || 'No difficulty'}</p>
+                                        </div>
+                                        {isAdmin && (
+                                            <input type="checkbox" checked={selectedIds.has(template.id)} onChange={() => toggleSelect(template.id)} className="h-6 w-6 rounded border-neutral-600 bg-neutral-800 text-emerald-600 focus:ring-emerald-500" aria-label={`Select ${template.name}`} />
+                                        )}
+                                    </div>
+                                    <p className={`flex items-center gap-1 text-xs ${template.workout_structure ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                        {template.workout_structure ? <Check size={14} /> : <X size={14} />}
+                                        {template.workout_structure ? 'RWN standardized' : 'Needs structure'}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => navigate(`/library/${template.id}`)} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500">
+                                            <Play size={16} /> Details
+                                        </button>
+                                        {(isAdmin || ownedTemplateIds.has(template.id)) ? (
+                                            <button onClick={() => setEditingId(template.id)} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-neutral-700 px-3 text-sm text-neutral-200 hover:border-emerald-500">
+                                                <Edit size={16} /> Edit
+                                            </button>
+                                        ) : <span />}
+                                    </div>
+                                </article>
+                            );
+                        })}
+                    </div>
+                    <table className="hidden w-full md:table">
                         <thead className="bg-neutral-800/50">
                             <tr className="text-left text-neutral-400 text-sm">
                                 {isAdmin && (
@@ -429,6 +465,7 @@ export const TemplateLibrary: React.FC = () => {
                             ))}
                         </tbody>
                     </table>
+                    </>
                 )}
             </div>
 

@@ -137,7 +137,7 @@ export const TemplateDetail: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="p-6 max-w-5xl mx-auto">
+            <div className="mx-auto max-w-5xl p-4 sm:p-6">
                 <EmptyState
                     title="Loading workout"
                     description="Pulling the library workout detail now."
@@ -148,7 +148,7 @@ export const TemplateDetail: React.FC = () => {
 
     if (!template) {
         return (
-            <div className="p-6 max-w-5xl mx-auto">
+            <div className="mx-auto max-w-5xl p-4 sm:p-6">
                 <EmptyState
                     title="Workout not found"
                     description="That library workout could not be loaded."
@@ -184,7 +184,7 @@ export const TemplateDetail: React.FC = () => {
     };
 
     return (
-        <div className="p-6 max-w-5xl mx-auto">
+        <div className="mx-auto max-w-5xl p-4 sm:p-6">
             {/* Header */}
             <div className="mb-6">
                 <Breadcrumb items={[
@@ -192,10 +192,10 @@ export const TemplateDetail: React.FC = () => {
                     { label: template.name },
                 ]} className="mb-4" />
 
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1">
-                        <h1 className="text-3xl font-bold text-content-primary mb-2">{template.name}</h1>
-                        <p className="text-content-secondary text-lg">{template.description}</p>
+                        <h1 className="mb-2 text-2xl font-bold text-content-primary sm:text-3xl">{template.name}</h1>
+                        <p className="text-base text-content-secondary sm:text-lg">{template.description}</p>
 
                         <div className="flex flex-wrap items-center gap-4 mt-4">
                             <Badge variant={templateTier.variant} className="inline-flex items-center gap-1 px-3 py-1 text-sm">
@@ -226,7 +226,7 @@ export const TemplateDetail: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
                         {isAdmin && template.tier === 'community' && (
                             <Button
                                 variant="primary"
@@ -259,7 +259,7 @@ export const TemplateDetail: React.FC = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid gap-4 mb-8 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mb-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3">
                 {/* Estimated Duration - Now More Prominent */}
                 {estimate && estimate.totalTime > 0 && (
                     <Card className="bg-accent-primary-surface border-emerald-500/25">
@@ -267,7 +267,7 @@ export const TemplateDetail: React.FC = () => {
                             <Clock size={20} />
                             <span className="text-sm font-medium">Est. Duration</span>
                         </div>
-                        <div className="text-3xl font-bold text-content-primary">{formatDuration(estimate.totalTime)}</div>
+                        <div className="text-2xl font-bold text-content-primary sm:text-3xl">{formatDuration(estimate.totalTime)}</div>
                         {estimate.workDistance > 0 && (
                             <div className="text-sm text-emerald-600 mt-1">{estimate.workDistance}m distance</div>
                         )}
@@ -279,7 +279,7 @@ export const TemplateDetail: React.FC = () => {
                         <Users size={20} />
                         <span className="text-sm">Times Used</span>
                     </div>
-                    <div className="text-3xl font-bold text-content-primary">{template.usage_count || 0}</div>
+                    <div className="text-2xl font-bold text-content-primary sm:text-3xl">{template.usage_count || 0}</div>
                 </Card>
 
                 <Card>
@@ -287,7 +287,7 @@ export const TemplateDetail: React.FC = () => {
                         <TrendingUp size={20} />
                         <span className="text-sm">Plan Slots</span>
                     </div>
-                    <div className="text-3xl font-bold text-content-primary">
+                    <div className="text-2xl font-bold text-content-primary sm:text-3xl">
                         {template.reference_stats.planWorkoutCount}
                     </div>
                 </Card>
@@ -310,7 +310,7 @@ export const TemplateDetail: React.FC = () => {
                         <Library size={20} />
                         <span className="text-sm">Team Assignments</span>
                     </div>
-                    <div className="text-3xl font-bold text-content-primary">{template.reference_stats.groupAssignmentCount}</div>
+                    <div className="text-2xl font-bold text-content-primary sm:text-3xl">{template.reference_stats.groupAssignmentCount}</div>
                 </Card>
 
                 <Card>
@@ -318,7 +318,7 @@ export const TemplateDetail: React.FC = () => {
                         <Calendar size={20} />
                         <span className="text-sm">Daily Assignments</span>
                     </div>
-                    <div className="text-3xl font-bold text-content-primary">{template.reference_stats.dailyAssignmentCount}</div>
+                    <div className="text-2xl font-bold text-content-primary sm:text-3xl">{template.reference_stats.dailyAssignmentCount}</div>
                 </Card>
             </div>
 
