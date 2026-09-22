@@ -163,7 +163,7 @@ export function DevelopmentConcept2() {
   const selectedPublication = publications.find(publication => publication.workout_id === selectedId);
   const publishBlockers = getDevelopmentPublishBlockers({ connection, selectedId, weightClass, timezone,
     confirmed, syntheticFixture: selectedFixture, existingStatus: selectedPublication?.status });
-  return <section className="max-w-xl mx-auto p-6 space-y-4 text-neutral-100">
+  return <section className="mx-auto max-w-xl space-y-4 p-4 text-neutral-100 sm:p-6">
     <h1 className="text-2xl font-bold">Concept2 development connection</h1>
     <p>Development imports and publication links are stored separately from production Concept2 history, analytics, and assignments.</p>
     {!user ? <p>Sign in to Logbook Companion before connecting.</p> : <>

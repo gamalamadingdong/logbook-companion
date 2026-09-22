@@ -273,14 +273,14 @@ export const Preferences: React.FC = () => {
     ];
 
     return (
-        <div className="max-w-4xl mx-auto p-6 space-y-8">
+        <div className="mx-auto max-w-4xl space-y-6 p-4 sm:space-y-8 sm:p-6">
             <header>
                 <h1 className="text-3xl font-bold text-neutral-100">Preferences</h1>
                 <p className="text-neutral-400 mt-2">Manage your athlete profile and tracking settings.</p>
             </header>
 
             {/* Tabs */}
-            <div className="flex space-x-6 border-b border-neutral-800">
+            <div className="flex gap-5 overflow-x-auto border-b border-neutral-800">
                 <button
                     onClick={() => setActiveTab('general')}
                     className={`pb-3 px-1 ${activeTab === 'general' ? 'text-emerald-500 border-b-2 border-emerald-500 font-medium' : 'text-neutral-400 hover:text-neutral-200'}`}
@@ -309,12 +309,12 @@ export const Preferences: React.FC = () => {
 
 
             {/* Content */}
-            <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 sm:p-6">
                 {activeTab === 'general' && (
                     <div className="space-y-6 max-w-lg">
                         <div>
                             <h3 className="text-lg font-medium text-neutral-200 mb-4">Dashboard Features</h3>
-                            <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-lg">
+                            <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <h4 className="font-medium text-neutral-200">Recommended Workouts</h4>
                                     <p className="text-sm text-neutral-500 mt-1">
@@ -335,7 +335,7 @@ export const Preferences: React.FC = () => {
                         </div>
                         <div>
                             <h3 className="text-lg font-medium text-neutral-200 mb-4">Appearance</h3>
-                            <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-lg">
+                            <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <h4 className="font-medium text-neutral-200">Theme</h4>
                                     <p className="text-sm text-neutral-500 mt-1">
@@ -345,7 +345,7 @@ export const Preferences: React.FC = () => {
                                 <label className="text-sm text-neutral-400">
                                     <span className="sr-only">Theme preference</span>
                                     <select
-                                        className="bg-neutral-900 border border-neutral-700 text-neutral-100 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+                                        className="min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-neutral-100 focus:border-emerald-500 focus:outline-none sm:w-auto"
                                         value={themePreference}
                                         onChange={(event) => {
                                             const value = event.target.value;
@@ -363,7 +363,7 @@ export const Preferences: React.FC = () => {
                         </div>
                         <div>
                             <h3 className="text-lg font-medium text-neutral-200 mb-4">Units</h3>
-                            <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-lg">
+                            <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <h4 className="font-medium text-neutral-200">Measurement Units</h4>
                                     <p className="text-sm text-neutral-500 mt-1">
@@ -373,7 +373,7 @@ export const Preferences: React.FC = () => {
                                 <label className="text-sm text-neutral-400">
                                     <span className="sr-only">Measurement units</span>
                                     <select
-                                        className="bg-neutral-900 border border-neutral-700 text-neutral-100 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+                                        className="min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-neutral-100 focus:border-emerald-500 focus:outline-none sm:w-auto"
                                         value={currentUnits}
                                         onChange={(event) => {
                                             const value = event.target.value;
@@ -407,7 +407,7 @@ export const Preferences: React.FC = () => {
                                 onChange={e => setFormData({ ...formData, display_name: e.target.value })}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Max Heart Rate (bpm)</label>
                                 <input
@@ -430,7 +430,7 @@ export const Preferences: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Weight (lbs)</label>
                                 <input
@@ -462,8 +462,8 @@ export const Preferences: React.FC = () => {
                             <div className="text-sm text-neutral-500 italic mb-4">Scanning workout history for benchmarks...</div>
                         )}
 
-                        <div className="overflow-hidden border border-neutral-800 rounded-lg">
-                            <table className="w-full text-left bg-neutral-950/50">
+                        <div className="overflow-x-auto rounded-lg border border-neutral-800">
+                            <table className="min-w-[34rem] w-full text-left bg-neutral-950/50">
                                 <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase font-medium">
                                     <tr>
                                         <th className="px-4 py-3 w-16 text-center">Track</th>

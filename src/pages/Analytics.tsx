@@ -76,10 +76,10 @@ const getWorkoutWorkSeconds = (workout: any, baselineWatts: number) => {
 };
 
 const AnalyticsSkeleton: React.FC = () => (
-    <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24" aria-busy="true" role="status">
+    <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:p-6 md:p-12 font-sans pb-24" aria-busy="true" role="status">
         <span className="sr-only">Loading analytics…</span>
         <div className="max-w-6xl mx-auto space-y-8 animate-pulse">
-            <div className="flex space-x-6 border-b border-neutral-800">
+            <div className="flex gap-5 overflow-x-auto border-b border-neutral-800">
                 <div className="h-6 w-24 bg-neutral-800 rounded"></div>
                 <div className="h-6 w-40 bg-neutral-800 rounded"></div>
                 <div className="h-6 w-32 bg-neutral-800 rounded"></div>
@@ -437,7 +437,7 @@ export const Analytics: React.FC = () => {
 
     if (workouts.length === 0) {
         return (
-            <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24">
+            <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:p-6 md:p-12 font-sans pb-24">
                 <div className="max-w-3xl mx-auto text-center space-y-4">
                     <div className="flex justify-center">
                         <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-400">
@@ -454,11 +454,11 @@ export const Analytics: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans pb-24">
+        <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:p-6 md:p-12 font-sans pb-24">
             <div className="max-w-6xl mx-auto space-y-8">
 
                 {/* Tabs */}
-                <div className="flex space-x-6 border-b border-neutral-800">
+                <div className="flex gap-5 overflow-x-auto border-b border-neutral-800">
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={`pb-3 px-1 text-lg font-medium transition-colors ${activeTab === 'overview' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-neutral-400 hover:text-neutral-200'}`}
@@ -540,7 +540,7 @@ export const Analytics: React.FC = () => {
                         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-neutral-800 pb-6 mt-6">
 
                             {/* Left Side: Filters */}
-                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 flex-wrap">
+                            <div className="flex w-full flex-col items-stretch gap-4 md:flex-row md:items-center md:flex-wrap">
                                 {/* Zone Filters */}
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider hidden md:block">Zone</span>
@@ -602,7 +602,7 @@ export const Analytics: React.FC = () => {
                                     </div>
 
                                     {/* Custom Date Inputs (Condensed) */}
-                                    <div className="flex items-center gap-2 ml-2">
+                                    <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2 sm:ml-2">
                                         <DatePicker
                                             selected={customStartDate}
                                             onChange={(date: Date | null) => {
@@ -613,7 +613,7 @@ export const Analytics: React.FC = () => {
                                             startDate={customStartDate}
                                             endDate={customEndDate}
                                             placeholderText="Start"
-                                            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-xs text-white w-20 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                                            className="min-h-11 w-full rounded-md border border-neutral-800 bg-neutral-900 px-2 text-xs text-white placeholder-neutral-600 transition-colors focus:border-emerald-500 focus:outline-none"
                                             dateFormat="MMM d"
                                         />
                                         <span className="text-neutral-700">-</span>
@@ -628,7 +628,7 @@ export const Analytics: React.FC = () => {
                                             endDate={customEndDate}
                                             minDate={customStartDate ?? undefined}
                                             placeholderText="End"
-                                            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-xs text-white w-20 placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors"
+                                            className="min-h-11 w-full rounded-md border border-neutral-800 bg-neutral-900 px-2 text-xs text-white placeholder-neutral-600 transition-colors focus:border-emerald-500 focus:outline-none"
                                             dateFormat="MMM d"
                                         />
                                     </div>
@@ -636,7 +636,7 @@ export const Analytics: React.FC = () => {
                             </div>
 
                             {/* Right Side: Key Metrics */}
-                            <div className="flex gap-4 items-center self-end xl:self-auto">
+                            <div className="flex w-full items-center justify-between gap-4 xl:w-auto xl:self-auto">
                                 <div className="flex gap-4">
                                     <div className="flex flex-col items-end">
                                         <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Dist</div>
@@ -651,7 +651,7 @@ export const Analytics: React.FC = () => {
                                 {/* Report Button */}
                                 <button
                                     onClick={() => setShowReport(true)}
-                                    className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white p-2 rounded-lg border border-neutral-700 transition-colors flex items-center justify-center gap-2"
+                                    className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800 p-2 text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-white"
                                     title="Export Report"
                                 >
                                     <Calendar size={18} />
@@ -696,7 +696,7 @@ export const Analytics: React.FC = () => {
                                     <Activity size={18} className="text-emerald-400" />
                                     Time in Zone (Work)
                                 </h3>
-                                <div className="h-[250px] w-full relative" role="img" aria-label="Time in zone distribution chart">
+                                <div className="relative h-[220px] w-full sm:h-[250px]" role="img" aria-label="Time in zone distribution chart">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie

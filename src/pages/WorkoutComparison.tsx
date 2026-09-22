@@ -168,7 +168,7 @@ export const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCa
     if (!workout || !stats) return null;
 
     return (
-        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 relative group">
+        <div className="group relative rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 sm:p-6">
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <div className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">{title}</div>
@@ -181,7 +181,7 @@ export const WorkoutSummaryCard = ({ workout, title, onClear }: WorkoutSummaryCa
                 {onClear && (
                     <button
                         onClick={onClear}
-                        className="text-neutral-600 hover:text-red-500 transition-colors p-2"
+                        className="flex min-h-11 min-w-11 items-center justify-center p-2 text-neutral-600 transition-colors hover:text-red-500"
                         title="Remove comparison workout"
                         aria-label="Remove comparison workout"
                     >
@@ -331,7 +331,7 @@ export const WorkoutComparison: React.FC = () => {
             <header className="flex items-center gap-4">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 hover:bg-neutral-800 rounded-full text-neutral-400 transition-colors"
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-neutral-400 transition-colors hover:bg-neutral-800"
                     aria-label="Go back"
                 >
                     <ArrowLeft size={20} />
@@ -359,7 +359,7 @@ export const WorkoutComparison: React.FC = () => {
                             <WorkoutSummaryCard workout={workoutB} title="Comparison" onClear={() => navigate(`/compare/${aId}`)} />
                         </>
                     ) : (
-                        <div className="bg-neutral-900/30 border border-neutral-800 border-dashed rounded-2xl p-8 h-full flex flex-col items-center justify-start gap-6">
+                        <div className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/30 p-4 sm:p-8 h-full flex flex-col items-center justify-start gap-6">
                             <EmptyState
                                 icon={<GitCompare className="w-8 h-8" />}
                                 title="Select workouts to compare"
@@ -491,7 +491,7 @@ export const WorkoutComparison: React.FC = () => {
             {
                 workoutB && (
                     <>
-                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px] flex flex-col">
+                    <div className="flex h-[360px] flex-col rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 sm:h-[500px] sm:p-6">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
                                 {chartMetric === 'hr' ? <Heart size={18} className="text-red-500" /> :
@@ -506,7 +506,7 @@ export const WorkoutComparison: React.FC = () => {
                                     <button
                                         key={m}
                                         onClick={() => setChartMetric(m)}
-                                        className={`px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${chartMetric === m
+                                        className={`min-h-11 px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${chartMetric === m
                                             ? 'bg-neutral-800 text-white shadow-sm'
                                             : 'text-neutral-500 hover:text-neutral-300'
                                             }`}
@@ -528,7 +528,7 @@ export const WorkoutComparison: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 sm:p-6">
                         <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                                 <h3 className="text-lg font-bold text-white">Interval Compare</h3>
