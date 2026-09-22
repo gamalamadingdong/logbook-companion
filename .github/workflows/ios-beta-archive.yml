@@ -1,0 +1,252 @@
+name: iOS Beta Archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-beta-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    environment: Production
+    timeout-minutes: 45
+    env:
+      NODE_VERSION: '20'
+      LC_BUNDLE_ID: org.readyall.logbookcompanion
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout reviewed delivery recipe
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate and preserve signing helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B .github/scripts/test_ios_signing.py
+          cp .github/scripts/ios_signing.py "$RUNNER_TEMP/lc-ios-signing.py"
+
+      - name: Checkout staging application without promoting main
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate source identity and public backend configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const { LC_BUNDLE_ID: id, VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: key } = process.env;
+          if (url !== 'https://vmlhcbkyonemmlawnqqr.supabase.co' || !key || /\s/.test(key)) {
+            throw new Error('Configure the expected public Supabase build variables in Production.');
+          }
+          if (!key.startsWith('sb_publishable_')) {
+            let claims;
+            try { claims = JSON.parse(Buffer.from(key.split('.')[1] || '', 'base64url').toString()); }
+            catch { throw new Error('Supabase client key is malformed. Use an anon/publishable key.'); }
+            if (claims.role !== 'anon' || claims.ref !== 'vmlhcbkyonemmlawnqqr') {
+              throw new Error('Use the matching public anon key, never a service-role key.');
+            }
+          }
+          const config = fs.readFileSync('capacitor.config.ts', 'utf8');
+          const project = fs.readFileSync('ios/App/App.xcodeproj/project.pbxproj', 'utf8');
+          if (!config.includes(`appId: '${id}'`) || config.includes('url:')) {
+            throw new Error('Staging must contain the registered native identity and bundled assets.');
+          }
+          const bundleIds = [...project.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);/g)].map(match => match[1]);
+          if (bundleIds.length !== 2 || bundleIds.some(value => value !== id)) {
+            throw new Error('Both iOS configurations must match the registered LC identifier.');
+          }
+          const scripts = JSON.parse(fs.readFileSync('package.json', 'utf8')).scripts;
+          if (!scripts['mobile:build']?.includes('vite build --mode mobile')) {
+            throw new Error('Merge the reviewed native-auth source into staging before archiving.');
+          }
+          JS
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "IOS_BUILD_NUMBER=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Verify application
+        run: |
+          npm run test:run
+          npm run lint
+
+      - name: Build credential-isolated mobile assets
+        run: |
+          npm run mobile:build
+          python3 -X utf8 scripts/check_c2_staging_bundle.py
+
+      - name: Sync native iOS dependencies
+        run: npx cap sync ios
+
+      - name: Validate the generated native configuration
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const config = JSON.parse(fs.readFileSync('ios/App/App/capacitor.config.json', 'utf8'));
+          if (config.appId !== process.env.LC_BUNDLE_ID || config.server?.url !== undefined) {
+            throw new Error('The native app must use the registered identity and bundled assets, not a remote server.');
+          }
+          JS
+
+      - name: Import signing material into an ephemeral keychain
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_PROVISIONING_PROFILE APPLE_TEAM_ID; do
+            if [[ -z "${!name}" ]]; then echo "::error::Missing required signing input: $name"; exit 1; fi
+          done
+          signing="$RUNNER_TEMP/lc-ios-signing"
+          mkdir -m 700 "$signing"
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$signing/certificate.p12"
+          printf '%s' "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$signing/profile.mobileprovision"
+          keychain="$signing/signing.keychain-db"
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$signing/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain" > /dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain"
+          security find-identity -v -p codesigning "$keychain" > "$signing/identities.txt"
+          security cms -D -i "$signing/profile.mobileprovision" > "$signing/profile.plist"
+          python3 -B "$RUNNER_TEMP/lc-ios-signing.py" \
+            --profile "$signing/profile.plist" --identities "$signing/identities.txt" \
+            --export-options "$signing/ExportOptions.plist"
+
+      - name: Install the validated provisioning profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/lc-ios-signing/profile.mobileprovision" \
+            "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+      - name: Archive staging application
+        working-directory: ios/App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace App.xcworkspace -scheme App -configuration Release \
+            -archivePath "$RUNNER_TEMP/LogbookCompanion.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
+
+      - name: Export IPA without uploading
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/LogbookCompanion.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/lc-ios-signing/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/lc-ios-export"
+
+      - name: Verify archived identity and record provenance
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, os, pathlib, plistlib, subprocess, zipfile
+          archive = pathlib.Path(os.environ["RUNNER_TEMP"]) / "LogbookCompanion.xcarchive"
+          apps = list((archive / "Products" / "Applications").glob("*.app"))
+          if len(apps) != 1:
+              raise SystemExit("Expected exactly one archived application.")
+          with (apps[0] / "Info.plist").open("rb") as stream:
+              info = plistlib.load(stream)
+          if info["CFBundleIdentifier"] != os.environ["LC_BUNDLE_ID"]:
+              raise SystemExit("Archived app identifier does not match the registered app.")
+          if info["CFBundleVersion"] != os.environ["IOS_BUILD_NUMBER"]:
+              raise SystemExit("Archived app build number does not match this run.")
+          subprocess.run(["codesign", "--verify", "--deep", "--strict", str(apps[0])], check=True)
+          export = pathlib.Path(os.environ["RUNNER_TEMP"]) / "lc-ios-export"
+          ipas = list(export.glob("*.ipa"))
+          if len(ipas) != 1:
+              raise SystemExit("Expected exactly one exported IPA.")
+          with zipfile.ZipFile(ipas[0]) as ipa:
+              manifests = [name for name in ipa.namelist()
+                           if name.startswith("Payload/") and name.endswith(".app/Info.plist") and name.count("/") == 2]
+              if len(manifests) != 1:
+                  raise SystemExit("Expected exactly one exported app manifest.")
+              exported = plistlib.loads(ipa.read(manifests[0]))
+              for field in ["CFBundleIdentifier", "CFBundleVersion", "CFBundleShortVersionString"]:
+                  if exported[field] != info[field]:
+                      raise SystemExit("Exported IPA identity/version differs from the verified archive.")
+              config = json.loads(ipa.read(manifests[0].removesuffix("Info.plist") + "capacitor.config.json"))
+              if config["appId"] != os.environ["LC_BUNDLE_ID"] or "url" in config.get("server", {}):
+                  raise SystemExit("Exported IPA contains an unexpected native runtime configuration.")
+          metadata = {
+              "bundleId": info["CFBundleIdentifier"], "version": info["CFBundleShortVersionString"],
+              "build": info["CFBundleVersion"], "sourceBranch": "staging",
+              "sourceCommit": os.environ["SOURCE_SHA"], "workflowCommit": os.environ["WORKFLOW_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"], "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "concept2Environment": "development", "uploaded": False,
+          }
+          (export / "build-metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+              stream.write("## Signed staging archive (not uploaded)\n")
+              stream.write(f"- App: `{metadata['bundleId']}`\n- Version/build: `{metadata['version']} / {metadata['build']}`\n")
+              stream.write(f"- Staging commit: `{metadata['sourceCommit']}`\n")
+              stream.write("- TestFlight upload and installed-device authentication remain separate approval/evidence gates.\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lc-ios-staging-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lc-ios-export/*.ipa
+            ${{ runner.temp }}/lc-ios-export/build-metadata.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          signing="$RUNNER_TEMP/lc-ios-signing"
+          status=0
+          if [[ -f "$signing/signing.keychain-db" ]]; then
+            security delete-keychain "$signing/signing.keychain-db" || status=$?
+          fi
+          if [[ -n "${PROFILE_UUID:-}" ]]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" || status=$?
+          fi
+          rm -f "$signing/certificate.p12" "$signing/profile.mobileprovision" \
+            "$signing/profile.plist" "$signing/identities.txt" "$signing/ExportOptions.plist" \
+            "$RUNNER_TEMP/lc-ios-signing.py" || status=$?
+          exit "$status"
