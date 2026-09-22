@@ -86,11 +86,11 @@ class ProfileTests(unittest.TestCase):
             validate_profile(profile, TEAM, identities, NOW)
 
     def test_export_never_uploads_or_rewrites_version(self):
-        options = export_options(TEAM, PROFILE_UUID, FINGERPRINT)
+        options = export_options(TEAM, PROFILE["Name"], FINGERPRINT)
         self.assertEqual(options["method"], "app-store-connect")
         self.assertEqual(options["destination"], "export")
         self.assertFalse(options["manageAppVersionAndBuildNumber"])
-        self.assertEqual(options["provisioningProfiles"], {BUNDLE_ID: PROFILE_UUID})
+        self.assertEqual(options["provisioningProfiles"], {BUNDLE_ID: PROFILE["Name"]})
         self.assertEqual(options["signingCertificate"], FINGERPRINT)
 
     def test_archive_recipe_scopes_signing_to_app_target(self):
