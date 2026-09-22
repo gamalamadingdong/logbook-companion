@@ -32,6 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B .github/scripts/test_ios_signing.py
+          ruby -rxcodeproj -e 'puts "CocoaPods project editor is available."'
           cp .github/scripts/ios_signing.py "$RUNNER_TEMP/lc-ios-signing.py"
 
       - name: Checkout staging application without promoting main
@@ -148,24 +149,43 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
           cp "$RUNNER_TEMP/lc-ios-signing/profile.mobileprovision" \
-            "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+            "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+      - name: Configure manual signing on the app target only
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          ruby -rxcodeproj <<'RUBY'
+          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
+          apps = project.targets.select { |target| target.name == 'App' && target.product_type == 'com.apple.product-type.application' }
+          raise 'Expected exactly one App application target.' unless apps.length == 1
+          releases = apps.first.build_configurations.select { |config| config.name == 'Release' }
+          raise 'Expected exactly one App Release configuration.' unless releases.length == 1
+          settings = releases.first.build_settings
+          raise 'App bundle identifier does not match.' unless settings['PRODUCT_BUNDLE_IDENTIFIER'] == ENV.fetch('LC_BUNDLE_ID')
+          settings.merge!(
+            'CODE_SIGN_STYLE' => 'Manual',
+            'DEVELOPMENT_TEAM' => ENV.fetch('APPLE_TEAM_ID'),
+            'CODE_SIGN_IDENTITY' => ENV.fetch('SIGNING_IDENTITY'),
+            'PROVISIONING_PROFILE_SPECIFIER' => ENV.fetch('PROFILE_NAME'),
+            'CURRENT_PROJECT_VERSION' => ENV.fetch('IOS_BUILD_NUMBER')
+          )
+          settings.delete('PROVISIONING_PROFILE')
+          project.save
+          puts 'Configured manual signing for App/Release only; Pods settings are unchanged.'
+          RUBY
 
       - name: Archive staging application
         working-directory: ios/App
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           xcodebuild archive \
             -workspace App.xcworkspace -scheme App -configuration Release \
             -archivePath "$RUNNER_TEMP/LogbookCompanion.xcarchive" \
-            -destination 'generic/platform=iOS' \
-            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
+            -destination 'generic/platform=iOS'
 
       - name: Export IPA without uploading
         run: |
@@ -244,7 +264,7 @@ jobs:
             security delete-keychain "$signing/signing.keychain-db" || status=$?
           fi
           if [[ -n "${PROFILE_UUID:-}" ]]; then
-            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" || status=$?
+            rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision" || status=$?
           fi
           rm -f "$signing/certificate.p12" "$signing/profile.mobileprovision" \
             "$signing/profile.plist" "$signing/identities.txt" "$signing/ExportOptions.plist" \
