@@ -2,7 +2,7 @@
 
 **Status:** Prepared for Sam's review. Not sent. The 2026-09-17 requirements inquiry is still awaiting a reply; adapt this request to any instructions Concept2 sends.
 
-**Review note (not part of the email):** Confirm the registered production OAuth client identity and callback before sending if Concept2 requests them. Do not include a client secret. Incorporate any reply to the requirements inquiry.
+**Review note (not part of the email):** Confirm the registered production OAuth client identity and callback before sending if Concept2 requests them. Recheck representative development result IDs because development data can reset. Do not include a client secret. Incorporate any reply to the requirements inquiry.
 
 **To:** ranking@concept2.com  
 **Subject:** Logbook Companion production result-write approval request
@@ -11,7 +11,7 @@ Hello Concept2 team,
 
 I'm Sam Gammon, the developer of the open-source Logbook Companion and ErgLink projects. I would like to request approval for Logbook Companion to create unverified workout results in an athlete's own production Concept2 Logbook through the Logbook API.
 
-An athlete will define a workout in Logbook Companion. The ErgLink mobile companion is intended to program a PM5 and return the actual completed workout, including detailed telemetry when available. Logbook Companion will retain that training record. Publication to Concept2 happens only when the athlete explicitly chooses it. Logbook Companion is the sole Concept2 API client: it manages the athlete's OAuth connection and sends result writes from its server. ErgLink does not receive Concept2 credentials or call the Concept2 API.
+An athlete will define a workout in the Logbook Companion iOS/Android application. It integrates our shared `@readyall/erglink` package to program a nearby PM5 and capture the measured completed workout locally; the standalone ErgLink application remains a hardware-development harness. Logbook Companion retains the training record before any outward publication. Publication to Concept2 happens only when the athlete explicitly chooses it. Logbook Companion is the sole Concept2 API client: the implemented development publication path manages OAuth and result writes on the server, and the planned production publication path will retain that boundary. The ErgLink package does not receive Concept2 credentials or call the Concept2 Logbook API.
 
 The development application has obtained `results:write` consent and created RowErg results for fixed distance, fixed time, fixed-distance intervals, fixed-time intervals and variable mixed distance/time intervals. These results were read back using Concept2's returned result IDs and linked to their originating Logbook Companion workout IDs. Representative development results are:
 
@@ -24,6 +24,8 @@ The development application has obtained `results:write` consent and created Row
 | Variable intervals | `86849` | Synthetic mixed distance/time fixture; strict Online Validator passed; interval breakdown checked on Concept2; exact-ID read-back. |
 
 The three interval fixtures are test data, not PM5 captures. After repeat import on 2026-09-17, the development account had nine saved rows with nine distinct result IDs. Server-side publication allows one claimed dispatch for a workout, retains an immutable payload snapshot, and blocks blind retries after an uncertain POST outcome. An expired access token was refreshed with rotating credentials while retaining write scope. The representative results are unverified. The provider-visible LC workout ID comment was confirmed for results `86817` and `86844`; the interval payloads also carry that provenance.
+
+On 2026-09-21, the development API also accepted server-owned synthetic PM5-projection fixtures for a fixed 2,000 m and 8 x 500 m, including splits/intervals and stroke data. Exact-ID read-back reported field-for-field projection parity. A deliberately malformed stroke-data fixture was rejected and not published. These are application/projection tests, not recordings of those workouts on a physical PM5. Separate browser-harness tests have demonstrated bounded real-PM5 programming and completed 100 m capture; the full installed iOS/Android capture-to-publication path remains unproven.
 
 Our local tests cover duplicate `409` handling as an uncertain outcome that cannot be silently retried or treated as a published result, and validation `422` handling as a definite rejection that can be corrected before a new explicit attempt. We have **not** yet induced or observed those HTTP responses against the development API. We will provide controlled live evidence if you require it; the normal publication flow deliberately prevents duplicate dispatch and malformed payloads before POST.
 

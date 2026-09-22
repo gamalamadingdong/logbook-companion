@@ -1,6 +1,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { legacyConcept2Enabled, blockedDevelopmentRequest, DEVELOPMENT_SYNC_DISABLED } from './concept2Environment'
+import { Capacitor } from '@capacitor/core'
+import { nativeAuthStorage } from './nativeAuthStorage'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -35,7 +37,8 @@ export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabas
     } },
     auth: {
         flowType: 'pkce',
-        detectSessionInUrl: true,
+        detectSessionInUrl: !Capacitor.isNativePlatform() && globalThis.location?.pathname !== '/auth/callback',
+        ...(Capacitor.isNativePlatform() ? { storage: nativeAuthStorage } : {}),
         persistSession: true,
         autoRefreshToken: true,
     },
@@ -170,4 +173,3 @@ export const getWorkoutTemplates = async () => {
     }
     return data as WorkoutTemplate[];
 };
-

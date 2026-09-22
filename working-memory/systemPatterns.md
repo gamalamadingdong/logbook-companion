@@ -17,6 +17,12 @@
     -   **Templates**: Defined by RWN -> Structure -> Name.
     -   **Logs**: Raw Data -> (Auto-Detect OR Manual Override RWN) -> Structure -> Name.
 
+## Native Authentication
+- Native sessions/PKCE state use `nativeAuthStorage.ts` (device-local secure storage, no plaintext fallback); browser storage remains unchanged.
+- `NativeAppBridge` owns native URL/lifecycle events. Explicit callback components own one-time code exchange; never log callback queries or accept provider tokens in native links.
+- Native Concept2 development auth retains an owner-bound pending state before opening the system browser. The HTTPS callback returns only the one-use code/state to the fixed app route; server-side state consumption and credential fencing remain authoritative.
+- `npm run mobile:build` is required for native assets; ordinary production web builds still select legacy auth pending a separate cutover. See the mobile-delivery rollout checklist before enabling native origins.
+
 ## Design Patterns
 -   **External APIs**: Clients for external services (Concept2, Google Sheets) reside in `src/api/`.
 -   **Internal Services**: Business logic and database interactions (Supabase, Workout management) reside in `src/services/`.

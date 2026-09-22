@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../services/supabase';
@@ -18,25 +18,35 @@ export function AuthCallback() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [error, setError] = useState<string | null>(null);
+    const attempt = useRef<{ code: string; promise: ReturnType<typeof supabase.auth.exchangeCodeForSession> } | null>(null);
 
     useEffect(() => {
         const code = searchParams.get('code');
         const next = safeLocalRoute(searchParams.get('next'));
 
-        if (!code) {
+        window.history.replaceState(window.history.state, '', '/auth/callback');
+        if (!code || searchParams.has('error')) {
             setError('No authorization code found in the URL.');
             return;
         }
 
-        supabase.auth.exchangeCodeForSession(code).then(({ error: exchangeError }) => {
+        let active = true;
+        if (attempt.current?.code !== code) {
+            attempt.current = { code, promise: supabase.auth.exchangeCodeForSession(code) };
+        }
+        void attempt.current.promise.then(({ error: exchangeError }) => {
+            if (!active) return;
             if (exchangeError) {
-                console.error('[auth/callback] Code exchange failed:', exchangeError.message);
+                console.error('[auth/callback] Code exchange failed.');
                 setError(exchangeError.message);
                 return;
             }
             // Redirect to intended destination
             navigate(next, { replace: true });
+        }).catch(() => {
+            if (active) setError('Unable to verify this link. Check your connection and request a new link.');
         });
+        return () => { active = false; };
     }, [searchParams, navigate]);
 
     if (error) {

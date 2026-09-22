@@ -6,6 +6,7 @@ import type { CompletedWorkoutV1 } from '../_shared/concept2/publication.ts';
 import type { CompletedWorkoutV2 } from '../_shared/concept2/completedWorkout.ts';
 import { completedWorkoutFixtures } from '../_shared/concept2/fixtures/index.ts';
 import { pm5ProjectionFixtures } from '../_shared/concept2/fixtures/pm5ProjectionFixtures.ts';
+import { isNativeDevelopmentState, NATIVE_DEVELOPMENT_STATE_PREFIX, NATIVE_WEBVIEW_ORIGINS } from '../_shared/concept2/nativeAuth.ts';
 export const PROVIDER = 'https://log-dev.concept2.com';
 const WRITE_SCOPE = 'user:read,results:write';
 const READ_SCOPE = 'user:read,results:read';
@@ -18,7 +19,7 @@ function permittedOrigin(value: string): boolean {
         || (url.protocol === 'https:' && url.hostname.startsWith('logbook-dev.') && !url.port));
   } catch { return false; }
 }
-export type Config = { origin: string; clientId: string; clientSecret: string };
+export type Config = { origin: string; clientId: string; clientSecret: string; nativeEnabled?: boolean };
 type Row = Record<string, unknown>;
 export type Dependencies = {
   config: Config | null;
@@ -38,7 +39,7 @@ export function configuration(get: (name: string) => string | undefined): Config
   const clientId = get('C2_DEVELOPMENT_CLIENT_ID');
   const clientSecret = get('C2_DEVELOPMENT_CLIENT_SECRET');
   return origin && permittedOrigin(origin) && clientId && clientSecret
-    ? { origin, clientId, clientSecret } : null;
+    ? { origin, clientId, clientSecret, nativeEnabled: get('C2_DEVELOPMENT_NATIVE_ENABLED') === 'true' } : null;
 }
 async function hash(value: string) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
@@ -54,8 +55,10 @@ export function createHandler(deps: Dependencies) {
     };
     const reply = (status: number, body: Row) => new Response(JSON.stringify(body), { status, headers });
     if (!config) return reply(503, { error: 'Development Concept2 is not configured.' });
-    if (req.headers.get('Origin') !== config.origin) return reply(403, { error: 'Origin not allowed.' });
-    headers['Access-Control-Allow-Origin'] = config.origin;
+    const origin = req.headers.get('Origin');
+    const nativeOrigin = NATIVE_WEBVIEW_ORIGINS.some(value => value === origin);
+    if (origin !== config.origin && !(config.nativeEnabled && nativeOrigin)) return reply(403, { error: 'Origin not allowed.' });
+    headers['Access-Control-Allow-Origin'] = origin!;
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (req.method !== 'POST') return reply(405, { error: 'Method not allowed.' });
     try {
@@ -65,8 +68,11 @@ export function createHandler(deps: Dependencies) {
       if (!user) return reply(401, { error: 'Sign in first.' });
       const body = await req.json();
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => !['action', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape', 'fixture_name', 'confirmed_fixture', 'result_id'].includes(k))) {
+          Object.keys(body).some(k => !['action', 'client', 'code', 'state', 'page', 'workout_id', 'timezone', 'weight_class', 'privacy', 'confirmed_completed', 'distance_meters', 'duration_seconds', 'completed_at', 'publication_shape', 'fixture_name', 'confirmed_fixture', 'result_id'].includes(k))) {
         return reply(400, { error: 'Invalid request.' });
+      }
+      if ('client' in body && (body.action !== 'begin' || body.client !== 'native' || !nativeOrigin || !config.nativeEnabled)) {
+        return reply(400, { error: 'Native connection is not configured for this client.' });
       }
       const callback = `${config.origin}/callback`;
       if (body.action === 'create_workout') {
@@ -118,7 +124,10 @@ export function createHandler(deps: Dependencies) {
       }
       if (body.action === 'status') return reply(200, await deps.operation(user, 'status'));
       if (body.action === 'begin') {
-        const state = crypto.randomUUID() + crypto.randomUUID();
+        if (nativeOrigin && body.client !== 'native') return reply(400, { error: 'Start a native connection from the app.' });
+        const state = body.client === 'native'
+          ? NATIVE_DEVELOPMENT_STATE_PREFIX + (crypto.randomUUID() + crypto.randomUUID()).replaceAll('-', '')
+          : crypto.randomUUID() + crypto.randomUUID();
         await deps.operation(user, 'begin', { state_hash: await hash(state), requested_scope: WRITE_SCOPE });
         const query = new URLSearchParams({ client_id: config.clientId, redirect_uri: callback,
           response_type: 'code', scope: WRITE_SCOPE, state });
@@ -126,7 +135,9 @@ export function createHandler(deps: Dependencies) {
       }
       if (!['exchange', 'refresh'].includes(body.action)) return reply(400, { error: 'Unsupported action.' });
       if (body.action === 'exchange' && (typeof body.code !== 'string' || !body.code || body.code.length > 4096 ||
-          typeof body.state !== 'string' || body.state.length !== 72)) return reply(400, { error: 'Invalid callback.' });
+          typeof body.state !== 'string' || (nativeOrigin
+            ? !isNativeDevelopmentState(body.state)
+            : body.state.length !== 72))) return reply(400, { error: 'Invalid callback.' });
       // DB consumes state and acquires a non-expiring mutex in one transaction.
       const claim = await deps.operation(user, body.action,
         body.action === 'exchange' ? { state_hash: await hash(body.state) } : {});

@@ -9,11 +9,11 @@ Start with [the Concept2/mobile index](concept2-mobile/README.md), then choose a
 - [PM5 evidence pipeline](concept2-mobile/pm5-evidence-pipeline.md): PM5 characteristics, capture v2, the deterministic evidence validator, Concept2 splits/`stroke_data` projection, LC ingestion, and development-API proof. This is the current pre-device track.
 - [Mobile UX foundation](mobile-ux-foundation.md): athlete flow, bottom navigation, five-state PM5 surface, and route-by-route mobile adaptation classification. This is the parallel pre-device track.
 
-These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming, Capacitor projects, unsigned Android/iOS compilation, capture v2, deterministic evidence validation, and exact Concept2 splits/`stroke_data` projection now exist. LC capture ingestion, development-API proof of the projected payload, physical capture-v2 confirmation, production API approval, signing/store delivery, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
+These bounded documents define the next evidence gates. Manual development publication, shared RWN/ErgLink packages, direct LC PM5 programming, Capacitor projects, unsigned Android/iOS compilation, capture v2, deterministic evidence validation, exact Concept2 projection, LC capture ingestion, and development-API projection proof now exist. Physical capture-v2 confirmation, production API approval, signed distribution, and live updates remain. Appflow is retired for cost and is not part of the delivery path.
 
 ## Status
 
-Implementation checkpoint after ErgLink PRs #8–#10 and LC PR #192. The reusable device package now owns capture v2, durable stores, and evidence validation; LC owns provider projection. E4—durable LC capture wiring and ingestion—is the next integration milestone. Installed-device authentication/PM5 proof, development-API read-back, production publishing approval, and release delivery remain independent milestones.
+Checkpoint through LC PR #204: E0–E5 are recorded complete and mobile UX M1–M4 is implemented. M5 routing is merged, but the flaky emulator job was removed and native CI is manual-only. The current native-auth branch implements development-first secure sessions and browser returns; rollout and installed-device proof remain. E6 physical PM5 confirmation, production approval/cutover, signing, and OTA are separate gates. Use the active context and bounded delivery document for current implementation evidence rather than treating the older sequencing below as a fresh backlog.
 
 This document captures the intended relationship between:
 

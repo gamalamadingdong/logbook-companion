@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { configuration, createHandler, PROVIDER, type Dependencies } from '../../supabase/functions/concept2-development-auth/handler';
 import { blockedDevelopmentRequest, legacyConcept2Enabled, requireProductionConcept2 } from './concept2Environment';
 import { getDevelopmentPublishBlockers, validateDevelopmentWorkoutDraft } from './concept2Auth';
+import { isNativeDevelopmentState, NATIVE_DEVELOPMENT_STATE_PREFIX } from '../../supabase/functions/_shared/concept2/nativeAuth';
 
 const origin = 'https://logbook-dev.readyall.org';
 const state = 's'.repeat(72);
@@ -28,6 +29,38 @@ function fixture() {
   return { deps, operation, network, request };
 }
 describe('development Concept2 boundary', () => {
+  it.each(['http://localhost', 'capacitor://localhost'])('requires explicit native opt-in for %s', async nativeOrigin => {
+    const f = fixture();
+    expect((await f.request({ action: 'begin', client: 'native' }, { origin: nativeOrigin })).status).toBe(403);
+    f.deps.config!.nativeEnabled = true;
+    const response = await f.request({ action: 'begin', client: 'native' }, { origin: nativeOrigin });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(nativeOrigin);
+    const url = new URL((await response.json()).authorization_url);
+    expect(isNativeDevelopmentState(url.searchParams.get('state'))).toBe(true);
+    expect(url.searchParams.get('redirect_uri')).toBe(`${origin}/callback`);
+    expect(f.operation).toHaveBeenCalledWith('user-1', 'begin', expect.objectContaining({ state_hash: expect.stringMatching(/^[a-f0-9]{64}$/) }));
+  });
+  it('does not relax native origins to other hosts, ports, or unauthenticated clients', async () => {
+    const f = fixture(); f.deps.config!.nativeEnabled = true;
+    for (const other of ['https://localhost', 'http://localhost:5173', 'capacitor://other', 'null']) {
+      expect((await f.request({ action: 'status' }, { origin: other })).status).toBe(403);
+    }
+    expect((await f.request({ action: 'begin', client: 'native' }, { origin: 'http://localhost', auth: '' })).status).toBe(401);
+    expect((await f.request({ action: 'begin', client: 'native' })).status).toBe(400);
+    expect(f.operation).not.toHaveBeenCalled();
+  });
+  it('binds native callback shape to the native origin and retains server-side exchange', async () => {
+    const f = fixture(); f.deps.config!.nativeEnabled = true;
+    const nativeState = NATIVE_DEVELOPMENT_STATE_PREFIX + 'a'.repeat(64);
+    expect((await f.request({ action: 'exchange', code: 'code', state: nativeState })).status).toBe(400);
+    expect((await f.request({ action: 'exchange', code: 'code', state }, { origin: 'http://localhost' })).status).toBe(400);
+    const response = await f.request({ action: 'exchange', code: 'code', state: nativeState }, { origin: 'http://localhost' });
+    expect(response.status).toBe(200);
+    expect(await response.text()).not.toMatch(/test-access|test-rotated|test-secret/);
+    expect(f.operation.mock.calls.map(call => call[1])).toEqual(['exchange', 'save']);
+    expect(new URLSearchParams(String(f.network.mock.calls[0]?.[1]?.body)).get('redirect_uri')).toBe(`${origin}/callback`);
+  });
   it('explains incomplete workout-entry fields instead of silently disabling save', () => {
     expect(validateDevelopmentWorkoutDraft({ distance: '', duration: '0', completedAt: '' }, new Date('2026-09-17T12:00:00Z'))).toEqual({
       distance: 'Enter a whole number of meters greater than zero.',

@@ -66,9 +66,9 @@ Required variables:
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_CONCEPT2_CLIENT_ID=your-concept2-client-id
-VITE_CONCEPT2_CLIENT_SECRET=your-concept2-client-secret
 ```
+
+Staging and mobile use the server-owned Concept2 development connection; do not add a Concept2 client secret to Vite configuration. The legacy production web flow is awaiting its separate server-auth cutover.
 
 For local maintenance scripts that need to bypass RLS, add `SUPABASE_SERVICE_ROLE_KEY` from the Supabase dashboard. Do not expose that key in browser code or public deployments.
 
@@ -86,7 +86,9 @@ The repository includes Capacitor Android and iOS projects:
 npm run mobile:sync
 ```
 
-Pull requests that change mobile code run web tests plus an unsigned Android debug build and iOS simulator build. Local Android compilation requires Java 11 or newer (Java 21 is used in CI); local iOS compilation requires macOS, Xcode, and CocoaPods. Signing, store delivery, and OTA updates are separate release concerns.
+`mobile:sync` uses the dedicated `mobile` build mode, which excludes legacy production Concept2 credentials and callbacks even when production deployment metadata is inherited. Native sessions use device-local Keychain/Keystore storage, and development Concept2 authorization opens the system browser. See the [native auth rollout checklist](docs/concept2-mobile/mobile-delivery.md#development-first-native-auth-implementation) before enabling installed-app returns.
+
+Native CI is manual-only after PR #204; it is not triggered by pull requests. Local Android compilation requires Java 21 and an Android SDK; local iOS compilation requires macOS, Xcode, and CocoaPods. Signing, store delivery, and OTA updates are separate release concerns.
 
 ## 📚 Documentation
 

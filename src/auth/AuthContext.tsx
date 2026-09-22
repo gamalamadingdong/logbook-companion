@@ -5,6 +5,8 @@ import { AuthContext } from './authContextDef'
 import { legacyConcept2Enabled } from '../services/concept2Environment'
 import { Capacitor } from '@capacitor/core'
 import { nativeAuthCallbackUrl } from '../services/nativeNavigation'
+import { nativeConcept2Auth } from '../services/concept2Auth'
+import { toast } from 'sonner'
 
 /** How long to wait for initial session before giving up (ms) */
 const SESSION_TIMEOUT_MS = 15_000
@@ -27,11 +29,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Manually clear a stuck/stale session — exposed to UI as escape hatch */
   const clearStaleSession = useCallback(async () => {
     console.warn('Manually clearing stale session')
-    // Remove Supabase auth keys from localStorage directly
-    const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
-    keysToRemove.forEach(k => localStorage.removeItem(k))
-    // Also call signOut to clean up internal state
-    await supabase.auth.signOut().catch(() => { /* ignore */ })
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await nativeConcept2Auth.clear()
+        const { error } = await supabase.auth.signOut({ scope: 'local' })
+        if (error) throw error
+      } catch {
+        toast.error('Could not clear the mobile session. Check your connection and try again.')
+        return
+      }
+    } else {
+      // Remove Supabase auth keys from localStorage directly
+      const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
+      keysToRemove.forEach(k => localStorage.removeItem(k))
+      // Also call signOut to clean up internal state
+      await supabase.auth.signOut().catch(() => { /* ignore */ })
+    }
     setSession(null)
     setUser(null)
     setProfile(null)
@@ -276,7 +289,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // --- Auth Actions ---
 
   const signUp = async (email: string, password: string, displayName: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({ email, password,
+      ...(Capacitor.isNativePlatform() ? { options: { emailRedirectTo: nativeAuthCallbackUrl() } } : {}),
+    })
     if (error) throw error
     if (data.user) {
       // Optimistic profile creation
@@ -290,6 +305,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await nativeConcept2Auth.clear()
+        const { error } = await supabase.auth.signOut({ scope: 'local' })
+        if (error) throw error
+        for (const key of ['concept2_token', 'concept2_refresh_token', 'concept2_expires_at']) localStorage.removeItem(key)
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        setIsCoachRole(false)
+        setTokensReady(true)
+        isGuestMode.current = false
+      } catch {
+        toast.error('Could not sign out. Check your connection and try again.')
+      }
+      return
+    }
     try {
       await supabase.auth.signOut()
     } catch (error) {

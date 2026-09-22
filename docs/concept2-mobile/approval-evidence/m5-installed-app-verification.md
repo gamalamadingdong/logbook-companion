@@ -4,7 +4,7 @@ Date: 2026-09-22
 
 ## Automated installed Android scope
 
-The `android-installed-smoke` CI job installs the exact unsigned debug APK produced by the Android build job into an API 35 x86_64 emulator and exercises:
+Historical scope: PR #203 introduced an `android-installed-smoke` job, but PR #204 removed that flaky job and its script. Native CI is now manual-only. The list below is the intended installed-app matrix, not evidence of a currently active or passing automated gate:
 
 1. bundled cold launch;
 2. warm custom-scheme delivery of `logbookcompanion://app/pm5` into the React navigation bridge;
@@ -31,3 +31,7 @@ That live configuration is not changed by this branch.
 - signed TestFlight/Play installation.
 
 Those require operator credentials, an iOS/Android device, or physical PM5 access. E6 remains the physical PM5 end-to-end gate.
+
+## Native-auth implementation follow-up
+
+The current native-auth branch adds secure session storage, system-browser Concept2 development authorization, owner/state/expiry checks, and an HTTPS-to-app code return. Its unit and bundle checks do not close the installed-app gates above. Rollout/configuration and the new-binary requirement are recorded in [mobile delivery](../mobile-delivery.md#development-first-native-auth-implementation).

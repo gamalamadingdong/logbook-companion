@@ -1,6 +1,10 @@
 import { supabase } from './supabase';
 import { legacyConcept2Enabled } from './concept2Environment';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
+import { nativeAuthStorage } from './nativeAuthStorage';
+import { createNativeConcept2Auth } from './nativeConcept2Auth';
 
 export type DevelopmentConnection = { connected: boolean; busy?: boolean; can_publish?: boolean;
   environment: 'development'; provider_user_id?: string };
@@ -48,7 +52,7 @@ export function getDevelopmentPublishBlockers(input: {
   return blockers;
 }
 
-export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout' | 'create_fixture' | 'read_result', fields: { code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; confirmed_fixture?: boolean; fixture_name?: string; result_id?: number; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
+export async function developmentConcept2(action: 'begin' | 'exchange' | 'refresh' | 'status' | 'sync' | 'results' | 'publish' | 'publications' | 'create_workout' | 'create_fixture' | 'read_result', fields: { client?: 'native'; code?: string; state?: string; page?: number; workout_id?: string; timezone?: string; weight_class?: 'H' | 'L'; privacy?: 'private' | 'partners' | 'logged_in' | 'everyone'; confirmed_completed?: boolean; confirmed_fixture?: boolean; fixture_name?: string; result_id?: number; distance_meters?: number; duration_seconds?: number; completed_at?: string; publication_shape?: 'fixed_distance' | 'fixed_time' } = {}) {
   const { data, error } = await supabase.functions.invoke('concept2-development-auth', { body: { action, ...fields } });
   if (error) {
     const detail = error.context instanceof Response ? await error.context.json().catch(() => null) : null;
@@ -57,8 +61,35 @@ export async function developmentConcept2(action: 'begin' | 'exchange' | 'refres
   if (data?.error || !data) throw new Error(data?.error || 'Development Concept2 is unavailable.');
   return data as DevelopmentConnection & { authorization_url?: string; results?: DevelopmentResult[]; detail?: DevelopmentResult; comparison?: { matches: boolean; differences: string[] } | null; total?: number; imported?: number; next_page?: number | null; publications?: DevelopmentPublication[]; status?: DevelopmentPublication['status']; result_id?: number; workout_id?: string };
 }
+export const nativeConcept2Auth = createNativeConcept2Auth({
+  storage: nativeAuthStorage,
+  owner: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw new Error('Could not verify your sign-in. Check your connection and sign in again.');
+    return data.user?.id ?? null;
+  },
+  begin: () => developmentConcept2('begin', { client: 'native' }),
+  exchange: (code, state) => developmentConcept2('exchange', { code, state }),
+  open: url => Browser.open({ url }),
+  close: () => Browser.close(),
+  onDismiss: callback => Browser.addListener('browserFinished', callback),
+  notify: message => toast.info(message),
+});
+export async function waitForConcept2User(maxAttempts = 10, delayMs = 300) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) return user;
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
 export async function connectConcept2() {
   try {
+    if (Capacitor.isNativePlatform()) {
+      if (legacyConcept2Enabled) throw new Error('Production Concept2 is not enabled for mobile. Install the development beta.');
+      await nativeConcept2Auth.start();
+      return;
+    }
     if (legacyConcept2Enabled) {
       const query = new URLSearchParams({ client_id: import.meta.env.VITE_CONCEPT2_CLIENT_ID,
         redirect_uri: `${window.location.origin}/callback`, scope: 'user:read,results:write', response_type: 'code' });

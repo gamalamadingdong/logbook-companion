@@ -1,6 +1,6 @@
 # Active Context
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 ## Current objective
 
@@ -68,14 +68,14 @@ The hardware-proven envelope remains capture v1. Published `@readyall/erglink@0.
 
 The package also exposes the pure `validatePm5Capture` evidence validator. It reconciles raw PM summaries with normalized totals, workout/interval types, stroke identity/cadence, interval-local progression, PM rounding, retained start/verification notifications, machine type, and the known fixed/Pete Plan matrix. Capture-v2 fields and the validator have automated proof only; no new physical-PM5 claim is made.
 
-This branch adds LC's pure `projectCaptureToConcept2`: validated capture v2 → official PM log date, measured totals, fixed splits or intervals, optional measured metrics, and exact Concept2 `stroke_data` units with per-interval resetting `t`/`d`. It never emits `verified: true`. LC still does not pass a `persistCapture` callback, ingest or acknowledge a capture, or surface a completed PM5 summary.
+LC's pure `projectCaptureToConcept2` maps validated capture v2 to official PM log date, measured totals, fixed splits or intervals, optional measured metrics, and exact Concept2 `stroke_data` units with per-interval resetting `t`/`d`. It never emits `verified: true`. E4 capture persistence/ingestion and E5 development API projection proof are complete as recorded below; physical installed-device confirmation remains E6.
 
 ## Evidence boundaries
 
 - Manual entry and synthetic fixtures prove application storage, mapping, publication, provider display, exact-ID read-back, and duplicate prevention.
 - Real PM5 evidence proves the bounded connectivity, v1 stroke/split/summary parsing, deduplication, and completed-capture envelope described above. Capture-v2 enrichment, validation, and projection are statically/fixture proven; they do not yet prove new hardware behavior, aborted/retried upload behavior, force curves, HR-belt capture, or LC ingestion.
 - Concept2-generated calorie and watt displays are not LC capture evidence.
-- `CompletedWorkoutV2` has space for source evidence and normalized samples. ErgLink produces a stable validated capture envelope and LC can project it, but LC ingestion and canonical normalization remain unimplemented.
+- `CompletedWorkoutV2` has space for source evidence and normalized samples. ErgLink produces a stable validated capture envelope and LC can ingest/project it; automated proof is not physical installed-device evidence.
 - The deployed legacy production `publish-to-c2` function remains separate, absent from source control, and unsuitable as the shared core.
 
 ## Ordered next steps
@@ -154,6 +154,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
 | Mobile shell | M1 merged in PR #195: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
+| Native authentication | Current branch implements development-first system-browser returns, secure session storage, and mobile bundle isolation; deployment/operator configuration and installed-device proof remain |
 | PM5 flow states | M2 merged in PR #196; explicit preflight/connect/ready/live/summary tests pass |
 | Mobile route adaptation | M3a–M3c are merged through PR #199; primary coaching M4a through PR #200. Remaining coach-management and athlete-team M4b/c routes are completed in the current branch |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
@@ -161,7 +162,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 
 ### Mobile pause point
 
-Responsive mobile work is complete through M4. The current M5 branch adds strict native URL routing, installed Android shell/deep-link/back/offline smoke coverage, and matching Android/iOS custom-scheme registration. Real auth UI/session behavior, iOS runtime checks, Bluetooth prompts, and PM5 operation remain device/operator gates; E6 still requires a physical PM5.
+Responsive mobile work is complete through M4. PR #203 merged strict native URL routing and matching Android/iOS custom-scheme registration; PR #204 removed the flaky installed-emulator job and made native CI manual-only. The current auth branch builds on that routing with system-browser development Concept2 returns, secure native session storage, and a mobile build mode excluding production legacy auth. No live auth changes or deployment have been performed. Real auth UI/session behavior, iOS runtime checks, Bluetooth prompts, and PM5 operation remain device/operator gates; E6 still requires a physical PM5.
 
 ## Resume references
 

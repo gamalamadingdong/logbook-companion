@@ -10,12 +10,12 @@ const legacyProduction = process.env.VERCEL_ENV === 'production'
   && (!process.env.VERCEL_GIT_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_REF === 'main');
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), c2DataSaverPlugin()],
   define: {
-    __C2_LEGACY_PRODUCTION__: JSON.stringify(legacyProduction),
+    __C2_LEGACY_PRODUCTION__: JSON.stringify(legacyProduction && mode !== 'mobile'),
     // Even accidentally inherited production VITE credentials must not enter staging bundles.
-    ...(legacyProduction ? {} : {
+    ...(legacyProduction && mode !== 'mobile' ? {} : {
       'import.meta.env.VITE_CONCEPT2_CLIENT_SECRET': JSON.stringify(''),
       'import.meta.env.VITE_CONCEPT2_CLIENT_ID': JSON.stringify(''),
     }),
@@ -44,4 +44,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
-})
+}))
