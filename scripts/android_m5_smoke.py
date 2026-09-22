@@ -13,7 +13,7 @@ def run(*args: str, check: bool = True) -> str:
 
 def start(*args: str):
     output = run('adb', 'shell', 'am', 'start', '-W', *args)
-    if 'Status: ok' not in output:
+    if 'Error:' in output or f'Activity: {ACTIVITY}' not in output:
         raise RuntimeError(output)
 
 def assert_resumed():
