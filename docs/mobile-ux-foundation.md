@@ -143,11 +143,11 @@ M4a merged in PR #200 and covers the primary daily coaching loop: dashboard, sch
 
 M4b/c complete the secondary coach-management and athlete-team routes. Mature card and responsive patterns were preserved; genuinely tabular assignment, analytics, results, and seat grids are explicitly scroll-contained with accessible affordances.
 
-### M5 — Installed-app verification
+### M5 — Installed-app verification — Android emulator gate in current branch
 
 Requires a device or emulator: auth, deep links, back-button behavior, and the PM5 flow end to end.
 
-Status: next. Responsive work is complete for M1–M4. Exercise installed-app auth, deep links, back behavior, keyboard interaction, and PM5 flow on the strongest available emulator/device target.
+The current branch adds an installed API 35 Android-emulator gate for bundled cold/offline launch, guest auth entry, warm PM5 deep link, hardware Back, and cold auth-callback routing. The same LC custom scheme is registered on iOS and Android. Real Supabase recovery/invite delivery, iOS runtime behavior, Bluetooth permission prompts, and physical PM5 operation remain device/operator gates. See [M5 installed-app verification](concept2-mobile/approval-evidence/m5-installed-app-verification.md).
 
 ## References
 

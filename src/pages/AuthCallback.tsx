@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { safeLocalRoute } from '../services/nativeNavigation';
 
 /**
  * /auth/callback — PKCE code exchange handler.
@@ -20,7 +21,7 @@ export function AuthCallback() {
 
     useEffect(() => {
         const code = searchParams.get('code');
-        const next = searchParams.get('next') || '/';
+        const next = safeLocalRoute(searchParams.get('next'));
 
         if (!code) {
             setError('No authorization code found in the URL.');
