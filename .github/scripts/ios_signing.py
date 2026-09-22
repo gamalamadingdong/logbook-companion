@@ -58,14 +58,14 @@ def validate_profile(profile, team_id, identities, now):
     return profile_uuid, matches.pop()
 
 
-def export_options(team_id, profile_uuid, identity):
+def export_options(team_id, profile_name, identity):
     return {
         "method": "app-store-connect",
         "destination": "export",
         "teamID": team_id,
         "signingStyle": "manual",
         "signingCertificate": identity,
-        "provisioningProfiles": {BUNDLE_ID: profile_uuid},
+        "provisioningProfiles": {BUNDLE_ID: profile_name},
         "manageAppVersionAndBuildNumber": False,
         "uploadSymbols": True,
     }
@@ -86,7 +86,7 @@ def main():
             dt.datetime.now(dt.timezone.utc),
         )
         with args.export_options.open("wb") as stream:
-            plistlib.dump(export_options(os.environ["APPLE_TEAM_ID"], profile_uuid, identity), stream)
+            plistlib.dump(export_options(os.environ["APPLE_TEAM_ID"], profile["Name"], identity), stream)
         with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as stream:
             stream.write(f"PROFILE_UUID={profile_uuid}\nPROFILE_NAME={profile['Name']}\nSIGNING_IDENTITY={identity}\n")
     except (ValueError, OSError, KeyError) as error:
