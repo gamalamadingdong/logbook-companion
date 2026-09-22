@@ -4,7 +4,7 @@ Status: development publishing covers fixed distance, fixed time, and interval s
 
 ## Start here / resume
 
-**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on PM5/installed-device access. Mobile UX M1–M3 are merged through PR #199. M4a adapts the primary daily coaching loop in the current branch; secondary coaching/team routes follow.
+**Current state:** Read the [active context](../../working-memory/activeContext.md), then the [PM5 evidence pipeline](pm5-evidence-pipeline.md). E0–E5 are complete; E6 is blocked on PM5/installed-device access. Mobile UX M1–M3 are merged through PR #199 and primary coaching M4a through PR #200. Work is paused here: M5/E6 require a device/PM5, while low-use M4b/c team administration is intentionally deferred until demand justifies it.
 
 Current implementation: [development auth](staging-auth-slice.md), followed by [isolated development read-sync](development-sync-slice.md). Use these handoffs for rollout/current verification rather than treating the original proposed plans below as implementation status.
 
