@@ -148,7 +148,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Browser/mobile durable CaptureStore | Published from `@readyall/erglink@0.6.0`; IndexedDB + Capacitor SQLite plus interrupted-upload recovery tested |
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.6.0` |
-| Direct athlete LC mobile → PM5 | Code merged; web, Android debug, and iOS simulator builds pass; installed-device proof remains |
+| Direct athlete LC mobile → PM5 | Code merged; web, Android debug, iOS simulator, and signed iOS archive/export pass; installed-device proof remains |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
@@ -166,9 +166,9 @@ Responsive mobile work is complete through M4. PR #203 merged strict native URL 
 
 ### iOS delivery preparation
 
-Native-auth PR #205 is open against staging. The operator has registered `org.readyall.logbookcompanion`, created the App Store Connect record, and configured the seven Apple signing/upload secret names. Source identity is aligned in the current branch. The requested delivery configuration is GitHub's existing **Production** environment, with staging application source and Concept2 development; no permanent delivery branch or staging-to-main app promotion.
+Native-auth PR #205 and the signing follow-ups are merged into staging. The operator registered `org.readyall.logbookcompanion`, created the App Store Connect record, and configured the seven Apple signing/upload secret names. The requested delivery configuration is GitHub's existing **Production** environment, with staging application source and Concept2 development; no permanent delivery branch or staging-to-main app promotion.
 
-A manual archive-only recipe and signing preflight helpers are active on default `main`. It checks out staging, exports an IPA, records source/build provenance, and cleans temporary signing material; it contains no upload command. The first run proved credentials/profile preflight but exposed workspace-wide signing leakage into Pods and Xcode 26's profile-location change. The second run successfully created the signed archive after restoring ScheduleBoard's no-signing-for-Pods rule, scoping signing to the App target, and using the current profile directory; export then exposed a remaining UUID-versus-profile-name mapping issue. The final local correction uses the exact validated profile name for export. Production's public Supabase variables are configured, but it has no required-reviewer protection. A successful IPA export, installed auth proof, TestFlight upload approval, and ScheduleBoard's separate signing migration remain outstanding. See [mobile delivery](../docs/concept2-mobile/mobile-delivery.md#archive-only-pipeline-checkpoint-2026-09-22).
+A manual archive-only recipe and signing preflight helpers are active on default `main`. It checks out staging, records source/build provenance, and contains no upload command. Run `35784015794` completed the signed archive and IPA export for bundle `org.readyall.logbookcompanion`, version `1.0`, build `1790110903`, from staging commit `e32584bff0fdc77002cf5055e5afdbd42c7b97ab`. Archive signature, archive/IPA identity and bundled runtime configuration passed; the artifact and provenance JSON were retained for seven days and temporary signing material was cleaned. Metadata confirms Concept2 development and `uploaded=false`. Production's public Supabase variables are configured, but it has no required-reviewer protection. Installed auth proof, explicit TestFlight upload approval/installation, OTA, and ScheduleBoard's separate signing migration remain outstanding. See [mobile delivery](../docs/concept2-mobile/mobile-delivery.md#archive-only-pipeline-checkpoint-2026-09-22).
 
 ## Resume references
 
