@@ -92,7 +92,7 @@ function CoachingSchedule() {
   const effectiveTeamId = filterTeamId ?? teamId;
   const activeTab: ScheduleTab = searchParams.get('tab') === 'lineups' ? 'lineups' : 'schedule';
   const showLegacyLineupsPointer = searchParams.get('from') === 'boatings';
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'day' : 'week');
   const [currentWeek, setCurrentWeek] = useState(initialFocusDate);
   const [currentMonth, setCurrentMonth] = useState(initialFocusDate);
   const [currentDay, setCurrentDay] = useState(initialFocusDate);
@@ -657,7 +657,7 @@ function CoachingSchedule() {
                   <div
                     role="tablist"
                     aria-label="Schedule calendar view"
-                    className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-card p-1"
+                    className="grid w-full grid-cols-3 gap-1 rounded-xl border border-border bg-surface-card p-1 sm:inline-flex sm:w-auto sm:items-center"
                   >
                     <Button
                       type="button"
@@ -739,7 +739,7 @@ function CoachingSchedule() {
             />
           )}
 
-          <div className="bg-surface-card border border-border rounded-xl p-6">
+          <div className="rounded-xl border border-border bg-surface-card p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-xl font-semibold text-content-primary">
@@ -753,7 +753,7 @@ function CoachingSchedule() {
                 <button
                   type="button"
                   onClick={() => openAddSessionForDate(currentDay)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-accent-coaching px-4 py-2 text-sm font-medium text-white hover:bg-accent-coaching-hover transition-colors"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-coaching px-4 py-2 text-sm font-medium text-white sm:w-auto hover:bg-accent-coaching-hover transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   Add Session
@@ -762,7 +762,7 @@ function CoachingSchedule() {
                   <button
                     type="button"
                     onClick={() => openAddEventForDate(currentDay)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-content-secondary sm:w-auto hover:bg-surface-secondary transition-colors"
                   >
                     <Flag className="w-4 h-4" />
                     Add Event
@@ -1060,7 +1060,7 @@ function CoachingSchedule() {
 
       {/* Selected Day Panel */}
       {selectedDate && (
-        <div className="bg-surface-card border border-border rounded-xl p-6">
+        <div className="rounded-xl border border-border bg-surface-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-content-primary">
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}

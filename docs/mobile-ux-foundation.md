@@ -135,9 +135,11 @@ Exit: no horizontal scroll at 320 px on first-wave routes; touch targets ≥ 44 
 
 M3a covers `/`, `/completed-workout/new`, `/completed-workout/:id`, and `/completed-workout/:id/edit`. M3b covers `/workout/:id`, `/training-block`, `/library`, and library detail. M3c covers analytics, both sync modes, preferences, and workout comparison.
 
-### M4 — Coach and team adaptation
+### M4 — Coach and team adaptation — M4a implemented in current branch
 
 Second-wave routes using the `md:hidden` pattern already present in `WorkoutHistory` and the coaching pages.
+
+M4a covers the primary daily coaching loop: dashboard, schedule, roster, and athlete detail. It reuses the existing roster cards and schedule day/week views, adds dashboard roster cards, phone-default day view, stacked actions, compact athlete detail, and an explicitly scroll-contained Erg Scores table. Assignments/results, boatings, coaching analytics, setup/settings/access, and athlete team routes remain M4b/c.
 
 ### M5 — Installed-app verification
 

@@ -217,10 +217,10 @@ export function CoachingAthleteDetail() {
         ]} />
 
         {/* Header */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-2xl font-bold text-white sm:h-16 sm:w-16">
                 {athlete.name.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -310,7 +310,7 @@ export function CoachingAthleteDetail() {
         </div>
 
         {/* Erg Score Progression */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
           {ergScores.length >= 2 ? (
             <ErgScoreProgressionChart scores={ergScores} />
           ) : ergScores.length === 1 ? (
@@ -350,18 +350,18 @@ export function CoachingAthleteDetail() {
 
         {/* Training Zone Distribution */}
         {assignmentHistory.length > 0 && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
             <TrainingZoneDonut zones={assignmentHistory.map(a => a.training_zone)} />
           </div>
         )}
 
         {/* Training Zones (from 2k baseline) */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
           <AthleteTrainingZones ergScores={ergScores} />
         </div>
 
         {/* Assignment History */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
             <ClipboardList className="w-5 h-5" />
             Assignment History
@@ -510,7 +510,7 @@ export function CoachingAthleteDetail() {
         </div>
 
         {/* Coach Notes */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="font-semibold text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
@@ -572,7 +572,7 @@ export function CoachingAthleteDetail() {
         </div>
 
         {/* Session Notes */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
             Session Notes
@@ -752,14 +752,14 @@ function ErgScoresTable({ scores, onUpdate, onDelete }: ErgScoresTableProps) {
   const inp = "px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-white text-xs w-full focus:ring-1 focus:ring-indigo-500 outline-none";
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:p-6">
       <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
         <Activity className="w-5 h-5" />
         Erg Scores
         <span className="text-sm text-neutral-500 font-normal">({scores.length})</span>
       </h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto" aria-label="Erg score table; swipe horizontally for all columns">
+        <table className="min-w-[52rem] w-full text-sm">
           <thead>
             <tr className="text-neutral-500 border-b border-neutral-800 text-xs">
               <th className="text-left py-2 pr-2">Date</th>
@@ -809,10 +809,10 @@ function ErgScoresTable({ scores, onUpdate, onDelete }: ErgScoresTableProps) {
                     </td>
                     <td className="py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => saveEdit(score.id)} disabled={saving} className="p-1 text-green-400 hover:text-green-300 disabled:opacity-50" title="Save">
+                        <button onClick={() => saveEdit(score.id)} disabled={saving} className="min-h-11 min-w-11 p-2 text-green-400 hover:text-green-300 disabled:opacity-50" title="Save">
                           <Check className="w-4 h-4" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 text-neutral-400 hover:text-neutral-300" title="Cancel">
+                        <button onClick={cancelEdit} className="min-h-11 min-w-11 p-2 text-neutral-400 hover:text-neutral-300" title="Cancel">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
@@ -837,16 +837,16 @@ function ErgScoresTable({ scores, onUpdate, onDelete }: ErgScoresTableProps) {
                         <button onClick={() => confirmDelete(score.id)} disabled={saving} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-50">
                           Delete
                         </button>
-                        <button onClick={() => setDeleteConfirmId(null)} className="p-1 text-neutral-400 hover:text-neutral-300" title="Cancel delete" aria-label="Cancel delete">
+                        <button onClick={() => setDeleteConfirmId(null)} className="min-h-11 min-w-11 p-2 text-neutral-400 hover:text-neutral-300" title="Cancel delete" aria-label="Cancel delete">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 [tr:hover_&]:opacity-100">
-                        <button onClick={() => startEdit(score)} className="p-1 text-neutral-500 hover:text-indigo-400 transition-colors" title="Edit">
+                        <button onClick={() => startEdit(score)} className="min-h-11 min-w-11 p-2 text-neutral-500 hover:text-indigo-400 transition-colors" title="Edit">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => { setDeleteConfirmId(score.id); setEditingId(null); }} className="p-1 text-neutral-500 hover:text-red-400 transition-colors" title="Delete">
+                        <button onClick={() => { setDeleteConfirmId(score.id); setEditingId(null); }} className="min-h-11 min-w-11 p-2 text-neutral-500 hover:text-red-400 transition-colors" title="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>

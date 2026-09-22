@@ -905,7 +905,25 @@ export const CoachDashboard: React.FC = () => {
                         </span>
                       </div>
                     )}
-                    <div className="overflow-x-auto">
+                    <div className="divide-y divide-neutral-800 md:hidden">
+                      {athletes.map((a) => (
+                        <button
+                          type="button"
+                          key={`mobile-${a.id}-${groupTeamName}`}
+                          onClick={() => navigate(`/team-management/roster/${a.id}`)}
+                          className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-800/40"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-white">{a.name}</span>
+                            <span className="mt-1 block truncate text-xs text-neutral-500">
+                              {[a.squad, a.grade, a.side, a.experience_level].filter(Boolean).join(' · ') || 'No roster details'}
+                            </span>
+                          </span>
+                          <ChevronRight className="h-5 w-5 shrink-0 text-neutral-500" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-neutral-500 uppercase tracking-wider bg-neutral-900/50">
                         <tr>
