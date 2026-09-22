@@ -119,6 +119,16 @@ Second archive run: [35782509101](https://github.com/gamalamadingdong/logbook-co
 
 Final archive run: [35784015794](https://github.com/gamalamadingdong/logbook-companion/actions/runs/35784015794) passed every step. It built staging commit `e32584bff0fdc77002cf5055e5afdbd42c7b97ab`, signed and exported `org.readyall.logbookcompanion` version `1.0`, build `1790110903`, verified the archive signature plus archive/IPA identity and bundled Capacitor configuration, uploaded the IPA and provenance JSON as the seven-day artifact `lc-ios-staging-e32584bff0fdc77002cf5055e5afdbd42c7b97ab-35784015794-1`, and removed temporary signing material. Metadata records `concept2Environment=development` and `uploaded=false`; no TestFlight upload or staging-to-main application promotion occurred.
 
+### Manual TestFlight upload
+
+The separate **iOS TestFlight Upload** workflow runs only when manually dispatched on `main` with `archive_run_id`, the exact `expected_build`, and `confirm_upload=true`. It does not rebuild the app or modify its signature.
+
+The helper requires a successful manual `iOS Beta Archive` run from this repository's main branch, checks the downloaded artifact's GitHub SHA-256 digest, verifies staging/development provenance, and compares the IPA's bundle/version/configuration to that provenance. Only then does the job load the three App Store Connect upload secrets. A temporary private-key file is used for Apple's validation and one upload call, then removed by both an exit trap and an always-run cleanup step.
+
+For later builds: manually archive staging, review its artifact/build metadata, then explicitly dispatch the upload workflow with those identifiers. Uploads are serialized and not retried automatically. If an upload response is uncertain, check App Store Connect before rerunning; the same build may already be accepted. GitHub's Production environment is the configuration source, not a protected approval gate.
+
+This uploads to App Store Connect for TestFlight processing; it does not select testers, declare export compliance, submit public App Review, release the app, promote staging to main, or deploy Supabase. The operator handles Apple processing/tester setup. The development native-auth function rollout, native-origin enablement, Supabase redirect registration, and installed-device testing remain separate prerequisites for full native Concept2 sign-in.
+
 - [ ] **Owner/team:** Sam confirms active membership, authorized release operator, team access/agreements, display name and unique reverse-domain LC bundle ID. Record non-secret identifiers and approval, not passwords or private key material.
 - [ ] **App ID:** operator registers an explicit identifier in Certificates, Identifiers & Profiles with only needed capabilities. Assess actual login offerings against Sign in with Apple requirements. No speculative Bluetooth/background/camera/location capabilities.
 - [ ] **App record:** operator creates iOS app in App Store Connect, selecting that bundle ID, name, language, unique SKU and team access; record Apple app ID. Resolve agreement/access blockers before uploads.
