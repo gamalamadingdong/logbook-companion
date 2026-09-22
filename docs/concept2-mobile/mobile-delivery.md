@@ -115,6 +115,8 @@ First archive run: [35778061551](https://github.com/gamalamadingdong/logbook-com
 
 The correction restores ScheduleBoard's proven Podfile rule (`CODE_SIGNING_ALLOWED=NO` for Pods), configures manual signing only on the App target's Release configuration through CocoaPods' `xcodeproj` editor, uses the validated profile name, and installs/cleans the profile under `~/Library/Developer/Xcode/UserData/Provisioning Profiles` for Xcode 26. It does not enable automatic provisioning or change signing credentials.
 
+Second archive run: [35782509101](https://github.com/gamalamadingdong/logbook-companion/actions/runs/35782509101). Target-scoped signing worked and Xcode successfully created the signed archive. Export then failed because `ExportOptions.plist` still mapped the app to the profile UUID. The final correction maps `provisioningProfiles` to the exact validated profile name, matching the working App-target setting and current manual-export examples. No signing material changed.
+
 - [ ] **Owner/team:** Sam confirms active membership, authorized release operator, team access/agreements, display name and unique reverse-domain LC bundle ID. Record non-secret identifiers and approval, not passwords or private key material.
 - [ ] **App ID:** operator registers an explicit identifier in Certificates, Identifiers & Profiles with only needed capabilities. Assess actual login offerings against Sign in with Apple requirements. No speculative Bluetooth/background/camera/location capabilities.
 - [ ] **App record:** operator creates iOS app in App Store Connect, selecting that bundle ID, name, language, unique SKU and team access; record Apple app ID. Resolve agreement/access blockers before uploads.
