@@ -11,7 +11,7 @@
 - Merged: Capacitor Android/iOS source projects, LC identity, Bluetooth permissions/privacy text, direct athlete `/pm5` flow, and published shared RWN/ErgLink dependencies.
 - Proven in CI: full web tests/lint/build, unsigned Android debug APK compilation with Java 21, and unsigned iOS simulator compilation with CocoaPods/Xcode.
 - Proven on a real PM5 through the shared browser harness: fixed-distance programming and initial variable-workout work/rest transitions.
-- Not yet proven: installed LC app authentication/deep links, physical Android/iOS PM5 use, native capture persistence/LC ingestion, signing, TestFlight/Play distribution, or OTA delivery/rollback.
+- Proven in CI: signed iOS archive and IPA export for the staging mobile build. Not yet proven: installed LC app authentication/deep links, physical Android/iOS PM5 use, TestFlight/Play installation, or OTA delivery/rollback.
 
 ## Global constraints
 
@@ -92,7 +92,7 @@ These are future operator actions. Consult current [Apple Developer account guid
 
 ### Archive-only pipeline checkpoint (2026-09-22)
 
-The operator reports registering `org.readyall.logbookcompanion` and its App Store Connect record, generating a new team distribution certificate/P12 and LC-specific distribution profile, and adding the seven `APPLE_*` repository secret names. Presence of those names was verified without reading their values; signing correctness still requires a macOS archive run.
+The operator registered `org.readyall.logbookcompanion` and its App Store Connect record, generated a new team distribution certificate/P12 and LC-specific distribution profile, and added the seven `APPLE_*` repository secret names. The final archive run proved those signing inputs without exposing their values.
 
 Both native source projects and Capacitor now use that registered identifier. Existing debug installs with the earlier `com.readyall.logbookcompanion` identifier are a different app; no local-data migration is implied. The `logbookcompanion://app/...` auth scheme is unchanged. Remove an older debug install before native-return testing so two installed apps do not compete for that scheme; uninstalling remains an explicit operator action.
 
@@ -117,6 +117,8 @@ The correction restores ScheduleBoard's proven Podfile rule (`CODE_SIGNING_ALLOW
 
 Second archive run: [35782509101](https://github.com/gamalamadingdong/logbook-companion/actions/runs/35782509101). Target-scoped signing worked and Xcode successfully created the signed archive. Export then failed because `ExportOptions.plist` still mapped the app to the profile UUID. The final correction maps `provisioningProfiles` to the exact validated profile name, matching the working App-target setting and current manual-export examples. No signing material changed.
 
+Final archive run: [35784015794](https://github.com/gamalamadingdong/logbook-companion/actions/runs/35784015794) passed every step. It built staging commit `e32584bff0fdc77002cf5055e5afdbd42c7b97ab`, signed and exported `org.readyall.logbookcompanion` version `1.0`, build `1790110903`, verified the archive signature plus archive/IPA identity and bundled Capacitor configuration, uploaded the IPA and provenance JSON as the seven-day artifact `lc-ios-staging-e32584bff0fdc77002cf5055e5afdbd42c7b97ab-35784015794-1`, and removed temporary signing material. Metadata records `concept2Environment=development` and `uploaded=false`; no TestFlight upload or staging-to-main application promotion occurred.
+
 - [ ] **Owner/team:** Sam confirms active membership, authorized release operator, team access/agreements, display name and unique reverse-domain LC bundle ID. Record non-secret identifiers and approval, not passwords or private key material.
 - [ ] **App ID:** operator registers an explicit identifier in Certificates, Identifiers & Profiles with only needed capabilities. Assess actual login offerings against Sign in with Apple requirements. No speculative Bluetooth/background/camera/location capabilities.
 - [ ] **App record:** operator creates iOS app in App Store Connect, selecting that bundle ID, name, language, unique SKU and team access; record Apple app ID. Resolve agreement/access blockers before uploads.
@@ -124,7 +126,7 @@ Second archive run: [35782509101](https://github.com/gamalamadingdong/logbook-co
 - [ ] **Signing profile:** authorized operator supplies distribution certificate and App Store provisioning profile matching LC app ID/team/capabilities. Use an approved existing certificate only if explicitly authorized; never reuse ScheduleBoard's app-specific profile.
 - [ ] **CI inputs:** provision approved GitHub environment secrets: `APPLE_CERTIFICATE_P12` (base64), `APPLE_CERTIFICATE_PASSWORD` (plain), `APPLE_PROVISIONING_PROFILE` (base64), `APPLE_TEAM_ID` (identifier), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID` (identifiers), `APPLE_API_KEY_P8` (base64). Confirm API role/app access needed for upload. Names/encodings are conventions, not evidence credentials exist.
 - [ ] **Secret hygiene:** ephemeral signing keychain and temporary files, masked logs, least-privilege workflow permissions, protected release environment, cleanup on failure/cancellation and bounded artifact access. Do not commit `.p8`, `.p12`, provisioning profiles or update signing keys; do not echo them in logs. Record renewal/revocation owner and expiry reminder without values.
-- [ ] **Archive first:** run LC workflow with upload disabled; inspect exported app identity, entitlements, version/build number and archive/IPA. Linux can build/test web code but cannot perform Xcode archive/signing; use the macOS runner.
+- [x] **Archive first:** archive/export passed in run `35784015794`; bundle ID, version/build, signature, IPA identity, runtime configuration and provenance were checked. Linux can build/test web code but cannot perform Xcode archive/signing; use the macOS runner.
 - [ ] **TestFlight permission:** obtain separate upload approval, upload exact verified artifact, complete processing/export compliance as required, configure internal testers and install on an iPhone. External testers may require Beta App Review.
 - [ ] **Public submission later:** screenshots, description, support/privacy URLs, privacy disclosures including analytics/OTA behavior, age rating, review access and account deletion where required. Confirm current [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), including downloaded-code restrictions. Public App Store submission/release is not an automatic merge/tag side effect.
 
@@ -151,10 +153,10 @@ Test cold launch and already-running return, cancellation, browser dismissal, re
 
 **Files:** implemented as `capacitor.config.ts`, generated `android/` and `ios/` projects, `.github/workflows/mobile-native-checks.yml`, package scripts/dependencies, and the direct PM5 route/service. A release-operations runbook remains for signed distribution work.
 
-- [ ] Close Apple ownership/app-record/signing decisions and record them in a release runbook. LC bundle/application identity and compatible Capacitor/Node/Xcode build versions are implemented for unsigned compilation.
+- [x] Close Apple ownership/app-record/signing decisions and record them in the delivery checkpoint. LC bundle/application identity and signing inputs are proven by archive/export run `35784015794`.
 - [x] Add minimal Android/iOS shell dependencies and an unsigned native workflow adapted from ScheduleBoard without copying Firebase, push, camera/location, signing, store upload, or Capgo configuration.
 - [ ] Add automated config checks: LC bundle ID/profile agreement, no dev server URL or client secret, only approved capabilities, unique build number, and upload disabled without approval.
-- [x] Run `npm ci`, full tests, lint, build, Capacitor sync, Android Java 21 debug compilation, and iOS simulator compilation. The signed archive/export part remains unstarted.
+- [x] Run `npm ci`, full tests, lint, build, Capacitor sync, Android Java 21 debug compilation, iOS simulator compilation, and signed iOS archive/export.
 
 **Exit:** partially met. Reproducible unsigned Android and iOS simulator builds exist with LC identity and no unauthorized store upload. Signed archive/export remains.
 
@@ -183,7 +185,7 @@ Test cold launch and already-running return, cancellation, browser dismissal, re
 
 ## Acceptance and unresolved gates
 
-- [ ] LC identity/team/app record/profile and approved operator documented; real signing and TestFlight results recorded.
+- [ ] LC identity/team/app record/profile and signed archive are documented; TestFlight installation results remain.
 - [ ] Workflow defaults to archive-only and secrets/artifacts are handled safely; no ScheduleBoard identity or Appflow remains in LC delivery paths.
 - [ ] Safe native/web auth, cold/warm returns, logout/restoration and core screen UX pass on a TestFlight iPhone.
 - [ ] Installed-binary compatibility and channel isolation are enforced, not just described by metadata.
