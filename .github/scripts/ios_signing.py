@@ -44,6 +44,9 @@ def validate_profile(profile, team_id, identities, now):
         profile_uuid = str(uuid.UUID(profile["UUID"])).upper()
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         raise ValueError("The profile UUID is invalid.") from error
+    name = profile.get("Name")
+    if not isinstance(name, str) or not name or len(name) > 256 or any(ord(char) < 32 or ord(char) == 127 for char in name):
+        raise ValueError("The profile name is missing or invalid.")
     certificates = profile.get("DeveloperCertificates", [])
     if not isinstance(certificates, list) or not certificates or not all(isinstance(value, bytes) for value in certificates):
         raise ValueError("The profile does not contain valid signing certificates.")
@@ -85,7 +88,7 @@ def main():
         with args.export_options.open("wb") as stream:
             plistlib.dump(export_options(os.environ["APPLE_TEAM_ID"], profile_uuid, identity), stream)
         with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as stream:
-            stream.write(f"PROFILE_UUID={profile_uuid}\nSIGNING_IDENTITY={identity}\n")
+            stream.write(f"PROFILE_UUID={profile_uuid}\nPROFILE_NAME={profile['Name']}\nSIGNING_IDENTITY={identity}\n")
     except (ValueError, OSError, KeyError) as error:
         raise SystemExit(f"iOS signing preflight failed: {error}") from error
     print("PASS: distribution profile, bundle ID, team, expiry, and imported signing identity match.")

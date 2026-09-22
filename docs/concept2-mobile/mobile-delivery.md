@@ -111,6 +111,10 @@ The existing GitHub Production environment has **no required reviewers or branch
 
 The operator's key material stays outside Git. Do not copy ScheduleBoard's app-specific profile into LC, and do not revoke or replace ScheduleBoard's working inputs before replacement signing is proven.
 
+First archive run: [35778061551](https://github.com/gamalamadingdong/logbook-companion/actions/runs/35778061551). App checks, CocoaPods sync, certificate/password import, profile identity/expiry/certificate matching, and cleanup passed. Xcode archive failed because global command-line signing settings were inherited by Pods and the profile was installed in the pre-Xcode-16 directory. No IPA was produced or uploaded.
+
+The correction restores ScheduleBoard's proven Podfile rule (`CODE_SIGNING_ALLOWED=NO` for Pods), configures manual signing only on the App target's Release configuration through CocoaPods' `xcodeproj` editor, uses the validated profile name, and installs/cleans the profile under `~/Library/Developer/Xcode/UserData/Provisioning Profiles` for Xcode 26. It does not enable automatic provisioning or change signing credentials.
+
 - [ ] **Owner/team:** Sam confirms active membership, authorized release operator, team access/agreements, display name and unique reverse-domain LC bundle ID. Record non-secret identifiers and approval, not passwords or private key material.
 - [ ] **App ID:** operator registers an explicit identifier in Certificates, Identifiers & Profiles with only needed capabilities. Assess actual login offerings against Sign in with Apple requirements. No speculative Bluetooth/background/camera/location capabilities.
 - [ ] **App record:** operator creates iOS app in App Store Connect, selecting that bundle ID, name, language, unique SKU and team access; record Apple app ID. Resolve agreement/access blockers before uploads.
