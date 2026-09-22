@@ -27,6 +27,7 @@ it('includes browser and secure storage in both native projects', () => {
   const ios = read('ios/App/Podfile');
   expect(ios).toContain("pod 'CapacitorBrowser'");
   expect(ios).toContain("pod 'AparajitaCapacitorSecureStorage'");
+  expect(ios).toContain("config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'");
 });
 it('uses the development-only mobile build for synchronization and manual native CI', () => {
   const scripts = JSON.parse(read('package.json')).scripts;
