@@ -1,6 +1,7 @@
 import copy
 import datetime as dt
 import hashlib
+from pathlib import Path
 import unittest
 
 from ios_signing import BUNDLE_ID, export_options, validate_profile
@@ -14,6 +15,7 @@ IDENTITIES = f'  1) {FINGERPRINT} "Apple Distribution: Fixture"\n     1 valid id
 PROFILE = {
     "TeamIdentifier": [TEAM],
     "UUID": PROFILE_UUID,
+    "Name": "LC_AppStore_fixture",
     "Platform": ["iOS"],
     "ExpirationDate": NOW + dt.timedelta(days=365),
     "DeveloperCertificates": [CERTIFICATE],
@@ -46,6 +48,8 @@ class ProfileTests(unittest.TestCase):
             {"ProvisionedDevices": ["fixture-device"]},
             {"ProvisionsAllDevices": True},
             {"UUID": "../../unexpected"},
+            {"Name": None},
+            {"Name": "invalid\ninjected"},
             {"DeveloperCertificates": []},
             {"DeveloperCertificates": ["invalid"]},
         ]
@@ -88,6 +92,21 @@ class ProfileTests(unittest.TestCase):
         self.assertFalse(options["manageAppVersionAndBuildNumber"])
         self.assertEqual(options["provisioningProfiles"], {BUNDLE_ID: PROFILE_UUID})
         self.assertEqual(options["signingCertificate"], FINGERPRINT)
+
+    def test_archive_recipe_scopes_signing_to_app_target(self):
+        recipe = (Path(__file__).resolve().parents[1] / "workflows" / "ios-beta-archive.yml").read_text(encoding="utf-8")
+        archive = recipe.split("- name: Archive staging application", 1)[1].split("- name:", 1)[0]
+        for global_setting in [
+            "PROVISIONING_PROFILE_SPECIFIER=", "PROVISIONING_PROFILE=",
+            "CODE_SIGN_STYLE=", "CODE_SIGN_IDENTITY=", "DEVELOPMENT_TEAM=",
+        ]:
+            with self.subTest(setting=global_setting):
+                self.assertNotIn(global_setting, archive)
+        self.assertIn("target.name == 'App'", recipe)
+        self.assertIn("config.name == 'Release'", recipe)
+        self.assertIn("'PROVISIONING_PROFILE_SPECIFIER' => ENV.fetch('PROFILE_NAME')", recipe)
+        self.assertIn("Library/Developer/Xcode/UserData/Provisioning Profiles", recipe)
+        self.assertNotIn("Library/MobileDevice/Provisioning Profiles", recipe)
 
 
 if __name__ == "__main__":
