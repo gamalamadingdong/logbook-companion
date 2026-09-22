@@ -3,6 +3,8 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase, type UserProfile } from '../services/supabase'
 import { AuthContext } from './authContextDef'
 import { legacyConcept2Enabled } from '../services/concept2Environment'
+import { Capacitor } from '@capacitor/core'
+import { nativeAuthCallbackUrl } from '../services/nativeNavigation'
 
 /** How long to wait for initial session before giving up (ms) */
 const SESSION_TIMEOUT_MS = 15_000
@@ -307,7 +309,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: Capacitor.isNativePlatform()
+        ? nativeAuthCallbackUrl('/reset-password')
+        : `${window.location.origin}/auth/callback?next=${encodeURIComponent('/reset-password')}`,
     })
     if (error) throw error
   }

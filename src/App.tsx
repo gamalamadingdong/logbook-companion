@@ -9,6 +9,7 @@ import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
 import { NotificationProvider } from './components/NotificationProvider';
 import { Toaster } from 'sonner';
+import { NativeAppBridge } from './components/NativeAppBridge';
 
 const lazyNamed = (
   loader: () => Promise<Record<string, unknown>>,
@@ -155,6 +156,7 @@ const AppContent: React.FC = () => {
             <AutoSync />
             <Toaster position="top-center" richColors theme={resolvedTheme} toastOptions={{ style: { marginTop: '0.5rem' } }} />
             <BrowserRouter>
+              <NativeAppBridge />
               <CoachingProvider>
                 <Suspense fallback={<RouteLoadingScreen />}><Routes>
           <Route path="/login" element={<Login />} />

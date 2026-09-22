@@ -8,39 +8,15 @@ on:
       - 'android/**'
       - 'ios/**'
       - 'capacitor.config.ts'
-      - 'src/components/Layout.tsx'
-      - 'src/components/MobileBottomNavigation*.tsx'
-      - 'src/pages/Dashboard.tsx'
-      - 'src/pages/CompletedWorkoutEntry*.tsx'
-      - 'src/pages/mobileAthleteCore.test.ts'
-      - 'src/pages/WorkoutDetail.tsx'
-      - 'src/pages/TrainingBlock.tsx'
-      - 'src/pages/TemplateLibrary.tsx'
-      - 'src/pages/TemplateDetail.tsx'
-      - 'src/pages/mobileAthleteDetail.test.ts'
-      - 'src/pages/Analytics.tsx'
-      - 'src/pages/Sync.tsx'
-      - 'src/pages/DevelopmentConcept2.tsx'
-      - 'src/pages/Preferences.tsx'
-      - 'src/pages/WorkoutComparison.tsx'
-      - 'src/pages/mobileAthleteOperations.test.ts'
-      - 'src/pages/coaching/CoachDashboard.tsx'
-      - 'src/pages/coaching/CoachingSchedule.tsx'
-      - 'src/pages/coaching/CoachingRoster.tsx'
-      - 'src/pages/coaching/CoachingAthleteDetail.tsx'
-      - 'src/pages/mobileCoachingCore.test.ts'
-      - 'src/pages/coaching/CoachingAssignments.tsx'
-      - 'src/pages/coaching/AssignmentResults.tsx'
-      - 'src/pages/coaching/CoachingBoatings.tsx'
-      - 'src/pages/coaching/TeamAnalytics.tsx'
-      - 'src/pages/coaching/CoachingSettings.tsx'
-      - 'src/pages/coaching/TeamSetup.tsx'
-      - 'src/pages/coaching/RequestCoachingAccess.tsx'
-      - 'src/pages/team/*.tsx'
-      - 'src/pages/mobileTeamComplete.test.ts'
       - 'src/pages/PM5Connection.tsx'
       - 'src/services/pm5Capture*.ts'
       - 'src/services/pm5DirectService.ts'
+      - 'src/services/nativeNavigation*.ts'
+      - 'src/services/nativeConfig.test.ts'
+      - 'src/components/NativeAppBridge.tsx'
+      - 'src/auth/AuthContext.tsx'
+      - 'src/pages/AuthCallback.tsx'
+      - 'scripts/android_m5_smoke.py'
       - 'src/types/ergSession.types.ts'
       - 'package.json'
       - 'package-lock.json'
@@ -131,3 +107,22 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  android-installed-smoke:
+    needs: android-debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: logbook-companion-android-debug-${{ github.sha }}
+          path: artifacts
+      - name: Exercise installed Android shell
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: python3 scripts/android_m5_smoke.py
