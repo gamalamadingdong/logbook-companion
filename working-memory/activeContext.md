@@ -155,7 +155,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
 | Mobile shell | M1 merged in PR #195: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
 | PM5 flow states | M2 merged in PR #196; explicit preflight/connect/ready/live/summary tests pass |
-| Mobile route adaptation | M3a merged in PR #197 and M3b in PR #198; M3c adapts analytics, both sync modes, preferences, and workout comparison in the current branch. Athlete-critical M3 scope is complete |
+| Mobile route adaptation | M3a–M3c are merged through PR #199. M4a adapts coach dashboard, schedule, roster, and athlete detail in the current branch; secondary coaching/team routes remain |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
