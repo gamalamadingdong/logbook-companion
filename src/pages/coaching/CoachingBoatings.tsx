@@ -673,7 +673,7 @@ export function LineupsWorkspace({
   return (
     <>
     {!embedded && <CoachingNav />}
-    <div className={embedded ? 'space-y-6' : 'px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-6'}>
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6'}>
       <Card padding={embedded ? 'md' : 'lg'}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -1758,7 +1758,7 @@ function RaceResultForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
-      <div className="my-8 w-full max-w-lg rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+      <div className="my-4 w-full max-w-lg rounded-xl border border-neutral-800 bg-neutral-900 p-4 shadow-2xl sm:my-8 sm:p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-white">{existing ? 'Edit Race Result' : 'Add Race Result'}</h2>
@@ -1970,7 +1970,7 @@ function CompactSeatStrip({
   const seats = [...(hasCox ? [0] : []), ...Array.from({ length: seatCount }, (_, i) => seatCount - i)];
 
   return (
-    <div className="border-t border-neutral-800 px-4 py-2 bg-neutral-800/20 flex items-center gap-1.5 overflow-x-auto">
+    <div className="flex items-center gap-1.5 overflow-x-auto border-t border-neutral-800 bg-neutral-800/20 px-4 py-2" aria-label="Boat seats; scroll horizontally for all positions">
       {seats.map((seat) => {
         const pos = positions.find((p) => p.seat === seat);
         const name = pos ? (pos.athlete_name || getAthleteName(pos.athlete_id)) : null;

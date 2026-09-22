@@ -135,19 +135,19 @@ Exit: no horizontal scroll at 320 px on first-wave routes; touch targets ≥ 44 
 
 M3a covers `/`, `/completed-workout/new`, `/completed-workout/:id`, and `/completed-workout/:id/edit`. M3b covers `/workout/:id`, `/training-block`, `/library`, and library detail. M3c covers analytics, both sync modes, preferences, and workout comparison.
 
-### M4 — Coach and team adaptation — M4a merged; remaining work deferred
+### M4 — Coach and team adaptation — complete
 
 Second-wave routes using the `md:hidden` pattern already present in `WorkoutHistory` and the coaching pages.
 
 M4a merged in PR #200 and covers the primary daily coaching loop: dashboard, schedule, roster, and athlete detail. It reuses the existing roster cards and schedule day/week views, adds dashboard roster cards, phone-default day view, stacked actions, compact athlete detail, and an explicitly scroll-contained Erg Scores table.
 
-Assignments/results, boatings, coaching analytics, setup/settings/access, and athlete team routes remain M4b/c. They are intentionally deferred because those surfaces are low-use compared with the completed direct-athlete flow. Resume only when real use or a device-based QA pass makes them relevant.
+M4b/c complete the secondary coach-management and athlete-team routes. Mature card and responsive patterns were preserved; genuinely tabular assignment, analytics, results, and seat grids are explicitly scroll-contained with accessible affordances.
 
 ### M5 — Installed-app verification
 
 Requires a device or emulator: auth, deep links, back-button behavior, and the PM5 flow end to end.
 
-Status: deferred until a physical mobile device is available. Desktop-responsive work is complete for M1–M3 and the primary M4a coaching loop.
+Status: next. Responsive work is complete for M1–M4. Exercise installed-app auth, deep links, back behavior, keyboard interaction, and PM5 flow on the strongest available emulator/device target.
 
 ## References
 

@@ -83,9 +83,9 @@ export function RequestCoachingAccess() {
 
   return (
     <Layout>
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-lg">
-          <div className="bg-surface-primary border border-border-primary rounded-2xl p-8">
+          <div className="bg-surface-primary border border-border-primary rounded-2xl p-4 sm:p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 rounded-xl bg-indigo-500/10">
                 <Shield size={24} className="text-indigo-400" />
@@ -110,7 +110,7 @@ export function RequestCoachingAccess() {
                 </div>
                 <button
                   onClick={() => navigate('/')}
-                  className="mt-4 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+                  className="mt-4 min-h-11 px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
                 >
                   ← Back to Dashboard
                 </button>
@@ -131,7 +131,7 @@ export function RequestCoachingAccess() {
                 </div>
                 <button
                   onClick={() => navigate('/team-management/setup')}
-                  className="mt-4 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors"
+                  className="mt-4 min-h-11 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors"
                 >
                   Set Up Team
                 </button>

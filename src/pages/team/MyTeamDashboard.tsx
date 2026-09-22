@@ -98,8 +98,8 @@ export function MyTeamDashboard() {
       )}
 
       {/* Team Header */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
-        <div className="flex items-start justify-between">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-6 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-indigo-500/10 flex items-center justify-center">
               <Users className="w-7 h-7 text-indigo-400" />

@@ -68,7 +68,7 @@ export function TeamSetup() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-6">
+    <div className="min-h-[80vh] flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         {/* Back link when user already has a team */}
         {hasTeam && (
@@ -104,7 +104,7 @@ export function TeamSetup() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleCreate} className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5">
+        <form onSubmit={handleCreate} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-5 sm:p-6">
           <div>
             <label htmlFor="team-name" className="block text-sm font-medium text-neutral-300 mb-1">
               Team Name *

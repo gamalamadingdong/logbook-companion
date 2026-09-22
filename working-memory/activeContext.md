@@ -155,13 +155,13 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | LC capture ingestion | Implemented without schema change; owner-bound idempotent replay/acknowledgement tests pass; live smoke remains |
 | Mobile shell | M1 merged in PR #195: five-tab bottom navigation, route-group active state, safe-area padding, desktop sidebar preserved |
 | PM5 flow states | M2 merged in PR #196; explicit preflight/connect/ready/live/summary tests pass |
-| Mobile route adaptation | M3a–M3c are merged through PR #199; primary coaching M4a is merged in PR #200. Low-use assignments/results, boatings, coaching analytics, setup/settings/access, and athlete team routes are intentionally deferred |
+| Mobile route adaptation | M3a–M3c are merged through PR #199; primary coaching M4a through PR #200. Remaining coach-management and athlete-team M4b/c routes are completed in the current branch |
 | Adverse-path and HR-belt PM5 evidence | Not yet proven |
 | Production Concept2 publishing | Disabled pending approval |
 
 ### Mobile pause point
 
-Device-independent mobile work is paused after M4a. The direct-athlete shell, PM5 flow, athlete-critical routes, and primary daily coaching loop are responsive and pass web/Android/iOS CI. Resume with M5/E6 when a physical device and PM5 are available; address deferred M4b/c team administration only when usage justifies it.
+Responsive mobile work is complete through M4. The direct-athlete shell, PM5 flow, athlete-critical routes, primary coaching loop, secondary coach administration, and athlete team views pass web/Android/iOS build CI. M5 installed-app verification is next; E6 still requires a physical PM5.
 
 ## Resume references
 
