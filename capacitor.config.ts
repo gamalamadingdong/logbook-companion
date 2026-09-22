@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.readyall.logbookcompanion',
+  appId: 'org.readyall.logbookcompanion',
   appName: 'Logbook Companion',
   webDir: 'dist',
   server: {

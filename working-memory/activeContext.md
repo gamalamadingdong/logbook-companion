@@ -164,6 +164,12 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 
 Responsive mobile work is complete through M4. PR #203 merged strict native URL routing and matching Android/iOS custom-scheme registration; PR #204 removed the flaky installed-emulator job and made native CI manual-only. The current auth branch builds on that routing with system-browser development Concept2 returns, secure native session storage, and a mobile build mode excluding production legacy auth. No live auth changes or deployment have been performed. Real auth UI/session behavior, iOS runtime checks, Bluetooth prompts, and PM5 operation remain device/operator gates; E6 still requires a physical PM5.
 
+### iOS delivery preparation
+
+Native-auth PR #205 is open against staging. The operator has registered `org.readyall.logbookcompanion`, created the App Store Connect record, and configured the seven Apple signing/upload secret names. Source identity is aligned in the current branch. The requested delivery configuration is GitHub's existing **Production** environment, with staging application source and Concept2 development; no permanent delivery branch or staging-to-main app promotion.
+
+A manual archive-only recipe and signing preflight helpers are prepared for a CI-only activation on default `main`. It checks out staging, exports an IPA, records source/build provenance, and cleans temporary signing material; it contains no upload command. Production's public Supabase variables are configured, but it has no required-reviewer protection. The first real signed archive, installed auth proof, TestFlight upload approval, and ScheduleBoard's separate signing migration remain outstanding. See [mobile delivery](../docs/concept2-mobile/mobile-delivery.md#archive-only-pipeline-checkpoint-2026-09-22).
+
 ## Resume references
 
 - [Concept2/mobile router](../docs/concept2-mobile/README.md)

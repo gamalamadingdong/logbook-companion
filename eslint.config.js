@@ -8,6 +8,8 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores([
     'dist',
+    'android/**/build/**',
+    'ios/**/build/**',
     'scripts',
     'working-memory',
     'reproduce_rwn.ts',

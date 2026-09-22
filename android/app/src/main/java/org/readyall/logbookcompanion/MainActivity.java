@@ -1,4 +1,4 @@
-package com.readyall.logbookcompanion;
+package org.readyall.logbookcompanion;
 
 import com.getcapacitor.BridgeActivity;
 

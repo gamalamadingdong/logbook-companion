@@ -90,6 +90,8 @@ npm run mobile:sync
 
 Native CI is manual-only after PR #204; it is not triggered by pull requests. Local Android compilation requires Java 21 and an Android SDK; local iOS compilation requires macOS, Xcode, and CocoaPods. Signing, store delivery, and OTA updates are separate release concerns.
 
+The registered application identifier is `org.readyall.logbookcompanion`. The manual **iOS Beta Archive** workflow runs its recipe from `main`, builds application code from `staging`, and reads shared build variables from the GitHub `Production` environment. It exports a signed IPA only; it never promotes the website or uploads to TestFlight. See the [archive-only pipeline checkpoint](docs/concept2-mobile/mobile-delivery.md#archive-only-pipeline-checkpoint-2026-09-22) for activation and approval boundaries.
+
 ## 📚 Documentation
 
 ### User Guides

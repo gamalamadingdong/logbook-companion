@@ -90,6 +90,27 @@ Some `updates/README.md` prose describes Appflow/future integration and is stale
 
 These are future operator actions. Consult current [Apple Developer account guidance](https://developer.apple.com/help/account/) and [App Store Connect guidance](https://developer.apple.com/help/app-store-connect/) at execution; account eligibility and current requirements have not been checked.
 
+### Archive-only pipeline checkpoint (2026-09-22)
+
+The operator reports registering `org.readyall.logbookcompanion` and its App Store Connect record, generating a new team distribution certificate/P12 and LC-specific distribution profile, and adding the seven `APPLE_*` repository secret names. Presence of those names was verified without reading their values; signing correctness still requires a macOS archive run.
+
+Both native source projects and Capacitor now use that registered identifier. Existing debug installs with the earlier `com.readyall.logbookcompanion` identifier are a different app; no local-data migration is implied. The `logbookcompanion://app/...` auth scheme is unchanged. Remove an older debug install before native-return testing so two installed apps do not compete for that scheme; uninstalling remains an explicit operator action.
+
+`.github/workflows/ios-beta-archive.yml` is a manual, archive-only recipe:
+
+- Activate the recipe and its two `.github/scripts/` helpers on default branch `main` with a **CI-only change**, not a merge of staging's application code. Keep the same files in staging for traceability.
+- Dispatch the workflow on `main`. It preserves the reviewed signing helper, then explicitly checks out **staging** for the application build. Source SHA and recipe SHA are recorded separately.
+- The job reads the existing GitHub **Production** environment's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` variables. That label does not select a production application/provider. The app is built with `mobile:build`, so Concept2 remains development-only.
+- The source must already contain the reviewed native-auth slice and registered bundle ID. Missing configuration, a service-role client key, or an identity mismatch fails before loading private signing material.
+- Only the four signing secrets are referenced. Upload API secrets are deliberately unused; there is no upload command or push/tag trigger.
+- Signing happens in a temporary keychain. The helper requires the correct LC app/team, an unexpired iOS App Store profile (not debug/ad hoc/enterprise), and exactly one matching valid imported signing identity.
+- The native build number is the UTC Unix timestamp assigned to this serialized run, avoiding source-file counter edits and giving reruns a fresh number. The source marketing version is retained.
+- Export uses `app-store-connect` with destination `export`. Artifacts contain only the IPA and build metadata, retained for seven days; no private signing files are uploaded. Cleanup attempts every named signing file even if keychain removal fails and reports failures.
+
+The existing GitHub Production environment has **no required reviewers or branch restrictions**; it is not an approval gate. This first recipe therefore cannot upload. TestFlight upload needs a separately reviewed/authorized follow-up after the archive is validated. Existing Vercel staging/main routing and ScheduleBoard signing secrets are untouched. A CI-only commit on main may cause Vercel to rebuild the same production app code, but does not promote staging features.
+
+The operator's key material stays outside Git. Do not copy ScheduleBoard's app-specific profile into LC, and do not revoke or replace ScheduleBoard's working inputs before replacement signing is proven.
+
 - [ ] **Owner/team:** Sam confirms active membership, authorized release operator, team access/agreements, display name and unique reverse-domain LC bundle ID. Record non-secret identifiers and approval, not passwords or private key material.
 - [ ] **App ID:** operator registers an explicit identifier in Certificates, Identifiers & Profiles with only needed capabilities. Assess actual login offerings against Sign in with Apple requirements. No speculative Bluetooth/background/camera/location capabilities.
 - [ ] **App record:** operator creates iOS app in App Store Connect, selecting that bundle ID, name, language, unique SKU and team access; record Apple app ID. Resolve agreement/access blockers before uploads.
