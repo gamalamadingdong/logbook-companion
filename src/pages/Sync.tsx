@@ -321,7 +321,7 @@ const ProductionSync: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-12 font-sans">
+        <div className="min-h-screen bg-neutral-950 px-4 py-6 text-white sm:p-6 md:p-12 font-sans">
             <div className="max-w-3xl mx-auto space-y-8">
 
                 {/* Header (Local) */}
@@ -335,13 +335,13 @@ const ProductionSync: React.FC = () => {
             </div>
 
             {/* Database Sync Card */}
-            <div className="bg-neutral-900/50 rounded-2xl border border-neutral-800 p-8 space-y-6">
-                <div className="flex items-start gap-4">
+            <div className="space-y-6 rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <div className={`p-3 rounded-xl transition-colors ${isConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
                         {isConnected ? <RefreshCw size={24} /> : <AlertCircle size={24} />}
                     </div>
                     <div>
-                        <h2 className="text-xl font-semibold text-white flex items-center gap-3">
+                        <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-white">
                             Archive to Logbook Companion
                             {!isConnected && <span className="text-xs bg-red-500/20 text-red-500 px-2 py-1 rounded-full border border-red-500/30">Disconnected</span>}
                             {isConnected && <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full border border-emerald-500/30">Connected</span>}
@@ -372,8 +372,8 @@ const ProductionSync: React.FC = () => {
                     </div>
                 )}
 
-                <div className="bg-black/40 rounded-xl p-6 border border-neutral-800/50">
-                    <div className="flex items-center justify-between mb-2">
+                <div className="rounded-xl border border-neutral-800/50 bg-black/40 p-4 sm:p-6">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-2">
                         <span className="text-neutral-300 font-medium">Status</span>
                         <span className="text-emerald-400 font-mono text-sm">{loadingLatestJob ? 'Loading latest job...' : displayedStatus}</span>
                     </div>
@@ -409,8 +409,8 @@ const ProductionSync: React.FC = () => {
                     {/* Sync Range Selector */}
                     <div className="flex flex-col gap-4 mb-4">
                         <label className="text-sm font-medium text-neutral-400">Sync Range</label>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <div className="bg-neutral-900 rounded-lg p-1 border border-neutral-800 flex">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                            <div className="grid grid-cols-2 rounded-lg border border-neutral-800 bg-neutral-900 p-1 sm:flex">
                                 {(['30days', 'season', 'all', 'custom'] as const).map(r => (
                                     <button
                                         key={r}
@@ -432,14 +432,14 @@ const ProductionSync: React.FC = () => {
                             </div>
 
                             {syncRange === 'custom' && (
-                                <div className="flex items-center gap-2">
+                                <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2">
                                     <DatePicker
                                         selected={startDate}
                                         onChange={(date: Date | null) => setStartDate(date)}
                                         selectsStart
                                         startDate={startDate}
                                         endDate={endDate}
-                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24"
+                                        className="min-h-11 w-full rounded-md border border-neutral-700 bg-neutral-900 px-2 text-xs text-white"
                                     />
                                     <span className="text-neutral-500">-</span>
                                     <DatePicker
@@ -449,7 +449,7 @@ const ProductionSync: React.FC = () => {
                                         startDate={startDate}
                                         endDate={endDate}
                                         minDate={startDate || undefined}
-                                        className="bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1 text-xs text-white w-24"
+                                        className="min-h-11 w-full rounded-md border border-neutral-700 bg-neutral-900 px-2 text-xs text-white"
                                     />
                                 </div>
                             )}
@@ -459,7 +459,7 @@ const ProductionSync: React.FC = () => {
                     {/* Machine Type Selector */}
                     <div className="flex flex-col gap-2 mb-6">
                         <label className="text-sm font-medium text-neutral-400">Machine Types</label>
-                        <div className="flex items-center gap-4">
+                        <div className="grid grid-cols-1 gap-3 sm:flex sm:items-center sm:gap-4">
                             {[
                                 { id: 'rower', label: 'RowErg' },
                                 { id: 'bike', label: 'BikeErg' },
@@ -514,7 +514,7 @@ const ProductionSync: React.FC = () => {
             </div>
 
             {/* Google Sheets Sync Card (Secondary) */}
-            <div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity">
+            <div className="flex flex-col gap-6 rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4 opacity-60 transition-opacity hover:opacity-100 sm:p-8 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
                         <FileSpreadsheet size={24} />
@@ -701,7 +701,7 @@ const ProductionSync: React.FC = () => {
             </div>
 
             {/* Maintenance Card */}
-            <div className="bg-neutral-900/30 rounded-2xl border border-neutral-800 p-8 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60 hover:opacity-100 transition-opacity">
+            <div className="flex flex-col gap-6 rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4 opacity-60 transition-opacity hover:opacity-100 sm:p-8 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
                         <RefreshCw size={24} />

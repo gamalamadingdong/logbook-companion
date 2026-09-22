@@ -79,11 +79,11 @@ Every route below already resolves on mobile. The column records what adaptation
 | `/training-block` | Adapted in M3b: selected-week phone view with compact seven-day grid |
 | `/library` | Adapted in M3b: cards below `md`, existing table at `md+` |
 | `/library/:templateId` | Adapted in M3b: stacked detail; **Program PM5** entry point remains separate follow-up |
-| `/analytics` | Adapt: chart sizing, filter sheet |
+| `/analytics` | Adapted in M3c: scroll-contained tabs, stacked filters, compact charts |
 | `/history/:name` | Already has mobile alternatives; QA only |
-| `/compare/:aId/:bId?` | Already has mobile alternatives; QA only |
-| `/sync` | Adapt: progress and status states |
-| `/preferences` | Adapt: single-column settings groups |
+| `/compare/:aId/:bId?` | QA/adapted in M3c: 44 px controls, compact chart, contained interval table |
+| `/sync` | Adapted in M3c: stacked progress, range, machine, and status controls |
+| `/preferences` | Adapted in M3c: scroll-contained tabs, single-column fields, contained benchmark table |
 
 ### Auth and public — installed-app behavior, not layout
 
@@ -127,13 +127,13 @@ Exit: state-by-state render tests; unsupported RWN never reaches a connect actio
 
 Implementation: `/pm5` now derives explicit Preflight, Connect, Ready, Live, and Summary states. Translation occurs before scanning; unsupported RWN remains in Preflight with no connection/programming action. Exact and prompt-only workouts advance through connection and acknowledgement, live PM5 metrics own the workout surface, and durable terminal captures reopen in Summary after retry/restart.
 
-### M3 — Athlete-critical adaptation — M3a merged; M3b implemented in current branch
+### M3 — Athlete-critical adaptation — complete through M3c
 
 Work the first-wave table in order. Add a viewport-sized render check per route.
 
 Exit: no horizontal scroll at 320 px on first-wave routes; touch targets ≥ 44 px; forms usable with a virtual keyboard.
 
-M3a covers `/`, `/completed-workout/new`, `/completed-workout/:id`, and `/completed-workout/:id/edit`. M3b covers `/workout/:id`, `/training-block`, `/library`, and library detail. Remaining first-wave work is analytics, sync, preferences, and workout comparison.
+M3a covers `/`, `/completed-workout/new`, `/completed-workout/:id`, and `/completed-workout/:id/edit`. M3b covers `/workout/:id`, `/training-block`, `/library`, and library detail. M3c covers analytics, both sync modes, preferences, and workout comparison.
 
 ### M4 — Coach and team adaptation
 
