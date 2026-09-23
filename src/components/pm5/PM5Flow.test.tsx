@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PM5ConnectState, PM5PreflightState, derivePM5FlowState } from './PM5Flow';
+import { PM5ConnectState, PM5WorkoutState, derivePM5FlowState } from './PM5Flow';
+import { defaultWorkoutBuilderSpec } from '../../utils/workoutBuilder';
 
 const request = {
   mode: 'exact' as const,
@@ -27,23 +28,49 @@ const captureState = {
   workoutId: 'workout-1',
 };
 
+const workoutProps = {
+  translation: null,
+  reviewing: false,
+  builderSpec: defaultWorkoutBuilderSpec,
+  onRwnChange: vi.fn(),
+  onReview: vi.fn(),
+  onBuilderChange: vi.fn(),
+};
+
 describe('PM5 five-state flow', () => {
-  it('derives every explicit state', () => {
-    expect(derivePM5FlowState({ translation: null, connected: false, receipt: null, captureState: null })).toBe('preflight');
+  it('starts at Connect before a monitor is connected, whatever the workout', () => {
+    // Connecting comes first: the monitor is what the athlete walks up to.
+    expect(derivePM5FlowState({ translation: null, connected: false, receipt: null, captureState: null })).toBe('connect');
     expect(derivePM5FlowState({ translation: request, connected: false, receipt: null, captureState: null })).toBe('connect');
+  });
+
+  it('asks for the workout once a monitor is connected', () => {
+    expect(derivePM5FlowState({ translation: null, connected: true, receipt: null, captureState: null })).toBe('workout');
+  });
+
+  it('is ready to row with a connected monitor and a valid workout', () => {
     expect(derivePM5FlowState({ translation: request, connected: true, receipt: null, captureState: null })).toBe('ready');
+  });
+
+  it('goes live once the workout is programmed, and ends at summary', () => {
     expect(derivePM5FlowState({ translation: request, connected: true, receipt: { _v: 1, request_id: 'request-1', status: 'programmed', received_at: 'now' }, captureState: null })).toBe('live');
     expect(derivePM5FlowState({ translation: null, connected: false, receipt: null, captureState })).toBe('summary');
   });
 
-  it('keeps unsupported RWN in preflight even if a monitor is connected', () => {
-    expect(derivePM5FlowState({ translation: unsupported, connected: true, receipt: null, captureState: null })).toBe('preflight');
+  it('keeps an unsupported workout out of Ready even with a monitor connected', () => {
+    expect(derivePM5FlowState({ translation: unsupported, connected: true, receipt: null, captureState: null })).toBe('workout');
     const html = renderToStaticMarkup(
-      <PM5PreflightState rwn="30:00@20 + mobility" translation={unsupported} reviewing={false} onRwnChange={vi.fn()} onReview={vi.fn()} />,
+      <PM5WorkoutState {...workoutProps} rwn="30:00@20 + mobility" translation={unsupported} />,
     );
     expect(html).toContain('Unsupported on PM5');
-    expect(html).not.toContain('Find PM5');
-    expect(html).not.toContain('Program PM5');
+    expect(html).not.toContain('>Row<');
+  });
+
+  it('offers both RWN and the guided builder', () => {
+    const html = renderToStaticMarkup(<PM5WorkoutState {...workoutProps} rwn="2000m" />);
+    expect(html).toContain('RWN');
+    expect(html).toContain('Build it');
+    expect(html).toContain('Check workout');
   });
 
   it('renders the connection action only in Connect', () => {
