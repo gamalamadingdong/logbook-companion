@@ -1,8 +1,39 @@
 # Mobile beta to first App Store submission
 
-Status: 2026-09-23. Plan of record for mobile work following the first TestFlight
-install. Supersedes the mobile sequencing implied by earlier delivery documents,
-which ended at "installed-device proof remains".
+Status: 2026-09-23, updated after the first implementation pass. Plan of record
+for mobile work following the first TestFlight install. Supersedes the mobile
+sequencing implied by earlier delivery documents, which ended at
+"installed-device proof remains".
+
+## Where this stands
+
+Phases 1, 2 and the first tranche of 3 are implemented and merged to `staging`.
+Phases 0 and 5 are implemented but each awaits one piece of real-world proof.
+No build carrying any of this has yet run on a device.
+
+| Phase | State |
+| --- | --- |
+| 0 PM5 discovery | Fixed and published as `0.6.1`; adopted in LC. Hardware proof outstanding |
+| 1 Navigation shell | Merged (#215) |
+| 2 App-level connection | Merged (#216) |
+| 3 View by view | Train and Home merged (#221, #222); manual entry and training block outstanding |
+| 4 OTA delivery | Not started |
+| 5 App Review readiness | Deletion and privacy merged (#218); deletion never executed end to end |
+
+Merged in this pass: #214 plan, #215 navigation, #216 connection, #218 account
+deletion and privacy, #219 analysis crash, #220 browser Bluetooth, #221 Train,
+#222 Home, plus gamalamadingdong/erg-link#13.
+
+**Everything PM5 remains inference.** The discovery fix, connect-first ordering,
+background Bluetooth and wake lock have never run against a monitor.
+
+## Verification gate
+
+`npm run build` is the gate before pushing, because that is what deployment
+runs. `npm run test:run` does **not** typecheck, and `tsc -b` is incremental, so
+both can pass while the build fails. A test-fixture type error reached a
+deployment build this way. Use `npx tsc -b --force` when a check needs to be
+trusted.
 
 ## Strategy
 
@@ -27,6 +58,14 @@ occupy primary navigation or the home surface.
 A key consequence: **PM5 connection is application state, not a destination.**
 Modelling it as a route is why the live surface is torn down on navigation and
 why "PM5" reads wrong as a tab.
+
+## RWN is the single workout representation
+
+Every route into a workout produces RWN. The guided builder generates notation
+rather than a parallel shape, and a suggested workout hands its notation to
+Train through the URL. Validation, PM5 lowering, programming and naming
+therefore share one path, and the RWN-to-PM5 interface is exercised however the
+workout was entered.
 
 ## Phase 0 - Unblock PM5 discovery
 
@@ -58,69 +97,75 @@ Outstanding:
 blocked proxy, and adding it without a matching `package-lock.json` entry would
 make `npm ci` fail in CI.
 
-**Caveat.** The compiled fix currently lives only in this machine's
-`node_modules`. CI and TestFlight builds will not contain it until `0.6.1` is
-published, and any local `npm ci` silently reverts it.
+**Caveat.** `0.6.1` is published and adopted in `staging`. The fix has still
+never run against a monitor.
 
 **Exit.** A broadcasting PM5 appears in scan results on a physical iPhone. This
 closes an M5 gate that CI cannot prove.
 
 ## Phase 1 - Navigation shell
 
-Logbook Companion only. No native change, so it is deliverable while Phase 0
-awaits publication.
+**Merged in #215.** Bottom tabs are Home, Train and an overflow drawer. A bottom
+`Sheet` primitive was added to `src/components/ui/`, layered above the bottom bar
+so a sheet can never render beneath the controls used to dismiss it. The header
+hamburger and its full-screen overlay are gone; the header carries logo plus
+screen title, with the notification bell and avatar on the right. The avatar
+opens an account sheet owning identity and `/preferences`, which appears in no
+other menu. Both surfaces close on any route change, covering hardware Back and
+deep links.
 
-- Bottom tabs reduce to **Home**, **Train**, and an overflow **...**.
-  `Train` replaces the `PM5` tab name and owns the workout flow. Library is
-  demoted from primary navigation and becomes step one inside Train.
-- Add a bottom `Sheet` primitive to `src/components/ui/`, which currently has
-  only `Modal.tsx`. Reference implementation is ScheduleBoard's
-  `src/components/layout/MobileBottomNav.tsx`: `Sheet side="bottom"`, grouped
-  two-column grid, dismiss on selection.
-- Drawer groups: **Train** (Library, Training Block, Log a workout),
-  **Review** (History, Analytics), **Team** (role-gated), **Account**
-  (Concept2 sync, Docs, Feedback).
-- Remove the header hamburger and the full-screen `md:hidden` overlay it
-  toggles. Header carries a small logo plus screen title on the left, and the
-  notification bell plus avatar on the right.
-- The avatar opens an account sheet: Profile, Settings, Account, Sign out.
-  `/preferences` is reached only from here, never duplicated in the drawer.
-- Add a persistent connection pill above the tab bar showing PM5 and sync state,
-  returning to the live surface when a piece is in progress.
+This removed the dismiss defect structurally: the `z-40` overlay competing with
+the `z-50` bottom bar no longer exists.
 
-**Exit.** No duplicate navigation affordances, desktop sidebar unchanged, no
-horizontal scroll at 320 px, touch targets at least 44 px.
-
-This structurally removes the dismiss defect rather than patching it: the
-overlay at `z-40` competing with the `z-50` bottom bar ceases to exist.
+The connection pill moved to Phase 2, where a reactive state source exists.
 
 ## Phase 2 - Live workout
 
-Requires a new binary; cannot ship over OTA.
+**Merged in #216.** Requires a new binary; cannot ship over OTA.
 
-- Promote PM5 connection to application-level state so it survives navigation.
-  `directPM5Service` is already a module singleton, but the connection and live
-  UI state live in the `PM5Connection` page.
-- Provide a route-independent live surface that can be resumed from anywhere.
-- Detect PM5-initiated starts by watching `ROWING_GENERAL_STATUS` workout-state
-  transitions, so the app responds when an athlete simply begins rowing.
-- Add `UIBackgroundModes` with `bluetooth-central` to `ios/App/App/Info.plist`,
-  plus keep-awake during an active piece. Today the file declares only the two
-  Bluetooth usage strings, so iOS suspends the app and stops BLE notifications
-  when the screen locks mid-row.
+Connection moved into `PM5Provider` above the router. Previously the `/pm5`
+page's effect cleanup called `disconnect()`, so navigating away ended the
+session mid-piece. The monitor is now released only when the owning athlete
+changes or signs out, never on unmount — cleanup also runs on React's
+development double-invoke, which would drop a live connection.
 
-Adding the background mode before first submission is deliberate. Introducing a
-new background permission in a post-launch update invites fresh scrutiny, and
-maintaining a monitor connection during a workout is a conventional,
-defensible justification.
+`UIBackgroundModes` with `bluetooth-central` is declared, and a screen wake lock
+is held for the duration of a piece, reacquired on `visibilitychange` because
+the system drops it whenever the page hides. The wake lock uses the Screen Wake
+Lock API rather than a plugin.
+
+**PM5-initiated starts are inferred, not read.** The published driver narrows its
+aggregated payload to `PM5Data` before the UI sees it, dropping `workoutState`
+and `rowingState`. `src/services/pm5ActivityDetection.ts` therefore infers
+rowing from telemetry that advances. Surfacing monitor state in a future
+`@readyall/erglink` release should replace this.
+
+#220 added browser connection. The driver discovers with `requestLEScan`, which
+in a browser maps to an experimental API needing a Chrome flag and absent from
+Safari, so browsers found nothing. They now use the platform chooser with PM5
+services declared up front.
 
 **Exit.** A full piece survives screen lock with capture intact.
 
 ## Phase 3 - View by view
 
-Awaiting a walkthrough. Order: Home, then the Train states, then the summary.
-For each view decide what content earns its place on a phone and what moves
-behind the drawer.
+**Train merged in #221.** Ordering inverted to connect first, then choose the
+workout, then a single action to start. A guided builder sits beside RWN entry
+for athletes who do not write notation; it generates RWN and parses what it
+generates, so it cannot hand the PM5 path something that path rejects.
+
+**Home merged in #222.** A suggested workout hands its notation to Train through
+the URL. Adding a workout is demoted from a full-width primary button to an icon
+on phones. The recent workout row was rebuilt after seeing it on a device: it
+printed the distance twice for distance-named pieces, omitted pace, and repeated
+an Analyze pill on every row. The row is now the link, with pace shown and the
+distance line suppressed when the name already states it.
+
+**Outstanding:** manual workout creation and training block views. Both are
+redesigns of large surfaces rather than polish, and deserve their own slice.
+Sectioned analysis cards on Home are also unresolved; Home already renders five
+separate widgets, and grouping them needs a judgement about which earn phone
+space.
 
 ## Phase 4 - OTA delivery
 
@@ -136,30 +181,79 @@ re-review.
 
 | Item | State |
 | --- | --- |
-| In-app account deletion, guideline 5.1.1(v) | **Absent.** `AuthContext.tsx:292` calls `supabase.auth.signUp`, so accounts exist. No deletion path exists anywhere in `src/`. A common rejection cause. |
-| Privacy policy URL and privacy nutrition label | **Absent.** A repository search matched only `LICENSE`. Submission is impossible without the URL. |
+| In-app account deletion, guideline 5.1.1(v) | **Implemented in #218.** Never executed end to end, because doing so destroys the account. |
+| Privacy policy URL and privacy nutrition label | **Page merged in #218** at the public `/privacy` route. The nutrition label remains an operator task, and the policy text needs review before public release. |
 | Reviewer demo account | **Needed.** Everything is behind login; provide seeded credentials in review notes. |
 | Export compliance | Declare; HTTPS-only normally qualifies for the standard exemption. |
 | Sign in with Apple | **Not required.** Guideline 4.8 applies only when third-party or social login is offered. Logbook Companion uses email and password only, with no `signInWithOAuth` or `signInWithOtp` in `src/`. Concept2 OAuth is a post-login service integration. This closes the open question in `docs/concept2-mobile/mobile-delivery.md`. |
 
-Account deletion needs a service-role Edge Function that removes the auth user
-and owned rows with RLS-safe cascade behavior. Design it early rather than at
-submission time.
+### What the schema required
 
-## Defects from the first TestFlight install
+Live inspection of project `vmlhcbkyonemmlawnqqr` found three reasons a
+conventional deletion would have failed, none visible from application code:
 
-1. **PM5 scan never discovers a broadcasting monitor.** Root-caused and fixed in
-   Phase 0; device proof outstanding.
-2. **Full-screen menu does not dismiss on navigation.** Superseded by Phase 1.
-   The bottom bar renders above the overlay and its links carry no dismiss
-   handler, so a destination loads behind a still-visible menu.
+- `user_profiles.user_id` had **no foreign key to `auth.users`**, so deleting
+  the auth user left the profile and everything cascading from it, including
+  `workout_logs`. Silent retention of exactly the data the rule targets.
+- **Twenty columns** referenced `auth.users` with NO ACTION, so
+  `auth.admin.deleteUser()` would raise a foreign key violation.
+- Team records hung off the coach's identity with NOT NULL columns and
+  ON DELETE CASCADE, so deleting a coach would have **erased squad history**.
+
+The migration `20260923150000_account_deletion.sql` makes shared-ownership
+columns nullable and self-clearing, and adds `delete_my_account()`, a
+security-definer routine deriving its subject from `auth.uid()` and running as
+one transaction. Applied to production and verified against live schema.
+
+Agreed behavior is detach rather than destroy: team records survive with the
+owning identity cleared, which works because row-level policies already fall
+back to `team_id IS NOT NULL AND can_view_team(...)`. Coaching rows with **no**
+team are deleted, since nothing could read them once detached. Results already
+published to Concept2 are not ours to remove and the athlete is told so.
+
+Three NO ACTION references remain by design — `user_goals`,
+`ai_recommendations`, `ai_usage_logs` — all personal data the function deletes
+explicitly before touching `auth.users`.
+
+## Defects found so far
+
+1. **PM5 scan never discovers a broadcasting monitor.** Fixed in Phase 0; device
+   proof outstanding.
+2. **Full-screen menu does not dismiss on navigation.** Superseded by Phase 1
+   rather than patched.
+3. **Workout analysis opened a blank screen.** Fixed in #219.
+   `detail.workout_type.replace(...)` was read unguarded during render. Results
+   *written to* Concept2 by Logbook Companion arrive without a workout type,
+   while results *imported from* Concept2 always carry one, so the crash struck
+   exactly one class of workout. A render crash, not a data or routing problem.
+   Two related faults were fixed alongside: a duplicated element rendering the
+   same value twice, and a record lookup hardcoded to `external_id` that left
+   the database id unset for UUID-addressed workouts, disabling template linking
+   and benchmark saving.
+
+## Known weaknesses
+
+- **The Supabase client is untyped.** `src/services/supabase.ts` calls
+  `createClient` without `<Database>`, so `rpc()` accepts any string and table
+  queries are unchecked. A brand-new RPC compiled cleanly against generated
+  types that did not contain it. Adopting `createClient<Database>` would restore
+  the guarantee and will surface existing errors, so it deserves its own slice.
+- **Rowing activity is inferred from telemetry** rather than read from the
+  monitor, because the published driver drops `workoutState` before the UI sees
+  it.
+- **No DOM test environment.** Component tests use `renderToStaticMarkup`, where
+  effects never run, so crashes behind an async fetch cannot be covered.
 
 ## Open questions
 
 - Whether a `Feed` tab is wanted later. Worth scrutiny: a social feed as the
   primary athlete surface is the pattern the mobile UX foundation lists under
   "avoid".
-- Phase 3 view-by-view content priorities.
+- Whether Home's five widgets should be grouped into sectioned cards, and which
+  of them earn phone space at all.
+- In-row telemetry views, deliberately deferred until phases 0 through 5 are
+  complete. ErgData is a reference point for which metrics matter when, not a
+  design to replicate.
 
 ## References
 
