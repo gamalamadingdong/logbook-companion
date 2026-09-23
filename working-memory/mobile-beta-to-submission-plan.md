@@ -9,7 +9,7 @@ sequencing implied by earlier delivery documents, which ended at
 
 Phases 1, 2 and the first tranche of 3 are implemented and merged to `staging`.
 Phases 0 and 5 are implemented but each awaits one piece of real-world proof.
-No build carrying any of this has yet run on a device.
+One TestFlight build has been installed; several fixes have landed since it.
 
 | Phase | State |
 | --- | --- |
@@ -17,23 +17,41 @@ No build carrying any of this has yet run on a device.
 | 1 Navigation shell | Merged (#215) |
 | 2 App-level connection | Merged (#216) |
 | 3 View by view | Train and Home merged (#221, #222); manual entry and training block outstanding |
-| 4 OTA delivery | Not started |
+| 4 OTA delivery | Not started. **No updater plugin is installed at all** |
 | 5 App Review readiness | Deletion and privacy merged (#218); deletion never executed end to end |
 
 Merged in this pass: #214 plan, #215 navigation, #216 connection, #218 account
 deletion and privacy, #219 analysis crash, #220 browser Bluetooth, #221 Train,
-#222 Home, plus gamalamadingdong/erg-link#13.
+#222 Home, #223 status, #224 workout structure, #225 benchmark flag, plus
+gamalamadingdong/erg-link#13.
 
 **Everything PM5 remains inference.** The discovery fix, connect-first ordering,
-background Bluetooth and wake lock have never run against a monitor.
+background Bluetooth and wake lock have never run against a monitor. This is the
+single most valuable outstanding test.
+
+### One more native build is unavoidable
+
+The installed build `1790179965` came from `456fb92` and therefore predates
+#224 and #225. Both are JavaScript-only, so they would be ideal OTA candidates,
+but **OTA cannot reach that build**: `@capgo/capacitor-updater` appears nowhere
+in `package.json`, `ios/App/Podfile` or `capacitor.config.ts`, and a native
+plugin cannot be delivered over the air.
+
+The order is therefore: build Phase 4, cut one more TestFlight build carrying the
+updater, and only then do JavaScript fixes ship without a rebuild. Installing the
+plugin requires an unblocked npm registry, so it belongs on the remote machine.
 
 ## Verification gate
 
 `npm run build` is the gate before pushing, because that is what deployment
 runs. `npm run test:run` does **not** typecheck, and `tsc -b` is incremental, so
-both can pass while the build fails. A test-fixture type error reached a
-deployment build this way. Use `npx tsc -b --force` when a check needs to be
-trusted.
+both can pass while the build fails. Use `npx tsc -b --force` when a check needs
+to be trusted.
+
+This is not theoretical. In a single session the build caught a test fixture
+typed as `Record<string, unknown>`, an interval fixture missing required fields,
+and a `select` that had not been updated to fetch a newly added column — each
+time after the full test suite had passed.
 
 ## Strategy
 
@@ -172,10 +190,27 @@ space.
 Self-hosted Capgo and Vercel bundle delivery with signature verification and
 proven rollback, per the existing mobile delivery document.
 
+**Nothing is installed yet.** `@capgo/capacitor-updater` appears in neither
+`package.json`, `ios/App/Podfile` nor `capacitor.config.ts`, so the installed
+build cannot receive an update however the server is configured. A native plugin
+cannot be delivered over the air, so exactly one more TestFlight build is
+required, carrying the updater. After that, JavaScript-only fixes ship without a
+rebuild; anything touching `Info.plist`, plugins or native code still needs a
+binary.
+
+Installing the plugin needs an unblocked npm registry and therefore belongs on
+the remote machine.
+
 Sequencing matters. JavaScript bundle updates are permitted provided they do not
 change the app's primary purpose. Proving OTA before submission means later UX
 fixes ship in minutes; landing it afterwards makes the first fix also the first
 re-review.
+
+Suggested order:
+
+1. install and configure the updater, and build the bundle and manifest path;
+2. cut a TestFlight build containing it, which also carries #224 and #225;
+3. prove an update and a rollback against that build before relying on it.
 
 ## Phase 5 - App Review readiness
 
@@ -230,14 +265,53 @@ explicitly before touching `auth.users`.
    same value twice, and a record lookup hardcoded to `external_id` that left
    the database id unset for UUID-addressed workouts, disabling template linking
    and benchmark saving.
+4. **The workout analysis lost its measurements and its structure.** Fixed in
+   #224. The detail was built by spreading `raw_data`, which only holds the
+   Concept2 shape for imported results, so anything recorded another way showed
+   an invalid date beside empty metrics while the list, reading the columns, was
+   correct. Structure was lost the same way: an `8x500m/3:30r` session read as a
+   flat `4000m` row, with no splits, no interval type, and no structure to derive
+   a canonical name from, which is what made history and template matching treat
+   repeats of the same session as unrelated.
+
+   Structure lives in three arrangements, discovered by inspecting stored rows:
+
+   | Recorded how | Where the structure is |
+   | --- | --- |
+   | Imported from Concept2, or a PM5 capture | top level of `raw_data` |
+   | Published to Concept2 by Logbook Companion | `completed_workout.concept2Payload` |
+   | Never published to Concept2 | `completed_workout.intervals`, in our own vocabulary |
+
+   Columns are now authoritative with `raw_data` only enriching, and all three
+   arrangements are resolved. `getStrokes` had the identical blind spot.
+
+5. **A workout could never be marked as a benchmark.** Fixed in #225. The
+   application read and wrote `is_benchmark` on `workout_logs`, but the column
+   did not exist: reads returned undefined and writes were rejected, which also
+   discarded the manual RWN saved in the same request. None of 5,272 workouts
+   carried the `#test` marker the read path looked for, so the feature had never
+   once succeeded. Stored as a column rather than a name marker, because
+   encoding it in the canonical name would stop a flagged session grouping with
+   other repeats of the same workout. Flagging stays deliberate: benchmarks are
+   excluded from steady-state analysis, so inferring them from distance or from
+   a personal record would quietly distort that analysis.
 
 ## Known weaknesses
 
 - **The Supabase client is untyped.** `src/services/supabase.ts` calls
   `createClient` without `<Database>`, so `rpc()` accepts any string and table
-  queries are unchecked. A brand-new RPC compiled cleanly against generated
-  types that did not contain it. Adopting `createClient<Database>` would restore
-  the guarantee and will surface existing errors, so it deserves its own slice.
+  queries are unchecked. This has now hidden two real faults: a brand-new RPC
+  compiled cleanly against generated types that did not contain it, and
+  `is_benchmark` was read and written for a column that did not exist. Adopting
+  `createClient<Database>` would restore the guarantee and will surface existing
+  errors, so it deserves its own slice.
+- **`benchmark` means four different things.** Tracked distances and working
+  baselines in `user_profiles.benchmark_preferences`, test results in
+  `user_baseline_metrics`, the per-workout flag fixed in #225, and personal
+  records. Only the flag has been addressed; the vocabulary overlap is
+  unresolved.
+- **`personal_records` is dead.** The table holds zero rows while records are
+  computed on the fly from workout history. Either adopt it or drop it.
 - **Rowing activity is inferred from telemetry** rather than read from the
   monitor, because the published driver drops `workoutState` before the UI sees
   it.
