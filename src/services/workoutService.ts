@@ -154,6 +154,7 @@ export interface WorkoutDetailRow extends Record<string, unknown> {
     watts?: number | null;
     template_id?: string | null;
     manual_rwn?: string | null;
+    is_benchmark?: boolean | null;
     source?: string | null;
     raw_data?: Json | null;
 }
@@ -205,8 +206,7 @@ export function buildWorkoutDetailFromRow(row: WorkoutDetailRow): C2ResultDetail
             ? rawUserId
             : row.user_id,
         db_id: row.id,
-        date: firstPresent(rawFields.date, row.completed_at),
-        distance: firstPresent(rawFields.distance, row.distance_meters),
+        date: firstPresent(rawFields.date, row.completed_at),        distance: firstPresent(rawFields.distance, row.distance_meters),
         time: firstPresent(rawFields.time, columnTimeTenths),
         rest_distance: firstPresent(rawFields.rest_distance, row.rest_distance_meters),
         workout_type: firstPresent(rawFields.workout_type, row.workout_type),
@@ -215,7 +215,7 @@ export function buildWorkoutDetailFromRow(row: WorkoutDetailRow): C2ResultDetail
         workout_name: canonicalName, // Inject Canonical Name for UI consistency
         template_id: row.template_id, // Include linked template ID
         manual_rwn: row.manual_rwn, // Include manual RWN override
-        is_benchmark: row.is_benchmark, // Include benchmark flag
+        is_benchmark: row.is_benchmark ?? false, // Athlete marked this as a test effort
         source: row.source,
     } as unknown as C2ResultDetail;
 }
@@ -771,7 +771,7 @@ export const workoutService = {
         // We filter by client-side types for flexibility, or could do IN query
         const { data, error } = await supabase
             .from('workout_logs')
-            .select('id, external_id, completed_at, workout_name, workout_type, distance_meters, duration_seconds, duration_minutes, watts, average_stroke_rate, average_heart_rate, canonical_name')
+            .select('id, external_id, completed_at, workout_name, workout_type, distance_meters, duration_seconds, duration_minutes, watts, average_stroke_rate, average_heart_rate, canonical_name, is_benchmark')
             .in('source', [...workoutService.viewableSources])
             .order('completed_at', { ascending: false });
 
@@ -788,7 +788,7 @@ export const workoutService = {
             watts: log.watts,
             rate: log.average_stroke_rate,
             hr: log.average_heart_rate,
-            is_benchmark: log.canonical_name?.includes('#test') || false
+            is_benchmark: log.is_benchmark ?? false
         }));
     }
 };
