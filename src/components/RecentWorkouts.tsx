@@ -476,18 +476,24 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                         className="rounded-xl border border-border bg-surface-secondary p-4"
                     >
                         <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-medium text-content-primary">
-                                    {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </p>
-                                <span className="text-xs text-content-muted">
-                                    {formatRelativeWorkoutDay(workout.date)}
-                                </span>
-                                <div className="mt-1 flex items-center gap-2">
-                                    <p className="text-sm text-content-secondary">{workout.name}</p>
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-baseline gap-x-2">
+                                    <p className="text-sm font-medium text-content-primary">
+                                        {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    </p>
+                                    <span className="text-xs text-content-muted">
+                                        {formatRelativeWorkoutDay(workout.date)}
+                                    </span>
+                                </div>
+                                <div className="mt-0.5 flex items-center gap-2">
+                                    <p className="truncate text-sm text-content-secondary">{workout.name}</p>
                                     {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
                                 </div>
-                                <p className="mt-1 text-xs text-content-secondary">
+                                <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-sm">
+                                    <span className="font-mono text-base text-content-primary">{formatWorkoutDistance(workout)}</span>
+                                    <span className="font-mono font-medium text-accent-primary">{workoutTimeLabel(workout)}</span>
+                                </p>
+                                <p className="mt-1 truncate text-xs text-content-muted">
                                     {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout)}
                                 </p>
                             </div>
@@ -498,18 +504,6 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 {workoutLink(workout).startsWith('/completed-workout/') ? 'View' : 'Analyze'}
                             </Link>
                         </div>
-                        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
-                            <div>
-                                <dt className="text-xs text-content-secondary">Distance</dt>
-                                <dd className="mt-1 font-mono text-base text-content-primary">{formatWorkoutDistance(workout)}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-xs text-content-secondary">Time</dt>
-                                <dd className="mt-1 font-mono font-medium text-accent-primary">
-                                    {workoutTimeLabel(workout)}
-                                </dd>
-                            </div>
-                        </dl>
                     </article>
                 ))}
             </div>

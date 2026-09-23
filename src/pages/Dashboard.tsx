@@ -262,14 +262,20 @@ export const Dashboard: React.FC = () => {
     return (
         <div className="min-h-screen bg-neutral-900 p-4 text-white sm:p-8">
             <div className="max-w-6xl mx-auto">
-                <main className="space-y-8 mt-6">
-                    {!isGuest && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
+                <main className="space-y-5 mt-6 sm:space-y-8">
+                    {!isGuest && <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
                             <h1 className="text-2xl font-semibold text-content-primary">Your training log</h1>
                             <p className="mt-1 text-sm text-content-secondary">Capture what you did, with or without a connected device.</p>
                         </div>
-                        <Link to="/completed-workout/new" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover sm:w-auto">
-                            <Plus size={18} aria-hidden="true" /> Add completed workout
+                        <Link
+                            to="/completed-workout/new"
+                            aria-label="Add completed workout"
+                            title="Add completed workout"
+                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary sm:h-auto sm:w-auto sm:gap-2 sm:rounded-lg sm:px-4 sm:py-2.5"
+                        >
+                            <Plus size={18} aria-hidden="true" />
+                            <span className="hidden sm:inline text-sm font-medium">Add workout</span>
                         </Link>
                     </div>}
                     {/* Disconnected Alert (Partial State) */}
