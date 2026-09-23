@@ -7,13 +7,14 @@ import {
   PM5ErrorNotice,
   PM5FlowStepper,
   PM5LiveState,
-  PM5PreflightState,
+  PM5WorkoutState,
   PM5ReadyState,
   PM5SummaryState,
   derivePM5FlowState,
 } from '../components/pm5/PM5Flow';
 import { createPM5ProgrammingRequest, type PM5ProgrammingRequestResult } from '../services/pm5ProgrammingService';
 import { directPM5Service } from '../services/pm5DirectService';
+import { defaultWorkoutBuilderSpec, type WorkoutBuilderSpec } from '../utils/workoutBuilder';
 import type { ActiveWorkoutSpec, PM5ProgrammingReceiptV1 } from '../types/ergSession.types';
 import { usePM5 } from '../hooks/usePM5';
 
@@ -35,6 +36,7 @@ export function PM5Connection() {
   } = usePM5();
 
   const [rwn, setRwn] = useState('2000m');
+  const [builderSpec, setBuilderSpec] = useState<WorkoutBuilderSpec>(defaultWorkoutBuilderSpec);
   const [translation, setTranslation] = useState<PM5ProgrammingRequestResult | null>(null);
   const [receipt, setReceipt] = useState<PM5ProgrammingReceiptV1 | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,14 +54,15 @@ export function PM5Connection() {
     captureState,
   }), [captureState, receipt, status, translation]);
 
-  const reviewWorkout = () => {
+  const reviewWorkout = (rwnOverride?: string) => {
+    const candidate = (rwnOverride ?? rwn).trim();
     setReviewing(true);
     setError(null);
     clearError();
     setReceipt(null);
     setCaptureState(null);
     try {
-      const result = createPM5ProgrammingRequest(rwn.trim());
+      const result = createPM5ProgrammingRequest(candidate);
       setTranslation(result);
       if (result.mode === 'unsupported' || !result.request) {
         setError(result.notes.join(' ') || 'This workout cannot be programmed on a PM5.');
@@ -161,11 +164,19 @@ export function PM5Connection() {
       {status === 'connecting' && <PM5ConnectionNotice message="Connecting to the selected PM5…" />}
       {visibleError && <PM5ErrorNotice message={visibleError} />}
 
-      {flowState === 'preflight' && (
-        <PM5PreflightState rwn={rwn} translation={translation} reviewing={reviewing} onRwnChange={changeRwn} onReview={reviewWorkout} />
-      )}
       {flowState === 'connect' && (
         <PM5ConnectState devices={devices} scanning={status === 'initializing' || status === 'scanning'} connecting={status === 'connecting'} onScan={() => void startScan()} onConnect={deviceId => void connectDevice(deviceId)} />
+      )}
+      {flowState === 'workout' && (
+        <PM5WorkoutState
+          rwn={rwn}
+          translation={translation}
+          reviewing={reviewing}
+          builderSpec={builderSpec}
+          onRwnChange={changeRwn}
+          onReview={reviewWorkout}
+          onBuilderChange={setBuilderSpec}
+        />
       )}
       {flowState === 'ready' && translation?.request && (
         <PM5ReadyState

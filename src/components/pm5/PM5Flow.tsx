@@ -1,13 +1,15 @@
 import type { PM5Data, PM5Device, PM5Diagnostic } from '@readyall/erglink/pm5';
+import { useState } from 'react';
 import { Activity, AlertTriangle, Bluetooth, CheckCircle2, Radio, Unplug } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { PM5ProgrammingReceiptV1 } from '../../types/ergSession.types';
 import type { PM5ProgrammingRequestResult } from '../../services/pm5ProgrammingService';
 import type { PM5CapturePersistenceState } from '../../services/pm5CapturePersistence';
-import { Badge, Button, Card, CardHeader, Input } from '../ui';
+import { buildRwnFromSpec, type WorkoutBuilderSpec } from '../../utils/workoutBuilder';
+import { Badge, Button, Card, CardHeader, Input, Select } from '../ui';
 
-export type PM5FlowState = 'preflight' | 'connect' | 'ready' | 'live' | 'summary';
+export type PM5FlowState = 'connect' | 'workout' | 'ready' | 'live' | 'summary';
 
 export interface PM5FlowStateInput {
   translation: PM5ProgrammingRequestResult | null;
@@ -16,17 +18,26 @@ export interface PM5FlowStateInput {
   captureState: PM5CapturePersistenceState | null;
 }
 
+/**
+ * Connecting comes first.
+ *
+ * The monitor is the thing the athlete walks up to, and the connection now
+ * outlives navigation, so it is established once and reused. Choosing the
+ * workout follows, and a validated workout on a connected monitor is the only
+ * state that offers the single action that starts the piece.
+ */
 export function derivePM5FlowState(input: PM5FlowStateInput): PM5FlowState {
   if (input.captureState) return 'summary';
-  if (!input.translation?.request || input.translation.mode === 'unsupported') return 'preflight';
   if (input.receipt?.status === 'programmed') return 'live';
-  return input.connected ? 'ready' : 'connect';
+  if (!input.connected) return 'connect';
+  if (!input.translation?.request || input.translation.mode === 'unsupported') return 'workout';
+  return 'ready';
 }
 
-const flowOrder: PM5FlowState[] = ['preflight', 'connect', 'ready', 'live', 'summary'];
+const flowOrder: PM5FlowState[] = ['connect', 'workout', 'ready', 'live', 'summary'];
 const flowLabels: Record<PM5FlowState, string> = {
-  preflight: 'Preflight',
   connect: 'Connect',
+  workout: 'Workout',
   ready: 'Ready',
   live: 'Live',
   summary: 'Summary',
@@ -55,35 +66,160 @@ export function PM5FlowStepper({ state }: { state: PM5FlowState }) {
   );
 }
 
-export function PM5PreflightState({
+export function PM5WorkoutState({
   rwn,
   translation,
   reviewing,
+  builderSpec,
   onRwnChange,
   onReview,
+  onBuilderChange,
 }: {
   rwn: string;
   translation: PM5ProgrammingRequestResult | null;
   reviewing: boolean;
+  builderSpec: WorkoutBuilderSpec;
   onRwnChange: (value: string) => void;
-  onReview: () => void;
+  onReview: (rwnOverride?: string) => void;
+  onBuilderChange: (spec: WorkoutBuilderSpec) => void;
 }) {
+  const [entryMode, setEntryMode] = useState<'rwn' | 'builder'>('rwn');
+  const built = buildRwnFromSpec(builderSpec);
+
+  const update = (patch: Partial<WorkoutBuilderSpec>) => onBuilderChange({ ...builderSpec, ...patch });
+
   return (
     <Card>
-      <CardHeader title="Workout preflight" subtitle="Review what the PM5 can enforce before any Bluetooth traffic." />
-      <div className="space-y-4">
-        <Input
-          label="Rowing Workout Notation"
-          value={rwn}
-          onChange={event => onRwnChange(event.target.value)}
-          placeholder="Example: 8x500m/3:30r"
-          className="min-h-11 font-mono"
-          disabled={reviewing}
-        />
-        <Button className="min-h-11 w-full" size="lg" onClick={onReview} loading={reviewing} disabled={!rwn.trim()}>
-          Review workout
-        </Button>
+      <CardHeader title="Choose the workout" subtitle="Write it in RWN, or build it step by step." />
+
+      <div className="inline-flex w-full rounded-lg border border-border bg-surface-secondary p-1" role="tablist" aria-label="Workout entry method">
+        {(['rwn', 'builder'] as const).map(mode => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={entryMode === mode}
+            onClick={() => setEntryMode(mode)}
+            className={twMerge(clsx(
+              'min-h-11 flex-1 rounded-md px-3 text-sm font-medium transition-colors',
+              entryMode === mode
+                ? 'bg-accent-primary-surface text-accent-primary-text'
+                : 'text-content-muted',
+            ))}
+          >
+            {mode === 'rwn' ? 'RWN' : 'Build it'}
+          </button>
+        ))}
       </div>
+
+      {entryMode === 'rwn' ? (
+        <div className="mt-4 space-y-4">
+          <Input
+            label="Rowing Workout Notation"
+            value={rwn}
+            onChange={event => onRwnChange(event.target.value)}
+            placeholder="Example: 8x500m/3:30r"
+            className="min-h-11 font-mono"
+            disabled={reviewing}
+          />
+          <Button className="min-h-11 w-full" size="lg" onClick={() => onReview()} loading={reviewing} disabled={!rwn.trim()}>
+            Check workout
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Type"
+              value={builderSpec.mode}
+              onChange={event => update({ mode: event.target.value as WorkoutBuilderSpec['mode'] })}
+            >
+              <option value="steady">Steady state</option>
+              <option value="intervals">Intervals</option>
+            </Select>
+            <Select
+              label="Measured by"
+              value={builderSpec.measure}
+              onChange={event => update({ measure: event.target.value as WorkoutBuilderSpec['measure'] })}
+            >
+              <option value="distance">Distance</option>
+              <option value="time">Time</option>
+            </Select>
+          </div>
+
+          {builderSpec.mode === 'intervals' && (
+            <Input
+              label="How many intervals"
+              type="number"
+              min={1}
+              value={String(builderSpec.repeats)}
+              onChange={event => update({ repeats: Number(event.target.value) })}
+              className="min-h-11"
+            />
+          )}
+
+          {builderSpec.measure === 'distance' ? (
+            <Input
+              label="Distance each interval (metres)"
+              type="number"
+              min={1}
+              value={String(builderSpec.distanceMeters)}
+              onChange={event => update({ distanceMeters: Number(event.target.value) })}
+              className="min-h-11"
+            />
+          ) : (
+            <Input
+              label="Time each interval (seconds)"
+              type="number"
+              min={1}
+              value={String(builderSpec.durationSeconds)}
+              onChange={event => update({ durationSeconds: Number(event.target.value) })}
+              className="min-h-11"
+            />
+          )}
+
+          {builderSpec.mode === 'intervals' && (
+            <Input
+              label="Rest between intervals (seconds)"
+              type="number"
+              min={1}
+              value={String(builderSpec.restSeconds)}
+              onChange={event => update({ restSeconds: Number(event.target.value) })}
+              className="min-h-11"
+            />
+          )}
+
+          <div className="rounded-lg border border-border bg-surface-secondary p-3 text-sm" role="status">
+            {built.rwn ? (
+              <>
+                <p className="text-content-secondary">This builds</p>
+                <p className="mt-1 font-mono text-base text-content-primary">{built.rwn}</p>
+              </>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-accent-danger-text">
+                {built.errors.map(message => <li key={message}>{message}</li>)}
+              </ul>
+            )}
+          </div>
+
+          <Button
+            className="min-h-11 w-full"
+            size="lg"
+            onClick={() => {
+              if (!built.rwn) return;
+              // Pass the notation explicitly: the state update above has not
+              // been applied yet when this handler runs.
+              onRwnChange(built.rwn);
+              onReview(built.rwn);
+            }}
+            loading={reviewing}
+            disabled={!built.rwn}
+          >
+            Check workout
+          </Button>
+        </div>
+      )}
+
       {translation && (
         <div className={twMerge(clsx(
           'mt-4 rounded-lg border p-4 text-sm',
@@ -103,7 +239,7 @@ export function PM5PreflightState({
             </ul>
           )}
           {translation.mode === 'unsupported' && (
-            <p className="mt-2 font-medium">No PM5 connection or programming action is available for this workout.</p>
+            <p className="mt-2 font-medium">This workout cannot be programmed onto a PM5. Adjust it and check again.</p>
           )}
         </div>
       )}
@@ -126,7 +262,7 @@ export function PM5ConnectState({
 }) {
   return (
     <Card>
-      <CardHeader title="Connect PM5" subtitle="The workout is ready. Choose a nearby monitor." />
+      <CardHeader title="Connect PM5" subtitle="Find the monitor you are about to row on. It stays connected until you disconnect." />
       <Button className="min-h-11 w-full" size="lg" icon={<Bluetooth size={20} />} onClick={onScan} loading={scanning}>
         Find PM5
       </Button>
@@ -165,8 +301,8 @@ export function PM5ReadyState({
   return (
     <Card>
       <CardHeader
-        title="Ready to program"
-        subtitle={`${device?.name ?? 'PM5'} is connected. No workout has been sent yet.`}
+        title="Ready to row"
+        subtitle={`${device?.name ?? 'PM5'} is connected and the workout is set.`}
         action={<Badge variant="success">Connected</Badge>}
       />
       {translation.notes.length > 0 && (
@@ -174,12 +310,12 @@ export function PM5ReadyState({
           {translation.notes.map(note => <li key={note}>{note}</li>)}
         </ul>
       )}
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Button className="min-h-11 sm:col-span-2" size="lg" onClick={onProgram} loading={programming}>
-          {translation.mode === 'prompt_only' ? 'Program PM5-native portion' : 'Program PM5'}
-        </Button>
-        <Button className="min-h-11" variant="secondary" onClick={onDiagnostic} loading={diagnosticPending}>Diagnostics</Button>
-        <Button className="min-h-11 sm:col-span-3" variant="ghost" icon={<Unplug size={18} />} onClick={onDisconnect}>Disconnect</Button>
+      <Button className="min-h-11 w-full" size="lg" onClick={onProgram} loading={programming}>
+        {programming ? 'Sending to PM5…' : 'Row'}
+      </Button>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <Button className="min-h-11" variant="ghost" onClick={onDiagnostic} loading={diagnosticPending}>Diagnostics</Button>
+        <Button className="min-h-11" variant="ghost" icon={<Unplug size={18} />} onClick={onDisconnect}>Disconnect</Button>
       </div>
       {diagnostic && <p className="mt-3 text-xs text-content-muted">Firmware {diagnostic.firmwareRevision ?? 'unknown'} · {diagnostic.controlValueLimit}-byte control limit</p>}
     </Card>

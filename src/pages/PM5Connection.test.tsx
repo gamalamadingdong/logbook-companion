@@ -9,7 +9,9 @@ vi.mock('../hooks/useAuth', () => ({
 }));
 
 describe('PM5Connection', () => {
-  it('renders preflight before any connection action', () => {
+  it('asks to connect a monitor before anything else', () => {
+    // Connecting comes first. Previously the athlete had to describe the
+    // workout before the monitor was even discovered.
     const html = renderToStaticMarkup(
       <MemoryRouter>
         <PM5Provider>
@@ -18,8 +20,8 @@ describe('PM5Connection', () => {
       </MemoryRouter>,
     );
     expect(html).toContain('Train with PM5');
-    expect(html).toContain('Workout preflight');
-    expect(html).toContain('Review workout');
-    expect(html).not.toContain('Find PM5');
+    expect(html).toContain('Connect PM5');
+    expect(html).toContain('Find PM5');
+    expect(html).not.toContain('Check workout');
   });
 });
