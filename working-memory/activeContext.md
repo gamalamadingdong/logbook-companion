@@ -154,7 +154,10 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Application-level PM5 connection | Merged in PR #216 with `bluetooth-central` and a screen wake lock; the page previously disconnected the monitor on navigation |
 | Browser PM5 connection | Merged in PR #220; browsers use the platform chooser because `requestLEScan` is experimental there |
 | Connect-first Train and guided workout builder | Merged in PR #221; the builder generates RWN so every entry path shares one validation route |
+| Workout analysis measurements and structure | Merged in PR #224; the detail is built from columns, and interval structure is resolved from three storage arrangements |
+| Per-workout benchmark flag | Merged in PR #225; the column it was written to had never existed, so the feature had never worked |
 | In-app account deletion and privacy policy | Merged in PR #218; migration applied and verified. Never executed end to end |
+| OTA delivery | Not started; no updater plugin is installed, so one further TestFlight build is required before any update can be delivered |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
@@ -188,7 +191,11 @@ Direction: mobile serves one loop â€” connect a PM5, program, row, stay synced â
 
 Two App Review blockers were found and closed before submission rather than at rejection. Live schema inspection showed the database could not support account deletion at all: `user_profiles` had no foreign key to `auth.users`, twenty columns referenced `auth.users` with NO ACTION, and team records cascaded off the coach's identity so deleting a coach would have erased squad history. Migration `20260923150000_account_deletion.sql` is applied and verified. Sign in with Apple was confirmed **not** required, closing the open question in the mobile delivery checklist.
 
-Verification note: `npm run build` is the gate before pushing, because that is what deployment runs. `npm run test:run` does not typecheck and `tsc -b` is incremental, so both can pass while the build fails.
+Verification note: `npm run build` is the gate before pushing, because that is what deployment runs. `npm run test:run` does not typecheck and `tsc -b` is incremental, so both can pass while the build fails. This caught three separate faults in one session, each after the full suite had passed.
+
+Two schema faults were found by inspecting live data rather than reading code. The workout analysis was built by spreading `raw_data`, which only carries the Concept2 shape for imported results, so workouts recorded any other way lost both their measurements and their interval structure; structure turned out to live in three different arrangements depending on how the workout was recorded. Separately, `is_benchmark` was read and written for a column that did not exist, so marking a workout as a test effort had never once worked across 5,272 workouts, and the attempt also discarded the manual RWN saved in the same request. Both are fixed in #224 and #225.
+
+Next native build is unavoidable: no OTA updater plugin is installed, so the delivered build cannot receive JavaScript updates however the server is configured. Phase 4 must land first, then one TestFlight build carrying the updater, after which JavaScript-only fixes no longer need a rebuild.
 
 ## Resume references
 
