@@ -266,12 +266,14 @@ describe('RecentWorkouts mobile row content', () => {
     const baseWorkout = {
         id: 'row-1',
         date: new Date().toISOString(),
+        distance: 1500,
+        name: '1500m',
         time: 4800,
         time_formatted: '8:00.0',
         type: 'rower',
     };
 
-    const render = (workout: Record<string, unknown>) => renderToStaticMarkup(
+    const render = (workout: typeof baseWorkout) => renderToStaticMarkup(
         <MemoryRouter>
             <RecentWorkouts workouts={[workout]} currentPage={0} hasMore={false} onPageChange={vi.fn()} />
         </MemoryRouter>,
