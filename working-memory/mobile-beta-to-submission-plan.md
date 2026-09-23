@@ -8,14 +8,14 @@ sequencing implied by earlier delivery documents, which ended at
 ## Where this stands
 
 Phases 1, 2 and the first tranche of 3 are implemented and merged to `staging`.
-Phases 0 and 5 are implemented but each awaits one piece of real-world proof.
-One TestFlight build has been installed; several fixes have landed since it.
+Phase 0 is now proven on hardware. Phase 5 is implemented but awaits one piece
+of real-world proof.
 
 | Phase | State |
 | --- | --- |
-| 0 PM5 discovery | Fixed and published as `0.6.1`; adopted in LC. Hardware proof outstanding |
+| 0 PM5 discovery | **Proven on a physical PM5**: discovered, connected, programmed and streamed live telemetry |
 | 1 Navigation shell | Merged (#215) |
-| 2 App-level connection | Merged (#216) |
+| 2 App-level connection | Merged (#216); live telemetry confirmed on hardware |
 | 3 View by view | Train and Home merged (#221, #222); manual entry and training block outstanding |
 | 4 OTA delivery | Not started. **No updater plugin is installed at all** |
 | 5 App Review readiness | Deletion and privacy merged (#218); deletion never executed end to end |
@@ -25,9 +25,29 @@ deletion and privacy, #219 analysis crash, #220 browser Bluetooth, #221 Train,
 #222 Home, #223 status, #224 workout structure, #225 benchmark flag, plus
 gamalamadingdong/erg-link#13.
 
-**Everything PM5 remains inference.** The discovery fix, connect-first ordering,
-background Bluetooth and wake lock have never run against a monitor. This is the
-single most valuable outstanding test.
+### Hardware proof, 2026-09-23
+
+From the TestFlight build `1790179965`, on a physical PM5:
+
+- the monitor was **discovered**, which is the fix in `@readyall/erglink@0.6.1`;
+- it **connected**;
+- a **2000 m workout was programmed onto it** from the app;
+- the piece **started and streamed live telemetry into the app**.
+
+This confirms the scan-filter diagnosis. The driver had filtered discovery on
+the Rowing GATT service, which never appears in an advertisement, so nothing was
+ever matched. It also exercises the connect-first Train ordering and the
+application-level connection end to end for the first time.
+
+**Still unproven on hardware**, and each needs its own run:
+
+- a piece surviving the screen locking, which is what `bluetooth-central` and
+  the wake lock exist for;
+- capture completion through ingestion to a saved workout in Logbook Companion;
+- interval programming, since only a fixed-distance piece has been sent;
+- a PM5-initiated start, meaning an athlete simply beginning to row without the
+  app having programmed the piece;
+- adverse paths: disconnect mid-piece, reconnect, and an aborted workout.
 
 ### One more native build is unavoidable
 
@@ -273,8 +293,9 @@ explicitly before touching `auth.users`.
 
 ## Defects found so far
 
-1. **PM5 scan never discovers a broadcasting monitor.** Fixed in Phase 0; device
-   proof outstanding.
+1. **PM5 scan never discovers a broadcasting monitor.** Fixed in Phase 0 and
+   **confirmed on a physical PM5 on 2026-09-23**: the monitor was discovered,
+   connected, programmed with a 2000 m piece, and streamed live telemetry.
 2. **Full-screen menu does not dismiss on navigation.** Superseded by Phase 1
    rather than patched.
 3. **Workout analysis opened a blank screen.** Fixed in #219.

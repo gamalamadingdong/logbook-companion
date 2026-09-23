@@ -149,7 +149,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.6.0` |
 | Direct athlete LC mobile → PM5 | Code merged; web, Android debug, iOS simulator, and signed iOS archive/export pass; installed-device proof remains |
-| PM5 native discovery | Fixed in `@readyall/erglink@0.6.1`; the scan filtered on a GATT service never present in an advertisement. Adopted in staging; hardware proof remains |
+| PM5 native discovery | **Proven on hardware 2026-09-23**: discovered, connected, programmed a 2000 m piece and streamed live telemetry. The scan had filtered on a GATT service never present in an advertisement |
 | Mobile navigation shell | Home, Train and an overflow drawer merged in PR #215 |
 | Application-level PM5 connection | Merged in PR #216 with `bluetooth-central` and a screen wake lock; the page previously disconnected the monitor on navigation |
 | Browser PM5 connection | Merged in PR #220; browsers use the platform chooser because `requestLEScan` is experimental there |
@@ -185,7 +185,7 @@ A manual archive-only recipe and signing preflight helpers are active on default
 
 That plan's first implementation pass is complete and merged to `staging`: navigation shell (#215), application-level PM5 connection with background Bluetooth (#216), account deletion and privacy policy (#218), the workout-analysis crash fix (#219), browser Bluetooth (#220), connect-first Train with a guided workout builder (#221), and the Home rework (#222). The PM5 discovery fix shipped separately as `@readyall/erglink@0.6.1` (gamalamadingdong/erg-link#13) and is adopted in `staging`.
 
-**No build carrying any of this has run on a device.** Everything PM5 — discovery, connect-first ordering, background Bluetooth, the wake lock, and rowing detection — remains inference from the specification and the browser harness. Account deletion has likewise never been executed end to end, because doing so destroys the account.
+**No build carrying any of this has run on a device.** Everything PM5 — discovery, connect-first ordering, background Bluetooth, the wake lock, and rowing detection — remained inference from the specification and the browser harness until 2026-09-23, when the TestFlight build was used against a physical PM5: the monitor was discovered, connected, programmed with a 2000 m piece, and streamed live telemetry into the app. That confirms the scan-filter diagnosis and exercises the application-level connection end to end. A piece surviving screen lock, capture ingestion, interval programming, PM5-initiated starts and adverse paths remain unproven. Account deletion has likewise never been executed end to end, because doing so destroys the account.
 
 Direction: mobile serves one loop — connect a PM5, program, row, stay synced — with connection treated as application state rather than a route. Bottom navigation is Home, Train and an overflow drawer. RWN is the single workout representation: the guided builder generates notation rather than a parallel shape, so every entry path shares one validation and lowering route.
 
