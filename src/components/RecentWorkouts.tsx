@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { Activity, Bike, Footprints, Snowflake, Waves, ChevronLeft, ChevronRight, Search, Loader2, X } from 'lucide-react';
 import { workoutService } from '../services/workoutService';
 import { getPersonalRecords } from '../services/personalRecordService';
@@ -119,6 +121,20 @@ export const formatWorkoutDistance = (workout: Pick<RecentWorkoutSummary, 'dista
 const workoutTimeLabel = (workout: RecentWorkoutSummary): string => manualResult(workout) && typeof workout.durationSeconds === 'number'
     ? formatCompletedDuration(workout.durationSeconds)
     : workout.time_formatted || (workout.time ? (workout.time / 10).toFixed(1) + 's' : '-');
+
+/**
+ * Whether the workout's name already says what the distance line would say.
+ *
+ * Most logged pieces are named after their distance, so showing both repeats
+ * the same value twice in a row that has little space to spare. Structured
+ * workouts differ — `8x500m/3:30r` against `4000m work · 8012m total` — and
+ * there the distance is worth its line.
+ */
+export const nameRepeatsDistance = (workout: RecentWorkoutSummary): boolean => {
+    const name = (workout.name ?? '').trim().toLowerCase();
+    if (!name) return true;
+    return name === formatWorkoutDistance(workout).trim().toLowerCase();
+};
 
 export const formatWorkoutPace = (workout: RecentWorkoutSummary): string => {
     const activity = manualResult(workout)?.activity;
@@ -469,43 +485,55 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                 </p>
             )}
 
-            <div className="space-y-3 md:hidden">
-                {visibleWorkouts.map((workout) => (
-                    <article
-                        key={workout.id || workout.db_id}
-                        className="rounded-xl border border-border bg-surface-secondary p-4"
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-baseline gap-x-2">
-                                    <p className="text-sm font-medium text-content-primary">
-                                        {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                    </p>
+            <div className="overflow-hidden rounded-xl border border-border md:hidden">
+                {visibleWorkouts.map((workout, index) => {
+                    const isManual = workoutLink(workout).startsWith('/completed-workout/');
+                    const machine = formatMachineType(workout);
+                    const showDistanceLine = !nameRepeatsDistance(workout);
+                    return (
+                        <Link
+                            key={workout.id || workout.db_id}
+                            to={workoutLink(workout)}
+                            aria-label={`${isManual ? 'View' : 'Analyze'} ${workout.name}`}
+                            className={twMerge(clsx(
+                                'flex min-h-11 items-center gap-3 px-4 py-3 transition-colors active:bg-surface-secondary',
+                                index > 0 && 'border-t border-border',
+                            ))}
+                        >
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-baseline gap-2">
                                     <span className="text-xs text-content-muted">
+                                        {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    </span>
+                                    <span className="truncate text-xs text-content-muted">
                                         {formatRelativeWorkoutDay(workout.date)}
                                     </span>
+                                    {machine !== 'RowErg' && (
+                                        <span className="truncate text-xs text-content-muted">· {machine}</span>
+                                    )}
                                 </div>
+
                                 <div className="mt-0.5 flex items-center gap-2">
-                                    <p className="truncate text-sm text-content-secondary">{workout.name}</p>
+                                    <p className="truncate text-sm font-medium text-content-primary">{workout.name}</p>
                                     {isPersonalRecordWorkout(workout) && <Badge variant="success" size="sm">PR</Badge>}
                                 </div>
-                                <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-sm">
-                                    <span className="font-mono text-base text-content-primary">{formatWorkoutDistance(workout)}</span>
-                                    <span className="font-mono font-medium text-accent-primary">{workoutTimeLabel(workout)}</span>
-                                </p>
-                                <p className="mt-1 truncate text-xs text-content-muted">
-                                    {workout.manual_rwn ? `RWN: ${workout.manual_rwn}` : formatMachineType(workout)}
+
+                                {showDistanceLine && (
+                                    <p className="mt-0.5 truncate text-xs text-content-secondary">
+                                        {formatWorkoutDistance(workout)}
+                                    </p>
+                                )}
+
+                                <p className="mt-1 flex items-baseline gap-2 font-mono text-sm">
+                                    <span className="text-accent-primary">{workoutTimeLabel(workout)}</span>
+                                    <span className="text-content-secondary">{formatWorkoutPace(workout)}</span>
                                 </p>
                             </div>
-                            <Link
-                                to={workoutLink(workout)}
-                                className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-accent-coaching bg-accent-coaching-surface px-3 text-xs font-medium text-accent-coaching transition-colors hover:border-accent-coaching-hover hover:bg-accent-coaching hover:text-content-primary"
-                            >
-                                {workoutLink(workout).startsWith('/completed-workout/') ? 'View' : 'Analyze'}
-                            </Link>
-                        </div>
-                    </article>
-                ))}
+
+                            <ChevronRight size={18} aria-hidden="true" className="shrink-0 text-content-muted" />
+                        </Link>
+                    );
+                })}
             </div>
 
             <div className="hidden md:block">
@@ -558,9 +586,10 @@ export const RecentWorkouts: React.FC<RecentWorkoutsProps> = ({
                                 <td className="py-4 pr-4 text-right">
                                     <Link
                                         to={workoutLink(workout)}
-                                        className="text-indigo-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500 hover:border-indigo-500 transition-all inline-block"
+                                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-content-muted transition-colors group-hover:text-accent-primary focus:outline-none focus:ring-2 focus:ring-focus"
                                     >
                                         {workoutLink(workout).startsWith('/completed-workout/') ? 'View' : 'Analyze'}
+                                        <ChevronRight size={14} aria-hidden="true" />
                                     </Link>
                                 </td>
                             </tr>
