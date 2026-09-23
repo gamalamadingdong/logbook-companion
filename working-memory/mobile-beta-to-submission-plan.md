@@ -32,12 +32,18 @@ From the TestFlight build `1790179965`, on a physical PM5:
 - the monitor was **discovered**, which is the fix in `@readyall/erglink@0.6.1`;
 - it **connected**;
 - a **2000 m workout was programmed onto it** from the app;
-- the piece **started and streamed live telemetry into the app**.
+- the piece **started and streamed live telemetry into the app**;
+- **Disconnect ended the session** when the athlete asked for it.
 
 This confirms the scan-filter diagnosis. The driver had filtered discovery on
 the Rowing GATT service, which never appears in an advertisement, so nothing was
 ever matched. It also exercises the connect-first Train ordering and the
 application-level connection end to end for the first time.
+
+The disconnect result matters beyond itself. Phase 2 stopped the connection
+being torn down on navigation and on React's development remount, and the
+plausible regression was that deliberate disconnection broke along with the
+accidental kind. It did not.
 
 **Still unproven on hardware**, and each needs its own run:
 
@@ -47,7 +53,9 @@ application-level connection end to end for the first time.
 - interval programming, since only a fixed-distance piece has been sent;
 - a PM5-initiated start, meaning an athlete simply beginning to row without the
   app having programmed the piece;
-- adverse paths: disconnect mid-piece, reconnect, and an aborted workout.
+- **unexpected** loss of connection mid-piece and recovery from it, which is a
+  different path from the athlete choosing to disconnect;
+- an aborted workout.
 
 ### One more native build is unavoidable
 
