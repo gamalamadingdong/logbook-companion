@@ -100,6 +100,16 @@ describe('buildWorkoutDetailFromRow', () => {
         }) as unknown as Record<string, unknown>;
         expect(detail.time).toBe(0);
     });
+
+    it('reports the benchmark flag from the column', () => {
+        // The flag was read from a column that did not exist, so a workout the
+        // athlete marked as a test effort never showed as one.
+        expect((buildWorkoutDetailFromRow({ ...columnsOnly, is_benchmark: true }) as unknown as Record<string, unknown>).is_benchmark).toBe(true);
+    });
+
+    it('defaults the benchmark flag to false rather than undefined', () => {
+        expect((buildWorkoutDetailFromRow(columnsOnly) as unknown as Record<string, unknown>).is_benchmark).toBe(false);
+    });
 });
 
 describe('buildWorkoutDetailFromRow with a published workout', () => {
