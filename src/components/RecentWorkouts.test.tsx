@@ -244,7 +244,7 @@ describe('RecentWorkouts responsive presentations', () => {
             month: 'short', day: 'numeric', year: 'numeric',
         });
 
-        expect(markup).toContain('class="space-y-3 md:hidden"');
+        expect(markup).toContain('md:hidden');
         expect(markup).toContain('class="hidden md:block"');
         expect(markup).toContain(formattedDate);
         expect(markup.match(/>today</g)).toHaveLength(2);
@@ -254,6 +254,51 @@ describe('RecentWorkouts responsive presentations', () => {
         expect(markup).toContain('RWN: 4x500m/2:00r');
         expect(markup).toContain('href="/workout/mobile-workout-1"');
         expect(markup.match(/href="\/workout\/mobile-workout-1"/g)).toHaveLength(2);
+        // The whole mobile row is the link, so it carries its own label rather
+        // than repeating a button beside every entry.
+        expect(markup).toContain('aria-label="Analyze 4 x 500m"');
+        // Pace is the number rowers compare and was missing from the phone view.
+        expect(markup).toContain('2:00.0/500m');
+    });
+});
+
+describe('RecentWorkouts mobile row content', () => {
+    const baseWorkout = {
+        id: 'row-1',
+        date: new Date().toISOString(),
+        distance: 1500,
+        name: '1500m',
+        time: 4800,
+        time_formatted: '8:00.0',
+        type: 'rower',
+    };
+
+    const render = (workout: typeof baseWorkout) => renderToStaticMarkup(
+        <MemoryRouter>
+            <RecentWorkouts workouts={[workout]} currentPage={0} hasMore={false} onPageChange={vi.fn()} />
+        </MemoryRouter>,
+    );
+
+    /** Only the phone list, so desktop columns and totals do not skew counts. */
+    const mobileSection = (markup: string) => {
+        const start = markup.indexOf('md:hidden');
+        const end = markup.indexOf('class="hidden md:block"');
+        return markup.slice(start, end);
+    };
+
+    it('does not repeat the distance when the name already states it', () => {
+        vi.stubGlobal('window', { clearTimeout: vi.fn() });
+        // A piece named after its distance rendered "1500m" twice in a row that
+        // has little space to spare.
+        const markup = mobileSection(render({ ...baseWorkout, distance: 1500, name: '1500m' }));
+        expect(markup.match(/>1500m</g)).toHaveLength(1);
+    });
+
+    it('keeps the distance when it differs from the name', () => {
+        vi.stubGlobal('window', { clearTimeout: vi.fn() });
+        const markup = mobileSection(render({ ...baseWorkout, distance: 2000, name: '4 x 500m' }));
+        expect(markup).toContain('4 x 500m');
+        expect(markup).toContain('2000m');
     });
 });
 

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Breadcrumb } from '../components/ui';
 import {
@@ -15,6 +16,7 @@ import {
 import { createPM5ProgrammingRequest, type PM5ProgrammingRequestResult } from '../services/pm5ProgrammingService';
 import { directPM5Service } from '../services/pm5DirectService';
 import { defaultWorkoutBuilderSpec, type WorkoutBuilderSpec } from '../utils/workoutBuilder';
+import { readTrainRwn } from '../utils/trainLink';
 import type { ActiveWorkoutSpec, PM5ProgrammingReceiptV1 } from '../types/ergSession.types';
 import { usePM5 } from '../hooks/usePM5';
 
@@ -149,6 +151,22 @@ export function PM5Connection() {
     setError(null);
     clearError();
   };
+
+  // A workout handed over from a suggestion arrives already written, so accept
+  // it and validate it rather than making the athlete retype it. Applied once
+  // per handoff so it never overwrites edits made afterwards.
+  const location = useLocation();
+  const handedOverRwn = readTrainRwn(location.search);
+  const appliedHandoffRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!handedOverRwn || appliedHandoffRef.current === handedOverRwn) return;
+    appliedHandoffRef.current = handedOverRwn;
+    setRwn(handedOverRwn);
+    reviewWorkout(handedOverRwn);
+    // reviewWorkout is recreated each render and intentionally excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handedOverRwn]);
 
   return (
     <main className="mx-auto max-w-4xl space-y-5 px-4 pb-24 pt-6 sm:px-6 sm:pt-8">

@@ -1,10 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
-import { CalendarCheck, Info, RefreshCw, TrendingUp, Zap } from "lucide-react";
+import { Link } from 'react-router-dom';
+import { CalendarCheck, Info, RefreshCw, TrendingUp, Waves, Zap } from "lucide-react";
 import { getWorkoutTemplates } from '../../services/supabase';
 import type { WorkoutTemplate, WorkoutLog, UserGoal, UserProfile } from '../../services/supabase';
 import type { TrainingBlockPlannedDay, TrainingBlockPlannedSession } from '../../types/trainingBlock.types';
 import { getSuggestedWorkout } from '../../utils/recommendationEngine';
+import { trainWithRwnPath } from '../../utils/trainLink';
 
 import { supabase } from '../../services/supabase';
 
@@ -164,6 +166,13 @@ export const TrainingSuggestionsWidget: React.FC<TrainingSuggestionsWidgetProps>
                                     RWN
                                 </div>
                                 <p className="font-mono text-sm text-neutral-900 dark:text-white">{primarySession.planned_rwn}</p>
+                                <Link
+                                    to={trainWithRwnPath(primarySession.planned_rwn)}
+                                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white transition-colors hover:bg-accent-primary-hover"
+                                >
+                                    <Waves size={16} aria-hidden="true" />
+                                    Row this workout
+                                </Link>
                             </div>
                         )}
 
