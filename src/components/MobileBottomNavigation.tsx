@@ -1,30 +1,31 @@
-import { Bluetooth, ChartNoAxesColumn, Ellipsis, Home, Library } from 'lucide-react';
+import { Ellipsis, Home, Waves } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui';
 
-export type MobileNavigationTab = 'home' | 'train' | 'pm5' | 'history' | 'more';
+export type MobileNavigationTab = 'home' | 'train' | 'more';
 
+/**
+ * Map a route to its bottom-navigation tab.
+ *
+ * Train owns the workout loop. Library and training-block select what to row,
+ * so they belong to Train rather than to a separate destination. Everything
+ * else is reached through the More drawer.
+ */
 export function mobileNavigationTabForPath(pathname: string): MobileNavigationTab {
   if (pathname === '/') return 'home';
-  if (pathname.startsWith('/pm5')) return 'pm5';
-  if (pathname.startsWith('/library') || pathname.startsWith('/training-block')) return 'train';
   if (
-    pathname.startsWith('/workout/')
-    || pathname.startsWith('/completed-workout/')
-    || pathname.startsWith('/history/')
-    || pathname.startsWith('/compare/')
-    || pathname.startsWith('/analytics')
-  ) return 'history';
+    pathname.startsWith('/pm5')
+    || pathname.startsWith('/library')
+    || pathname.startsWith('/training-block')
+  ) return 'train';
   return 'more';
 }
 
 const navigationItems = [
   { id: 'home' as const, label: 'Home', path: '/', icon: Home },
-  { id: 'train' as const, label: 'Train', path: '/library', icon: Library },
-  { id: 'pm5' as const, label: 'PM5', path: '/pm5', icon: Bluetooth },
-  { id: 'history' as const, label: 'History', path: '/analytics', icon: ChartNoAxesColumn },
+  { id: 'train' as const, label: 'Train', path: '/pm5', icon: Waves },
 ];
 
 interface MobileBottomNavigationProps {
@@ -69,7 +70,8 @@ export function MobileBottomNavigation({ menuOpen, onMore }: MobileBottomNavigat
           size="sm"
           aria-current={activeTab === 'more' ? 'page' : undefined}
           aria-expanded={menuOpen}
-          aria-label={menuOpen ? 'Close more navigation' : 'Open more navigation'}
+          aria-haspopup="dialog"
+          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           onClick={onMore}
           className={twMerge(clsx(
             baseClasses,

@@ -2,25 +2,39 @@ import { connectConcept2 } from '../services/concept2Auth';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Blocks, Bluetooth, LogOut, Menu, X, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search, Plus } from 'lucide-react';
+import { Blocks, Bluetooth, LogOut, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search, Plus } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { CommandPalette } from './CommandPalette';
 import { MobileBottomNavigation } from './MobileBottomNavigation';
+import { AccountSheet, MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { supabase } from '../services/supabase';
 
 interface LayoutProps {
     children: React.ReactNode;
 }
 
+/** Titles shown in the mobile header where the sidebar label reads differently. */
+const mobileTitleOverrides: Record<string, string> = {
+    '/pm5': 'Train',
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const { logout, profile, user, isAdmin } = useAuth();
+    const { logout, profile, user, isAdmin, isCoach } = useAuth();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [accountSheetOpen, setAccountSheetOpen] = useState(false);
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [newFeedbackCount, setNewFeedbackCount] = useState(0);
+
+    // Close mobile surfaces whenever the route changes, including hardware Back
+    // and deep links, so a destination is never rendered beneath an open sheet.
+    useEffect(() => {
+        setMobileMenuOpen(false);
+        setAccountSheetOpen(false);
+    }, [location.pathname]);
 
     // Cmd+K / Ctrl+K to toggle command palette
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -80,6 +94,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
         return location.pathname.startsWith(path);
     };
+
+    const mobileScreenTitle = (() => {
+        if (location.pathname === '/') return 'Logbook Companion';
+        const override = Object.keys(mobileTitleOverrides)
+            .find(path => location.pathname.startsWith(path));
+        if (override) return mobileTitleOverrides[override];
+        const match = links.find(link => link.path !== '/' && location.pathname.startsWith(link.path));
+        return match?.label ?? 'Logbook Companion';
+    })();
 
     return (
         <div className="min-h-screen bg-neutral-950 text-white font-sans flex flex-col md:flex-row">
@@ -202,65 +225,44 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </aside>
 
             {/* Mobile Header */}
-            <div className="md:hidden flex items-center justify-between p-4 bg-neutral-900 border-b border-neutral-800 sticky top-0 z-50">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-sm border border-emerald-500/20 shrink-0">
-                        {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+            <div className="md:hidden flex items-center justify-between gap-2 p-4 bg-neutral-900 border-b border-neutral-800 sticky top-0 z-50">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-500 shrink-0">
+                        <Waves size={18} />
                     </div>
                     <span className="font-bold text-lg truncate">
-                        {profile?.display_name || 'Logbook Companion'}
+                        {mobileScreenTitle}
                     </span>
                 </div>
-                {user && (
-                    <div className="shrink-0 mr-1">
-                        <NotificationBell variant="icon" align="right" />
-                    </div>
-                )}
-                <button
-                    type="button"
-                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="p-2 text-neutral-400 hover:text-white shrink-0"
-                    aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-                >
-                    {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                    {user && <NotificationBell variant="icon" align="right" />}
+                    <button
+                        type="button"
+                        onClick={() => setAccountSheetOpen(true)}
+                        aria-haspopup="dialog"
+                        aria-expanded={accountSheetOpen}
+                        aria-label="Account menu"
+                        className="w-9 h-9 rounded-full bg-emerald-900/30 text-emerald-500 flex items-center justify-center font-bold text-sm border border-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-focus"
+                    >
+                        {(profile?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                    </button>
+                </div>
             </div>
 
-            {/* Mobile Menu Overlay */}
-            {mobileMenuOpen && (
-                <div className="md:hidden fixed inset-0 z-40 bg-neutral-950/95 pt-20 px-6 backdrop-blur-sm animate-in fade-in slide-in-from-top-4 duration-200 overflow-y-auto">
-                    <nav className="space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-                        {links.map(link => {
-                            const Icon = link.icon;
-                            return (
-                                <Link
-                                    key={link.path}
-                                    to={link.path}
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className={`flex items-center gap-4 px-4 py-4 rounded-xl text-lg ${isLinkActive(link.path)
-                                        ? 'bg-neutral-800 text-white font-bold'
-                                        : 'text-neutral-400'
-                                        }`}
-                                >
-                                    <Icon size={24} />
-                                    {link.label}
-                                </Link>
-                            );
-                        })}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setMobileMenuOpen(false);
-                                logout();
-                            }}
-                            className="flex items-center gap-4 px-4 py-4 w-full text-left text-red-400 text-lg border-t border-neutral-800 mt-4"
-                        >
-                            <LogOut size={24} />
-                            Sign Out
-                        </button>
-                    </nav>
-                </div>
-            )}
+            <MobileNavigationDrawer
+                open={mobileMenuOpen}
+                onClose={() => setMobileMenuOpen(false)}
+                isCoach={isCoach}
+                isAdmin={isAdmin}
+            />
+
+            <AccountSheet
+                open={accountSheetOpen}
+                onClose={() => setAccountSheetOpen(false)}
+                displayName={profile?.display_name || user?.email?.split('@')[0] || 'Account'}
+                email={user?.email ?? undefined}
+                onSignOut={logout}
+            />
 
             {/* Main Content Area */}
             <main id="main-content" className="min-h-screen flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:ml-64 md:pb-0">

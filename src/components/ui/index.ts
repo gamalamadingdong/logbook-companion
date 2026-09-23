@@ -6,6 +6,7 @@ export { Breadcrumb } from './Breadcrumb';
 export { EmptyState } from './EmptyState';
 export { SaveIndicator } from './SaveIndicator';
 export { Modal } from './Modal';
+export { Sheet } from './Sheet';
 export { ConfirmDialog } from './ConfirmDialog';
 export { DataTable } from './DataTable';
 export type { Column } from './DataTable';
