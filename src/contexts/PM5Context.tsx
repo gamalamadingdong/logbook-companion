@@ -11,6 +11,7 @@ import {
   type RowingActivityState,
 } from '../services/pm5ActivityDetection';
 import { useAuth } from '../hooks/useAuth';
+import { requestPM5FromBrowser, usesBrowserDeviceChooser } from '../services/pm5WebBluetooth';
 
 export type PM5ConnectionStatus =
   | 'idle'
@@ -134,21 +135,31 @@ export function PM5Provider({ children }: { children: React.ReactNode }) {
     };
   }, [activity.rowing]);
 
-  // Release the monitor when the owning athlete changes or signs out. This is
-  // deliberately not tied to route changes.
+  // Release the monitor when the owning athlete actually changes or signs out.
+  //
+  // This deliberately does not disconnect from an effect cleanup. Cleanup also
+  // runs on remount, including React's development double-invoke, which would
+  // drop a live connection mid-piece for no reason.
+  const previousOwnerRef = useRef<string | null>(null);
   useEffect(() => {
-    const ownerId = user?.id;
-    directPM5Service.setCaptureOwner(ownerId ?? null);
-    if (!ownerId) return;
-    void directPM5Service.retryPendingCaptures().catch(() => undefined);
-    return () => {
+    const ownerId = user?.id ?? null;
+    const previousOwner = previousOwnerRef.current;
+    previousOwnerRef.current = ownerId;
+
+    directPM5Service.setCaptureOwner(ownerId);
+
+    if (ownerId) {
+      void directPM5Service.retryPendingCaptures().catch(() => undefined);
+    }
+
+    if (previousOwner && previousOwner !== ownerId) {
       void directPM5Service.disconnect()
         .catch(() => undefined)
         .finally(() => {
-          directPM5Service.clearCaptureOwner(ownerId);
+          directPM5Service.clearCaptureOwner(previousOwner);
           setActivity(resetRowingActivity());
         });
-    };
+    }
   }, [user?.id]);
 
   const scan = useCallback(async () => {
@@ -160,6 +171,21 @@ export function PM5Provider({ children }: { children: React.ReactNode }) {
       if (!(await directPM5Service.isAvailable())) {
         throw new Error('Bluetooth is unavailable. Enable Bluetooth and try again.');
       }
+
+      // Browsers cannot use the driver's advertisement scan, so the athlete
+      // picks a monitor from the platform chooser instead of a discovered list.
+      if (usesBrowserDeviceChooser()) {
+        setStatus('scanning');
+        const device = await requestPM5FromBrowser();
+        if (!device) {
+          setStatus('idle');
+          return;
+        }
+        setDevices([device]);
+        setStatus('idle');
+        return;
+      }
+
       setStatus('scanning');
       await directPM5Service.startScan();
     } catch (scanError) {
