@@ -170,8 +170,17 @@ Native-auth PR #205 and the signing follow-ups are merged into staging. The oper
 
 A manual archive-only recipe and signing preflight helpers are active on default `main`. It checks out staging, records source/build provenance, and contains no upload command. Run `35784015794` completed the signed archive and IPA export for bundle `org.readyall.logbookcompanion`, version `1.0`, build `1790110903`, from staging commit `e32584bff0fdc77002cf5055e5afdbd42c7b97ab`. Archive signature, archive/IPA identity and bundled runtime configuration passed; the artifact and provenance JSON were retained for seven days and temporary signing material was cleaned. Metadata confirms Concept2 development and `uploaded=false`. Production's public Supabase variables are configured, but it has no required-reviewer protection. Installed auth proof, explicit TestFlight upload approval/installation, OTA, and ScheduleBoard's separate signing migration remain outstanding. See [mobile delivery](../docs/concept2-mobile/mobile-delivery.md#archive-only-pipeline-checkpoint-2026-09-22).
 
+### First TestFlight install and mobile replan
+
+2026-09-23: the operator installed and used the build through TestFlight. That is the first real installed-device evidence and it produced two defects plus a mobile direction change. Mobile work now follows [mobile beta to submission plan](mobile-beta-to-submission-plan.md), which supersedes the sequencing implied above.
+
+Two defects were root-caused. PM5 discovery never found a broadcasting monitor because the native driver filtered its scan on the Rowing GATT service rather than the advertised name prefix; this is fixed in `erg-link` as `0.6.1` (PR gamalamadingdong/erg-link#13) but is unpublished, so CI and TestFlight builds do not yet contain it. The full-screen mobile menu did not dismiss on navigation because the `z-50` bottom bar renders above the `z-40` overlay and its links carry no dismiss handler; this is superseded by the navigation rework rather than patched.
+
+The agreed direction is that mobile serves one loop — connect PM5, program, row, stay synced — with PM5 connection treated as application state rather than a route. Bottom navigation reduces to Home, Train, and an overflow drawer. Two App Review blockers were also found before submission: there is no in-app account deletion and no privacy policy. Sign in with Apple was confirmed **not** required, closing the open question recorded in the mobile delivery checklist.
+
 ## Resume references
 
+- [Mobile beta to submission plan](mobile-beta-to-submission-plan.md)
 - [Concept2/mobile router](../docs/concept2-mobile/README.md)
 - [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md)
 - [Mobile UX foundation](../docs/mobile-ux-foundation.md)
