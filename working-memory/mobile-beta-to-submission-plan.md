@@ -198,8 +198,28 @@ required, carrying the updater. After that, JavaScript-only fixes ship without a
 rebuild; anything touching `Info.plist`, plugins or native code still needs a
 binary.
 
-Installing the plugin needs an unblocked npm registry and therefore belongs on
-the remote machine.
+### Use the 7.x line of the updater
+
+Verified against the registry rather than assumed:
+
+| Version | Declared peer | Suitable |
+| --- | --- | --- |
+| `10.0.0`, the current default | `@capacitor/core: ^5.0.0` | No. Logbook Companion is on Capacitor 7 |
+| `7.51.16`, latest of the 7 line | `@capacitor/core: ^7.0.0` | Yes |
+
+```
+npm install @capgo/capacitor-updater@^7.51.16
+```
+
+ScheduleBoard runs `^7.30.0` against Capacitor `^7.4.3` in production, so the 7
+line is the proven pairing. Installing the current default would pull a version
+whose declared peer Capacitor 7 does not satisfy.
+
+Installing must happen on an unblocked machine. The attempt from the authoring
+host failed, and the reason is worth recording: the proxy there **can** serve
+`@capgo/capacitor-updater`, but any install re-resolves the whole dependency
+tree and `@readyall/erglink` is absent from that feed. The failure rolled back
+cleanly and left `package.json` and `package-lock.json` untouched.
 
 Sequencing matters. JavaScript bundle updates are permitted provided they do not
 change the app's primary purpose. Proving OTA before submission means later UX
@@ -208,7 +228,8 @@ re-review.
 
 Suggested order:
 
-1. install and configure the updater, and build the bundle and manifest path;
+1. install `@capgo/capacitor-updater@^7.51.16` and configure it, then build the
+   bundle and manifest path;
 2. cut a TestFlight build containing it, which also carries #224 and #225;
 3. prove an update and a rollback against that build before relying on it.
 
