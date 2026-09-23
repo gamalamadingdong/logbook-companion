@@ -31,5 +31,10 @@ scripts/*
 .env
 .env
 
+# OTA signing material and generated update artifacts
+.capgo_key_v2
+updates/web/
+updates/dist/
+
 supabase/.temp/cli-latest
 .worktrees/

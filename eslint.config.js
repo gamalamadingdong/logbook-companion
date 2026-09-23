@@ -10,6 +10,7 @@ export default defineConfig([
     'dist',
     'android/**/build/**',
     'ios/**/build/**',
+    'updates/**/*.d.mts',
     'scripts',
     'working-memory',
     'reproduce_rwn.ts',

@@ -24,9 +24,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Verify OTA trust key
+        run: printf '%s  %s\n' 'ecdfe83ab9deee3bb0c74af3bc2bceeca90a5495f7a5e910f857a8fad7e36b97' '.capgo_key_v2.pub' | sha256sum --check --strict
       - run: npm run test:run
       - run: npm run lint
       - run: npm run build
+      - run: npm run updates:test
+      - run: npm run updates:build
 
   android-debug:
     needs: web-checks
@@ -46,6 +50,8 @@ jobs:
       - run: npm ci
       - run: npm run mobile:build
       - run: npx cap sync android
+      - name: Verify generated Android OTA trust key
+        run: node --input-type=module -e "import fs from 'node:fs'; const expected=fs.readFileSync('.capgo_key_v2.pub','utf8').trim(); const generated=JSON.parse(fs.readFileSync('android/app/src/main/assets/capacitor.config.json','utf8')); if(generated.plugins?.CapacitorUpdater?.publicKey?.trim()!==expected) throw new Error('Android OTA trust key mismatch');"
       - name: Build unsigned Android debug APK
         working-directory: android
         run: |
@@ -74,6 +80,8 @@ jobs:
       - run: npm ci
       - run: npm run mobile:build
       - run: npx cap sync ios
+      - name: Verify generated iOS OTA trust key
+        run: node --input-type=module -e "import fs from 'node:fs'; const expected=fs.readFileSync('.capgo_key_v2.pub','utf8').trim(); const generated=JSON.parse(fs.readFileSync('ios/App/App/capacitor.config.json','utf8')); if(generated.plugins?.CapacitorUpdater?.publicKey?.trim()!==expected) throw new Error('iOS OTA trust key mismatch');"
       - name: Install CocoaPods
         working-directory: ios/App
         run: pod install

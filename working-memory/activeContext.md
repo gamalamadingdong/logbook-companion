@@ -159,7 +159,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Workout analysis measurements and structure | Merged in PR #224; the detail is built from columns, and interval structure is resolved from three storage arrangements |
 | Per-workout benchmark flag | Merged in PR #225; the column it was written to had never existed, so the feature had never worked |
 | In-app account deletion and privacy policy | Merged in PR #218; migration applied and verified. Never executed end to end |
-| OTA delivery | Not started; no updater plugin is installed, so one further TestFlight build is required before any update can be delivered |
+| OTA delivery | Implemented locally on the OTA branch: Capgo v7 native plugin, committed RSA public trust key, encrypted immutable Vercel bundle service, compatibility/replay gates, workout-safe activation, and boot-failure rollback. Hosting, private-key provisioning, next TestFlight shell, and installed-device rollback proof remain |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
@@ -186,6 +186,8 @@ A manual archive-only recipe and signing preflight helpers are active on default
 2026-09-23: the operator installed and used the build through TestFlight. That is the first real installed-device evidence and it produced two defects plus a mobile direction change. Mobile work now follows [mobile beta to submission plan](mobile-beta-to-submission-plan.md), which supersedes the sequencing implied above.
 
 That plan's first implementation pass is complete and merged to `staging`: navigation shell (#215), application-level PM5 connection with background Bluetooth (#216), account deletion and privacy policy (#218), the workout-analysis crash fix (#219), browser Bluetooth (#220), connect-first Train with a guided workout builder (#221), and the Home rework (#222). The PM5 discovery fix shipped separately as `@readyall/erglink@0.6.1` (gamalamadingdong/erg-link#13) and is adopted in `staging`.
+
+The OTA implementation now follows the proven `scheduleboardv2/updates` deployment shape with stricter LC gates. The beta channel is committed halted. Local enabled-path proof builds a Capgo-compatible encrypted bundle and verifies both its immutable SHA-256 and its private-key-authenticated checksum using the public key embedded in iOS and Android. No updates endpoint, DNS, or hosted private key has been provisioned yet, and the installed TestFlight build still predates the updater plugin.
 
 **No build carrying any of this has run on a device.** Everything PM5 — discovery, connect-first ordering, background Bluetooth, the wake lock, and rowing detection — remains inference from the specification and the browser harness. Account deletion has likewise never been executed end to end, because doing so destroys the account.
 

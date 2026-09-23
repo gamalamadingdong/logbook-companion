@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { hasSupabaseEnv, missingSupabaseEnvVars } from './services/supabase'
+import { notifyNativeBundleReady } from './services/mobileUpdates'
+
+notifyNativeBundleReady();
 
 const storedTheme = localStorage.getItem('logbook_theme_preference');
 const isThemePreference = storedTheme === 'dark' || storedTheme === 'light' || storedTheme === 'system';

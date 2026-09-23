@@ -105,10 +105,26 @@ jobs:
       - name: Validate the generated native configuration
         run: |
           node --input-type=module <<'JS'
+          import crypto from 'node:crypto';
           import fs from 'node:fs';
+          const expectedKeyFile = fs.readFileSync('.capgo_key_v2.pub');
+          const expectedFingerprint = 'ecdfe83ab9deee3bb0c74af3bc2bceeca90a5495f7a5e910f857a8fad7e36b97';
+          if (crypto.createHash('sha256').update(expectedKeyFile).digest('hex') !== expectedFingerprint) {
+            throw new Error('The committed LC OTA trust key fingerprint changed.');
+          }
           const config = JSON.parse(fs.readFileSync('ios/App/App/capacitor.config.json', 'utf8'));
           if (config.appId !== process.env.LC_BUNDLE_ID || config.server?.url !== undefined) {
             throw new Error('The native app must use the registered identity and bundled assets, not a remote server.');
+          }
+          const updater = config.plugins?.CapacitorUpdater;
+          if (updater?.autoUpdate !== 'onlyDownload' || updater?.directUpdate !== false) {
+            throw new Error('The native updater must download only; LC schedules activation after workout-safe backgrounding.');
+          }
+          if (updater?.updateUrl !== 'https://updates.logbook.readyall.org/updates/beta') {
+            throw new Error('The native updater is not pinned to the reviewed LC beta endpoint.');
+          }
+          if (updater?.publicKey?.trim() !== expectedKeyFile.toString('utf8').trim()) {
+            throw new Error('The native archive does not contain the reviewed LC OTA trust key.');
           }
           JS
 
