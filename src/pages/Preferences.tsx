@@ -6,12 +6,13 @@ import { calculateCanonicalName } from '../utils/workoutNaming';
 import { fetchUserPRs } from '../utils/prDetection';
 import { Loader2, Database } from 'lucide-react';
 import { GoalsManager } from '../components/GoalsManager';
+import { DeleteAccountSection } from '../components/DeleteAccountSection';
 import { PowerBackfill } from '../components/debug/PowerBackfill';
 import { useTheme, type ThemePreference } from '../hooks/useTheme';
 import { isMeasurementUnits, type MeasurementUnits } from '../utils/unitConversion';
 
 export const Preferences: React.FC = () => {
-    const { profile, loading: authLoading, refreshProfile } = useAuth();
+    const { profile, loading: authLoading, refreshProfile, isCoach } = useAuth();
     const { themePreference, setThemePreference } = useTheme();
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'benchmarks' | 'goals'>('profile');
     const [saving, setSaving] = useState(false);
@@ -448,6 +449,10 @@ export const Preferences: React.FC = () => {
                         <div className="mt-6 pt-6 border-t border-neutral-800">
                             <h3 className="font-medium text-neutral-200 mb-3">Concept2 Sync</h3>
                             <p className="text-sm text-neutral-400">Sync is currently controlled via the Sync page. Visit the Sync page to manage your Concept2 connection.</p>
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-neutral-800">
+                            <DeleteAccountSection isCoach={isCoach} />
                         </div>
                     </div>
                 )}
