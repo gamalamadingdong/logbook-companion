@@ -1,6 +1,6 @@
 # Active Context
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 ## Current objective
 
@@ -15,6 +15,8 @@ Production Concept2 publishing remains disabled. Concept2 has not replied to the
 The global **Add completed workout** flow supports RowErg, SkiErg, BikeErg, runs, other activities, single distance/time results, and fixed or variable work/rest segments. Saved templates and pasted RWN provide an optional plan; entered measurements remain the result. The LC workout UUID, source, completion time/timezone, plan snapshot, template link, ordered work/rest detail, and summary indexes persist in the owned `workout_logs` row.
 
 The desktop interval editor uses a row grid; mobile uses the corresponding compact layout. Missing required interval types block Concept2 eligibility. Incomplete measurements remain unknown rather than being summed into false whole-workout totals.
+
+The mobile entry hierarchy now puts the quick measured result before the optional plan. Plan/template controls are collapsed on phones unless an edited workout already has a plan; desktop keeps the full plan-first workflow. Training Block now opens to the current week on phones, keeps all seven compact day selectors in one row, labels today explicitly, and places setup/history/team management behind one progressive-disclosure control. The selected day's planned sessions remain primary; team prescriptions, routine/support details, and matching overrides expand only when needed on phones. This cleanup is build-verified but still needs installed-device review.
 
 ### Shared Concept2 publication core
 

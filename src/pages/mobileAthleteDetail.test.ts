@@ -12,11 +12,14 @@ describe('athlete detail mobile layouts', () => {
     expect(workout).toContain('min-w-[42rem]');
   });
 
-  it('presents one selected training week without page-wide overflow', () => {
+  it('presents one selected training week with a compact seven-day phone selector', () => {
     const trainingBlock = source('./TrainingBlock.tsx');
     expect(trainingBlock).toContain('max-w-full gap-1.5 overflow-x-auto');
-    expect(trainingBlock).toContain('grid grid-cols-4 gap-2 xl:grid-cols-7');
+    expect(trainingBlock).toContain('grid grid-cols-7 gap-1');
+    expect(trainingBlock).toContain('min-h-14 min-w-0');
+    expect(trainingBlock).toContain("['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa']");
     expect(trainingBlock).toContain('min-h-11 min-w-12 shrink-0');
+    expect(trainingBlock).toContain('Matching details');
   });
 
   it('uses mobile library cards and preserves the desktop table', () => {

@@ -171,6 +171,7 @@ export function CompletedWorkoutEntry() {
   const [form, setForm] = useState<EntryForm>(emptyForm);
   const [original, setOriginal] = useState<CompletedWorkoutEntryV1 | null>(null);
   const [showSegments, setShowSegments] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
   const [loading, setLoading] = useState(Boolean(id));
   const [editLock, setEditLock] = useState<'none' | 'published' | 'outcome_unknown' | 'unavailable'>('none');
   const [saving, setSaving] = useState(false);
@@ -206,6 +207,7 @@ export function CompletedWorkoutEntry() {
       setOriginal(saved.result);
       setForm(fromResult(saved.result));
       setRwnInput(saved.result.plannedRwn ?? '');
+      setShowPlan(Boolean(saved.result.plannedRwn || saved.result.plannedTemplate));
       setShowSegments(saved.result.segments.length > 0);
     }).catch(() => {
       if (!cancelled) setErrors({ page: 'Could not load this workout. Try again.' });
@@ -359,13 +361,13 @@ export function CompletedWorkoutEntry() {
             <Link to={`/completed-workout/${id}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-primary underline">Back to workout</Link>
           </Card>
         ) : (
-          <form onSubmit={(event) => { void save(event); }} className="space-y-5" noValidate>
+          <form onSubmit={(event) => { void save(event); }} className="flex flex-col gap-5" noValidate>
             {errors.page && <Card><p className="text-accent-danger" role="alert">{errors.page}</p></Card>}
             {Object.keys(errors).length > 0 && !errors.page && (
               <p className="rounded-lg border border-accent-danger bg-surface-card p-3 text-sm text-accent-danger" role="alert">Check the highlighted values before saving.</p>
             )}
 
-            <Card className="max-w-3xl">
+            <Card className="order-1 max-w-3xl">
               <CardHeader title="What did you do?" subtitle="Choose the activity first. Equipment is optional." />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {activities.map(({ value, label, icon: Icon }) => (
@@ -397,8 +399,13 @@ export function CompletedWorkoutEntry() {
               )}
             </Card>
 
-            <Card className="max-w-3xl">
-              <CardHeader title="Start from a plan" subtitle="Find a saved template or paste workout notation. Either way, you enter the actual result below." />
+            <Card className="order-3 max-w-3xl md:order-2">
+              <CardHeader
+                title="Start from a plan"
+                subtitle="Optional. Add a saved template or workout notation when you want interval targets."
+                action={<Button type="button" variant="ghost" className="min-h-11 md:hidden" aria-expanded={showPlan} onClick={() => setShowPlan((current) => !current)}>{showPlan ? 'Hide' : 'Add plan'}</Button>}
+              />
+              <div className={showPlan ? 'block' : 'hidden md:block'}>
               {form.plannedTemplate && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-secondary p-3 text-sm">
                 <span>Template: <span className="font-medium text-content-primary">{form.plannedTemplate.name}</span></span>
                 <Button type="button" variant="ghost" className="min-h-11" onClick={() => update({ plannedTemplate: null })}>Remove link</Button>
@@ -421,9 +428,10 @@ export function CompletedWorkoutEntry() {
                 Preview: {rwnPreview.length ? rwnPreview.filter((segment) => segment.role === 'work').length + ' work and ' + rwnPreview.filter((segment) => segment.role === 'rest').length + ' rest rows' : 'single-piece plan'}. Planned targets never fill in actual results.
               </p>}
               <p className="mt-2 text-xs text-content-muted">The plan sets targets only. Enter measured distance and time for each interval after the workout.</p>
+              </div>
             </Card>
 
-            <Card className="max-w-3xl">
+            <Card className="order-2 max-w-3xl md:order-3">
               <CardHeader title="Your result" subtitle="A quick entry only needs the measurements you know." />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input label={`Finished at · ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time'}`} type="datetime-local" value={form.finishedLocal} onChange={(event) => update({ finishedLocal: event.target.value })} error={errors.completedAt} className="min-h-11" />
@@ -461,7 +469,7 @@ export function CompletedWorkoutEntry() {
               </details>
             </Card>
 
-            <Card>
+            <Card className="order-4">
               <CardHeader title="Intervals or splits" subtitle="Optional detail for repeats, variable work, warmups and rest. Choose each work interval type when you know it." action={form.segments.length ? <span className="text-xs text-content-muted">{form.segments.length} segments</span> : undefined} />
               {!showSegments ? (
                 <Button type="button" variant="secondary" className="min-h-11" icon={<Plus size={16} />} onClick={() => { if (!form.segments.length) update({ segments: [newSegmentForm()], detailCoverage: 'full' }); setShowSegments(true); }}>{form.segments.length ? `Show ${form.segments.length} intervals` : 'Add intervals or splits'}</Button>
@@ -496,7 +504,7 @@ export function CompletedWorkoutEntry() {
               )}
             </Card>
 
-            <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-surface-page/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border">
+            <div className="order-5 sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-surface-page/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border">
               <Link to={id ? `/completed-workout/${id}` : '/'} className="inline-flex min-h-11 items-center px-3 text-sm text-content-secondary hover:text-content-primary">Cancel</Link>
               <Button type="submit" loading={saving} className="min-h-11 min-w-36" icon={<Check size={16} />}>{id ? 'Save changes' : 'Save workout'}</Button>
             </div>
