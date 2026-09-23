@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { CoachingProvider } from './contexts/CoachingContext';
+import { PM5Provider } from './contexts/PM5Context';
 
 import { Layout } from './components/Layout';
 import { AutoSync } from './components/AutoSync';
@@ -157,6 +158,7 @@ const AppContent: React.FC = () => {
             <Toaster position="top-center" richColors theme={resolvedTheme} toastOptions={{ style: { marginTop: '0.5rem' } }} />
             <BrowserRouter>
               <NativeAppBridge />
+              <PM5Provider>
               <CoachingProvider>
                 <Suspense fallback={<RouteLoadingScreen />}><Routes>
           <Route path="/login" element={<Login />} />
@@ -490,6 +492,7 @@ const AppContent: React.FC = () => {
           />
         </Routes></Suspense>
               </CoachingProvider>
+              </PM5Provider>
       </BrowserRouter>
     </>
     );

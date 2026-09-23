@@ -37,6 +37,10 @@
 	<string>Logbook Companion uses Bluetooth to connect to a nearby Concept2 performance monitor.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Logbook Companion uses Bluetooth to connect to a nearby Concept2 performance monitor.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
