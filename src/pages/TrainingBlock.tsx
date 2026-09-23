@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, ChevronDown, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
 import { Badge, Modal } from '../components/ui';
@@ -424,6 +424,11 @@ function formatWeekday(date: string): string {
     });
 }
 
+function formatCompactWeekday(date: string): string {
+    const parts = localDateString(date);
+    return ['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa'][new Date(`${parts}T12:00:00`).getDay()];
+}
+
 function resolveRoutineForSession(reference: TrainingBlockReferenceContent | undefined, sessionTitle: string, source: string): TrainingBlockReferenceRoutine | undefined {
     if (!reference?.routines?.length || source !== 'strength') {
         return undefined;
@@ -715,6 +720,7 @@ export const TrainingBlock: React.FC = () => {
     const [publishedTemplates, setPublishedTemplates] = useState<PublishedTrainingBlockTemplateOption[]>([]);
     const [templatesLoading, setTemplatesLoading] = useState(true);
     const [setupOpen, setSetupOpen] = useState(false);
+    const [managementOpen, setManagementOpen] = useState(false);
     const [setupTemplateKey, setSetupTemplateKey] = useState<TrainingBlockTemplateKey>(() => readSelectedTrainingBlockTemplate());
     const [setupStartDate, setSetupStartDate] = useState(() => getMondaySnappedDate());
     const [setupIntent, setSetupIntent] = useState<'activate' | 'schedule'>('activate');
@@ -822,6 +828,7 @@ export const TrainingBlock: React.FC = () => {
                     setSelectedEnrollmentId(null);
                     setTrainingBlockActive(false);
                     setSetupOpen(true);
+                    setManagementOpen(true);
                     setSetupTemplateKey(effectiveTemplateKey);
                     setSetupStartDate(getMondaySnappedDate());
                     setLogOverrides({});
@@ -1289,6 +1296,7 @@ export const TrainingBlock: React.FC = () => {
         setSetupTemplateKey(selectedTemplateId as TrainingBlockTemplateKey);
         setSetupStartDate(trainingBlockEnrollment?.start_date ?? getMondaySnappedDate());
         setSetupOpen(true);
+        setManagementOpen(true);
     };
 
     const viewTrainingBlockEnrollment = (enrollment: TrainingBlockEnrollmentRow) => {
@@ -2120,6 +2128,16 @@ export const TrainingBlock: React.FC = () => {
                     </div>
                 </div>
 
+                <details
+                    open={managementOpen}
+                    onToggle={(event) => setManagementOpen(event.currentTarget.open)}
+                    className="group"
+                >
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-border bg-surface-card px-4 py-3 text-sm font-medium text-content-primary focus:outline-none focus:ring-2 focus:ring-focus lg:hidden">
+                        Plan details and management
+                        <ChevronDown size={18} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                    </summary>
+                    <div className="mt-4 space-y-6 lg:mt-0 lg:block">
                 {setupOpen && (
                     <Card variant="outlined" className="border-blue-500/30 bg-blue-950/10">
                         <form onSubmit={saveTrainingBlockSetup} className="space-y-4">
@@ -2543,6 +2561,8 @@ export const TrainingBlock: React.FC = () => {
                         </p>
                     </Card>
                 )}
+                    </div>
+                </details>
 
                 <Card>
                     <CardHeader
@@ -2635,42 +2655,45 @@ export const TrainingBlock: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-4 gap-2 xl:grid-cols-7">
+                            <div className="-mx-2 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
                                 {selectedWeekDays.map((day) => {
                                     const daySummary = daySummariesByDate.get(day.date) ?? summarizeDayProgress(day, [], templateMatchingContext);
                                     const isSelected = day.date === selectedDay.date;
                                     const style = statusTone[daySummary.status];
                                     const dailyLogCount = calendarLogCountByDate.get(day.date) ?? 0;
                                     const dayAssignments = assignmentsByDate.get(day.date) ?? [];
+                                    const isToday = day.date === localDateString(new Date());
                                     return (
                                         <button
                                             key={day.date}
                                             type="button"
                                             onClick={() => setSelectedDate(day.date)}
-                                            className={`min-h-16 rounded-lg border p-2 text-left transition-colors ${
+                                            aria-label={`${formatWeekday(day.date)}. ${dailyLogCount} logged workout${dailyLogCount === 1 ? '' : 's'}. ${statusLabel[daySummary.status]}.`}
+                                            className={`min-h-14 min-w-0 rounded-lg border px-1 py-1.5 text-center transition-colors sm:min-h-16 sm:p-2 sm:text-left ${
                                                 isSelected
                                                     ? 'border-emerald-500/70 bg-emerald-500/10'
                                                     : 'border-border bg-surface-card hover:border-emerald-500/40 hover:bg-surface-secondary'
                                             }`}
                                         >
-                                            <div className="flex items-start justify-between gap-2">
+                                            <div className="flex flex-col items-center gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                                                 <div className="min-w-0">
                                                     <p className="text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-                                                        {day.day_of_week.slice(0, 3)}
+                                                        <span className="sm:hidden">{formatCompactWeekday(day.date)}</span>
+                                                        <span className="hidden sm:inline">{day.day_of_week.slice(0, 3)}</span>
                                                     </p>
-                                                    <p className="mt-0.5 text-sm font-medium text-content-primary">
-                                                        {formatWeekday(day.date)}
+                                                    <p className="text-sm font-semibold text-content-primary sm:mt-0.5 sm:font-medium">
+                                                        <span className="sm:hidden">{Number.parseInt(day.date.slice(8, 10), 10)}</span>
+                                                        <span className="hidden sm:inline">{formatWeekday(day.date)}</span>
                                                     </p>
                                                 </div>
-                                                <Badge variant={style.variant} size="sm" dot={style.dot}>
-                                                    {dailyLogCount}
-                                                </Badge>
+                                                <span className={`inline-flex h-2 w-2 rounded-full ${style.dot ? 'bg-emerald-400' : 'bg-content-faint'}`} aria-hidden="true" />
+                                                <span className="sr-only">{dailyLogCount} logs</span>
                                             </div>
-                                            <p className="mt-1 hidden text-xs text-content-muted sm:block">
-                                                {formatDistanceMeters(day.planned_distance_meters)} planned
+                                            <p className={`mt-0.5 text-[9px] font-semibold uppercase tracking-tight sm:mt-1 sm:text-xs sm:normal-case sm:tracking-normal ${isToday ? 'text-accent-primary' : 'hidden text-content-muted sm:block'}`}>
+                                                {isToday ? 'Today' : `${formatDistanceMeters(day.planned_distance_meters)} planned`}
                                             </p>
                                             {dayAssignments.length > 0 && (
-                                                <p className="mt-0.5 text-[11px] text-content-secondary">
+                                                <p className="mt-0.5 hidden text-[11px] text-content-secondary sm:block">
                                                     {dayAssignments.length} team prescription{dayAssignments.length === 1 ? '' : 's'}
                                                 </p>
                                             )}
@@ -2718,8 +2741,8 @@ export const TrainingBlock: React.FC = () => {
 
                 <Card>
                     <CardHeader
-                        title="Plan & matching"
-                        subtitle={`${selectedDay.day_of_week} · ${formatWeekday(selectedDay.date)} · workouts completed this week can count toward the matching planned session`}
+                        title="Day plan"
+                        subtitle={`${selectedDay.day_of_week} · ${formatWeekday(selectedDay.date)} · planned sessions first, matching details when needed`}
                         action={
                             <Badge variant={statusTone[selectedDaySummary.status].variant} dot>
                                 {statusLabel[selectedDaySummary.status]}
@@ -2728,12 +2751,15 @@ export const TrainingBlock: React.FC = () => {
                     />
                         <div className={`grid grid-cols-1 gap-4 ${selectedDayLoggedWorkoutEntries.length === 0 && !manualEntryOpen ? 'lg:grid-cols-[minmax(0,1fr)_16rem]' : 'lg:grid-cols-[minmax(0,1fr)_22rem]'}`}>
                             {selectedDayAssignments.length > 0 && (
-                                <section className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 lg:col-span-2">
-                                    <h3 className="text-sm font-semibold text-content-primary mb-3 flex items-center gap-2">
+                                <details className="group rounded-xl border border-border bg-surface-secondary p-4 lg:col-span-2">
+                                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-content-primary focus:outline-none focus:ring-2 focus:ring-focus md:min-h-0 md:cursor-default md:pointer-events-none">
+                                        <span className="flex items-center gap-2">
                                         <Users size={16} className="text-indigo-400" />
-                                        Team prescriptions for this date
-                                    </h3>
-                                    <div className="space-y-2">
+                                        Team prescriptions ({selectedDayAssignments.length})
+                                        </span>
+                                        <ChevronDown size={18} className="transition-transform group-open:rotate-180 md:hidden" aria-hidden="true" />
+                                    </summary>
+                                    <div className="mt-3 hidden space-y-2 group-open:block md:block">
                                         {selectedDayAssignments.map((assignment) => {
                                             const weekMatch = selectedWeekAssignmentMatches.get(assignment.id);
                                             const assignmentMatch = weekMatch?.match ?? scoreAssignmentAgainstPlanDay(selectedDay, assignment, templateMatchingContext);
@@ -2775,13 +2801,13 @@ export const TrainingBlock: React.FC = () => {
                                             );
                                         })}
                                     </div>
-                                </section>
+                                </details>
                             )}
 
                             <section className="rounded-xl border border-border bg-surface-card p-4">
                                 <h3 className="text-sm font-semibold text-content-primary mb-3 flex items-center gap-2">
                                     <Target size={16} className="text-emerald-400" />
-                                    Planned intent
+                                    Planned sessions
                                 </h3>
                                 <p className="text-xs text-content-muted mb-3">
                                     Planned distance this day: {formatDistanceMeters(selectedDay.planned_distance_meters)}
@@ -2926,42 +2952,52 @@ export const TrainingBlock: React.FC = () => {
                                                             })}
                                                         </div>
                                                     )}
-                                                    {session.instructions && session.instructions.length > 0 && (
-                                                        <ul className="mt-2 text-xs text-content-secondary list-disc list-inside">
-                                                            {session.instructions.map((instruction) => (
-                                                                <li key={instruction}>{instruction}</li>
-                                                            ))}
-                                                        </ul>
-                                                    )}
-                                                    {routine && routine.exercises && routine.exercises.length > 0 && (
-                                                        <div className="mt-3 border-t border-border pt-3">
-                                                            <p className="text-xs uppercase tracking-wide text-content-muted mb-2">
-                                                                {routine.kind} routine
-                                                            </p>
-                                                            <p className="text-[11px] text-content-muted mb-2">
-                                                                Focus: {routine.focus.join(', ')}
-                                                            </p>
-                                                            <ul className="space-y-1 text-xs text-content-secondary list-disc list-inside">
-                                                                {routine.exercises.map((exercise) => (
-                                                                    <li key={`${exercise.name}-${exercise.sets}-${exercise.reps}`}>
-                                                                        <span className="text-content-primary">{exercise.name}</span>
-                                                                        {' '}
-                                                                        {formatExerciseSetNotation(exercise.sets, exercise.reps)}
-                                                                        {exercise.notes ? ` · ${exercise.notes}` : ''}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                            {routine.notes && routine.notes.length > 0 && (
-                                                                <div className="mt-2">
-                                                                    <p className="text-[11px] text-content-muted">Coach notes</p>
-                                                                    <ul className="text-xs list-disc list-inside text-content-secondary mt-1">
-                                                                        {routine.notes.map((note) => (
-                                                                            <li key={note}>{note}</li>
+                                                    {((session.instructions?.length ?? 0) > 0 || (routine?.exercises?.length ?? 0) > 0) && (
+                                                        <details className="group mt-3 border-t border-border pt-3">
+                                                            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-xs font-medium text-content-secondary focus:outline-none focus:ring-2 focus:ring-focus md:hidden">
+                                                                Session details
+                                                                <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                                                            </summary>
+                                                            <div className="hidden group-open:block md:block">
+                                                                {session.instructions && session.instructions.length > 0 && (
+                                                                    <ul className="text-xs text-content-secondary list-disc list-inside">
+                                                                        {session.instructions.map((instruction) => (
+                                                                            <li key={instruction}>{instruction}</li>
                                                                         ))}
                                                                     </ul>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                                )}
+                                                                {routine && routine.exercises && routine.exercises.length > 0 && (
+                                                                    <div className="mt-3 md:border-t md:border-border md:pt-3">
+                                                                        <p className="text-xs uppercase tracking-wide text-content-muted mb-2">
+                                                                            {routine.kind} routine
+                                                                        </p>
+                                                                        <p className="text-[11px] text-content-muted mb-2">
+                                                                            Focus: {routine.focus.join(', ')}
+                                                                        </p>
+                                                                        <ul className="space-y-1 text-xs text-content-secondary list-disc list-inside">
+                                                                            {routine.exercises.map((exercise) => (
+                                                                                <li key={`${exercise.name}-${exercise.sets}-${exercise.reps}`}>
+                                                                                    <span className="text-content-primary">{exercise.name}</span>
+                                                                                    {' '}
+                                                                                    {formatExerciseSetNotation(exercise.sets, exercise.reps)}
+                                                                                    {exercise.notes ? ` · ${exercise.notes}` : ''}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                        {routine.notes && routine.notes.length > 0 && (
+                                                                            <div className="mt-2">
+                                                                                <p className="text-[11px] text-content-muted">Coach notes</p>
+                                                                                <ul className="text-xs list-disc list-inside text-content-secondary mt-1">
+                                                                                    {routine.notes.map((note) => (
+                                                                                        <li key={note}>{note}</li>
+                                                                                    ))}
+                                                                                </ul>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </details>
                                                     )}
                                                 </div>
                                             );
@@ -2969,7 +3005,12 @@ export const TrainingBlock: React.FC = () => {
                                     ))}
                                 </div>
                                 {selectedReference && (
-                                    <div className="mt-4 pt-3 border-t border-border">
+                                    <details className="group mt-4 border-t border-border pt-3">
+                                        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-xs font-medium text-content-secondary focus:outline-none focus:ring-2 focus:ring-focus md:hidden">
+                                            Support prep
+                                            <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                                        </summary>
+                                        <div className="hidden group-open:block md:block">
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                                             <p className="text-xs uppercase tracking-wide text-content-muted">Support prep</p>
                                             <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -3032,7 +3073,8 @@ export const TrainingBlock: React.FC = () => {
                                                 ))}
                                             </div>
                                         )}
-                                    </div>
+                                        </div>
+                                    </details>
                                 )}
                                 {selectedReference && (selectedReference.routines?.length ?? 0) === 0 && selectedDay.sessions.every((session) => session.source !== 'strength') && (
                                     <p className="mt-4 text-[11px] text-content-muted">
@@ -3280,10 +3322,16 @@ export const TrainingBlock: React.FC = () => {
                                                             Plan match: {logMatch.planned_session_title}
                                                         </p>
                                                     )}
-                                                    <p className="text-xs text-content-muted mt-1">
-                                                        {logMatch.reason}
-                                                    </p>
-                                                    <div className={reviewControlSurfaceClass}>
+                                                    <details className="group mt-2">
+                                                        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-xs font-medium text-content-secondary focus:outline-none focus:ring-2 focus:ring-focus md:hidden">
+                                                            Matching details
+                                                            <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                                                        </summary>
+                                                        <div className="hidden group-open:block md:block">
+                                                            <p className="text-xs text-content-muted mt-1">
+                                                                {logMatch.reason}
+                                                            </p>
+                                                            <div className={reviewControlSurfaceClass}>
                                                         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                                             <div>
                                                                 <p className="text-xs font-semibold text-content-primary">Optional match</p>
@@ -3409,7 +3457,9 @@ export const TrainingBlock: React.FC = () => {
                                                                 </label>
                                                             </div>
                                                         </details>
-                                                    </div>
+                                                            </div>
+                                                        </div>
+                                                    </details>
                                                 </div>
                                             );
                                         })}

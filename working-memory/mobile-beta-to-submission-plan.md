@@ -7,7 +7,8 @@ sequencing implied by earlier delivery documents, which ended at
 
 ## Where this stands
 
-Phases 1, 2 and the first tranche of 3 are implemented and merged to `staging`.
+Phases 1 and 2 are merged to `staging`. Phase 3 is implemented; its final mobile
+cleanup is local and awaits installed-device review and merge.
 Phases 0 and 5 are implemented but each awaits one piece of real-world proof.
 One TestFlight build has been installed; several fixes have landed since it.
 
@@ -16,7 +17,7 @@ One TestFlight build has been installed; several fixes have landed since it.
 | 0 PM5 discovery | Fixed and published as `0.6.1`; adopted in LC. Hardware proof outstanding |
 | 1 Navigation shell | Merged (#215) |
 | 2 App-level connection | Merged (#216) |
-| 3 View by view | Train and Home merged (#221, #222); manual entry and training block outstanding |
+| 3 View by view | Train and Home merged (#221, #222); manual entry and training block cleanup implemented locally, device review outstanding |
 | 4 OTA delivery | Not started. **No updater plugin is installed at all** |
 | 5 App Review readiness | Deletion and privacy merged (#218); deletion never executed end to end |
 
@@ -179,8 +180,13 @@ printed the distance twice for distance-named pieces, omitted pace, and repeated
 an Analyze pill on every row. The row is now the link, with pace shown and the
 distance line suppressed when the name already states it.
 
-**Outstanding:** manual workout creation and training block views. Both are
-redesigns of large surfaces rather than polish, and deserve their own slice.
+**Manual entry and Training Block cleanup is implemented locally.** On phones,
+manual entry now puts measured results before the optional collapsed plan, while
+desktop retains the full plan-first workflow. Training Block now exposes the
+current week before setup/history/team-management detail and labels today
+explicitly. Both surfaces still need installed-device review before this phase is
+called complete.
+
 Sectioned analysis cards on Home are also unresolved; Home already renders five
 separate widgets, and grouping them needs a judgement about which earn phone
 space.
