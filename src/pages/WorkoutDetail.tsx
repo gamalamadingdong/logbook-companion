@@ -110,12 +110,17 @@ export const WorkoutDetail: React.FC = () => {
                         setBuckets({});
                     }
                 } else {
-                    // Fetch the database record to get the UUID
+                    // The route accepts either a Concept2 external id or a database
+                    // UUID, so resolve the record the same way the service layer does.
+                    // Matching only on external_id left dbId null for locally
+                    // captured and manually entered workouts, which silently
+                    // disabled template linking and benchmark saving.
+                    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id ?? '');
                     const { data: dbRecord } = await supabase
                         .from('workout_logs')
                         .select('id')
-                        .eq('external_id', id)
-                        .single();
+                        .eq(isUUID ? 'id' : 'external_id', id)
+                        .maybeSingle();
 
                     if (dbRecord) {
                         setDbId(dbRecord.id);
@@ -502,7 +507,12 @@ export const WorkoutDetail: React.FC = () => {
         return `${minutes}:${seconds.padStart(4, '0')}`;
     };
 
-
+    // Results written to Concept2 by Logbook Companion can arrive without a
+    // workout type, unlike results imported from Concept2. Reading it blindly
+    // crashed the whole detail view and rendered a blank screen.
+    const workoutTypeLabel = detail.workout_type
+        ? detail.workout_type.replace(/([A-Z])/g, ' $1').trim()
+        : 'Workout';
 
     return (
         <div className="mx-auto min-h-screen max-w-7xl space-y-5 bg-neutral-950 p-4 font-sans sm:p-6 md:space-y-8 md:p-12">
@@ -527,10 +537,9 @@ export const WorkoutDetail: React.FC = () => {
                                 {new Date(detail.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                             </span>
                             <span>•</span>
-                            <span className="capitalize">{detail.workout_type.replace(/([A-Z])/g, ' $1').trim()}</span>
+                            <span className="capitalize">{workoutTypeLabel}</span>
                         </div>
                     </div>
-                    <span className="capitalize">{detail.workout_type.replace(/([A-Z])/g, ' $1').trim()}</span>
                 </div>
             </div>
 
