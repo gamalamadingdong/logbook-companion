@@ -9,6 +9,7 @@ import { ReconnectPrompt } from './ReconnectPrompt';
 import { CommandPalette } from './CommandPalette';
 import { MobileBottomNavigation } from './MobileBottomNavigation';
 import { AccountSheet, MobileNavigationDrawer } from './MobileNavigationDrawer';
+import { PM5ConnectionPill } from './PM5ConnectionPill';
 import { supabase } from '../services/supabase';
 
 interface LayoutProps {
@@ -269,11 +270,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {children}
             </main>
 
+            <PM5ConnectionPill />
+
             <MobileBottomNavigation
                 menuOpen={mobileMenuOpen}
                 onMore={() => setMobileMenuOpen(current => !current)}
             />
-
             {/* Floating Feedback Button */}
             <button
                 type="button"
