@@ -28,6 +28,7 @@ const Callback = lazyNamed(() => import('./pages/Callback'), 'Callback');
 const PublicAssignmentResultsShare = lazyNamed(() => import('./pages/PublicAssignmentResultsShare'), 'PublicAssignmentResultsShare');
 const PublicTeamLeaderboardShare = lazyNamed(() => import('./pages/PublicTeamLeaderboardShare'), 'PublicTeamLeaderboardShare');
 const About = lazyNamed(() => import('./pages/About'), 'About');
+const Privacy = lazyNamed(() => import('./pages/Privacy'), 'Privacy');
 const Dashboard = lazyNamed(() => import('./pages/Dashboard'), 'Dashboard');
 const Sync = lazyNamed(() => import('./pages/Sync'), 'Sync');
 const Analytics = lazyNamed(() => import('./pages/Analytics'), 'Analytics');
@@ -170,6 +171,7 @@ const AppContent: React.FC = () => {
           <Route path="/share/assignment-results/:shareToken" element={<PublicAssignmentResultsShare />} />
           <Route path="/share/team-leaderboard/:shareToken" element={<PublicTeamLeaderboardShare />} />
           <Route path="/about" element={<About />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route
             path="/"
             element={
