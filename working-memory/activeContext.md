@@ -149,6 +149,12 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Shared RWN → PM5 translation | Published in `@readyall/rwn@0.2.1` |
 | Shared PM5 protocol + Capacitor driver | Published in `@readyall/erglink@0.6.0` |
 | Direct athlete LC mobile → PM5 | Code merged; web, Android debug, iOS simulator, and signed iOS archive/export pass; installed-device proof remains |
+| PM5 native discovery | Fixed in `@readyall/erglink@0.6.1`; the scan filtered on a GATT service never present in an advertisement. Adopted in staging; hardware proof remains |
+| Mobile navigation shell | Home, Train and an overflow drawer merged in PR #215 |
+| Application-level PM5 connection | Merged in PR #216 with `bluetooth-central` and a screen wake lock; the page previously disconnected the monitor on navigation |
+| Browser PM5 connection | Merged in PR #220; browsers use the platform chooser because `requestLEScan` is experimental there |
+| Connect-first Train and guided workout builder | Merged in PR #221; the builder generates RWN so every entry path shares one validation route |
+| In-app account deletion and privacy policy | Merged in PR #218; migration applied and verified. Never executed end to end |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
@@ -174,9 +180,15 @@ A manual archive-only recipe and signing preflight helpers are active on default
 
 2026-09-23: the operator installed and used the build through TestFlight. That is the first real installed-device evidence and it produced two defects plus a mobile direction change. Mobile work now follows [mobile beta to submission plan](mobile-beta-to-submission-plan.md), which supersedes the sequencing implied above.
 
-Two defects were root-caused. PM5 discovery never found a broadcasting monitor because the native driver filtered its scan on the Rowing GATT service rather than the advertised name prefix; this is fixed in `erg-link` as `0.6.1` (PR gamalamadingdong/erg-link#13) but is unpublished, so CI and TestFlight builds do not yet contain it. The full-screen mobile menu did not dismiss on navigation because the `z-50` bottom bar renders above the `z-40` overlay and its links carry no dismiss handler; this is superseded by the navigation rework rather than patched.
+That plan's first implementation pass is complete and merged to `staging`: navigation shell (#215), application-level PM5 connection with background Bluetooth (#216), account deletion and privacy policy (#218), the workout-analysis crash fix (#219), browser Bluetooth (#220), connect-first Train with a guided workout builder (#221), and the Home rework (#222). The PM5 discovery fix shipped separately as `@readyall/erglink@0.6.1` (gamalamadingdong/erg-link#13) and is adopted in `staging`.
 
-The agreed direction is that mobile serves one loop — connect PM5, program, row, stay synced — with PM5 connection treated as application state rather than a route. Bottom navigation reduces to Home, Train, and an overflow drawer. Two App Review blockers were also found before submission: there is no in-app account deletion and no privacy policy. Sign in with Apple was confirmed **not** required, closing the open question recorded in the mobile delivery checklist.
+**No build carrying any of this has run on a device.** Everything PM5 — discovery, connect-first ordering, background Bluetooth, the wake lock, and rowing detection — remains inference from the specification and the browser harness. Account deletion has likewise never been executed end to end, because doing so destroys the account.
+
+Direction: mobile serves one loop — connect a PM5, program, row, stay synced — with connection treated as application state rather than a route. Bottom navigation is Home, Train and an overflow drawer. RWN is the single workout representation: the guided builder generates notation rather than a parallel shape, so every entry path shares one validation and lowering route.
+
+Two App Review blockers were found and closed before submission rather than at rejection. Live schema inspection showed the database could not support account deletion at all: `user_profiles` had no foreign key to `auth.users`, twenty columns referenced `auth.users` with NO ACTION, and team records cascaded off the coach's identity so deleting a coach would have erased squad history. Migration `20260923150000_account_deletion.sql` is applied and verified. Sign in with Apple was confirmed **not** required, closing the open question in the mobile delivery checklist.
+
+Verification note: `npm run build` is the gate before pushing, because that is what deployment runs. `npm run test:run` does not typecheck and `tsc -b` is incremental, so both can pass while the build fails.
 
 ## Resume references
 
