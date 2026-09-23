@@ -50,6 +50,176 @@ function hasWorkoutIntervals(raw: WorkoutRawData | null): raw is WorkoutRawData 
     return Array.isArray(raw?.workout?.intervals);
 }
 
+/** An interval as Logbook Companion records it before any Concept2 translation. */
+interface CompletedWorkoutInterval {
+    kind?: string;
+    distanceMeters?: number;
+    workTimeSeconds?: number;
+    restTimeSeconds?: number;
+    restDistanceMeters?: number;
+}
+
+const COMPLETED_SHAPE_TO_CONCEPT2_TYPE: Record<string, string> = {
+    fixed_distance_interval: 'FixedDistanceInterval',
+    interval_distance: 'FixedDistanceInterval',
+    fixed_time_interval: 'FixedTimeInterval',
+    interval_time: 'FixedTimeInterval',
+    variable_interval: 'VariableInterval',
+};
+
+/**
+ * Translate Logbook Companion's own interval record into the Concept2 shape.
+ *
+ * Workouts that were never published to Concept2 have no Concept2 payload to
+ * fall back on, but they do record their intervals in their own vocabulary.
+ * Without translating them an interval session read as a single flat piece,
+ * so it showed no splits and produced no structure to derive a canonical name
+ * from, which is what made history and template matching treat repeats of the
+ * same session as unrelated rows.
+ *
+ * Durations are seconds here and tenths of a second in the Concept2 shape.
+ */
+function concept2PayloadFromCompletedWorkout(completed: Record<string, unknown>): WorkoutRawData | null {
+    const intervals = completed.intervals;
+    if (!Array.isArray(intervals) || intervals.length === 0) return null;
+
+    const mapped: C2Interval[] = intervals.map((entry) => {
+        const interval = (isRecord(entry) ? entry : {}) as CompletedWorkoutInterval;
+        return {
+            type: interval.kind === 'time' ? 'time' : 'distance',
+            distance: Math.round(interval.distanceMeters ?? 0),
+            time: Math.round((interval.workTimeSeconds ?? 0) * 10),
+            rest_time: Math.round((interval.restTimeSeconds ?? 0) * 10),
+            ...(interval.restDistanceMeters ? { rest_distance: Math.round(interval.restDistanceMeters) } : {}),
+        } as unknown as C2Interval;
+    });
+
+    const shape = isRecord(completed.shape) ? String(completed.shape.kind ?? '') : '';
+
+    return {
+        ...(completed.completedAt ? { date: completed.completedAt } : {}),
+        ...(typeof completed.distanceMeters === 'number' ? { distance: completed.distanceMeters } : {}),
+        ...(typeof completed.workTimeSeconds === 'number'
+            ? { time: Math.round(completed.workTimeSeconds * 10) }
+            : {}),
+        ...(typeof completed.restDistanceMeters === 'number'
+            ? { rest_distance: completed.restDistanceMeters }
+            : {}),
+        ...(typeof completed.restTimeSeconds === 'number'
+            ? { rest_time: Math.round(completed.restTimeSeconds * 10) }
+            : {}),
+        ...(COMPLETED_SHAPE_TO_CONCEPT2_TYPE[shape]
+            ? { workout_type: COMPLETED_SHAPE_TO_CONCEPT2_TYPE[shape] }
+            : {}),
+        workout: { intervals: mapped },
+    };
+}
+
+/**
+ * Find the Concept2-shaped payload inside stored workout data.
+ *
+ * Imported results and PM5 captures put that payload at the top level. Workouts
+ * Logbook Companion publishes itself wrap it, storing the submitted payload
+ * under `completed_workout.concept2Payload`. Workouts that were never published
+ * have no such payload, so their own interval record is translated instead.
+ *
+ * Looking only at the top level lost the interval structure for both, so an
+ * eight by five hundred piece was read as a flat four thousand metre row.
+ */
+export function resolveConcept2Payload(raw: WorkoutRawData | null): WorkoutRawData | null {
+    if (!raw) return null;
+    if (hasWorkoutIntervals(raw) || raw.distance !== undefined || raw.date !== undefined) return raw;
+
+    const completed = isRecord(raw.completed_workout) ? raw.completed_workout : null;
+    if (!completed) return raw;
+
+    if (isRecord(completed.concept2Payload)) return completed.concept2Payload as WorkoutRawData;
+
+    return concept2PayloadFromCompletedWorkout(completed) ?? raw;
+}
+
+/** The workout columns the analysis view needs, however the workout was recorded. */
+export interface WorkoutDetailRow extends Record<string, unknown> {
+    id: string;
+    user_id?: string | null;
+    external_id?: string | null;
+    workout_name?: string | null;
+    canonical_name?: string | null;
+    workout_type?: string | null;
+    completed_at?: string | null;
+    distance_meters?: number | null;
+    rest_distance_meters?: number | null;
+    duration_seconds?: number | string | null;
+    average_stroke_rate?: number | null;
+    watts?: number | null;
+    template_id?: string | null;
+    manual_rwn?: string | null;
+    source?: string | null;
+    raw_data?: Json | null;
+}
+
+function firstPresent(...values: unknown[]): unknown {
+    return values.find(value => value !== undefined && value !== null);
+}
+
+/**
+ * Build the shape the analysis view reads from a stored workout.
+ *
+ * Columns are authoritative and `raw_data` only enriches. `raw_data` holds the
+ * full Concept2 payload for imported results and the Concept2 projection for
+ * captured ones, but workouts recorded by other paths store an unrelated shape
+ * with no date, distance or time in it. Spreading `raw_data` and reading those
+ * fields straight off it left every metric undefined for those workouts, so the
+ * detail view showed an invalid date and empty measurements while the list,
+ * which reads the columns, was correct.
+ *
+ * Enrichment that only `raw_data` carries, such as intervals and stroke data,
+ * is preserved by spreading it first.
+ */
+export function buildWorkoutDetailFromRow(row: WorkoutDetailRow): C2ResultDetail {
+    const stored = toWorkoutRawData(row.raw_data ?? null);
+    const raw = resolveConcept2Payload(stored);
+    const rawFields: Record<string, unknown> = raw ?? {};
+
+    let canonicalName = row.canonical_name;
+    if (!canonicalName && hasWorkoutIntervals(raw)) {
+        canonicalName = deriveCanonicalNameFromIntervals(raw.workout.intervals) || canonicalName;
+    }
+    if (!canonicalName) canonicalName = row.workout_name;
+
+    const rawId = rawFields.id;
+    const rawUserId = rawFields.user_id;
+
+    // The view reads `time` in tenths of a second, matching Concept2, while the
+    // column stores whole seconds.
+    const columnTimeTenths = row.duration_seconds === undefined || row.duration_seconds === null
+        ? undefined
+        : Math.round(Number(row.duration_seconds) * 10);
+
+    return {
+        ...rawFields,
+        id: typeof rawId === 'string' || typeof rawId === 'number'
+            ? rawId
+            : row.external_id ?? row.id,
+        user_id: typeof rawUserId === 'string' || typeof rawUserId === 'number'
+            ? rawUserId
+            : row.user_id,
+        db_id: row.id,
+        date: firstPresent(rawFields.date, row.completed_at),
+        distance: firstPresent(rawFields.distance, row.distance_meters),
+        time: firstPresent(rawFields.time, columnTimeTenths),
+        rest_distance: firstPresent(rawFields.rest_distance, row.rest_distance_meters),
+        workout_type: firstPresent(rawFields.workout_type, row.workout_type),
+        stroke_rate: firstPresent(rawFields.stroke_rate, row.average_stroke_rate),
+        watts: firstPresent(rawFields.watts, row.watts),
+        workout_name: canonicalName, // Inject Canonical Name for UI consistency
+        template_id: row.template_id, // Include linked template ID
+        manual_rwn: row.manual_rwn, // Include manual RWN override
+        is_benchmark: row.is_benchmark, // Include benchmark flag
+        source: row.source,
+    } as unknown as C2ResultDetail;
+}
+
 export const formatWorkoutDurationSeconds = (durationSeconds?: number | null, durationMinutes?: number | null) => {
     const resolvedSeconds = resolveWorkoutDurationSeconds({
         duration_seconds: durationSeconds,
@@ -351,37 +521,7 @@ export const workoutService = {
 
         if (error) throw error;
 
-        // If we have raw_data, return it (it's the full C2 JSON)
-        if (data.raw_data) {
-            let canonicalName = data.canonical_name;
-            if (!canonicalName && data.raw_data.workout?.intervals) {
-                canonicalName = deriveCanonicalNameFromIntervals(data.raw_data.workout.intervals) || canonicalName;
-            }
-            // Fallback
-            if (!canonicalName) canonicalName = data.workout_name;
-
-            const raw = data.raw_data as unknown as Record<string, unknown>;
-            const rawId = raw.id;
-            const rawUserId = raw.user_id;
-            return {
-                ...raw,
-                id: typeof rawId === 'string' || typeof rawId === 'number'
-                    ? rawId
-                    : data.external_id ?? data.id,
-                user_id: typeof rawUserId === 'string' || typeof rawUserId === 'number'
-                    ? rawUserId
-                    : data.user_id,
-                db_id: data.id,
-                workout_name: canonicalName, // Inject Canonical Name for UI consistency
-                template_id: data.template_id, // Include linked template ID
-                manual_rwn: data.manual_rwn, // Include manual RWN override
-                is_benchmark: data.is_benchmark, // Include benchmark flag
-                source: data.source
-            } as unknown as C2ResultDetail;
-        }
-
-        // Fallback or migrated data without raw_data (shouldn't happen for new syncs)
-        throw new Error("Workout data not found or incomplete in database.");
+        return buildWorkoutDetailFromRow(data);
     },
 
     // Fetch strokes (Analysis)
@@ -404,12 +544,12 @@ export const workoutService = {
 
         if (error) throw error;
 
-        if (data.raw_data && data.raw_data.strokes) {
-            return data.raw_data.strokes as C2Stroke[];
-        }
+        // Published workouts nest their Concept2 payload, so stroke data is not
+        // at the top level for them.
+        const raw = resolveConcept2Payload(toWorkoutRawData(data.raw_data ?? null));
+        const strokes = raw?.strokes ?? raw?.stroke_data;
 
-
-        return [];
+        return Array.isArray(strokes) ? strokes as C2Stroke[] : [];
     },
 
     // Fetch Power Buckets (Analysis)
