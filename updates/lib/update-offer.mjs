@@ -93,7 +93,9 @@ export function evaluateUpdateOffer(request, release, channel = 'beta') {
     return blocked('incompatible_native_version');
   }
 
-  if (request.version_name !== 'builtin') {
+  const currentIsBuiltin = request.version_name === 'builtin'
+    || (/^\d+\.\d+$/.test(request.version_name ?? '') && request.version_name === request.version_build);
+  if (!currentIsBuiltin) {
     const comparison = compareSemver(request.version_name, release.version);
     if (comparison === null) return blocked('malformed_current_version');
     if (comparison >= 0) return upToDate();

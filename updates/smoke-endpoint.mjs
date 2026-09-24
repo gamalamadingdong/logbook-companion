@@ -33,7 +33,7 @@ const testFlight = invoke({
   app_id: 'org.readyall.logbookcompanion',
   platform: 'ios',
   version_build: '1.0',
-  version_name: 'builtin',
+  version_name: '1.0',
   is_prod: false,
   is_emulator: false,
 });
