@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "beta",
-  "version": "1.0.0-beta.2",
-  "releaseSequence": 2,
+  "version": "1.0.0-beta.3",
+  "releaseSequence": 3,
   "compatibleNativeVersions": ["1.0"],
   "platforms": ["ios", "android"],
   "allowProductionBuilds": true,
-  "allowDevelopmentBuilds": false,
+  "allowDevelopmentBuilds": true,
   "allowEmulators": false
 }

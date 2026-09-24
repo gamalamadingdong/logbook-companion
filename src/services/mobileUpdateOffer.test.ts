@@ -42,6 +42,16 @@ describe('self-hosted mobile update offer', () => {
     });
   });
 
+  it('allows TestFlight-classified development builds on beta but still blocks emulators', () => {
+    const testFlightRelease = { ...release, allowDevelopmentBuilds: true };
+    expect(evaluateUpdateOffer({ ...request, is_prod: false }, testFlightRelease)).toEqual({
+      version: release.version,
+      ...release.capgo,
+    });
+    expect(evaluateUpdateOffer({ ...request, is_prod: false, is_emulator: true }, testFlightRelease))
+      .toEqual(blocked('emulator_not_allowed'));
+  });
+
   it('halts cleanly and rejects missing authentication material', () => {
     expect(evaluateUpdateOffer(request, { ...release, enabled: false })).toEqual(blocked('channel_halted'));
     expect(validateReleaseOffer({ ...release, capgo: { ...release.capgo, session_key: '' } }, 'beta'))
