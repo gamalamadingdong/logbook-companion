@@ -29,6 +29,16 @@ assert.ok(compatible.payload.checksum);
 assert.ok(compatible.payload.session_key);
 assert.equal(compatible.headers.get('Cache-Control'), 'private, no-store');
 
+const testFlight = invoke({
+  app_id: 'org.readyall.logbookcompanion',
+  platform: 'ios',
+  version_build: '1.0',
+  version_name: 'builtin',
+  is_prod: false,
+  is_emulator: false,
+});
+assert.equal(testFlight.payload.url, compatible.payload.url);
+
 const incompatible = invoke({
   app_id: 'org.readyall.logbookcompanion',
   platform: 'ios',
