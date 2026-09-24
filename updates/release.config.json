@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "enabled": false,
+  "enabled": true,
   "channel": "beta",
-  "version": "1.0.0-beta.1",
-  "releaseSequence": 1,
+  "version": "1.0.0-beta.2",
+  "releaseSequence": 2,
   "compatibleNativeVersions": ["1.0"],
   "platforms": ["ios", "android"],
   "allowProductionBuilds": true,
