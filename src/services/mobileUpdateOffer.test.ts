@@ -44,7 +44,7 @@ describe('self-hosted mobile update offer', () => {
 
   it('allows TestFlight-classified development builds on beta but still blocks emulators', () => {
     const testFlightRelease = { ...release, allowDevelopmentBuilds: true };
-    expect(evaluateUpdateOffer({ ...request, is_prod: false }, testFlightRelease)).toEqual({
+    expect(evaluateUpdateOffer({ ...request, is_prod: false, version_name: '1.0' }, testFlightRelease)).toEqual({
       version: release.version,
       ...release.capgo,
     });
