@@ -23,6 +23,17 @@ export interface MobileUpdateDiagnostics {
   errors: string[];
 }
 
+export function selectInstallableBundle(
+  bundles: readonly BundleInfo[],
+  currentBundleId: string,
+): BundleInfo | null {
+  return bundles
+    .filter((bundle) => bundle.id !== 'builtin'
+      && bundle.id !== currentBundleId
+      && (bundle.status === 'success' || bundle.status === 'pending'))
+    .sort((left, right) => Date.parse(right.downloaded) - Date.parse(left.downloaded))[0] ?? null;
+}
+
 const SAFE_UPDATE_ERRORS = new Set([
   'channel_halted',
   'development_build_not_allowed',
@@ -108,22 +119,12 @@ export function readPendingBundle(
   }
 }
 
-export async function schedulePendingBundleIfSafe(options: {
-  appIsActive: boolean;
-  busy: boolean;
-  storage?: UpdateStorage;
-  schedule?: (bundleId: string) => Promise<unknown>;
-}): Promise<boolean> {
-  const {
-    appIsActive,
-    busy,
-    storage = localStorage,
-    schedule = bundleId => CapacitorUpdater.next({ id: bundleId }),
-  } = options;
-  if (appIsActive || busy) return false;
+export function clearPendingBundleIfActive(
+  activeBundle: Pick<BundleInfo, 'version'>,
+  storage: UpdateStorage = localStorage,
+): boolean {
   const pending = readPendingBundle(storage);
-  if (!pending) return false;
-  await schedule(pending.id);
+  if (!pending || pending.version !== activeBundle.version) return false;
   storage.removeItem(PENDING_BUNDLE_KEY);
   return true;
 }
@@ -137,6 +138,7 @@ export function notifyNativeBundleReady(): void {
   if (!nativeUpdaterAvailable()) return;
   void CapacitorUpdater.notifyAppReady()
     .then(({ bundle }) => {
+      clearPendingBundleIfActive(bundle);
       recordDiagnostic('ota', 'OTA_APP_READY', 'Active app bundle acknowledged', {
         detail: { version: bundle.version, source: bundle.id === 'builtin' ? 'builtin' : 'ota' },
       });
@@ -176,6 +178,9 @@ export async function getMobileUpdateDiagnostics(): Promise<MobileUpdateDiagnost
   const currentValue = current.status === 'fulfilled' ? current.value : null;
   const latestValue = latest.status === 'fulfilled' ? latest.value : null;
   const latestDiagnostic = latestValue ? safeUpdateCheckDiagnostic(latestValue) : null;
+  const installableBundles = bundles.status === 'fulfilled' && currentValue
+    ? bundles.value.bundles.filter((bundle) => selectInstallableBundle([bundle], currentValue.bundle.id) !== null)
+    : [];
 
   return {
     native: true,
@@ -188,9 +193,7 @@ export async function getMobileUpdateDiagnostics(): Promise<MobileUpdateDiagnost
     nativeVersion: builtin.status === 'fulfilled' ? builtin.value.version : currentValue?.native ?? null,
     pluginVersion: plugin.status === 'fulfilled' ? plugin.value.version : null,
     pendingBundle,
-    downloadedBundles: bundles.status === 'fulfilled'
-      ? bundles.value.bundles.map((bundle) => ({ version: bundle.version, status: bundle.status }))
-      : [],
+    downloadedBundles: installableBundles.map((bundle) => ({ version: bundle.version, status: bundle.status })),
     updateCheck: latestDiagnostic ? {
       kind: latestDiagnostic.detail.kind,
       error: latestDiagnostic.detail.error,
@@ -199,4 +202,29 @@ export async function getMobileUpdateDiagnostics(): Promise<MobileUpdateDiagnost
     } : null,
     errors,
   };
+}
+
+export async function triggerMobileUpdateCheck(): Promise<string> {
+  if (!nativeUpdaterAvailable()) throw new Error('OTA_NATIVE_UNAVAILABLE');
+  const result = await CapacitorUpdater.triggerUpdateCheck();
+  recordDiagnostic('ota', 'OTA_CHECK_TRIGGERED', 'Manual update check requested', {
+    detail: { status: result.status },
+  });
+  return result.status;
+}
+
+export async function installLatestDownloadedUpdateNow(busy: boolean): Promise<string> {
+  if (!nativeUpdaterAvailable()) throw new Error('OTA_NATIVE_UNAVAILABLE');
+  if (busy) throw new Error('OTA_INSTALL_BUSY');
+  const [current, list] = await Promise.all([
+    CapacitorUpdater.current(),
+    CapacitorUpdater.list(),
+  ]);
+  const bundle = selectInstallableBundle(list.bundles, current.bundle.id);
+  if (!bundle) throw new Error('OTA_NO_DOWNLOADED_BUNDLE');
+  recordDiagnostic('ota', 'OTA_INSTALL_NOW', 'Installing authenticated OTA bundle now', {
+    detail: { version: bundle.version },
+  });
+  await CapacitorUpdater.set({ id: bundle.id });
+  return bundle.version;
 }

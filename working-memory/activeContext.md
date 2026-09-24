@@ -201,7 +201,7 @@ Two schema faults were found by inspecting live data rather than reading code. T
 
 ### OTA/TestFlight checkpoint
 
-PR #228 is merged into `staging` at `86413511f79017b43f7f7db183f8b24164ab05ac`. It adds the pinned Capgo v7 plugin, a fingerprint-pinned LC RSA public trust key, Capgo-compatible encrypted immutable bundles, a separate Vercel update service, native-version/channel/platform/build/replay gates, workout-safe activation, boot-failure rollback acknowledgement, tamper tests, endpoint smokes, and operator documentation. The beta channel remains halted.
+PR #228 is merged into `staging` at `86413511f79017b43f7f7db183f8b24164ab05ac`. It adds the pinned Capgo v7 plugin, a fingerprint-pinned LC RSA public trust key, Capgo-compatible encrypted immutable bundles, a separate Vercel update service, native-version/channel/platform/build/replay gates, workout-safe activation, boot-failure rollback acknowledgement, tamper tests, endpoint smokes, and operator documentation.
 
 Local proof at the pause: clean `npm ci`; 723/723 tests; lint with zero errors; web and mobile builds; iOS/Android Capacitor sync; enabled encrypted-bundle build; public-key checksum authentication; compatible, incompatible, replay, tamper and halted endpoint checks. Independent review found two blockers and both were fixed before commit: trust-key loading is now fail-closed with exact SHA-256 checks in config/native CI, and every negative endpoint response uses Capgo-native `blocked` or `up_to_date` `kind`/`error` fields.
 
@@ -211,7 +211,13 @@ The dedicated Vercel project is `logbook-companion-updates`, connected to `gamal
 
 Signed archive run `35945991156` built version/build `1.0 / 1790215741` from the merged staging commit, verified the exported IPA identity and updater config, and recorded `uploaded=false`. Upload run `35990648566` downloaded that exact retained artifact, passed Apple validation, uploaded it once, and cleaned temporary material. Apple accepted the upload; App Store Connect processing and internal availability remain external gates.
 
-Resume order: (1) confirm build `1790215741` appears in TestFlight and install it on one internal device; (2) leave the channel halted and prove the installed shell checks cleanly without receiving a URL; (3) publish one small signed canary at a higher semver; (4) prove download and safe activation only while idle; (5) prove incompatible and tampered rejection; (6) prove boot-failure rollback and corrective higher-version rollback; (7) only then enable the beta channel for broader use.
+PR #230 merged the staging diagnostics, Training Block load fixes, auth timing, and focused mobile login at `7e2011d5487cb7d364e2d15fd21d5ef5d19b07aa`. PR #231 then published signed canary `1.0.0-beta.1` at `7b2814d4d202d01eb111bd7eec975cdcc69c5edc`; the 4.05 MB production artifact passed immutable SHA-256 and RSA checksum verification, while incompatible native `1.1` received no URL.
+
+The installed TestFlight shell repeatedly reached `/updates/beta`, but after multiple foreground/background/restart cycles it remained on the built-in UI and never exposed Diagnostics. The iOS plugin retains `updateAvailable`, so the remaining defect is LC's queue timing: `next()` was invoked only from the JavaScript `appStateChange` callback while iOS was already backgrounding, where the asynchronous native call can be suspended before completion. Production was rolled back to verified halted deployment `dpl_FsrMf2PR3NtkmcQqtKPv38FaMuom`; the live endpoint again returns `channel_halted` and no URL. The canary deployment remains available for forensic rollback but is not aliased live.
+
+The recovery branch keeps `release.config.json` halted and adds explicit native Diagnostics actions: manually trigger the native update check, reconcile downloaded verified bundles from `CapacitorUpdater.list()`, and install the newest ready bundle immediately through `CapacitorUpdater.set()` only when no PM5 capture is active. This removes the background async race and makes activation observable.
+
+Resume order: (1) merge the recovery PR and confirm native CI; (2) create and upload one replacement TestFlight shell containing explicit install controls; (3) install it and verify Diagnostics while the channel remains halted; (4) publish signed canary `1.0.0-beta.2`; (5) use Diagnostics to check/download/install it explicitly; (6) prove tampered/incompatible rejection plus boot-failure and corrective higher-version rollback; (7) only then consider automatic beta activation.
 
 ### Mobile performance and diagnostics investigation
 
@@ -219,7 +225,7 @@ The installed app exposed two usability gaps: no visible updater/build state, an
 
 The first code pass found three concrete Training Block costs: the whole athlete page waited on an optional published-template catalog despite having a static fallback; the enrollment effect wrote its own selection dependency after a successful load, rerunning the full enrollment/plan/support/review waterfall; and the personal route refetched workout logs as unrelated coaching context arrays settled. The persisted plan path itself still spans multiple sequential Supabase round trips (template, days, sessions, support templates/exercises, exercise records), so the new staging diagnostics must measure remaining per-request latency before a schema/RPC consolidation is justified.
 
-The current feature branch adds a staging-only Diagnostics view with JS build SHA, built-in/OTA bundle identity, native/plugin version, pending/downloaded state, classified update result, and a privacy-bounded ring of slow/error events. It also adds `TB_LOAD_SLOW`/`TB_READY`, removes the three proven duplicate/blocking paths, parallelizes independent support-template requests, and replaces the phone login's stacked desktop marketing layout with one compact sign-in/create-account shell. On-device proof remains required before claiming the 30-second symptom fixed.
+PR #230 adds a staging-only Diagnostics view with JS build SHA, built-in/OTA bundle identity, native/plugin version, pending/downloaded state, classified update result, and a privacy-bounded ring of slow/error events. It also adds `TB_LOAD_SLOW`/`TB_READY`, removes the three proven duplicate/blocking paths, parallelizes independent support-template requests, and replaces the phone login's stacked desktop marketing layout with one compact sign-in/create-account shell. On-device proof remains required before claiming the 30-second symptom fixed.
 
 ## Resume references
 

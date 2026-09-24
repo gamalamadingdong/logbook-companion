@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "enabled": true,
+  "enabled": false,
   "channel": "beta",
   "version": "1.0.0-beta.1",
   "releaseSequence": 1,
