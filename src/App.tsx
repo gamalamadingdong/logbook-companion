@@ -11,6 +11,7 @@ import { AutoSync } from './components/AutoSync';
 import { NotificationProvider } from './components/NotificationProvider';
 import { Toaster } from 'sonner';
 import { NativeAppBridge } from './components/NativeAppBridge';
+import { NativeUpdateBridge } from './components/NativeUpdateBridge';
 
 const lazyNamed = (
   loader: () => Promise<Record<string, unknown>>,
@@ -160,6 +161,7 @@ const AppContent: React.FC = () => {
             <BrowserRouter>
               <NativeAppBridge />
               <PM5Provider>
+              <NativeUpdateBridge />
               <CoachingProvider>
                 <Suspense fallback={<RouteLoadingScreen />}><Routes>
           <Route path="/login" element={<Login />} />

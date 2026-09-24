@@ -1,0 +1,32 @@
+{
+  "buildCommand": "cd .. && npm run updates:build",
+  "installCommand": "cd .. && npm ci --include=dev",
+  "outputDirectory": "dist",
+  "framework": null,
+  "functions": {
+    "api/**/*.mjs": {
+      "memory": 1024,
+      "maxDuration": 10,
+      "includeFiles": "dist/release-offer.json"
+    }
+  },
+  "headers": [
+    {
+      "source": "/release-offer.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store" }
+      ]
+    },
+    {
+      "source": "/releases/:channel/:version/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/updates/beta", "destination": "/api/updates" }
+  ],
+  "trailingSlash": false
+}

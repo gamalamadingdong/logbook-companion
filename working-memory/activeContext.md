@@ -159,7 +159,7 @@ After PM5 semantics are proven, normalize interval and sample detail into the sh
 | Workout analysis measurements and structure | Merged in PR #224; the detail is built from columns, and interval structure is resolved from three storage arrangements |
 | Per-workout benchmark flag | Merged in PR #225; the column it was written to had never existed, so the feature had never worked |
 | In-app account deletion and privacy policy | Merged in PR #218; migration applied and verified. Never executed end to end |
-| OTA delivery | Not started; no updater plugin is installed, so one further TestFlight build is required before any update can be delivered |
+| OTA delivery | Implemented locally on the OTA branch: Capgo v7 native plugin, committed RSA public trust key, encrypted immutable Vercel bundle service, compatibility/replay gates, workout-safe activation, and boot-failure rollback. Hosting, private-key provisioning, next TestFlight shell, and installed-device rollback proof remain |
 | PM5 evidence validator | Merged in ErgLink; fixed, interval, PM reconciliation, and Pete Plan fixtures pass |
 | Concept2 splits + `stroke_data` projection | Implemented in PR #192; fixed/interval/variable exact-unit fixtures pass |
 | LC capture wiring | Merged in PR #193; local-first persistence and summary/retry UI are fixture-proven |
@@ -187,6 +187,8 @@ A manual archive-only recipe and signing preflight helpers are active on default
 
 That plan's first implementation pass is complete and merged to `staging`: navigation shell (#215), application-level PM5 connection with background Bluetooth (#216), account deletion and privacy policy (#218), the workout-analysis crash fix (#219), browser Bluetooth (#220), connect-first Train with a guided workout builder (#221), and the Home rework (#222). The PM5 discovery fix shipped separately as `@readyall/erglink@0.6.1` (gamalamadingdong/erg-link#13) and is adopted in `staging`.
 
+The OTA implementation now follows the proven `scheduleboardv2/updates` deployment shape with stricter LC gates. The beta channel is committed halted. Local enabled-path proof builds a Capgo-compatible encrypted bundle and verifies both its immutable SHA-256 and its private-key-authenticated checksum using the public key embedded in iOS and Android. No updates endpoint, DNS, or hosted private key has been provisioned yet, and the installed TestFlight build still predates the updater plugin.
+
 **No build carrying any of this has run on a device.** Everything PM5 — discovery, connect-first ordering, background Bluetooth, the wake lock, and rowing detection — remains inference from the specification and the browser harness. Account deletion has likewise never been executed end to end, because doing so destroys the account.
 
 Direction: mobile serves one loop — connect a PM5, program, row, stay synced — with connection treated as application state rather than a route. Bottom navigation is Home, Train and an overflow drawer. RWN is the single workout representation: the guided builder generates notation rather than a parallel shape, so every entry path shares one validation and lowering route.
@@ -197,11 +199,22 @@ Verification note: `npm run build` is the gate before pushing, because that is w
 
 Two schema faults were found by inspecting live data rather than reading code. The workout analysis was built by spreading `raw_data`, which only carries the Concept2 shape for imported results, so workouts recorded any other way lost both their measurements and their interval structure; structure turned out to live in three different arrangements depending on how the workout was recorded. Separately, `is_benchmark` was read and written for a column that did not exist, so marking a workout as a test effort had never once worked across 5,272 workouts, and the attempt also discarded the manual RWN saved in the same request. Both are fixed in #224 and #225.
 
-Next native build is unavoidable: no OTA updater plugin is installed, so the delivered build cannot receive JavaScript updates however the server is configured. Phase 4 must land first, then one TestFlight build carrying the updater, after which JavaScript-only fixes no longer need a rebuild.
+### OTA pause point
+
+PR #228 (`feat/mobile-ota-delivery`, commit `8e0c6ac`) is open against `staging`: https://github.com/gamalamadingdong/logbook-companion/pull/228. It adds the pinned Capgo v7 plugin, a fingerprint-pinned LC RSA public trust key, Capgo-compatible encrypted immutable bundles, a separate Vercel update service, native-version/channel/platform/build/replay gates, workout-safe activation, boot-failure rollback acknowledgement, tamper tests, endpoint smokes, and operator documentation. The beta channel is committed halted.
+
+Local proof at the pause: clean `npm ci`; 723/723 tests; lint with zero errors; web and mobile builds; iOS/Android Capacitor sync; enabled encrypted-bundle build; public-key checksum authentication; compatible, incompatible, replay, tamper and halted endpoint checks. Independent review found two blockers and both were fixed before commit: trust-key loading is now fail-closed with exact SHA-256 checks in config/native CI, and every negative endpoint response uses Capgo-native `blocked` or `up_to_date` `kind`/`error` fields.
+
+GitHub's **Mobile Native Checks** workflow was re-enabled with operator approval and dispatched at the exact PR commit: https://github.com/gamalamadingdong/logbook-companion/actions/runs/35936264002. Check that run first on resume. Local Android compilation could not be completed because this host has no Android SDK 35; GitHub supplies the required Java 21, SDK 35 and macOS/Xcode environments.
+
+The ignored private key exists only at repository root as `.capgo_key_v2` (mode 600); never print or commit it. Only `.capgo_key_v2.pub` is in PR #228. Before relying on this trust root, back up/provision the private key securely as `OTA_PRIVATE_KEY_BASE64` in the dedicated updates Vercel project. No Vercel updates project, DNS record, hosted key, enabled release, OTA delivery, or new TestFlight shell has been created yet.
+
+Resume order: (1) inspect native run `35936264002`; (2) review and merge PR #228; (3) create the dedicated Vercel project with root `updates`; (4) configure `updates.logbook.readyall.org` and the private-key environment variable; (5) deploy and verify the still-halted endpoint; (6) cut exactly one new TestFlight build containing the updater; (7) prove download, safe activation, incompatible/tampered rejection, boot-failure rollback, and corrective higher-version rollback on one internal device; (8) only then enable the beta channel for broader use.
 
 ## Resume references
 
 - [Mobile beta to submission plan](mobile-beta-to-submission-plan.md)
+- [OTA operator guide](../updates/README.md)
 - [Concept2/mobile router](../docs/concept2-mobile/README.md)
 - [PM5 evidence pipeline](../docs/concept2-mobile/pm5-evidence-pipeline.md)
 - [Mobile UX foundation](../docs/mobile-ux-foundation.md)

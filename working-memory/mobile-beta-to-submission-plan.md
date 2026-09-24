@@ -18,7 +18,7 @@ One TestFlight build has been installed; several fixes have landed since it.
 | 1 Navigation shell | Merged (#215) |
 | 2 App-level connection | Merged (#216) |
 | 3 View by view | Train and Home merged (#221, #222); manual entry and training block cleanup implemented locally, device review outstanding |
-| 4 OTA delivery | Not started. **No updater plugin is installed at all** |
+| 4 OTA delivery | Implemented locally; hosting, key provisioning, next TestFlight shell, and device rollback proof outstanding |
 | 5 App Review readiness | Deletion and privacy merged (#218); deletion never executed end to end |
 
 Merged in this pass: #214 plan, #215 navigation, #216 connection, #218 account
@@ -196,16 +196,16 @@ space.
 Self-hosted Capgo and Vercel bundle delivery with signature verification and
 proven rollback, per the existing mobile delivery document.
 
-**Nothing is installed yet.** `@capgo/capacitor-updater` appears in neither
-`package.json`, `ios/App/Podfile` nor `capacitor.config.ts`, so the installed
-build cannot receive an update however the server is configured. A native plugin
-cannot be delivered over the air, so exactly one more TestFlight build is
-required, carrying the updater. After that, JavaScript-only fixes ship without a
-rebuild; anything touching `Info.plist`, plugins or native code still needs a
-binary.
-
-Installing the plugin needs an unblocked npm registry and therefore belongs on
-the remote machine.
+**Implemented locally, not yet deployed.** The Capacitor 7 updater is wired into
+both native projects with a dedicated LC RSA trust key, download-only behavior,
+early app-ready acknowledgement, and workout-safe activation. The self-hosted
+Vercel service builds Capgo-compatible encrypted bundles at immutable URLs and
+rejects incompatible shells, wrong channels/platforms, development builds,
+emulators, replay, downgrade, mutable URLs, and missing authentication fields.
+The channel defaults halted. A native plugin cannot be delivered over the air,
+so exactly one more TestFlight build is still required, carrying the updater.
+After that, JavaScript-only fixes ship without a rebuild; anything touching
+`Info.plist`, plugins, native configuration, or native code still needs a binary.
 
 Sequencing matters. JavaScript bundle updates are permitted provided they do not
 change the app's primary purpose. Proving OTA before submission means later UX
