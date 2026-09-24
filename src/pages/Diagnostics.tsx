@@ -9,7 +9,14 @@ import {
   subscribeToDiagnostics,
   type DiagnosticEvent,
 } from '../services/appDiagnostics';
-import { getMobileUpdateDiagnostics, type MobileUpdateDiagnostics } from '../services/mobileUpdates';
+import {
+  getMobileUpdateDiagnostics,
+  installLatestDownloadedUpdateNow,
+  isUpdateActivationBusy,
+  triggerMobileUpdateCheck,
+  type MobileUpdateDiagnostics,
+} from '../services/mobileUpdates';
+import { usePM5 } from '../hooks/usePM5';
 
 function eventTone(level: DiagnosticEvent['level']): 'danger' | 'warning' | 'info' {
   if (level === 'error') return 'danger';
@@ -27,16 +34,26 @@ function buildReport(snapshot: MobileUpdateDiagnostics | null, events: Diagnosti
 }
 
 export function Diagnostics() {
+  const { rowing, captureState } = usePM5();
   const [events, setEvents] = useState(() => readDiagnosticEvents());
   const [snapshot, setSnapshot] = useState<MobileUpdateDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const updateBusy = isUpdateActivationBusy(rowing, captureState);
 
   const refresh = async () => {
     setLoading(true);
-    setEvents(readDiagnosticEvents());
-    setSnapshot(await getMobileUpdateDiagnostics());
-    setLoading(false);
+    try {
+      setEvents(readDiagnosticEvents());
+      setSnapshot(await getMobileUpdateDiagnostics());
+    } catch {
+      setActionMessage('Diagnostics refresh failed. Code OTA_DIAGNOSTICS_FAILED.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -45,6 +62,34 @@ export function Diagnostics() {
   }, []);
 
   const report = useMemo(() => buildReport(snapshot, events), [events, snapshot]);
+
+  const checkNow = async () => {
+    setChecking(true);
+    setActionMessage(null);
+    try {
+      const status = await triggerMobileUpdateCheck();
+      setActionMessage(`Update check: ${status}. Wait for download, then refresh.`);
+    } catch {
+      setActionMessage('Update check failed. Code OTA_CHECK_MANUAL_FAILED.');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const installNow = async () => {
+    if (!window.confirm('Install the downloaded update now? LC will restart immediately.')) return;
+    setInstalling(true);
+    setActionMessage(null);
+    try {
+      await installLatestDownloadedUpdateNow(updateBusy);
+    } catch (error) {
+      const code = error instanceof Error && /^OTA_[A-Z_]+$/.test(error.message)
+        ? error.message
+        : 'OTA_INSTALL_FAILED';
+      setActionMessage(`Update was not installed. Code ${code}.`);
+      setInstalling(false);
+    }
+  };
 
   if (!appDiagnosticsEnabled) {
     return <Card><CardHeader title="Diagnostics unavailable" subtitle="This surface is enabled only in staging and mobile development builds." /></Card>;
@@ -72,7 +117,7 @@ export function Diagnostics() {
       </Card>
 
       <Card>
-        <CardHeader title="OTA check" subtitle="The halted beta channel should report blocked / channel_halted and no pending bundle." />
+        <CardHeader title="OTA check" subtitle="Check, inspect, and explicitly install a downloaded beta update without relying on background timing." />
         <div className="flex flex-wrap gap-2">
           <Badge variant={snapshot?.updateCheck?.kind === 'failed' ? 'danger' : snapshot?.updateCheck?.kind === 'blocked' ? 'warning' : 'info'}>{snapshot?.updateCheck?.kind ?? 'not checked'}</Badge>
           {snapshot?.updateCheck?.error && <Badge variant="muted">{snapshot.updateCheck.error}</Badge>}
@@ -85,6 +130,22 @@ export function Diagnostics() {
           <div><dt className="text-content-muted">Downloaded</dt><dd className="mt-1 text-content-primary">{snapshot?.downloadedBundles.length ?? 0}</dd></div>
           <div><dt className="text-content-muted">Platform</dt><dd className="mt-1 text-content-primary">{snapshot?.native ? 'native' : 'web'}</dd></div>
         </dl>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Button type="button" variant="secondary" className="min-h-11" loading={checking} onClick={() => void checkNow()}>
+            {checking ? 'Checking…' : 'Check for update'}
+          </Button>
+          <Button
+            type="button"
+            className="min-h-11"
+            loading={installing}
+            disabled={updateBusy || !snapshot?.downloadedBundles.length}
+            onClick={() => void installNow()}
+          >
+            {installing ? 'Restarting…' : 'Install downloaded update'}
+          </Button>
+        </div>
+        {updateBusy && <p className="mt-2 text-xs text-accent-danger-text">Finish the active PM5 capture before installing an update.</p>}
+        {actionMessage && <p className="mt-2 text-sm text-content-secondary" role="status">{actionMessage}</p>}
       </Card>
 
       <Card>

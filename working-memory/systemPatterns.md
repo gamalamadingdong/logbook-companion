@@ -28,6 +28,7 @@
 - Diagnostics keep a bounded device-local ring buffer. Persist codes, durations, HTTP status, method, and URL pathname only—never query strings, tokens, user/device IDs, request bodies, or raw provider errors.
 - Supabase requests record only failures and requests taking at least one second. Training Block emits `TB_LOAD_SLOW` after four seconds and `TB_READY` when interactive.
 - OTA diagnostics distinguish built-in versus OTA bundle, JS build SHA/mode, native/plugin versions, pending/downloaded bundle state, and the server's classified update result.
+- In beta, `onlyDownload` updates are installed explicitly from Diagnostics with `CapacitorUpdater.set()` after PM5/capture safety checks. Do not queue `next()` from an iOS background callback; asynchronous bridge work can be suspended before it completes.
 
 ## Design Patterns
 -   **External APIs**: Clients for external services (Concept2, Google Sheets) reside in `src/api/`.

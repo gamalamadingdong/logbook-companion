@@ -10,7 +10,7 @@ This directory is the self-hosted Capgo-compatible update service for the LC mob
 - Capgo v2 encryption authenticates the original bundle checksum with the private key and encrypts the bundle. The native plugin uses the embedded public key to reject altered or unsigned bundles.
 - Bundles use immutable URLs: `/releases/<channel>/<version>/bundle.zip`.
 - The endpoint rejects the wrong app ID, channel, platform, native version, build type, emulator, malformed current version, replay, downgrade, mutable URL, or missing authentication fields.
-- The plugin uses `autoUpdate: "onlyDownload"`. LC schedules a downloaded bundle only when the app backgrounds and no PM5 row or unsaved/ingesting capture is active.
+- The plugin uses `autoUpdate: "onlyDownload"`. In beta, Diagnostics reconciles verified downloaded bundles and installs one explicitly with `CapacitorUpdater.set()` only when no PM5 row or unsaved/ingesting capture is active. Do not queue from an iOS background callback.
 - `notifyAppReady()` runs before network initialization. A bundle that cannot start JavaScript before the timeout rolls back natively.
 
 ## Trust key
@@ -63,7 +63,7 @@ Do not connect this project to automatic production releases until the halted en
 5. Review the generated manifest locally; never commit `updates/dist` or `updates/web`.
 6. Merge the release change and deploy the dedicated updates project.
 7. POST a representative native request to `/updates/beta`; verify an incompatible native version and an emulator receive no URL.
-8. Install on one internal TestFlight device, allow download, background only while idle, relaunch, and verify the new bundle calls `notifyAppReady()`.
+8. On one internal TestFlight device, open Diagnostics, trigger the check, refresh until the verified bundle is listed, and choose **Install downloaded update** while idle. Verify restart, active version, build SHA, and `notifyAppReady()`.
 9. Expand only after startup, login, manual logging, Training Block, and PM5 capture smoke checks pass.
 
 `version` is the enforced replay/downgrade boundary because it is available in every native request. `releaseSequence` is operator/audit metadata and must advance with the version; it is not independently persisted by clients.

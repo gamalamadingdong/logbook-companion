@@ -1,22 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { App } from '@capacitor/app';
+import { useEffect } from 'react';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
-import { usePM5 } from '../hooks/usePM5';
 import {
-  isUpdateActivationBusy,
   nativeUpdaterAvailable,
   rememberPendingBundle,
   safeUpdateCheckDiagnostic,
-  schedulePendingBundleIfSafe,
 } from '../services/mobileUpdates';
 import { recordDiagnostic } from '../services/appDiagnostics';
 
-/** Downloads arrive silently; activation is scheduled only at a safe background boundary. */
+/** Downloads arrive silently; beta activation is an explicit PM5-safe action in Diagnostics. */
 export function NativeUpdateBridge() {
-  const { rowing, captureState } = usePM5();
-  const busyRef = useRef(isUpdateActivationBusy(rowing, captureState));
-  busyRef.current = isUpdateActivationBusy(rowing, captureState);
-
   useEffect(() => {
     if (!nativeUpdaterAvailable()) return;
     let active = true;
@@ -43,13 +35,6 @@ export function NativeUpdateBridge() {
         if (active) recordDiagnostic('ota', 'OTA_DOWNLOAD_FAILED', 'Update download failed', {
           level: 'error', detail: { version },
         });
-      }),
-      App.addListener('appStateChange', state => {
-        if (!active || state.isActive) return;
-        void schedulePendingBundleIfSafe({
-          appIsActive: false,
-          busy: busyRef.current,
-        }).catch(reportFailure);
       }),
     ];
     void Promise.all(handles).catch(reportFailure);
