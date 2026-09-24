@@ -35,4 +35,6 @@ it('uses the development-only mobile build for synchronization and manual native
   expect(scripts['mobile:sync']).toContain('npm run mobile:build');
   expect(read('.github/workflows/mobile-native-checks.yml').match(/npm run mobile:build/g)).toHaveLength(2);
   expect(read('vite.config.ts')).toContain("legacyProduction && mode !== 'mobile'");
+  expect(read('vite.config.ts')).toContain("mode === 'mobile'");
+  expect(read('vite.config.ts')).toContain('Mobile builds require VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
 });

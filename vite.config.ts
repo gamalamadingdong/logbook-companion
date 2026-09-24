@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
+import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { c2DataSaverPlugin } from './vite-plugins/c2-data-saver'
 
@@ -10,7 +11,13 @@ const legacyProduction = process.env.VERCEL_ENV === 'production'
   && (!process.env.VERCEL_GIT_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_REF === 'main');
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const buildEnv = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+  if (mode === 'mobile' && (!buildEnv.VITE_SUPABASE_URL || !buildEnv.VITE_SUPABASE_ANON_KEY)) {
+    throw new Error('Mobile builds require VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+  }
+
+  return {
   plugins: [react(), c2DataSaverPlugin()],
   define: {
     __C2_LEGACY_PRODUCTION__: JSON.stringify(legacyProduction && mode !== 'mobile'),
@@ -46,4 +53,5 @@ export default defineConfig(({ mode }) => ({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
-}))
+  };
+})
