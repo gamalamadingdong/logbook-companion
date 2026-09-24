@@ -38,6 +38,7 @@ const CompletedWorkoutEntry = lazyNamed(() => import('./pages/CompletedWorkoutEn
 const CompletedWorkoutEntryDetail = lazyNamed(() => import('./pages/CompletedWorkoutEntryDetail'), 'CompletedWorkoutEntryDetail');
 const PM5Connection = lazyNamed(() => import('./pages/PM5Connection'), 'PM5Connection');
 const Preferences = lazyNamed(() => import('./pages/Preferences'), 'Preferences');
+const Diagnostics = lazyNamed(() => import('./pages/Diagnostics'), 'Diagnostics');
 const WorkoutHistory = lazyNamed(() => import('./pages/WorkoutHistory'), 'WorkoutHistory');
 const WorkoutComparison = lazyNamed(() => import('./pages/WorkoutComparison'), 'WorkoutComparison');
 const Feedback = lazyNamed(() => import('./pages/Feedback'), 'Feedback');
@@ -218,6 +219,7 @@ const AppContent: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/diagnostics" element={<ProtectedRoute><Diagnostics /></ProtectedRoute>} />
           <Route
             path="/history/:name"
             element={

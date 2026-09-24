@@ -1,108 +1,58 @@
-import React, { useState } from 'react'
-import { useAuth } from '../../hooks/useAuth'
-import { Loader2, Mail, ArrowLeft } from 'lucide-react'
+import React, { useState } from 'react';
+import { ArrowLeft, Mail } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { Button, Input } from '../ui';
 
 interface ForgotPasswordFormProps {
-  onSwitchToLogin: () => void
+  onSwitchToLogin: () => void;
 }
 
 export function ForgotPasswordForm({ onSwitchToLogin }: ForgotPasswordFormProps) {
-  const { resetPassword } = useAuth()
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const { resetPassword } = useAuth();
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      await resetPassword(email)
-      setSuccess(true)
-    } catch (error: any) {
-      setError(error.message || 'An error occurred during password reset')
+      await resetPassword(email);
+      setSuccess(true);
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Password reset could not be started.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false)
-  }
+  };
 
   if (success) {
     return (
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl text-center">
-        <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
-          <Mail size={32} />
+      <div className="space-y-4 text-center" role="status">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent-primary-surface text-accent-primary"><Mail size={28} /></div>
+        <div>
+          <h1 className="text-xl font-semibold text-content-primary">Check your email</h1>
+          <p className="mt-1 text-sm text-content-secondary">We sent password reset instructions to <strong className="text-content-primary">{email}</strong>.</p>
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">Check your email</h1>
-        <p className="text-neutral-400 mb-6">
-          We've sent a password reset link to <strong className="text-white">{email}</strong>.
-          Please check your email and follow the instructions.
-        </p>
-        <button
-          onClick={onSwitchToLogin}
-          className="flex items-center mx-auto text-neutral-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          Back to sign in
-        </button>
+        <Button type="button" variant="secondary" className="min-h-11 w-full" icon={<ArrowLeft size={16} />} onClick={onSwitchToLogin}>Back to sign in</Button>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-white mb-2">Reset password</h1>
-        <p className="text-neutral-400">Enter your email to receive a reset link</p>
+    <div className="space-y-4">
+      <div className="text-center">
+        <h1 className="text-xl font-semibold text-content-primary">Reset password</h1>
+        <p className="mt-1 text-sm text-content-secondary">Enter your email and we’ll send a reset link.</p>
       </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-3 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-300 mb-1">
-            Email address
-          </label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-            placeholder="Enter your email"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" size={20} />
-              Sending reset link...
-            </>
-          ) : (
-            'Send reset link'
-          )}
-        </button>
+      {error && <div role="alert" className="rounded-lg border border-accent-danger bg-surface-secondary px-3 py-2 text-sm text-accent-danger-text">{error}</div>}
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Input id="reset-email" name="email" label="Email address" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+        <Button type="submit" loading={loading} className="min-h-11 w-full">{loading ? 'Sending reset link…' : 'Send reset link'}</Button>
       </form>
-
-      <div className="mt-6 text-center">
-        <button
-          onClick={onSwitchToLogin}
-          className="text-neutral-500 hover:text-white text-sm flex items-center mx-auto transition-colors"
-        >
-          <ArrowLeft size={16} className="mr-1" />
-          Back to sign in
-        </button>
-      </div>
+      <Button type="button" variant="ghost" className="min-h-11 w-full" icon={<ArrowLeft size={16} />} onClick={onSwitchToLogin}>Back to sign in</Button>
     </div>
-  )
+  );
 }

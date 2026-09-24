@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { KeychainAccess, SecureStorage } from '@aparajita/capacitor-secure-storage';
+import { recordDiagnostic } from './appDiagnostics';
 
 export interface AuthStorage {
   getItem(key: string): Promise<string | null>;
@@ -18,20 +19,41 @@ export function createNativeAuthStorage(
   return {
     async getItem(key) {
       requireSecureStorage();
-      const value = await store.get(key, false, false);
-      if (value !== null && typeof value !== 'string') throw new Error('Stored session is invalid. Sign in again.');
-      removePlaintext(key);
-      return value;
+      const startedAt = Date.now();
+      try {
+        const value = await store.get(key, false, false);
+        if (value !== null && typeof value !== 'string') throw new Error('Stored session is invalid. Sign in again.');
+        removePlaintext(key);
+        recordDiagnostic('auth', 'AUTH_STORAGE_GET', 'Secure session read completed', { durationMs: Date.now() - startedAt });
+        return value;
+      } catch (error) {
+        recordDiagnostic('auth', 'AUTH_STORAGE_GET_FAILED', 'Secure session read failed', { level: 'error', durationMs: Date.now() - startedAt });
+        throw error;
+      }
     },
     async setItem(key, value) {
       requireSecureStorage();
-      await store.set(key, value, false, false, KeychainAccess.whenUnlockedThisDeviceOnly);
-      removePlaintext(key);
+      const startedAt = Date.now();
+      try {
+        await store.set(key, value, false, false, KeychainAccess.whenUnlockedThisDeviceOnly);
+        removePlaintext(key);
+        recordDiagnostic('auth', 'AUTH_STORAGE_SET', 'Secure session write completed', { durationMs: Date.now() - startedAt });
+      } catch (error) {
+        recordDiagnostic('auth', 'AUTH_STORAGE_SET_FAILED', 'Secure session write failed', { level: 'error', durationMs: Date.now() - startedAt });
+        throw error;
+      }
     },
     async removeItem(key) {
       requireSecureStorage();
-      await store.remove(key, false);
-      removePlaintext(key);
+      const startedAt = Date.now();
+      try {
+        await store.remove(key, false);
+        removePlaintext(key);
+        recordDiagnostic('auth', 'AUTH_STORAGE_REMOVE', 'Secure session removal completed', { durationMs: Date.now() - startedAt });
+      } catch (error) {
+        recordDiagnostic('auth', 'AUTH_STORAGE_REMOVE_FAILED', 'Secure session removal failed', { level: 'error', durationMs: Date.now() - startedAt });
+        throw error;
+      }
     },
   };
 }

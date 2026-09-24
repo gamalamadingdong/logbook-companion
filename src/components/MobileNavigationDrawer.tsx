@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Blocks,
   BookOpen,
+  Bug,
   ChartNoAxesColumn,
   ClipboardList,
   Database,
@@ -13,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Sheet } from './ui';
+import { appDiagnosticsEnabled } from '../services/appDiagnostics';
 
 interface DrawerItem {
   path: string;
@@ -66,6 +68,9 @@ export function buildDrawerGroups(isCoach: boolean, isAdmin: boolean): DrawerGro
   const support: DrawerItem[] = [
     { path: '/docs', label: 'Documentation', icon: BookOpen },
   ];
+  if (appDiagnosticsEnabled) {
+    support.unshift({ path: '/diagnostics', label: 'Diagnostics', icon: Bug });
+  }
   if (isAdmin) {
     support.push({ path: '/feedback', label: 'Feedback', icon: MessageSquare });
   }

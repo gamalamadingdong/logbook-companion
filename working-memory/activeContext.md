@@ -213,6 +213,14 @@ Signed archive run `35945991156` built version/build `1.0 / 1790215741` from the
 
 Resume order: (1) confirm build `1790215741` appears in TestFlight and install it on one internal device; (2) leave the channel halted and prove the installed shell checks cleanly without receiving a URL; (3) publish one small signed canary at a higher semver; (4) prove download and safe activation only while idle; (5) prove incompatible and tampered rejection; (6) prove boot-failure rollback and corrective higher-version rollback; (7) only then enable the beta channel for broader use.
 
+### Mobile performance and diagnostics investigation
+
+The installed app exposed two usability gaps: no visible updater/build state, and Training Block taking up to roughly 30 seconds. The OTA endpoint itself remains halted, so no OTA bundle is currently available; the installed app can only be running its built-in TestFlight bundle.
+
+The first code pass found three concrete Training Block costs: the whole athlete page waited on an optional published-template catalog despite having a static fallback; the enrollment effect wrote its own selection dependency after a successful load, rerunning the full enrollment/plan/support/review waterfall; and the personal route refetched workout logs as unrelated coaching context arrays settled. The persisted plan path itself still spans multiple sequential Supabase round trips (template, days, sessions, support templates/exercises, exercise records), so the new staging diagnostics must measure remaining per-request latency before a schema/RPC consolidation is justified.
+
+The current feature branch adds a staging-only Diagnostics view with JS build SHA, built-in/OTA bundle identity, native/plugin version, pending/downloaded state, classified update result, and a privacy-bounded ring of slow/error events. It also adds `TB_LOAD_SLOW`/`TB_READY`, removes the three proven duplicate/blocking paths, parallelizes independent support-template requests, and replaces the phone login's stacked desktop marketing layout with one compact sign-in/create-account shell. On-device proof remains required before claiming the 30-second symptom fixed.
+
 ## Resume references
 
 - [Mobile beta to submission plan](mobile-beta-to-submission-plan.md)

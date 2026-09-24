@@ -23,6 +23,12 @@
 - Native Concept2 development auth retains an owner-bound pending state before opening the system browser. The HTTPS callback returns only the one-use code/state to the fixed app route; server-side state consumption and credential fencing remain authoritative.
 - `npm run mobile:build` is required for native assets; ordinary production web builds still select legacy auth pending a separate cutover. See the mobile-delivery rollout checklist before enabling native origins.
 
+## Staging Diagnostics
+- Staging/mobile builds expose `/diagnostics`; production legacy-web builds hide it from navigation.
+- Diagnostics keep a bounded device-local ring buffer. Persist codes, durations, HTTP status, method, and URL pathname only—never query strings, tokens, user/device IDs, request bodies, or raw provider errors.
+- Supabase requests record only failures and requests taking at least one second. Training Block emits `TB_LOAD_SLOW` after four seconds and `TB_READY` when interactive.
+- OTA diagnostics distinguish built-in versus OTA bundle, JS build SHA/mode, native/plugin versions, pending/downloaded bundle state, and the server's classified update result.
+
 ## Design Patterns
 -   **External APIs**: Clients for external services (Concept2, Google Sheets) reside in `src/api/`.
 -   **Internal Services**: Business logic and database interactions (Supabase, Workout management) reside in `src/services/`.

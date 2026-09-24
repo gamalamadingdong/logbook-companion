@@ -6,8 +6,10 @@ import {
   isUpdateActivationBusy,
   nativeUpdaterAvailable,
   rememberPendingBundle,
+  safeUpdateCheckDiagnostic,
   schedulePendingBundleIfSafe,
 } from '../services/mobileUpdates';
+import { recordDiagnostic } from '../services/appDiagnostics';
 
 /** Downloads arrive silently; activation is scheduled only at a safe background boundary. */
 export function NativeUpdateBridge() {
@@ -23,7 +25,24 @@ export function NativeUpdateBridge() {
     };
     const handles = [
       CapacitorUpdater.addListener('updateAvailable', ({ bundle }) => {
-        if (active) rememberPendingBundle(bundle);
+        if (!active) return;
+        rememberPendingBundle(bundle);
+        recordDiagnostic('ota', 'OTA_UPDATE_AVAILABLE', 'Authenticated update downloaded', {
+          detail: { version: bundle.version },
+        });
+      }),
+      CapacitorUpdater.addListener('updateCheckResult', result => {
+        if (!active) return;
+        const diagnostic = safeUpdateCheckDiagnostic(result);
+        recordDiagnostic('ota', diagnostic.code, diagnostic.summary, {
+          level: diagnostic.level,
+          detail: diagnostic.detail,
+        });
+      }),
+      CapacitorUpdater.addListener('downloadFailed', ({ version }) => {
+        if (active) recordDiagnostic('ota', 'OTA_DOWNLOAD_FAILED', 'Update download failed', {
+          level: 'error', detail: { version },
+        });
       }),
       App.addListener('appStateChange', state => {
         if (!active || state.isActive) return;
