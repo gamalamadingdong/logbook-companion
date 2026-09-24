@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core'
 import { nativeAuthCallbackUrl } from '../services/nativeNavigation'
 import { nativeConcept2Auth } from '../services/concept2Auth'
 import { toast } from 'sonner'
+import { recordDiagnostic } from '../services/appDiagnostics'
 
 /** How long to wait for initial session before giving up (ms) */
 const SESSION_TIMEOUT_MS = 15_000
@@ -208,9 +209,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 1. Check Initial Session
     const getInitialSession = async () => {
+      const startedAt = Date.now()
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
+          recordDiagnostic('auth', 'AUTH_SESSION_ERROR', 'Initial session check returned an error', {
+            level: 'error', durationMs: Date.now() - startedAt,
+          })
           // Session check returned an error — but DON'T nuke the session.
           // It could be a transient network issue. Let onAuthStateChange handle recovery.
           console.warn('Session check error (non-fatal):', error.message)
@@ -220,16 +225,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         if (session?.user) {
+          recordDiagnostic('auth', 'AUTH_SESSION_READY', 'Initial authenticated session restored', {
+            durationMs: Date.now() - startedAt,
+          })
           setSession(session)
           setUser(session.user)
           setLoading(false)
           fetchProfile(session.user.id)
           restoreC2Tokens(session.user.id).finally(() => setTokensReady(true))
         } else {
+          recordDiagnostic('auth', 'AUTH_SESSION_EMPTY', 'Initial session check completed without a session', {
+            durationMs: Date.now() - startedAt,
+          })
           setTokensReady(true) // No user, no tokens to restore
           setLoading(false)
         }
       } catch (err) {
+        recordDiagnostic('auth', 'AUTH_SESSION_FAILURE', 'Initial session check could not complete', {
+          level: 'error', durationMs: Date.now() - startedAt,
+        })
         // Network error during session check — DON'T clear session.
         // It may still be valid once connectivity is restored.
         console.warn('Network error checking session (non-fatal):', err)
@@ -244,6 +258,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const safetyTimeout = setTimeout(() => {
       setLoading(prev => {
         if (prev) {
+          recordDiagnostic('auth', 'AUTH_SESSION_TIMEOUT', 'Initial session check exceeded the safety timeout', {
+            level: 'warning', durationMs: SESSION_TIMEOUT_MS,
+          })
           console.warn(`Session check timed out after ${SESSION_TIMEOUT_MS}ms — unlocking UI (session preserved)`)
           setTokensReady(true)
           return false
