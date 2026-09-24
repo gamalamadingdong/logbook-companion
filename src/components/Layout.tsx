@@ -2,7 +2,7 @@ import { connectConcept2 } from '../services/concept2Auth';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Blocks, Bluetooth, LogOut, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search, Plus } from 'lucide-react';
+import { Blocks, Bluetooth, Bug, LogOut, Waves, Home, TrendingUp, Database, Link as LinkIcon, Settings, MessageSquare, BookOpen, Users, Library, Search, Plus } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
@@ -11,6 +11,7 @@ import { MobileBottomNavigation } from './MobileBottomNavigation';
 import { AccountSheet, MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { PM5ConnectionPill } from './PM5ConnectionPill';
 import { supabase } from '../services/supabase';
+import { appDiagnosticsEnabled } from '../services/appDiagnostics';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -84,6 +85,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         { path: '/team-management', label: 'Team Management', icon: Users },
         { path: '/training-block', label: 'Training Block', icon: Blocks },
         { path: '/docs', label: 'Documentation', icon: BookOpen },
+        ...(appDiagnosticsEnabled ? [{ path: '/diagnostics', label: 'Diagnostics', icon: Bug }] : []),
         ...(isAdmin ? [
             { path: '/feedback', label: 'Feedback', icon: MessageSquare }
         ] : [])

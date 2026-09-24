@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), c2DataSaverPlugin()],
   define: {
     __C2_LEGACY_PRODUCTION__: JSON.stringify(legacyProduction && mode !== 'mobile'),
+    'import.meta.env.VITE_LC_BUILD_SHA': JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'local'),
+    'import.meta.env.VITE_LC_BUILD_MODE': JSON.stringify(mode),
     // Even accidentally inherited production VITE credentials must not enter staging bundles.
     ...(legacyProduction && mode !== 'mobile' ? {} : {
       'import.meta.env.VITE_CONCEPT2_CLIENT_SECRET': JSON.stringify(''),

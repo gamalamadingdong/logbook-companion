@@ -212,16 +212,20 @@ async function hydrateSupportPrescriptions(
     const supportTemplateIds = [...new Set(sessions.map(supportTemplateIdForSession).filter((id): id is string => Boolean(id)))];
     if (supportTemplateIds.length === 0) return sessions;
 
-    const { data: templatesData, error: templatesError } = await supabase.from('support_session_templates')
-        .select('id, template_key, title, kind, description, estimated_duration_minutes, difficulty, focus, instructions')
-        .in('id', supportTemplateIds);
+    const [templatesResult, exerciseRowsResult] = await Promise.all([
+        supabase.from('support_session_templates')
+            .select('id, template_key, title, kind, description, estimated_duration_minutes, difficulty, focus, instructions')
+            .in('id', supportTemplateIds),
+        supabase.from('support_session_template_exercises')
+            .select('support_session_template_id, exercise_id, sort_order, sets, reps, duration_seconds, rest_seconds, load_prescription, side, notes, alternatives')
+            .in('support_session_template_id', supportTemplateIds)
+            .order('sort_order', { ascending: true }),
+    ]);
 
+    const { data: templatesData, error: templatesError } = templatesResult;
     if (templatesError) throw templatesError;
 
-    const { data: exerciseRowsData, error: exerciseRowsError } = await supabase.from('support_session_template_exercises')
-        .select('support_session_template_id, exercise_id, sort_order, sets, reps, duration_seconds, rest_seconds, load_prescription, side, notes, alternatives')
-        .in('support_session_template_id', supportTemplateIds)
-        .order('sort_order', { ascending: true });
+    const { data: exerciseRowsData, error: exerciseRowsError } = exerciseRowsResult;
 
     if (exerciseRowsError) throw exerciseRowsError;
 

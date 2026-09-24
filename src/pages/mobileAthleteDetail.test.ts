@@ -20,6 +20,11 @@ describe('athlete detail mobile layouts', () => {
     expect(trainingBlock).toContain("['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa']");
     expect(trainingBlock).toContain('min-h-11 min-w-12 shrink-0');
     expect(trainingBlock).toContain('Matching details');
+    expect(trainingBlock).not.toContain('templatesLoading ||');
+    expect(trainingBlock).toContain('TB_LOAD_SLOW');
+    expect(trainingBlock).not.toContain('setRequestedEnrollmentId');
+    expect(trainingBlock).toContain('requestedEnrollmentIdRef.current = enrollment.id');
+    expect(trainingBlock).toContain('setEnrollmentReloadToken((value) => value + 1)');
   });
 
   it('uses mobile library cards and preserves the desktop table', () => {

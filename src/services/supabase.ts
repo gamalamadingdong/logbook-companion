@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { legacyConcept2Enabled, blockedDevelopmentRequest, DEVELOPMENT_SYNC_DISABLED } from './concept2Environment'
 import { Capacitor } from '@capacitor/core'
 import { nativeAuthStorage } from './nativeAuthStorage'
+import { appDiagnosticsEnabled, recordDiagnostic } from './appDiagnostics'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -24,16 +25,51 @@ if (!hasSupabaseEnv) {
     )
 }
 
+function diagnosticRequestPath(url: string): string {
+    try {
+        return new URL(url).pathname;
+    } catch {
+        return 'unparseable';
+    }
+}
+
 export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabaseAnonKey ?? fallbackSupabaseAnonKey, {
-    global: { fetch: (input, init) => {
+    global: { fetch: async (input, init) => {
         const url = input instanceof Request ? input.url : String(input);
         const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
         if (!legacyConcept2Enabled && blockedDevelopmentRequest(url, method, init?.body)) {
-            return Promise.resolve(new Response(JSON.stringify({ message: DEVELOPMENT_SYNC_DISABLED }), {
+            return new Response(JSON.stringify({ message: DEVELOPMENT_SYNC_DISABLED }), {
                 status: 403, headers: { 'Content-Type': 'application/json' },
-            }));
+            });
         }
-        return fetch(input, init);
+        const startedAt = Date.now();
+        try {
+            const response = await fetch(input, init);
+            const durationMs = Date.now() - startedAt;
+            if (appDiagnosticsEnabled && (durationMs >= 1000 || !response.ok)) {
+                recordDiagnostic('network', response.ok ? 'NET_SLOW' : 'NET_HTTP', response.ok ? 'Slow Supabase request' : 'Supabase request failed', {
+                    level: response.ok ? 'warning' : 'error',
+                    durationMs,
+                    detail: {
+                        method,
+                        path: diagnosticRequestPath(url),
+                        status: response.status,
+                    },
+                });
+            }
+            return response;
+        } catch (error) {
+            recordDiagnostic('network', 'NET_FAILURE', 'Supabase request could not complete', {
+                level: 'error',
+                durationMs: Date.now() - startedAt,
+                detail: {
+                    method,
+                    path: diagnosticRequestPath(url),
+                    error: error instanceof Error ? error.name : 'UnknownError',
+                },
+            });
+            throw error;
+        }
     } },
     auth: {
         flowType: 'pkce',

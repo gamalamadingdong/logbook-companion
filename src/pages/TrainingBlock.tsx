@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, ChevronDown, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardHeader } from '../components/ui';
@@ -76,6 +76,7 @@ import {
     type TrainingBlockSupportCompletionRow,
 } from '../services/trainingBlockService';
 import type { TrainingBlockWorkoutStatus } from '../types/trainingBlock.types';
+import { appDiagnosticsEnabled, recordDiagnostic } from '../services/appDiagnostics';
 
 type WorkoutLogRow = Database['public']['Tables']['workout_logs']['Row'];
 type TrainingBlockWorkoutLogRow = Pick<
@@ -685,6 +686,15 @@ export const TrainingBlock: React.FC = () => {
         orgId,
     } = useScopedTeamScope();
     const isTeamContext = pathname.startsWith('/team') || pathname.startsWith('/team-management');
+    const teamContextLoading = isTeamContext && isCoachingLoading;
+    const scopedTeamIdsKey = isTeamContext ? scopedTeamIds.join(',') : '';
+    const scopedTeamsKey = isTeamContext
+        ? scopedTeams.map((team) => `${team.team_id}:${team.team_name}`).join('|')
+        : '';
+    const scopedTeamIdsRef = useRef(scopedTeamIds);
+    const scopedTeamsRef = useRef(scopedTeams);
+    scopedTeamIdsRef.current = scopedTeamIds;
+    scopedTeamsRef.current = scopedTeams;
     const scopedTeamNameById = useMemo(() => {
         const map = new Map<string, string>();
         scopedTeams.forEach((team) => {
@@ -718,7 +728,7 @@ export const TrainingBlock: React.FC = () => {
     const [isTrainingBlockActive, setTrainingBlockActive] = useState(() => readTrainingBlockActive(true));
     const [selectedTemplateId, setSelectedTemplateId] = useState<TrainingBlockPlanOptionId>(() => readSelectedTrainingBlockTemplate());
     const [publishedTemplates, setPublishedTemplates] = useState<PublishedTrainingBlockTemplateOption[]>([]);
-    const [templatesLoading, setTemplatesLoading] = useState(true);
+
     const [setupOpen, setSetupOpen] = useState(false);
     const [managementOpen, setManagementOpen] = useState(false);
     const [setupTemplateKey, setSetupTemplateKey] = useState<TrainingBlockTemplateKey>(() => readSelectedTrainingBlockTemplate());
@@ -727,7 +737,8 @@ export const TrainingBlock: React.FC = () => {
     const [setupSaving, setSetupSaving] = useState(false);
     const [setupError, setSetupError] = useState<string | null>(null);
     const [trainingBlockEnrollment, setTrainingBlockEnrollment] = useState<TrainingBlockEnrollmentRow | null>(null);
-    const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
+    const requestedEnrollmentIdRef = useRef<string | null>(null);
+    const [enrollmentReloadToken, setEnrollmentReloadToken] = useState(0);
     const [trainingBlockEnrollments, setTrainingBlockEnrollments] = useState<TrainingBlockEnrollmentRow[]>([]);
     const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
     const [resumeEnrollmentId, setResumeEnrollmentId] = useState<string | null>(null);
@@ -735,12 +746,42 @@ export const TrainingBlock: React.FC = () => {
     const [historyError, setHistoryError] = useState<string | null>(null);
     const { matchingContext, isLoading: linkedWorkoutTemplatesLoading } = useTrainingBlockMatchingContext(plan);
     const [reviewPersistenceMode, setReviewPersistenceMode] = useState<'loading' | 'database' | 'local'>('loading');
+    const [showSlowInitialLoad, setShowSlowInitialLoad] = useState(false);
+    const initialLoadStartedAt = useRef(Date.now());
+    const initialLoadRecorded = useRef(false);
+    const initialLoadPending = authLoading || !hasLoadedEnrollment || (!hasLoadedLogs && loading);
+
+    useEffect(() => {
+        if (!initialLoadPending) {
+            setShowSlowInitialLoad(false);
+            if (!initialLoadRecorded.current) {
+                initialLoadRecorded.current = true;
+                recordDiagnostic('training-block', 'TB_READY', 'Training Block became interactive', {
+                    durationMs: Date.now() - initialLoadStartedAt.current,
+                    detail: { planSource },
+                });
+            }
+            return undefined;
+        }
+        const timeout = window.setTimeout(() => {
+            setShowSlowInitialLoad(true);
+            recordDiagnostic('training-block', 'TB_LOAD_SLOW', 'Training Block initial load exceeded four seconds', {
+                level: 'warning',
+                durationMs: Date.now() - initialLoadStartedAt.current,
+                detail: {
+                    auth: authLoading ? 'pending' : 'ready',
+                    enrollment: hasLoadedEnrollment ? 'ready' : 'pending',
+                    logs: hasLoadedLogs ? 'ready' : 'pending',
+                },
+            });
+        }, 4000);
+        return () => window.clearTimeout(timeout);
+    }, [authLoading, hasLoadedEnrollment, hasLoadedLogs, initialLoadPending, loading, planSource]);
 
     useEffect(() => {
         let cancelled = false;
 
         const loadTemplates = async () => {
-            setTemplatesLoading(true);
             try {
                 const templates = await getPublishedTrainingBlockTemplates();
                 if (cancelled) return;
@@ -748,8 +789,6 @@ export const TrainingBlock: React.FC = () => {
             } catch (error) {
                 console.error('Failed to load published training block templates; using static fallback', error);
                 if (!cancelled) setPublishedTemplates([]);
-            } finally {
-                if (!cancelled) setTemplatesLoading(false);
             }
         };
 
@@ -784,7 +823,7 @@ export const TrainingBlock: React.FC = () => {
                 setPlan(persistedPlan ?? fallbackPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
                 setTrainingBlockEnrollment(null);
-                setSelectedEnrollmentId(null);
+                requestedEnrollmentIdRef.current = null;
                 setTrainingBlockEnrollments([]);
                 setLogOverrides({});
                 setSupportCompletions({});
@@ -799,8 +838,8 @@ export const TrainingBlock: React.FC = () => {
             try {
                 const enrollments = await getTrainingBlockEnrollments(user.id);
                 const selectedKey = selectedTemplateId as TrainingBlockTemplateKey;
-                const selectedById = selectedEnrollmentId
-                    ? enrollments.find((entry) => entry.id === selectedEnrollmentId) ?? null
+                const selectedById = requestedEnrollmentIdRef.current
+                    ? enrollments.find((entry) => entry.id === requestedEnrollmentIdRef.current) ?? null
                     : null;
                 const selectedEnrollment = enrollments.find((entry) => entry.template_key === selectedKey) ?? null;
                 const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
@@ -825,7 +864,7 @@ export const TrainingBlock: React.FC = () => {
 
                 if (!enrollment) {
                     setTrainingBlockEnrollment(null);
-                    setSelectedEnrollmentId(null);
+                    requestedEnrollmentIdRef.current = null;
                     setTrainingBlockActive(false);
                     setSetupOpen(true);
                     setManagementOpen(true);
@@ -838,9 +877,6 @@ export const TrainingBlock: React.FC = () => {
                 }
 
                 setTrainingBlockEnrollment(enrollment);
-                if (selectedEnrollmentId !== enrollment.id) {
-                    setSelectedEnrollmentId(enrollment.id);
-                }
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
 
@@ -868,7 +904,6 @@ export const TrainingBlock: React.FC = () => {
                 setPlan(fallbackPlan);
                 setPlanSource('static');
                 setTrainingBlockEnrollment(null);
-                setSelectedEnrollmentId(null);
                 setTrainingBlockEnrollments([]);
                 setSupportCompletions({});
                 setReviewPersistenceMode('local');
@@ -897,7 +932,7 @@ export const TrainingBlock: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [selectedEnrollmentId, selectedTemplateId, user?.id]);
+    }, [enrollmentReloadToken, selectedTemplateId, user?.id]);
 
     useEffect(() => {
         if (plan.days.some((day) => day.date === selectedDate)) return;
@@ -981,14 +1016,14 @@ export const TrainingBlock: React.FC = () => {
                 const planWindowEnd = `${shiftLocalDateString(plan.end_date, 1)}T23:59:59.999Z`;
 
                 if (isTeamContext) {
-                    if (isCoachingLoading) {
+                    if (teamContextLoading) {
                         if (!cancelled) setLoading(false);
                         return;
                     }
 
                     const athletesByUser = new Map<string, TeamAthleteOption>();
-                    await Promise.all(scopedTeamIds.map(async (teamId) => {
-                        const teamName = scopedTeams.find((team) => team.team_id === teamId)?.team_name ?? 'Team';
+                    await Promise.all(scopedTeamIdsRef.current.map(async (teamId) => {
+                        const teamName = scopedTeamsRef.current.find((team) => team.team_id === teamId)?.team_name ?? 'Team';
                         const teamAthletes = await getAthletes(teamId);
                         teamAthletes.forEach((athlete) => {
                             const athleteUserId = athlete.user_id?.trim();
@@ -1084,7 +1119,7 @@ export const TrainingBlock: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [isTeamContext, isCoachingLoading, scopedTeamIds.join(','), user?.id, scopedTeams, plan.start_date, plan.end_date]);
+    }, [isTeamContext, plan.end_date, plan.start_date, scopedTeamIdsKey, scopedTeamsKey, teamContextLoading, user?.id]);
 
     const logs = useMemo(() => {
         if (!isTeamContext) return allLogs;
@@ -1281,7 +1316,6 @@ export const TrainingBlock: React.FC = () => {
             isActive: value,
         }).then(async (enrollment) => {
             setTrainingBlockEnrollment(enrollment);
-            setSelectedEnrollmentId(enrollment.id);
             setTrainingBlockEnrollments(await getTrainingBlockEnrollments(user.id));
             setReviewPersistenceMode('database');
         }).catch((error) => {
@@ -1302,7 +1336,8 @@ export const TrainingBlock: React.FC = () => {
     const viewTrainingBlockEnrollment = (enrollment: TrainingBlockEnrollmentRow) => {
         setSetupOpen(false);
         setHistoryError(null);
-        setSelectedEnrollmentId(enrollment.id);
+        requestedEnrollmentIdRef.current = enrollment.id;
+        setEnrollmentReloadToken((value) => value + 1);
         setSelectedTemplateId(enrollment.template_key);
         writeSelectedTrainingBlockTemplate(enrollment.template_key);
     };
@@ -1327,14 +1362,15 @@ export const TrainingBlock: React.FC = () => {
 
             const nextEnrollment = enrollments.find((entry) => entry.is_active) ?? enrollments[0] ?? null;
             if (nextEnrollment) {
-                setSelectedEnrollmentId(nextEnrollment.id);
+                requestedEnrollmentIdRef.current = nextEnrollment.id;
+                setEnrollmentReloadToken((value) => value + 1);
                 setSelectedTemplateId(nextEnrollment.template_key);
                 writeSelectedTrainingBlockTemplate(nextEnrollment.template_key);
                 return;
             }
 
             setTrainingBlockEnrollment(null);
-            setSelectedEnrollmentId(null);
+            requestedEnrollmentIdRef.current = null;
             setTrainingBlockActive(false);
             writeTrainingBlockActive(false);
             setLogOverrides({});
@@ -1389,7 +1425,7 @@ export const TrainingBlock: React.FC = () => {
             setPlan(resolvedPlan);
             setPlanSource(persistedPlan ? 'database' : 'static');
             setTrainingBlockEnrollment(updatedEnrollment);
-            setSelectedEnrollmentId(updatedEnrollment.id);
+            requestedEnrollmentIdRef.current = null;
             setTrainingBlockEnrollments(enrollments);
             setTrainingBlockActive(true);
             writeTrainingBlockActive(true);
@@ -1472,7 +1508,7 @@ export const TrainingBlock: React.FC = () => {
             setTrainingBlockEnrollments(enrollments);
 
             if (setupIntent === 'schedule' && activeEnrollment) {
-                setSelectedEnrollmentId(activeEnrollment.id);
+                requestedEnrollmentIdRef.current = null;
                 setSetupOpen(false);
                 return;
             }
@@ -1482,7 +1518,7 @@ export const TrainingBlock: React.FC = () => {
             setPlan(resolvedPlan);
             setPlanSource(persistedPlan ? 'database' : 'static');
             setTrainingBlockEnrollment(enrollment);
-            setSelectedEnrollmentId(enrollment.id);
+            requestedEnrollmentIdRef.current = null;
             setTrainingBlockActive(enrollment.is_active);
             writeTrainingBlockActive(enrollment.is_active);
             setLogOverrides(Object.fromEntries(
@@ -2005,7 +2041,7 @@ export const TrainingBlock: React.FC = () => {
     const selectedWeekAssignmentCount = selectedWeekAssignments.length;
     const formatLoggedWorkoutDistance = (log: DayLogEvent): string => formatDistanceMeters((log.distance_meters ?? 0) + (log.rest_distance_meters ?? 0));
 
-    if (authLoading || templatesLoading || !hasLoadedEnrollment || (!hasLoadedLogs && loading)) {
+    if (initialLoadPending) {
         return (
             <div className="min-h-screen bg-neutral-950 p-4 font-sans text-white sm:p-6 md:p-8 lg:p-10">
                 <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
@@ -2016,6 +2052,11 @@ export const TrainingBlock: React.FC = () => {
                         <div className="h-32 rounded-xl bg-neutral-900" />
                     </div>
                     <div className="h-64 rounded-xl bg-neutral-900" />
+                    {appDiagnosticsEnabled && showSlowInitialLoad && (
+                        <div className="animate-none rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                            Training Block is still waiting for data. Diagnostic code <strong>TB_LOAD_SLOW</strong>. Open Diagnostics from the menu to see the slow request or error.
+                        </div>
+                    )}
                 </div>
             </div>
         );

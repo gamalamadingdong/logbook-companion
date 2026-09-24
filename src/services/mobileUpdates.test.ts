@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   isUpdateActivationBusy,
+  getMobileUpdateDiagnostics,
   readPendingBundle,
   rememberPendingBundle,
+  safeUpdateCheckDiagnostic,
   schedulePendingBundleIfSafe,
 } from './mobileUpdates';
 
@@ -21,6 +23,24 @@ const capture = {
 } as never;
 
 describe('mobile OTA activation guard', () => {
+  it('never persists or displays raw updater backend text', () => {
+    const diagnostic = safeUpdateCheckDiagnostic({
+      kind: 'blocked',
+      error: 'token=secret-value',
+      version: '1.0.0-beta.2',
+    });
+    expect(diagnostic.detail.error).toBe('unrecognized');
+    expect(JSON.stringify(diagnostic)).not.toContain('secret-value');
+    expect(diagnostic.summary).toBe('OTA update check was blocked safely');
+  });
+
+  it('reports build identity without pretending a web session has a native updater', async () => {
+    const snapshot = await getMobileUpdateDiagnostics();
+    expect(snapshot.native).toBe(false);
+    expect(snapshot.currentBundle).toBeNull();
+    expect(snapshot.build).toBeTruthy();
+  });
+
   it('defers while rowing or while a completed capture is still being persisted', () => {
     expect(isUpdateActivationBusy(true, null)).toBe(true);
     expect(isUpdateActivationBusy(false, { phase: 'saved', capture })).toBe(true);
