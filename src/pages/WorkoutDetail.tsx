@@ -11,7 +11,7 @@ import { calculateWatts } from '../utils/prCalculator';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { detectIntervalsFromStrokes } from '../utils/workoutNaming';
 import { parseRWN } from '../utils/rwnParser';
-import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN } from '../utils/workoutCanonical';
+import { deriveCanonicalNameFromConcept2, deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, getContinuousConcept2Name } from '../utils/workoutCanonical';
 import { calculateBucketsFromStrokes, ZONES } from '../utils/zones';
 import { getMainBlockIndices, detectWarmupCooldown } from '../utils/workoutAnalysis';
 import type { WarmupCooldownDetection } from '../utils/workoutAnalysis';
@@ -163,8 +163,8 @@ export const WorkoutDetail: React.FC = () => {
             let matchName = '';
             if (detail.manual_rwn) {
                 matchName = deriveCanonicalNameFromRWN(detail.manual_rwn) || '';
-            } else if (detail.workout?.intervals && detail.workout.intervals.length > 0) {
-                matchName = deriveCanonicalNameFromIntervals(detail.workout.intervals) || '';
+            } else {
+                matchName = deriveCanonicalNameFromConcept2(detail) || '';
             }
             
             if (!matchName || matchName === 'Workout') return;
@@ -261,6 +261,8 @@ export const WorkoutDetail: React.FC = () => {
         }
 
         if (!detail) return 'Workout';
+        const continuousName = getContinuousConcept2Name(detail);
+        if (continuousName) return continuousName;
         const intervals = detail.workout?.intervals || [];
         if (intervals.length > 0) {
             const fromIntervals = deriveCanonicalNameFromIntervals(intervals);

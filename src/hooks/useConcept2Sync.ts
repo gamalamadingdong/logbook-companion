@@ -6,7 +6,8 @@ import type { WorkoutLog } from '../services/supabase';
 import { workoutService } from '../services/workoutService';
 import { calculateZoneDistribution } from '../utils/zones';
 import { calculatePowerBuckets } from '../utils/powerBucketing';
-import { calculateCanonicalName, roundToStandardDistance } from '../utils/workoutNaming';
+import { roundToStandardDistance } from '../utils/workoutNaming';
+import { deriveCanonicalNameFromConcept2 } from '../utils/workoutCanonical';
 import { saveFilteredPRs } from '../utils/prDetection';
 import { matchWorkoutToTemplate } from '../utils/templateMatching';
 import { findMatchingWorkout, shouldUpgrade } from '../utils/reconciliation';
@@ -278,7 +279,7 @@ export const useConcept2Sync = () => {
                         max_heart_rate: detail.heart_rate?.max,
                         source: 'concept2',
                         notes: `RWN: ${(() => {
-                            const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                            const calculated = deriveCanonicalNameFromConcept2({ ...fullData, ...summary }) || 'Unknown';
                             if (calculated && calculated !== 'Unknown') return calculated;
 
                             // Shared Fallback Logic
@@ -305,7 +306,7 @@ export const useConcept2Sync = () => {
                         raw_data: fullData,
                         zone_distribution: distribution,
                         canonical_name: (() => {
-                            const calculated = calculateCanonicalName(fullData.workout?.intervals || []);
+                            const calculated = deriveCanonicalNameFromConcept2({ ...fullData, ...summary }) || 'Unknown';
                             if (calculated && calculated !== 'Unknown') return calculated;
 
                             // Fallback logic with standard distance rounding
