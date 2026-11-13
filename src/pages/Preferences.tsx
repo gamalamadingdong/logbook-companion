@@ -3,6 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase, type UserProfile } from '../services/supabase';
 import { PR_DISTANCES, BENCHMARK_PATTERNS } from '../utils/prCalculator';
 import { calculateCanonicalName } from '../utils/workoutNaming';
+import { getContinuousConcept2Name, normalizeCanonicalName } from '../utils/workoutCanonical';
+import { resolveWorkoutDurationSeconds } from '../utils/trainingBlockMatching';
 import { fetchUserPRs } from '../utils/prDetection';
 import { Loader2, Database } from 'lucide-react';
 import { GoalsManager } from '../components/GoalsManager';
@@ -545,7 +547,7 @@ export const Preferences: React.FC = () => {
                                     // 1. Fetch ALL logs
                                     const { data: allLogs, error } = await supabase
                                         .from('workout_logs')
-                                        .select('id, raw_data, workout_name, canonical_name, workout_type, distance_meters, duration_minutes, calories_burned, watts')
+                                        .select('id, raw_data, workout_name, canonical_name, manual_rwn, source, notes, workout_type, distance_meters, duration_seconds, duration_minutes, calories_burned, watts')
                                         .eq('user_id', user.id);
 
                                     if (error) throw error;
@@ -554,12 +556,21 @@ export const Preferences: React.FC = () => {
                                     const updates = [];
 
                                     for (const log of allLogs || []) {
+                                        if (log.manual_rwn?.trim()) continue;
                                         let newName = log.canonical_name;
 
                                         // Ensure raw_data is object
                                         let raw = log.raw_data;
                                         if (typeof raw === 'string') {
                                             try { raw = JSON.parse(raw); } catch { /* Ignore parse errors */ }
+                                        }
+
+                                        if (log.source === 'concept2') {
+                                            newName = getContinuousConcept2Name({
+                                                workout_type: raw?.workout_type || log.workout_name,
+                                                distance: log.distance_meters,
+                                                time: (resolveWorkoutDurationSeconds(log) ?? 0) * 10,
+                                            }) || newName;
                                         }
 
                                         // 1. Try to calculate from intervals
@@ -590,7 +601,10 @@ export const Preferences: React.FC = () => {
                                             updates.push({
                                                 id: log.id,
                                                 user_id: user.id, // Required for RLS usually
+                                                previous_name: log.canonical_name,
                                                 canonical_name: newName,
+                                                canonical_signature: normalizeCanonicalName(newName),
+                                                notes: log.notes === `RWN: ${log.canonical_name}` ? `RWN: ${newName}` : log.notes,
                                                 // Minimal update payload - but supabase upsert might need other required fields if not partial?
                                                 // Actually 'update' is better for partial, but we want batch.
                                                 // upsert requires primary key.
@@ -609,9 +623,18 @@ export const Preferences: React.FC = () => {
                                             // Let's loop update for safety or use upsert with all required fields?
                                             // Actually, let's just do parallel updates. It's client side, it's fine.
 
-                                            await Promise.all(chunk.map(u =>
-                                                supabase.from('workout_logs').update({ canonical_name: u.canonical_name }).eq('id', u.id)
-                                            ));
+                                            const results = await Promise.all(chunk.map(u => {
+                                                const query = supabase.from('workout_logs').update({
+                                                    canonical_name: u.canonical_name,
+                                                    canonical_signature: u.canonical_signature,
+                                                    notes: u.notes,
+                                                }).eq('id', u.id).eq('user_id', user.id);
+                                                return u.previous_name === null
+                                                    ? query.is('canonical_name', null)
+                                                    : query.eq('canonical_name', u.previous_name);
+                                            }));
+                                            const failed = results.find(result => result.error);
+                                            if (failed?.error) throw failed.error;
                                         }
                                     }
 

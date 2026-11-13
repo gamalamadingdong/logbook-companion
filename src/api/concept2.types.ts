@@ -57,6 +57,7 @@ export interface C2Stroke {
 }
 
 export interface C2ResultDetail extends C2Result {
+    db_id?: string; // LC workout_logs UUID; id remains the Concept2 result ID.
     stroke_data: boolean;
     rest_distance?: number;
     rest_time?: number;

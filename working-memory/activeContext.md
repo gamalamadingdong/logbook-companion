@@ -2,13 +2,23 @@
 
 Last updated: 2026-11-13
 
-## Current Session — Content search (2026-11-13)
+## Current Session — Concept2 names and template linking (2026-11-13)
 
-Implemented on `feature/sidebar-search` from `origin/main`, isolated from staging. Sidebar/Cmd-K search now prioritizes owned completed workouts, personal block enrollments and scheduled sessions, accessible workout/support templates, and the active team's shared workouts/sessions plus coach roster results. Member-owned assignment rows replace duplicate shared workouts when available. Team scope includes org-wide workouts only from the active team's organization; it does not expand sessions/athletes across teams.
+Search and the empty-personal-best fix are merged into main via PR #239. New work is on `fix/concept2-continuous-names`, based on that main, in the existing isolated Codex worktree. Unrelated local environment edits remain untouched; staging is unchanged.
 
-Validated links open block enrollment/day/session, highlighted support templates, existing coach pages, or read-only member team details. Query/account/team changes immediately hide stale rows. Shared Modal accessibility and focus cleanup are corrected. No database migration, live write, auth/Concept2 configuration change, deployment, or staging merge.
+Fixed LC's interpretation of Concept2 split records: continuous fixed-distance/time and JustRow modes take precedence over interval/stroke inference. A pure helper is shared by the client and sync worker. Actual intervals retain their interval names, including zero-rest intervals. History/detail, template suggestions, and name maintenance follow the same distinction; manual RWN overrides retain priority. No RWN package or grammar changes.
 
-See [approved design](../docs/superpowers/specs/2026-11-13-content-search-design.md) and [implementation plan](../docs/superpowers/plans/2026-11-13-content-search.md). Browser/signed-in/device verification remains outstanding because no browser is connected. Team-management/winter-training brainstorming follows completion of search.
+Live: sync worker version 14 deployed with existing JWT/service-role authentication. Exactly 12 confirmed misnamed continuous rows in the requesting user's account were repaired; labels/signatures/generated notes corrected, other workout fields verified unchanged by hash. Raw splits, measurements, manual overrides, custom notes, and template links preserved. Before-values and guarded rollback SQL are under `/tmp/lc-continuous-name-repair*` (outside git).
+
+Validation: 482 app tests, 11 edge contract tests, build, and lint (0 errors, 115 existing warnings). Shared helper passes Deno check; full worker has identical pre-existing standalone SDK typing failures before/after. Local runtime and deployed OPTIONS/unauthorized POST smoke checks pass; no authenticated sync was run. Frontend changes remain on the local branch pending PR/merge.
+
+Follow-up: fixed manual template linking from UUID workout routes. `getWorkoutDetail` now returns the LC UUID as `db_id`, preserving the original Concept2 `id`. WorkoutDetail uses that loaded UUID for link/unlink actions and removes its external-ID-only lookup. Loading/suggestion cancellation prevents a previous route response from replacing the current workout. Regression coverage exercises both UUID/Concept2 routes and late navigation results. The Nov 9 pyramid is currently unlinked; its stored template RWN matches all seven distances/rests. No live linking write was performed. Automatic linking runs during sync using canonical-name candidates; it does not retroactively revisit older rows as templates are created, and its confidence is a ranking heuristic rather than full structural verification.
+
+Latest validation: 487 app tests pass; production build passes; lint has 0 errors and 115 existing warnings. The template-linking change is client-only and has not been deployed.
+
+Added optional historical linking after manual template selection, suggestions and new-template creation. A shared confirmation previews all matching unlinked workouts in the owner's history and offers single/all choices. Identity uses full work/rest sequence, modality and explicit guidance, with manual RWN priority and continuous-mode split protection; ambiguous structures are skipped. Owner/cursor pagination avoids history truncation. Saves guard previous links and timestamps, preserve existing historical links, and report skips/partial errors with failed-row retry. Verified live updated-at trigger and owner RLS through read-only MCP queries. No live template links were written. Latest validation: 502 app tests, build pass, lint 0 errors / 115 existing warnings. Dialog interactions covered in jsdom; browser check pending. See [history linking plan and receipt](../docs/superpowers/plans/2026-11-13-template-history-linking.md).
+
+See [implementation and live receipt](../docs/superpowers/plans/2026-11-13-concept2-continuous-names.md). Duplicate workout templates are the next concern to inspect, followed by winter team-management planning.
 
 ## Current Session — Concept2/mobile planning (2026-09-15)
 

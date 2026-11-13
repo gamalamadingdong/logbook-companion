@@ -5,13 +5,14 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { TemplateEditor } from '../components/TemplateEditor';
+import { TemplateLinkConfirmation } from '../components/TemplateLinkConfirmation';
 import { fetchTemplateById } from '../services/templateService';
 import { useAuth } from '../hooks/useAuth';
 import { calculateWatts } from '../utils/prCalculator';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { detectIntervalsFromStrokes } from '../utils/workoutNaming';
 import { parseRWN } from '../utils/rwnParser';
-import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN } from '../utils/workoutCanonical';
+import { deriveCanonicalNameFromConcept2, deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, getContinuousConcept2Name } from '../utils/workoutCanonical';
 import { calculateBucketsFromStrokes, ZONES } from '../utils/zones';
 import { getMainBlockIndices, detectWarmupCooldown } from '../utils/workoutAnalysis';
 import type { WarmupCooldownDetection } from '../utils/workoutAnalysis';
@@ -36,7 +37,7 @@ export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { profile, isGuest } = useAuth();
     const [detail, setDetail] = useState<C2ResultDetail | null>(null);
-    const [dbId, setDbId] = useState<string | null>(null); // Database UUID
+    const dbId = detail?.db_id ?? null; // Resolved by the same query that loads the workout.
     const [strokes, setStrokes] = useState<C2Stroke[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedInterval, setSelectedInterval] = useState<number | 'all'>('all');
@@ -84,7 +85,7 @@ export const WorkoutDetail: React.FC = () => {
         match_reason: MatchReason;
     }>>([]);
     const [suggestionDismissed, setSuggestionDismissed] = useState(false);
-    const [linkingTemplateId, setLinkingTemplateId] = useState<string | null>(null);
+    const [pendingTemplate, setPendingTemplate] = useState<{ id: string; name?: string; workoutId: string; userId: string } | null>(null);
 
     // Warmup/Cooldown Detection State
     const [warmupDetection, setWarmupDetection] = useState<WarmupCooldownDetection | null>(null);
@@ -93,8 +94,19 @@ export const WorkoutDetail: React.FC = () => {
 
     useEffect(() => {
         if (!id) return;
+        let cancelled = false;
 
         const fetchData = async () => {
+            setLoading(true);
+            setDetail(null);
+            setPendingTemplate(null);
+            setLinkedTemplate(null);
+            setSuggestedTemplates([]);
+            setSuggestionDismissed(false);
+            setWarmupDetection(null);
+            setWarmupDismissed(false);
+            setManualRWN('');
+            setIsBenchmark(false);
             try {
                 if (isGuest) {
                     const mockDetail = DEMO_WORKOUTS.find(w => w.id === id || w.external_id === id) as C2ResultDetail | undefined;
@@ -110,23 +122,13 @@ export const WorkoutDetail: React.FC = () => {
                         setBuckets({});
                     }
                 } else {
-                    // Fetch the database record to get the UUID
-                    const { data: dbRecord } = await supabase
-                        .from('workout_logs')
-                        .select('id')
-                        .eq('external_id', id)
-                        .single();
-
-                    if (dbRecord) {
-                        setDbId(dbRecord.id);
-                    }
-
                     // Fetch detail and strokes from Supabase via workoutService
                     const [detailData, strokeData, bucketsData] = await Promise.all([
                         workoutService.getWorkoutDetail(id),
                         workoutService.getStrokes(id),
                         workoutService.getPowerBuckets(id)
                     ]);
+                    if (cancelled) return;
                     setDetail(detailData);
                     setStrokes(strokeData);
                     setBuckets(bucketsData);
@@ -137,7 +139,7 @@ export const WorkoutDetail: React.FC = () => {
                     if (detailData.template_id) {
                         try {
                             const template = await fetchTemplateById(detailData.template_id);
-                            setLinkedTemplate(template);
+                            if (!cancelled) setLinkedTemplate(template);
                         } catch (err) {
                             console.error('Failed to fetch template:', err);
                         }
@@ -146,15 +148,17 @@ export const WorkoutDetail: React.FC = () => {
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchData();
-    }, [id, isGuest]);
+        return () => { cancelled = true; };
+    }, [id, isGuest, profile?.user_id]);
 
     // Fetch Template Suggestions based on canonical name
     useEffect(() => {
+        let cancelled = false;
         const fetchSuggestions = async () => {
             // Only suggest if no linked template and we have a canonical name
             if (linkedTemplate || !detail || isGuest || !profile?.user_id) return;
@@ -163,8 +167,8 @@ export const WorkoutDetail: React.FC = () => {
             let matchName = '';
             if (detail.manual_rwn) {
                 matchName = deriveCanonicalNameFromRWN(detail.manual_rwn) || '';
-            } else if (detail.workout?.intervals && detail.workout.intervals.length > 0) {
-                matchName = deriveCanonicalNameFromIntervals(detail.workout.intervals) || '';
+            } else {
+                matchName = deriveCanonicalNameFromConcept2(detail) || '';
             }
             
             if (!matchName || matchName === 'Workout') return;
@@ -190,13 +194,14 @@ export const WorkoutDetail: React.FC = () => {
                     })
                 );
                 
-                setSuggestedTemplates(templatesWithAttempts);
+                if (!cancelled) setSuggestedTemplates(templatesWithAttempts);
             } catch (err) {
                 console.error('Failed to fetch template suggestions:', err);
             }
         };
         
         fetchSuggestions();
+        return () => { cancelled = true; };
     }, [detail, linkedTemplate, isGuest, profile?.user_id]);
 
     // Warmup/Cooldown Detection — runs when no template suggestions found
@@ -261,6 +266,8 @@ export const WorkoutDetail: React.FC = () => {
         }
 
         if (!detail) return 'Workout';
+        const continuousName = getContinuousConcept2Name(detail);
+        if (continuousName) return continuousName;
         const intervals = detail.workout?.intervals || [];
         if (intervals.length > 0) {
             const fromIntervals = deriveCanonicalNameFromIntervals(intervals);
@@ -737,34 +744,13 @@ export const WorkoutDetail: React.FC = () => {
                         </div>
                         <div className="flex gap-2 items-start">
                             <button
-                                onClick={async () => {
-                                    if (!dbId) {
-                                        toast.error('Database ID not available');
-                                        return;
-                                    }
-                                    const templateId = suggestedTemplates[0].id;
-                                    setLinkingTemplateId(templateId);
-                                    try {
-                                        await workoutService.linkWorkoutToTemplate(dbId, templateId);
-                                        const template = await fetchTemplateById(templateId);
-                                        setLinkedTemplate(template);
-                                        setDetail(prev => prev ? ({ ...prev, template_id: templateId }) : null);
-                                        setSuggestedTemplates([]);
-                                    } catch (err) {
-                                        console.error('Failed to link template:', err);
-                                        toast.error('Failed to link template');
-                                    } finally {
-                                        setLinkingTemplateId(null);
-                                    }
+                                onClick={() => {
+                                    if (!dbId || !profile?.user_id) return;
+                                    setPendingTemplate({ id: suggestedTemplates[0].id, name: suggestedTemplates[0].name, workoutId: dbId, userId: profile.user_id });
                                 }}
-                                disabled={linkingTemplateId === suggestedTemplates[0].id}
                                 className="bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 hover:text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                             >
-                                {linkingTemplateId === suggestedTemplates[0].id ? (
-                                    <><Loader2 size={14} className="animate-spin" /> Linking...</>
-                                ) : (
-                                    <><Check size={14} /> Link to This Template</>
-                                )}
+                                <Check size={14} /> Link to This Template
                             </button>
                             {suggestedTemplates.length > 1 && (
                                 <button
@@ -1281,6 +1267,22 @@ export const WorkoutDetail: React.FC = () => {
                 )
             }
 
+            {pendingTemplate && pendingTemplate.workoutId === dbId && pendingTemplate.userId === profile?.user_id && (
+                <TemplateLinkConfirmation
+                    key={`${id}:${pendingTemplate.id}:${pendingTemplate.userId}`}
+                    userId={pendingTemplate.userId}
+                    workoutId={pendingTemplate.workoutId}
+                    templateId={pendingTemplate.id}
+                    templateName={pendingTemplate.name}
+                    onClose={() => setPendingTemplate(null)}
+                    onLinked={template => {
+                        setLinkedTemplate(template);
+                        setDetail(prev => prev ? { ...prev, template_id: template.id } : null);
+                        setSuggestedTemplates([]);
+                    }}
+                />
+            )}
+
             {/* Template Editor Modal */}
             {showTemplateEditor && detail && (
                 <TemplateEditor
@@ -1288,24 +1290,8 @@ export const WorkoutDetail: React.FC = () => {
                     onClose={async (saved, templateId) => {
                         setShowTemplateEditor(false);
                         if (saved && templateId && dbId && !linkedTemplate) {
-                            // Only auto-link if creating a NEW template (not editing existing)
-                            try {
-                                // Link the workout to the newly created template
-                                await workoutService.linkWorkoutToTemplate(dbId, templateId);
-
-                                // Fetch and display the linked template
-                                const template = await fetchTemplateById(templateId);
-                                setLinkedTemplate(template);
-
-                                // Update the detail to reflect the link
-                                if (detail) {
-                                    setDetail({ ...detail, template_id: templateId });
-                                }
-
-                            } catch (err) {
-                                console.error('Failed to link workout to template:', err);
-                                toast.error('Template created but failed to link to this workout');
-                            }
+                            // Offer linking after creating a new template.
+                            if (profile?.user_id) setPendingTemplate({ id: templateId, workoutId: dbId, userId: profile.user_id });
                         } else if (saved && linkedTemplate) {
                             // If editing existing template, just refresh the template data
                             try {
@@ -1391,23 +1377,10 @@ export const WorkoutDetail: React.FC = () => {
                                         return (
                                             <button
                                                 key={template.id}
-                                                onClick={async () => {
-                                                    if (!dbId) {
-                                                        toast.error('Database ID not available');
-                                                        return;
-                                                    }
-                                                    try {
-                                                        await workoutService.linkWorkoutToTemplate(dbId, template.id);
-                                                        const fullTemplate = await fetchTemplateById(template.id);
-                                                        setLinkedTemplate(fullTemplate);
-                                                        if (detail) {
-                                                            setDetail({ ...detail, template_id: template.id });
-                                                        }
-                                                        setShowTemplateLinking(false);
-                                                    } catch (err) {
-                                                        console.error('Failed to link template:', err);
-                                                        toast.error('Failed to link template');
-                                                    }
+                                                onClick={() => {
+                                                    if (!dbId || !profile?.user_id) return;
+                                                    setShowTemplateLinking(false);
+                                                    setPendingTemplate({ id: template.id, name: template.name, workoutId: dbId, userId: profile.user_id });
                                                 }}
                                                 className="w-full text-left bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded-lg p-4 transition-colors group"
                                             >

@@ -1,5 +1,6 @@
 // @ts-expect-error -- Deno resolves remote URL imports at runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getContinuousConcept2Name } from '../_shared/concept2-workout-naming.ts';
 
 declare const Deno: {
   env: { get: (key: string) => string | undefined };
@@ -308,6 +309,8 @@ function calculateCanonicalName(intervals: Concept2Interval[]) {
 }
 
 function fallbackCanonicalName(summary: Concept2Summary, detail: Concept2Detail, calculated: string) {
+  const continuousName = getContinuousConcept2Name(summary);
+  if (continuousName) return continuousName;
   if (calculated && calculated !== 'Unknown') return calculated;
 
   const type = summary.workout_type || '';
@@ -833,7 +836,7 @@ async function processWorkoutSummary(
     const strokes = Array.isArray(strokesResult) ? strokesResult as Concept2Stroke[] : [];
     const fullData = { ...detail, strokes };
     const intervals = detail.workout?.intervals ?? detail.workout?.splits ?? [];
-    const calculated = calculateCanonicalName(intervals);
+    const calculated = calculateCanonicalName(detail.workout?.intervals ?? []);
     const canonicalName = fallbackCanonicalName(summary, detail, calculated);
     const canonicalSignature = normalizeForMatching(canonicalName);
     const zoneDistribution = calculateZoneDistribution(strokes, intervals, baseWatts);
