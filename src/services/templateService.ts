@@ -447,13 +447,10 @@ export async function getTemplatePersonalBest(templateId: string, userId: string
         .order('watts', { ascending: false })
         .order('completed_at', { ascending: true }) // First time achieved is the tie-breaker
         .limit(1)
-        .single();
+        .maybeSingle(); // No matching workouts means there is no personal best yet.
 
     if (error) {
-        // PGRST116 is "JSON object returned null" (no rows found for .single())
-        if (error.code !== 'PGRST116') {
-            console.error('Error fetching personal best:', error);
-        }
+        console.error('Error fetching personal best:', error);
         return null;
     }
 

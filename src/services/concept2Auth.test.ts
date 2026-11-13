@@ -289,6 +289,20 @@ describe('development Concept2 boundary', () => {
     expect(blockedDevelopmentRequest('https://db.test/rest/v1/workout_logs', 'GET')).toBe(false);
     expect(blockedDevelopmentRequest('https://db.test/functions/v1/concept2-development-auth', 'POST')).toBe(false);
   });
+  it('permits only template-only PATCH requests scoped to one workout', () => {
+    const url = 'https://db.test/rest/v1/workout_logs';
+    const id = '93d73146-1bdb-426c-b6c6-9cf7d9fbe9f7';
+    const selected = `${url}?id=eq.${id}&user_id=eq.owner`;
+    const body = JSON.stringify({ template_id: id });
+    expect(blockedDevelopmentRequest(selected, 'PATCH', body)).toBe(false);
+    expect(blockedDevelopmentRequest(selected, 'PATCH', JSON.stringify({ template_id: null }))).toBe(false);
+    expect(blockedDevelopmentRequest(url, 'PATCH', body)).toBe(true);
+    expect(blockedDevelopmentRequest(`${url}?id=in.(${id})`, 'PATCH', body)).toBe(true);
+    expect(blockedDevelopmentRequest(selected, 'POST', body)).toBe(true);
+    expect(blockedDevelopmentRequest(selected, 'PATCH', JSON.stringify({ template_id: id, distance_meters: 5000 }))).toBe(true);
+    expect(blockedDevelopmentRequest(selected, 'PATCH', JSON.stringify({ template_id: id, raw_data: {} }))).toBe(true);
+    expect(blockedDevelopmentRequest(selected, 'PATCH', JSON.stringify({ template_id: 'bad' }))).toBe(true);
+  });
   it('permits only owned general manual workout saves and edits in staging', () => {
     const url = 'https://db.test/rest/v1/workout_logs';
     const manual = JSON.stringify({ user_id: 'owner', source: 'manual', workout_type: 'row',

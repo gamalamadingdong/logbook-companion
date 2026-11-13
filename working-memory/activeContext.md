@@ -1,6 +1,17 @@
 # Active Context
 
-Last updated: 2026-09-23
+Last updated: 2026-11-13
+
+## Current staging integration
+
+`integrate/main-search-mobile` merges main `99224ec` into staging `58fc805`. These branches diverged, so integration uses a merge rather than a fast-forward. Recent main search, empty-PB, continuous-workout naming, and template-linking fixes are included.
+
+Search now opens from the mobile header, closes navigation/account sheets, uses touch-sized controls, keeps results independently scrollable, and fits the phone visual viewport when the software keyboard opens. Desktop search and shortcuts share the same search component. Staging's native navigation, manual/PM5 workout reconstruction, development Concept2 account/auth configuration, OTA trust settings, and archive workflow are preserved. Production-only refresh fixes were ported to `concept2Legacy.ts`, behind the existing environment fence. Staging permits only single-UUID, template-only metadata PATCHes in addition to its existing manual-workout writes; result edits and legacy Concept2 requests remain blocked.
+
+Verification: 826 app tests and 11 sync contract tests pass; lint has zero errors (115 existing warnings); web and mobile builds pass. A mobile build using sentinel credentials passes `scripts/check_c2_staging_bundle.py`, confirming production OAuth/API endpoints, legacy refresh code, and credential sentinels are absent. Browser runtime exposed no available browser, so visual and installed-device keyboard/safe-area review remains pending. No OTA release, native archive, schema change, or live Concept2 write was performed.
+
+The completed-workout and mobile context below remains relevant to staging.
+
 
 ## Current objective
 
