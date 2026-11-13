@@ -16,6 +16,8 @@ Follow-up: fixed manual template linking from UUID workout routes. `getWorkoutDe
 
 Latest validation: 487 app tests pass; production build passes; lint has 0 errors and 115 existing warnings. The template-linking change is client-only and has not been deployed.
 
+Added optional historical linking after manual template selection, suggestions and new-template creation. A shared confirmation previews all matching unlinked workouts in the owner's history and offers single/all choices. Identity uses full work/rest sequence, modality and explicit guidance, with manual RWN priority and continuous-mode split protection; ambiguous structures are skipped. Owner/cursor pagination avoids history truncation. Saves guard previous links and timestamps, preserve existing historical links, and report skips/partial errors with failed-row retry. Verified live updated-at trigger and owner RLS through read-only MCP queries. No live template links were written. Latest validation: 502 app tests, build pass, lint 0 errors / 115 existing warnings. Dialog interactions covered in jsdom; browser check pending. See [history linking plan and receipt](../docs/superpowers/plans/2026-11-13-template-history-linking.md).
+
 See [implementation and live receipt](../docs/superpowers/plans/2026-11-13-concept2-continuous-names.md). Duplicate workout templates are the next concern to inspect, followed by winter team-management planning.
 
 ## Current Session — Concept2/mobile planning (2026-09-15)

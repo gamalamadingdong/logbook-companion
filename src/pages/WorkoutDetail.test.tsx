@@ -17,6 +17,13 @@ vi.mock('../hooks/useTrainingBlockMatchingContext', () => ({ useTrainingBlockMat
 vi.mock('../services/workoutService', () => ({ workoutService: {
   getWorkoutDetail: mocks.getDetail, getStrokes: async () => [], getPowerBuckets: async () => ({}), linkWorkoutToTemplate: mocks.link,
 } }));
+vi.mock('../services/templateLinkingService', () => ({
+  previewTemplateLinks: async (_owner: string, id: string) => ({ current: { id }, matches: [], comparable: true }),
+  saveTemplateLinks: async (_owner: string, templateId: string, rows: Array<{ id: string }>) => {
+    await mocks.link(rows[0].id, templateId);
+    return { linked: [rows[0].id], skipped: [], failed: [] };
+  },
+}));
 vi.mock('../services/supabase', () => ({ supabase: { from: mocks.from } }));
 vi.mock('../utils/paceCalculator', async importOriginal => ({
   ...await importOriginal<typeof import('../utils/paceCalculator')>(),
@@ -63,6 +70,9 @@ describe('workout detail template linking', () => {
     const link = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('Link to This Template'));
     expect(link).toBeDefined();
     await act(async () => link!.click());
+    expect(mocks.link).not.toHaveBeenCalled();
+    const confirm = [...document.querySelectorAll('button')].find(button => button.textContent === 'Link this workout')!;
+    await act(async () => confirm.click());
     expect(mocks.link).toHaveBeenCalledWith(dbId, 'template-1');
     expect(mocks.error).not.toHaveBeenCalled();
   });
@@ -81,6 +91,8 @@ describe('workout detail template linking', () => {
     await act(async () => finishOld(sample));
     const link = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('Link to This Template'))!;
     await act(async () => link.click());
+    const confirm = [...document.querySelectorAll('button')].find(button => button.textContent === 'Link this workout')!;
+    await act(async () => confirm.click());
     expect(mocks.link).toHaveBeenCalledWith(nextId, 'template-1');
   });
 });

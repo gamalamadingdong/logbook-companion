@@ -56,3 +56,8 @@
 - Never reuse results across query/user/team keys. Group failures remain independent. Queries are bounded and return a refinement hint when truncated.
 - Shared team workouts are distinct from personally owned daily assignments: coach fanout can leave `daily_workout_assignments.user_id` null. Search uses permitted shared group rows and labels them as team workouts, with owner-specific rows taking precedence.
 - `/training-block?enrollment=...&date=...&session=...` validates ownership and selects a planned session without activation writes. `/library/strength-mobility?template=...` reveals the selected support template. Member `/team/search/:kind/:id` loaders repeat owner/team/org restrictions.
+
+## Manual template history linking
+
+- `workoutIdentity.ts` is the conservative full-structure equivalence used for optional historical linking. Canonical shorthand is not safe for this purpose: different pyramids can share a display name.
+- `templateLinkingService.ts` previews owner-only unlinked rows with UUID cursor pagination and narrow structure JSON. Save the current workout first, then use owner/previous-link/updated-at compare-and-set guards for history. Preserve confirmed scope and report partial saves/skips; never silently replace existing historical links.
