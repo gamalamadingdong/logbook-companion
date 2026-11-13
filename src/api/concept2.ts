@@ -118,13 +118,8 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
             params.append('grant_type', 'refresh_token');
             // Use the LATEST refresh token if possible, though 'refreshToken' arg is usually it
             params.append('refresh_token', refreshToken);
-            // Explicitly request the scopes we want. This handles cases where:
-            // 1. The original token had scopes that differ from our desired permission set
-            // 2. We keep results:read here (not results:write) because C2 does not allow
-            //    upgrading scopes via refresh — only the initial authorization can grant
-            //    additional scopes. The Edge Function (publish-to-c2) handles its own
-            //    token refresh with results:write for users who re-authorized.
-            params.append('scope', 'user:read,results:read');
+            // Refresh with the same scope requested at authorization and code exchange.
+            params.append('scope', 'user:read,results:write');
 
             try {
                 const response = await axios.post('https://log.concept2.com/oauth/access_token', params, {
@@ -195,9 +190,10 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 
     // Ensure we clear the local promise reference after it completes (success or fail)
     // so subsequent calls can start a new chain
-    refreshPromise.finally(() => {
+    const clearRefreshPromise = () => {
         refreshPromise = null;
-    });
+    };
+    void refreshPromise.then(clearRefreshPromise, clearRefreshPromise);
 
     return refreshPromise;
 }
@@ -275,8 +271,7 @@ concept2Client.interceptors.response.use(
 
                 } catch (refreshError) {
                     console.error("Token refresh failed during retry:", refreshError);
-                    await clearAllTokens();
-                    // Don't reject, just let it fail -> UI might redirect
+                    // Only a confirmed invalid grant clears tokens inside refreshAccessToken.
                 }
             }
         }
