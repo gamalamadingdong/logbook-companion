@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { Button } from './Button';
 
 interface ModalProps {
   /** Whether the modal is visible */
@@ -25,6 +26,10 @@ interface ModalProps {
   footer?: React.ReactNode;
   /** Additional className for the modal content panel */
   className?: string;
+  /** Override body layout for a dialog with its own scrolling region. */
+  bodyClassName?: string;
+  /** Keep a phone search sheet above the software keyboard. */
+  fitVisualViewport?: boolean;
 }
 
 const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
@@ -47,10 +52,37 @@ export function Modal({
   closeOnEscape = true,
   footer,
   className = '',
+  bodyClassName = '',
+  fitVisualViewport = false,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<Element | null>(null);
-  const titleId = title ? 'modal-title' : undefined;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const generatedTitleId = useId();
+  const titleId = title ? generatedTitleId : undefined;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const container = containerRef.current;
+    const panel = panelRef.current;
+    if (!open || !fitVisualViewport || !viewport || !container || !panel) return;
+    // Dynamic viewport units alone do not track the iOS software keyboard.
+    const update = () => {
+      const phone = viewport.width < 640;
+      container.style.height = phone ? `${viewport.height}px` : '';
+      container.style.top = phone ? `${viewport.offsetTop}px` : '';
+      container.style.bottom = phone ? 'auto' : '';
+      panel.style.maxHeight = phone ? `${Math.max(0, viewport.height - 16)}px` : '';
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      container.style.height = container.style.top = container.style.bottom = '';
+      panel.style.maxHeight = '';
+    };
+  }, [open, fitVisualViewport]);
 
   // Body scroll lock
   useEffect(() => {
@@ -64,16 +96,13 @@ export function Modal({
 
   // Focus management: capture previous focus, focus panel on open, restore on close
   useEffect(() => {
-    if (open) {
-      previousFocusRef.current = document.activeElement;
-      // Delay focus to after portal mount
-      requestAnimationFrame(() => {
-        panelRef.current?.focus();
-      });
-    } else if (previousFocusRef.current instanceof HTMLElement) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
+    if (!open) return;
+    const previousFocus = document.activeElement;
+    const frame = requestAnimationFrame(() => panelRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(frame);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
   }, [open]);
 
   // Escape key handler
@@ -126,13 +155,13 @@ export function Modal({
     ? 'fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4 animate-in fade-in duration-150'
     : 'fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150';
   const panelShapeClass = placement === 'mobile-sheet'
-    ? 'rounded-t-xl sm:rounded-xl max-h-[92vh] sm:max-h-[90vh]'
+    ? 'rounded-t-xl sm:rounded-xl max-h-[92dvh] sm:max-h-[90dvh]'
     : 'rounded-xl max-h-[90vh]';
 
   return createPortal(
     <div
+      ref={containerRef}
       className={containerClass}
-      aria-hidden="true"
     >
       {/* Backdrop */}
       <div
@@ -173,17 +202,17 @@ export function Modal({
                 <p className="text-sm text-content-muted mt-0.5">{description}</p>
               )}
             </div>
-            <button
+            <Button variant="ghost"
               onClick={onClose}
               aria-label="Close"
-              className="shrink-0 p-1.5 -m-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-secondary transition-colors"
+              className="shrink-0 min-h-11 min-w-11 !p-2 -m-1.5"
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto p-5 ${bodyClassName}`}>{children}</div>
 
         {/* Footer */}
         {footer && (

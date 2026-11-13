@@ -40,9 +40,10 @@ describe('run-c2-sync-batch edge function contract', () => {
   it('processes bounded summary pages, workout details, and per-item outcomes', () => {
     expect(source).toContain('DEFAULT_PAGE_LIMIT');
     expect(source).toContain('DEFAULT_TIME_BUDGET_MS');
-    expect(source).toContain("new URL('/users/me/results', CONCEPT2_API_BASE_URL)");
-    expect(source).toContain("new URL(`/users/me/results/${resultId}`, CONCEPT2_API_BASE_URL)");
-    expect(source).toContain("new URL(`/users/me/results/${resultId}/strokes`, CONCEPT2_API_BASE_URL)");
+    // Relative paths retain the /api/ prefix of the Concept2 base URL.
+    expect(source).toContain('new URL(`users/me/results`, CONCEPT2_API_BASE_URL)');
+    expect(source).toContain('new URL(`users/me/results/${resultId}`, CONCEPT2_API_BASE_URL)');
+    expect(source).toContain('new URL(`users/me/results/${resultId}/strokes`, CONCEPT2_API_BASE_URL)');
     expect(source).toContain('pages_processed');
     expect(source).toContain('summaries_seen');
     expect(source).toContain('workouts_processed');
@@ -56,6 +57,14 @@ describe('run-c2-sync-batch edge function contract', () => {
     expect(source).toContain('calculatePowerBuckets');
     expect(source).toContain('matchWorkoutToTemplate');
     expect(source).toContain('refreshPersonalRecords');
+  });
+
+  it('uses continuous workout modes before interval naming and keeps splits out of naming', () => {
+    expect(source).toContain('const continuousName = getContinuousConcept2Name(summary)');
+    expect(source).toContain('if (continuousName) return continuousName');
+    expect(source).toContain('const calculated = calculateCanonicalName(detail.workout?.intervals ?? [])');
+    // Split detail is still supplied to analytics, where it is useful.
+    expect(source).toContain('const intervals = detail.workout?.intervals ?? detail.workout?.splits ?? []');
   });
 
   it('requeues unfinished work, triggers the next batch, and persists terminal failures', () => {

@@ -64,6 +64,7 @@ const DownloadC2Data = lazy(() => import('./pages/DownloadC2Data'));
 const ResetPassword = lazyNamed(() => import('./pages/ResetPassword'), 'ResetPassword');
 const JoinTeam = lazyNamed(() => import('./pages/JoinTeam'), 'JoinTeam');
 const MyTeamDashboard = lazyNamed(() => import('./pages/team/MyTeamDashboard'), 'MyTeamDashboard');
+const TeamSearchDetail = lazyNamed(() => import('./pages/team/TeamSearchDetail'), 'TeamSearchDetail');
 const MyScores = lazyNamed(() => import('./pages/team/MyScores'), 'MyScores');
 const MyTeamNotes = lazyNamed(() => import('./pages/team/MyTeamNotes'), 'MyTeamNotes');
 const MyTeamSettings = lazyNamed(() => import('./pages/team/MyTeamSettings'), 'MyTeamSettings');
@@ -458,6 +459,7 @@ const AppContent: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/team/search/:kind/:id" element={<ProtectedRoute><TeamSearchDetail /></ProtectedRoute>} />
           <Route
             path="/team/scores"
             element={

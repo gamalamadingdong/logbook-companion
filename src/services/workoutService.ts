@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import type { C2Interval, C2ResultDetail, C2Stroke } from '../api/concept2.types';
-import { deriveCanonicalNameFromIntervals, deriveCanonicalNameFromRWN, normalizeCanonicalName } from '../utils/workoutCanonical';
+import { deriveCanonicalNameFromConcept2, deriveCanonicalNameFromRWN, getContinuousConcept2Name, normalizeCanonicalName } from '../utils/workoutCanonical';
 import { resolveWorkoutDurationSeconds } from '../utils/trainingBlockMatching';
 import { getTotalTrainingDistanceMeters } from '../utils/workoutDistance';
 import { autoCompleteAssignmentFromErgLinkLog } from './coaching/coachingService';
@@ -31,6 +31,7 @@ export interface ManualWorkoutLogInput {
 
 interface WorkoutRawData extends Record<string, unknown> {
     group_assignment_id?: string;
+    workout_type?: string;
     time_formatted?: string;
     workout?: {
         intervals?: C2Interval[];
@@ -182,9 +183,15 @@ export function buildWorkoutDetailFromRow(row: WorkoutDetailRow): C2ResultDetail
     const raw = resolveConcept2Payload(stored);
     const rawFields: Record<string, unknown> = raw ?? {};
 
-    let canonicalName = row.canonical_name;
-    if (!canonicalName && hasWorkoutIntervals(raw)) {
-        canonicalName = deriveCanonicalNameFromIntervals(raw.workout.intervals) || canonicalName;
+    let canonicalName = (row.source === 'concept2' ? getContinuousConcept2Name({
+        workout_type: raw?.workout_type || row.workout_name,
+        distance: row.distance_meters,
+        time: (resolveWorkoutDurationSeconds({ duration_seconds: row.duration_seconds == null ? null : Number(row.duration_seconds) }) ?? 0) * 10,
+    }) : null) || row.canonical_name;
+    if (row.manual_rwn) {
+        canonicalName = deriveCanonicalNameFromRWN(row.manual_rwn) || canonicalName;
+    } else if (!canonicalName) {
+        canonicalName = deriveCanonicalNameFromConcept2(raw ?? {}) || canonicalName;
     }
     if (!canonicalName) canonicalName = row.workout_name;
 
@@ -447,7 +454,11 @@ export const workoutService = {
             const raw = toWorkoutRawData(log.raw_data);
             // DB is Primary Source
             // Try to use DB canonical name, fallback to calculating it, then fallback to DB workout name
-            let canonicalName = log.canonical_name;
+            let canonicalName = (log.source === 'concept2' ? getContinuousConcept2Name({
+                workout_type: raw?.workout_type || log.workout_name,
+                distance: log.distance_meters,
+                time: (resolveWorkoutDurationSeconds(log) ?? 0) * 10,
+            }) : null) || log.canonical_name;
 
             // 1. Manual Override Check (New Feature)
             if (log.manual_rwn) {
@@ -456,8 +467,8 @@ export const workoutService = {
             }
             // 2. Auto-Detection (Legacy / Default)
             // If missing OR "Unstructured", try to generate from raw (and backfill)
-            else if ((!canonicalName || canonicalName === 'Unstructured') && hasWorkoutIntervals(raw)) {
-                const generated = deriveCanonicalNameFromIntervals(raw.workout.intervals);
+            else if ((!canonicalName || canonicalName === 'Unstructured') && raw) {
+                const generated = deriveCanonicalNameFromConcept2({ ...raw, workout_type: raw.workout_type || log.workout_name });
                 if (generated) {
                     canonicalName = generated;
                     // Fire & Forget update

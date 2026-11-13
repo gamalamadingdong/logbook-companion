@@ -10,6 +10,7 @@ import { CommandPalette } from './CommandPalette';
 import { MobileBottomNavigation } from './MobileBottomNavigation';
 import { AccountSheet, MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { PM5ConnectionPill } from './PM5ConnectionPill';
+import { Button } from './ui';
 import { supabase } from '../services/supabase';
 import { appDiagnosticsEnabled } from '../services/appDiagnostics';
 
@@ -36,12 +37,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     useEffect(() => {
         setMobileMenuOpen(false);
         setAccountSheetOpen(false);
+        setCommandPaletteOpen(false);
     }, [location.pathname]);
+
+    const openSearch = useCallback(() => {
+        setMobileMenuOpen(false);
+        setAccountSheetOpen(false);
+        setCommandPaletteOpen(true);
+    }, []);
 
     // Cmd+K / Ctrl+K to toggle command palette
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
             e.preventDefault();
+            setMobileMenuOpen(false);
+            setAccountSheetOpen(false);
             setCommandPaletteOpen(prev => !prev);
         }
     }, []);
@@ -154,7 +164,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     <button
                         type="button"
-                        onClick={() => setCommandPaletteOpen(true)}
+                        onClick={openSearch}
                         className="flex items-center gap-3 px-4 py-2.5 w-full text-left text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/50 rounded-lg transition-all mb-1 border border-neutral-800 border-dashed"
                     >
                         <Search size={16} />
@@ -238,6 +248,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" onClick={openSearch} aria-label="Search your training" aria-haspopup="dialog" aria-expanded={commandPaletteOpen} className="min-h-11 min-w-11 shrink-0 !p-2">
+                        <Search size={22} aria-hidden="true" />
+                    </Button>
                     {user && <NotificationBell variant="icon" align="right" />}
                     <button
                         type="button"

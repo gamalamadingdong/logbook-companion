@@ -1,4 +1,6 @@
-import type { C2Interval } from '../api/concept2.types';
+import type { C2Interval, C2ResultDetail } from '../api/concept2.types';
+import { getContinuousConcept2Name, isContinuousConcept2Workout } from '../../supabase/functions/_shared/concept2-workout-naming';
+export { getContinuousConcept2Name } from '../../supabase/functions/_shared/concept2-workout-naming';
 import type { WorkoutStructure } from '../types/workoutStructure.types';
 import { parseRWN } from './rwnParser';
 import { calculateCanonicalName } from './workoutNaming';
@@ -17,6 +19,12 @@ export function normalizeCanonicalName(canonicalName: string | null | undefined)
 export function deriveCanonicalNameFromIntervals(intervals: C2Interval[] | null | undefined): string | null {
   if (!intervals || intervals.length === 0) return null;
   return normalizeCanonicalName(calculateCanonicalName(intervals));
+}
+
+/** Use the programmed workout mode before interpreting detailed rows as intervals. */
+export function deriveCanonicalNameFromConcept2(result: Partial<C2ResultDetail>): string | null {
+  if (isContinuousConcept2Workout(result.workout_type)) return getContinuousConcept2Name(result);
+  return deriveCanonicalNameFromIntervals(result.workout?.intervals);
 }
 
 export function deriveCanonicalNameFromStructure(structure: WorkoutStructure | null | undefined): string | null {

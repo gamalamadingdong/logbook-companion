@@ -28,6 +28,22 @@ function isGeneralManualWorkoutWrite(url: URL, method: string, body: BodyInit | 
     && filters.get('raw_data')?.includes('general_manual_entry') === true;
 }
 
+// Template association is metadata, not a result edit or Concept2 write.
+// RLS remains authoritative; require one explicit workout id and reject extra fields.
+function isTemplateLinkWrite(url: URL, method: string, body: BodyInit | null | undefined): boolean {
+  if (method !== 'PATCH' || typeof body !== 'string') return false;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const ids = url.searchParams.getAll('id');
+  if (ids.length !== 1 || !ids[0].startsWith('eq.') || !uuid.test(ids[0].slice(3))) return false;
+  try {
+    const payload: unknown = JSON.parse(body);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+    const row = payload as Record<string, unknown>;
+    return Object.keys(row).length === 1 && 'template_id' in row
+      && (row.template_id === null || (typeof row.template_id === 'string' && uuid.test(row.template_id)));
+  } catch { return false; }
+}
+
 export function blockedDevelopmentRequest(url: string, method: string, body?: BodyInit | null) {
   const requestUrl = new URL(url);
   const path = requestUrl.pathname;
@@ -36,6 +52,6 @@ export function blockedDevelopmentRequest(url: string, method: string, body?: Bo
   if (/\/functions\/v1\/(start-c2-sync|run-c2-sync-batch|publish-to-c2)(\/|$)/.test(path)) return true;
   if (verb === 'GET') return false;
   if (/\/rest\/v1\/workout_logs(\/|$)/.test(path))
-    return !isGeneralManualWorkoutWrite(requestUrl, verb, body);
+    return !isGeneralManualWorkoutWrite(requestUrl, verb, body) && !isTemplateLinkWrite(requestUrl, verb, body);
   return /\/rest\/v1\/(workout_structure|workout_power_buckets)(\/|$)/.test(path);
 }
