@@ -47,3 +47,9 @@
 -   **Functional Components**: Use React Functional Components with Hooks.
 -   **Strict Types**: No `any`. Define interfaces for all data structures (Workout, User, StrokeData).
 -   **Environment Variables**: API Keys/Client IDs must be loaded from `import.meta.env`.
+
+## Content Search
+- `src/search/` owns typed result groups, literal/multi-term filtering, ranking, async cancellation, owner-bound queries, and active-team queries. The sidebar palette uses cmdk inside the shared Modal; a mobile header button opens the same dialog.
+- Never reuse results across query/user/team keys. Group failures remain independent. Queries are bounded and return a refinement hint when truncated.
+- Shared team workouts are distinct from personally owned daily assignments: coach fanout can leave `daily_workout_assignments.user_id` null. Search uses permitted shared group rows and labels them as team workouts, with owner-specific rows taking precedence.
+- `/training-block?enrollment=...&date=...&session=...` validates ownership and selects a planned session without activation writes. `/library/strength-mobility?template=...` reveals the selected support template. Member `/team/search/:kind/:id` loaders repeat owner/team/org restrictions.
