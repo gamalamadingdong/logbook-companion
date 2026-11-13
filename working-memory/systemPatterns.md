@@ -17,6 +17,7 @@
     -   **Templates**: Defined by RWN -> Structure -> Name.
     -   **Logs**: Raw Data -> (Auto-Detect OR Manual Override RWN) -> Structure -> Name.
 -   Concept2's continuous workout mode takes precedence over split/interval/stroke inference. `FixedDistanceSplits` and `FixedTimeSplits` are continuous pieces; `workout.splits` records measurement detail, not repeated efforts. Actual interval modes retain their interval structure even with zero rest.
+-   Workout detail responses expose `db_id` for the LC `workout_logs` UUID while preserving Concept2 `id`. Link/unlink operations use `db_id`; routes may contain either identifier, resolved once by `getWorkoutDetail`.
 -   `supabase/functions/_shared/concept2-workout-naming.ts` provides the continuous naming rule shared by client and sync worker. Manual RWN retains priority; name maintenance must update signatures consistently and preserve custom notes.
 
 ## Design Patterns

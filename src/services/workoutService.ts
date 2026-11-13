@@ -367,6 +367,7 @@ export const workoutService = {
 
             return {
                 ...data.raw_data,
+                db_id: data.id,
                 workout_name: canonicalName, // Inject Canonical Name for UI consistency
                 template_id: data.template_id, // Include linked template ID
                 manual_rwn: data.manual_rwn, // Include manual RWN override

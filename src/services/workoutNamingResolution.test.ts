@@ -26,6 +26,19 @@ function serveLog(log = continuousLog) {
 describe('stored Concept2 workout name resolution', () => {
   beforeEach(() => db.from.mockReset());
 
+  it.each([
+    ['93d73146-1bdb-426c-b6c6-9cf7d9fbe9f7', 'id'],
+    ['122675261', 'external_id'],
+  ])('retains the LC UUID separately when loading detail with %s', async (routeId, column) => {
+    const row = { ...continuousLog, id: '93d73146-1bdb-426c-b6c6-9cf7d9fbe9f7',
+      raw_data: { ...continuousLog.raw_data, id: 122675261 } };
+    const query = serveLog(row);
+    const detail = await workoutService.getWorkoutDetail(routeId);
+    expect(query.eq).toHaveBeenCalledWith(column, routeId);
+    expect(detail.db_id).toBe(row.id);
+    expect(detail.id).toBe(122675261);
+  });
+
   it('corrects a stale history label without rewriting raw splits or requiring a DB write', async () => {
     serveLog();
     const [result] = await workoutService.getRecentWorkouts();

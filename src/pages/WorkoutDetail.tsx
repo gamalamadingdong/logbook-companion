@@ -36,7 +36,7 @@ export const WorkoutDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { profile, isGuest } = useAuth();
     const [detail, setDetail] = useState<C2ResultDetail | null>(null);
-    const [dbId, setDbId] = useState<string | null>(null); // Database UUID
+    const dbId = detail?.db_id ?? null; // Resolved by the same query that loads the workout.
     const [strokes, setStrokes] = useState<C2Stroke[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedInterval, setSelectedInterval] = useState<number | 'all'>('all');
@@ -93,8 +93,18 @@ export const WorkoutDetail: React.FC = () => {
 
     useEffect(() => {
         if (!id) return;
+        let cancelled = false;
 
         const fetchData = async () => {
+            setLoading(true);
+            setDetail(null);
+            setLinkedTemplate(null);
+            setSuggestedTemplates([]);
+            setSuggestionDismissed(false);
+            setWarmupDetection(null);
+            setWarmupDismissed(false);
+            setManualRWN('');
+            setIsBenchmark(false);
             try {
                 if (isGuest) {
                     const mockDetail = DEMO_WORKOUTS.find(w => w.id === id || w.external_id === id) as C2ResultDetail | undefined;
@@ -110,23 +120,13 @@ export const WorkoutDetail: React.FC = () => {
                         setBuckets({});
                     }
                 } else {
-                    // Fetch the database record to get the UUID
-                    const { data: dbRecord } = await supabase
-                        .from('workout_logs')
-                        .select('id')
-                        .eq('external_id', id)
-                        .single();
-
-                    if (dbRecord) {
-                        setDbId(dbRecord.id);
-                    }
-
                     // Fetch detail and strokes from Supabase via workoutService
                     const [detailData, strokeData, bucketsData] = await Promise.all([
                         workoutService.getWorkoutDetail(id),
                         workoutService.getStrokes(id),
                         workoutService.getPowerBuckets(id)
                     ]);
+                    if (cancelled) return;
                     setDetail(detailData);
                     setStrokes(strokeData);
                     setBuckets(bucketsData);
@@ -137,7 +137,7 @@ export const WorkoutDetail: React.FC = () => {
                     if (detailData.template_id) {
                         try {
                             const template = await fetchTemplateById(detailData.template_id);
-                            setLinkedTemplate(template);
+                            if (!cancelled) setLinkedTemplate(template);
                         } catch (err) {
                             console.error('Failed to fetch template:', err);
                         }
@@ -146,15 +146,17 @@ export const WorkoutDetail: React.FC = () => {
             } catch (error) {
                 console.error('Failed to fetch details from DB', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchData();
-    }, [id, isGuest]);
+        return () => { cancelled = true; };
+    }, [id, isGuest, profile?.user_id]);
 
     // Fetch Template Suggestions based on canonical name
     useEffect(() => {
+        let cancelled = false;
         const fetchSuggestions = async () => {
             // Only suggest if no linked template and we have a canonical name
             if (linkedTemplate || !detail || isGuest || !profile?.user_id) return;
@@ -190,13 +192,14 @@ export const WorkoutDetail: React.FC = () => {
                     })
                 );
                 
-                setSuggestedTemplates(templatesWithAttempts);
+                if (!cancelled) setSuggestedTemplates(templatesWithAttempts);
             } catch (err) {
                 console.error('Failed to fetch template suggestions:', err);
             }
         };
         
         fetchSuggestions();
+        return () => { cancelled = true; };
     }, [detail, linkedTemplate, isGuest, profile?.user_id]);
 
     // Warmup/Cooldown Detection — runs when no template suggestions found
