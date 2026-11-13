@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { parseSupportTemplateSearchLink } from '../search/searchLinks';
 import { AlertTriangle, Copy, Dumbbell, Edit3, Layers3, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, Button, Card, CardHeader, EmptyState, Input, Modal, Select } from '../components/ui';
@@ -383,6 +384,8 @@ function toTemplateExerciseInput(row: TemplateExerciseForm, index: number): Save
 
 export const SupportWorkLibrary: React.FC = () => {
     const { user, profile, refreshProfile } = useAuth();
+    const { search: locationSearch } = useLocation();
+    const templateLink = useMemo(() => parseSupportTemplateSearchLink(locationSearch), [locationSearch]);
     const [library, setLibrary] = useState<SupportLibrary>({ exercises: [], sessionTemplates: [] });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -415,6 +418,17 @@ export const SupportWorkLibrary: React.FC = () => {
     useEffect(() => {
         void loadLibrary();
     }, [loadLibrary]);
+
+    useEffect(() => {
+        if (loading || !templateLink.templateId) return;
+        setActiveTab('sessions');
+        const frame = requestAnimationFrame(() => {
+            const target = document.getElementById(`support-template-${templateLink.templateId}`);
+            target?.scrollIntoView({ block: 'center' });
+            target?.focus({ preventScroll: true });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [loading, templateLink.templateId, library.sessionTemplates]);
 
     const persistedPreferences = parseSupportWorkPreferences(profile?.preferences);
     const availableSet = useMemo(() => new Set(expandEquipmentAliases(availableEquipment)), [availableEquipment]);
@@ -476,6 +490,7 @@ export const SupportWorkLibrary: React.FC = () => {
         const query = search.trim().toLowerCase();
         return templateCompatibilityRows.filter((item) => {
             const template = item.template;
+            if (template.id === templateLink.templateId) return true;
             if (kindFilter !== 'all' && template.kind !== kindFilter) return false;
             if (showCompatibleOnly && !item.compatible) return false;
             if (!query) return true;
@@ -488,7 +503,7 @@ export const SupportWorkLibrary: React.FC = () => {
             ].join(' ').toLowerCase();
             return haystack.includes(query);
         });
-    }, [search, kindFilter, showCompatibleOnly, templateCompatibilityRows]);
+    }, [search, kindFilter, showCompatibleOnly, templateCompatibilityRows, templateLink.templateId]);
 
     const filteredExercises = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -871,6 +886,12 @@ export const SupportWorkLibrary: React.FC = () => {
                 </Card>
             )}
 
+            {!loading && (templateLink.invalid || (templateLink.templateId && !library.sessionTemplates.some((template) => template.id === templateLink.templateId))) && (
+                <p role="status" className="mb-4 rounded-lg border border-border bg-surface-card p-3 text-sm text-content-secondary">
+                    {templateLink.invalid ? 'This support session link is invalid.' : 'The linked support session is no longer available to your account.'}
+                </p>
+            )}
+
             {loading ? (
                 <Card>
                     <EmptyState title="Loading strength and mobility..." description="Fetching standard and personal sessions." />
@@ -883,7 +904,7 @@ export const SupportWorkLibrary: React.FC = () => {
                             const editable = canEdit(template.user_id);
                             const incompatibles = item.rowCompat.filter((row) => !row.compatibility.compatible);
                             return (
-                                <Card key={template.id}>
+                                <Card key={template.id} id={`support-template-${template.id}`} tabIndex={-1} className={template.id === templateLink.templateId ? 'scroll-mt-6 ring-2 ring-focus focus:outline-none' : undefined}>
                                     <CardHeader
                                         title={template.title}
                                         subtitle={`${template.exercises.length} exercise${template.exercises.length === 1 ? '' : 's'}${template.estimated_duration_minutes ? ` · ${template.estimated_duration_minutes} min` : ''}`}

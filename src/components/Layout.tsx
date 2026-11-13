@@ -6,6 +6,7 @@ import { NotificationBell } from './NotificationBell';
 import { FeedbackModal } from './FeedbackModal';
 import { ReconnectPrompt } from './ReconnectPrompt';
 import { CommandPalette } from './CommandPalette';
+import { Button } from './ui';
 import { supabase } from '../services/supabase';
 
 interface LayoutProps {
@@ -210,6 +211,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {profile?.display_name || 'Logbook Companion'}
                     </span>
                 </div>
+                <Button variant="ghost" onClick={() => setCommandPaletteOpen(true)} aria-label="Search your training" className="min-h-11 min-w-11 shrink-0 !p-2">
+                    <Search size={22} />
+                </Button>
                 {user && (
                     <div className="shrink-0 mr-1">
                         <NotificationBell variant="icon" align="right" />

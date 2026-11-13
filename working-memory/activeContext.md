@@ -1,6 +1,14 @@
 # Active Context
 
-Last updated: 2026-09-15
+Last updated: 2026-11-13
+
+## Current Session — Content search (2026-11-13)
+
+Implemented on `feature/sidebar-search` from `origin/main`, isolated from staging. Sidebar/Cmd-K search now prioritizes owned completed workouts, personal block enrollments and scheduled sessions, accessible workout/support templates, and the active team's shared workouts/sessions plus coach roster results. Member-owned assignment rows replace duplicate shared workouts when available. Team scope includes org-wide workouts only from the active team's organization; it does not expand sessions/athletes across teams.
+
+Validated links open block enrollment/day/session, highlighted support templates, existing coach pages, or read-only member team details. Query/account/team changes immediately hide stale rows. Shared Modal accessibility and focus cleanup are corrected. No database migration, live write, auth/Concept2 configuration change, deployment, or staging merge.
+
+See [approved design](../docs/superpowers/specs/2026-11-13-content-search-design.md) and [implementation plan](../docs/superpowers/plans/2026-11-13-content-search.md). Browser/signed-in/device verification remains outstanding because no browser is connected. Team-management/winter-training brainstorming follows completion of search.
 
 ## Current Session — Concept2/mobile planning (2026-09-15)
 

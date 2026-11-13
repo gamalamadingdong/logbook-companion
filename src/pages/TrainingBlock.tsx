@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, CalendarDays, CheckCircle2, Eye, Flame, ListChecks, Plus, Power, Settings, Target, Trash2, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { findLinkedPersonalEnrollment, parseTrainingBlockSearchLink, resolveLinkedPlanDay } from '../search/searchLinks';
 import { Card, CardHeader } from '../components/ui';
 import { Badge, Modal } from '../components/ui';
 import { buildRowing12WeekPlan, ROWING_12_WEEK_TEMPLATE } from '../data/rowingTrainingBlockTemplate';
@@ -670,7 +671,12 @@ function mapLogs(logs: TrainingBlockWorkoutLogRow[], athleteNameByUserId: Map<st
 
 export const TrainingBlock: React.FC = () => {
     const { user, isCoach, loading: authLoading } = useAuth();
-    const { pathname } = useLocation();
+    const { pathname, search: locationSearch } = useLocation();
+    const searchLink = useMemo(() => parseTrainingBlockSearchLink(locationSearch), [locationSearch]);
+    const searchLinkKey = `${user?.id ?? ''}|${pathname}|${locationSearch}`;
+    const appliedSearchLink = useRef<string | null>(null);
+    const [searchLinkError, setSearchLinkError] = useState<string | null>(null);
+    const [linkedSessionId, setLinkedSessionId] = useState<string | null>(null);
     const {
         scopedTeamIds,
         scopedTeams,
@@ -793,9 +799,13 @@ export const TrainingBlock: React.FC = () => {
             try {
                 const enrollments = await getTrainingBlockEnrollments(user.id);
                 const selectedKey = selectedTemplateId as TrainingBlockTemplateKey;
-                const selectedById = selectedEnrollmentId
-                    ? enrollments.find((entry) => entry.id === selectedEnrollmentId) ?? null
+                const applySearchLink = appliedSearchLink.current !== searchLinkKey;
+                const linkedEnrollment = applySearchLink && !isTeamContext
+                    ? findLinkedPersonalEnrollment(searchLink, user.id, enrollments)
                     : null;
+                const selectedById = linkedEnrollment ?? (selectedEnrollmentId
+                    ? enrollments.find((entry) => entry.id === selectedEnrollmentId) ?? null
+                    : null);
                 const selectedEnrollment = enrollments.find((entry) => entry.template_key === selectedKey) ?? null;
                 const activeEnrollment = enrollments.find((entry) => entry.is_active) ?? null;
                 const enrollment = selectedById ?? activeEnrollment ?? selectedEnrollment ?? enrollments[0] ?? null;
@@ -817,6 +827,23 @@ export const TrainingBlock: React.FC = () => {
                 setPlan(resolvedPlan);
                 setPlanSource(persistedPlan ? 'database' : 'static');
 
+                if (applySearchLink) {
+                    if (linkedEnrollment) setSelectedEnrollmentId(linkedEnrollment.id);
+                    appliedSearchLink.current = searchLinkKey;
+                    const unavailableEnrollment = searchLink.enrollmentId && !linkedEnrollment;
+                    if (unavailableEnrollment || searchLink.invalid) {
+                        setSearchLinkError(searchLink.invalid
+                            ? 'This training block link is invalid.'
+                            : 'The linked training block is not available in your personal history.');
+                        setLinkedSessionId(null);
+                    } else {
+                        const selection = resolveLinkedPlanDay(searchLink, resolvedPlan.days);
+                        if (selection.date) setSelectedDate(selection.date);
+                        setLinkedSessionId(selection.sessionId);
+                        setSearchLinkError(selection.error);
+                    }
+                }
+
                 if (!enrollment) {
                     setTrainingBlockEnrollment(null);
                     setSelectedEnrollmentId(null);
@@ -831,9 +858,6 @@ export const TrainingBlock: React.FC = () => {
                 }
 
                 setTrainingBlockEnrollment(enrollment);
-                if (selectedEnrollmentId !== enrollment.id) {
-                    setSelectedEnrollmentId(enrollment.id);
-                }
                 setTrainingBlockActive(enrollment.is_active);
                 writeTrainingBlockActive(enrollment.is_active);
 
@@ -890,13 +914,21 @@ export const TrainingBlock: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [selectedEnrollmentId, selectedTemplateId, user?.id]);
+    }, [selectedEnrollmentId, selectedTemplateId, user?.id, searchLink, searchLinkKey, isTeamContext]);
 
     useEffect(() => {
         if (plan.days.some((day) => day.date === selectedDate)) return;
         setSelectedDate(getDefaultPlanDate(plan));
     }, [plan, selectedDate]);
 
+
+    useEffect(() => {
+        if (!linkedSessionId || selectedDate !== searchLink.date || authLoading || templatesLoading || !hasLoadedEnrollment || (!hasLoadedLogs && loading)) return;
+        const target = document.getElementById(`planned-session-${linkedSessionId}`);
+        if (!target) return;
+        target.scrollIntoView({ block: 'center' });
+        target.focus({ preventScroll: true });
+    }, [linkedSessionId, selectedDate, searchLink.date, authLoading, templatesLoading, hasLoadedEnrollment, hasLoadedLogs, loading]);
 
     useEffect(() => {
         if (!overridesLoaded || reviewPersistenceMode !== 'local') return;
@@ -2031,6 +2063,7 @@ export const TrainingBlock: React.FC = () => {
     return (
         <div className="min-h-screen bg-neutral-950 text-white p-6 md:p-8 lg:p-10 font-sans">
             <div className="max-w-6xl mx-auto space-y-6">
+                {searchLinkError && <p role="status" className="rounded-lg border border-border bg-surface-card p-3 text-sm text-content-secondary">{searchLinkError}</p>}
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -2794,7 +2827,9 @@ export const TrainingBlock: React.FC = () => {
                                             return (
                                                 <div
                                                     key={session.id}
-                                                    className={reviewSurfaceClass}
+                                                    id={`planned-session-${session.id}`}
+                                                    tabIndex={-1}
+                                                    className={`${reviewSurfaceClass} scroll-mt-6 focus:outline-none focus:ring-2 focus:ring-focus ${linkedSessionId === session.id && selectedDate === searchLink.date ? 'ring-2 ring-focus' : ''}`}
                                                 >
                                                     <div className="flex items-start justify-between gap-3">
                                                         <p className="font-medium text-content-primary">{session.title}</p>

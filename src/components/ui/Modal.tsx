@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { Button } from './Button';
 
 interface ModalProps {
   /** Whether the modal is visible */
@@ -49,8 +50,8 @@ export function Modal({
   className = '',
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<Element | null>(null);
-  const titleId = title ? 'modal-title' : undefined;
+  const generatedTitleId = useId();
+  const titleId = title ? generatedTitleId : undefined;
 
   // Body scroll lock
   useEffect(() => {
@@ -64,16 +65,13 @@ export function Modal({
 
   // Focus management: capture previous focus, focus panel on open, restore on close
   useEffect(() => {
-    if (open) {
-      previousFocusRef.current = document.activeElement;
-      // Delay focus to after portal mount
-      requestAnimationFrame(() => {
-        panelRef.current?.focus();
-      });
-    } else if (previousFocusRef.current instanceof HTMLElement) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
+    if (!open) return;
+    const previousFocus = document.activeElement;
+    const frame = requestAnimationFrame(() => panelRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(frame);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
   }, [open]);
 
   // Escape key handler
@@ -132,7 +130,6 @@ export function Modal({
   return createPortal(
     <div
       className={containerClass}
-      aria-hidden="true"
     >
       {/* Backdrop */}
       <div
@@ -173,13 +170,13 @@ export function Modal({
                 <p className="text-sm text-content-muted mt-0.5">{description}</p>
               )}
             </div>
-            <button
+            <Button variant="ghost"
               onClick={onClose}
               aria-label="Close"
-              className="shrink-0 p-1.5 -m-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-secondary transition-colors"
+              className="shrink-0 min-h-11 min-w-11 !p-2 -m-1.5"
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
 
         {/* Body */}
