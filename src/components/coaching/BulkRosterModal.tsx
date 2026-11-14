@@ -98,6 +98,7 @@ function makeRows(n: number): RowData[] {
 
 interface Props {
   teamId: string;
+  destinationLabel?: string;
   userId: string;
   /** Existing squad names to suggest in the squad column */
   existingSquads?: string[];
@@ -105,7 +106,7 @@ interface Props {
   onSaved: (count: number) => void;
 }
 
-export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, onSaved }: Props) {
+export function BulkRosterModal({ teamId, destinationLabel, userId, existingSquads = [], onClose, onSaved }: Props) {
   const INITIAL_ROWS = 10;
   const [rows, setRows] = useState<RowData[]>(makeRows(INITIAL_ROWS));
   const [isSaving, setIsSaving] = useState(false);
@@ -241,6 +242,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         {/* ── Mobile guard ── */}
         <div className="md:hidden px-6 py-10 text-center">
           <h2 className="text-lg font-semibold text-content-primary mb-2">Bulk Add Athletes</h2>
+          {destinationLabel && <p className="text-sm text-content-secondary mb-3">Adding to: <strong>{destinationLabel}</strong></p>}
           <p className="text-sm text-content-muted mb-4">
             The bulk editor uses a spreadsheet layout that works best on a larger screen.
           </p>
@@ -256,6 +258,7 @@ export function BulkRosterModal({ teamId, userId, existingSquads = [], onClose, 
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold text-content-primary">Bulk Add Athletes</h2>
+            {destinationLabel && <p className="text-sm text-content-secondary mt-1">Adding to: <strong>{destinationLabel}</strong></p>}
             <p className="text-sm text-content-muted mt-0.5">
               Tab between cells · Enter moves down · rows with no first name are skipped
             </p>

@@ -1,0 +1,97 @@
+# Historical active context before team management cleanup
+
+Archived November 13, 2026. This is a historical snapshot: branch, deployment, next-step, and verification statements below reflect earlier sessions and must not be treated as current. See [active context](../activeContext.md) for the current handoff.
+
+# Active Context
+
+Last updated: 2026-11-13
+
+## Current Session — Team management foundation (2026-11-13)
+
+Work is on `feature/team-management-winter-training`, based on updated main `99224ec`. The initial code/docs and read-only deployed-policy review is recorded in [team management current state](../../docs/team-management-current-state.md). No application or database behavior has changed in this session.
+
+Agreed order: settle organization/team/account/roster rules first, then review their UX and coach scope switching, then address assignments/results/training blocks and other findings. Athlete membership in multiple active rosters is an open design question; no single-roster or unrestricted-membership rule is approved. Use the baseline for current relationships, lifecycle gaps, scope/permission inconsistencies, and verification limits.
+
+## Current Session — Concept2 names and template linking (2026-11-13)
+
+Search and the empty-personal-best fix are merged into main via PR #239. New work is on `fix/concept2-continuous-names`, based on that main, in the existing isolated Codex worktree. Unrelated local environment edits remain untouched; staging is unchanged.
+
+Fixed LC's interpretation of Concept2 split records: continuous fixed-distance/time and JustRow modes take precedence over interval/stroke inference. A pure helper is shared by the client and sync worker. Actual intervals retain their interval names, including zero-rest intervals. History/detail, template suggestions, and name maintenance follow the same distinction; manual RWN overrides retain priority. No RWN package or grammar changes.
+
+Live: sync worker version 14 deployed with existing JWT/service-role authentication. Exactly 12 confirmed misnamed continuous rows in the requesting user's account were repaired; labels/signatures/generated notes corrected, other workout fields verified unchanged by hash. Raw splits, measurements, manual overrides, custom notes, and template links preserved. Before-values and guarded rollback SQL are under `/tmp/lc-continuous-name-repair*` (outside git).
+
+Validation: 482 app tests, 11 edge contract tests, build, and lint (0 errors, 115 existing warnings). Shared helper passes Deno check; full worker has identical pre-existing standalone SDK typing failures before/after. Local runtime and deployed OPTIONS/unauthorized POST smoke checks pass; no authenticated sync was run. Frontend changes remain on the local branch pending PR/merge.
+
+Follow-up: fixed manual template linking from UUID workout routes. `getWorkoutDetail` now returns the LC UUID as `db_id`, preserving the original Concept2 `id`. WorkoutDetail uses that loaded UUID for link/unlink actions and removes its external-ID-only lookup. Loading/suggestion cancellation prevents a previous route response from replacing the current workout. Regression coverage exercises both UUID/Concept2 routes and late navigation results. The Nov 9 pyramid is currently unlinked; its stored template RWN matches all seven distances/rests. No live linking write was performed. Automatic linking runs during sync using canonical-name candidates; it does not retroactively revisit older rows as templates are created, and its confidence is a ranking heuristic rather than full structural verification.
+
+Latest validation: 487 app tests pass; production build passes; lint has 0 errors and 115 existing warnings. The template-linking change is client-only and has not been deployed.
+
+Added optional historical linking after manual template selection, suggestions and new-template creation. A shared confirmation previews all matching unlinked workouts in the owner's history and offers single/all choices. Identity uses full work/rest sequence, modality and explicit guidance, with manual RWN priority and continuous-mode split protection; ambiguous structures are skipped. Owner/cursor pagination avoids history truncation. Saves guard previous links and timestamps, preserve existing historical links, and report skips/partial errors with failed-row retry. Verified live updated-at trigger and owner RLS through read-only MCP queries. No live template links were written. Latest validation: 502 app tests, build pass, lint 0 errors / 115 existing warnings. Dialog interactions covered in jsdom; browser check pending. See [history linking plan and receipt](../../docs/superpowers/plans/2026-11-13-template-history-linking.md).
+
+See [implementation and live receipt](../../docs/superpowers/plans/2026-11-13-concept2-continuous-names.md). Duplicate workout templates are the next concern to inspect, followed by winter team-management planning.
+
+## Current Session — Concept2/mobile planning (2026-09-15)
+
+Documentation-only specifications and bounded implementation plans are now in [docs/concept2-mobile/README.md](../../docs/concept2-mobile/README.md), linked from the [roadmap](../../docs/logbook-concept2-mobile-roadmap.md). The authorized pre-existing roadmap improvements are retained. This session prepares a documentation PR; implementation, live changes and merge are not authorized by it.
+
+- [Publishing](../../docs/concept2-mobile/publishing.md): prerequisite owned capture identity/version and completed-versus-prescribed data; preserve ErgLink origin/strokes and LC UUID through exact-ID import; manual single fixed-distance development publication first; durable claim plus explicit unknown-POST recovery, not blind retries. Concept2 production write approval is unverified.
+- [Mobile delivery](../../docs/concept2-mobile/mobile-delivery.md): independent Apple registration/signing/archive/TestFlight track, then signed compatible OTA and rollback. Sam confirms ScheduleBoard's GitHub Actions native pipeline and self-hosted Capgo/Vercel updates are reliable; Appflow was retired for cost and must not return. ScheduleBoard was read as reference only and not modified.
+- Inspected gaps to resolve before code enablement: shared types use `erg_link_live` but reconciliation priority uses `erg_link`; current import can replace origin/raw data with Concept2 data; `publish-to-c2` is mentioned in client comments but absent from inspected functions; OAuth callback/refresh reference a browser `VITE_CONCEPT2_CLIENT_SECRET`. No secret values were read. Capture completion/final-summary semantics and live database constraints require evidence.
+- Next implementation choice: publishing identity/auth/import prerequisites or the independent mobile shell/archive. Both have explicit operator prerequisites and testable gates. Embedded PM5, force curves, automatic publication and broad platform/machine expansion remain deferred.
+- Validation for this documentation change: inspect local source/reference files, verify new relative links and roadmap references, run `git diff --check`, and review the exact staged documentation scope. Application/native/API behavior is not newly tested by this docs pass.
+
+## Prior Product Focus — Support work (retained from 2026-07-09)
+
+Support-work management is the current product slice after the training-block scheduling/config work. The intended direction is a reusable support-work library for strength, core, mobility, stretching, and similar prescriptions, without turning this into a general workout builder.
+
+## Current Implementation State
+
+- Added user-owned support-work library schema in `supabase/migrations/20260709165000_add_user_owned_support_library.sql`.
+- Live Supabase migration was applied and verified through MCP-first checks.
+- Regenerated DB types in `src/types/database.types.ts`.
+- Added `<meta name="mobile-web-app-capable" content="yes" />` in `index.html`.
+- Added support-work service layer in `src/services/supportWorkService.ts`.
+- Added Support Work Library page in `src/pages/SupportWorkLibrary.tsx`.
+- Expanded the support exercise/template seed to 120 canonical rows and added starter standard sessions in `supabase/migrations/20260709190000_seed_expanded_support_work_library.sql`.
+- Wired the route in `src/App.tsx` and navigation in `src/components/Layout.tsx`.
+- Fixed Vercel SPA rewrites in `vercel.json` so `/assets/*` chunk requests are no longer rewritten to `index.html`, resolving module MIME errors on production.
+- Added support-work equipment compatibility filtering and family-ranked alternatives in `src/pages/SupportWorkLibrary.tsx`.
+- Applied live Supabase metadata migrations through MCP for strict Landmine Press equipment, strict Weighted Pull-Up equipment, and support-work alternative families.
+
+## Instruction Cleanup State
+
+- `AGENTS.md` is now a real repo-local file, not a symlink into `~/apps/codex-config`.
+- Repo instructions now include context budget rules, a corrected workspace map, local skill routing, and a Project Fit Check.
+- `.github/copilot-instructions.md` and `.github/instructions/copilot-instructions.md` are compact mirrors that route to `AGENTS.md`, current working memory, system patterns, and matching skills only.
+- `.github/skills/supabase-schema-guard/SKILL.md` now points at `src/types/database.types.ts`.
+- The shared global instruction file keeps only generic behavior and the generic Project Fit Check; Logbook-specific skill routing is repo-local.
+
+## Verified Checks
+
+- `npm run types:supabase` passed after migration.
+- `npm run build` passed after support-work compatibility and alternative-family changes.
+- Supabase MCP verified new live migrations: `set_landmine_press_required_equipment`, `set_strict_required_equipment_for_weighted_pull_up`, and `set_support_work_alternative_families`.
+- `npm run lint` passed with existing warnings only.
+- Focused training-block tests passed.
+- `git diff --check` passed.
+- Copilot instruction mirrors are byte-for-byte identical.
+
+## Current Risks And Notes
+
+- The Support Work Library UX still needs an in-browser review before deeper product expansion.
+- Support-work compatibility is intentionally metadata-light: strict equipment only for truly strict cases, and alternatives are ranked by `support_work_family`, movement pattern, and equipment profile.
+- The recent production path issue was routing-related (rewrites), not data-model related; support-work data remains unchanged by the fix.
+- Support-work templates should remain reusable support prescriptions. Do not add arbitrary erg workout building here.
+- Next likely architecture decision: whether training-block support prescriptions should link to support-session templates directly, or whether the support library needs one more edit/review polish pass first.
+- Historical working-memory and decision-log entries contain older multi-app names and paths. Treat those as historical until verified against the current filesystem and live service config.
+
+## Next Small Step For Fresh Session
+
+1. Confirm in-browser on both desktop and mobile that the library route is stable after the routing fix, then do a focused browser UX pass on the Support Work Library (empty state, list/detail scanning, create/edit flows, and deletion safety).
+2. Make only small polish fixes from that UX pass unless a blocking data bug appears.
+3. After UX polish, decide whether the next product slice should link training-block support prescriptions to support-session templates. Do not start that linking work before the UX pass.
+
+## Ongoing Context Hygiene
+
+- Keep future instruction additions short: routing rules and durable constraints only, not long background essays.
+- Keep `activeContext.md` current-state only. Move history to `implementationLog.md` or `decisionLog.md`.

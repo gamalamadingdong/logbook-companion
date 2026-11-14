@@ -31,7 +31,7 @@ export function useScopedTeamScope() {
   const isOrgWideScope = filterTeamId === null && Boolean(orgId) && scopedTeams.length > 1;
   const scopeLabel = isOrgWideScope
     ? `${activeTeam?.org_name ?? 'Organization'} · All Teams`
-    : filterTeamName;
+    : scopedTeams[0]?.team_name ?? filterTeamName;
 
   return {
     ...context,

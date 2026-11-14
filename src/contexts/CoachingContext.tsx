@@ -18,7 +18,10 @@ const filterTeamKey = (uid: string) => `lc_filter_team_${uid}`;
 export function CoachingProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? '';
+  return <CoachingSessionProvider key={userId} userId={userId}>{children}</CoachingSessionProvider>;
+}
 
+function CoachingSessionProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const [teams, setTeams] = useState<UserTeamInfo[]>([]);
   const [teamId, setTeamId] = useState<string>('');
   const [filterTeamId, setFilterTeamIdRaw] = useState<string | null>(null);
@@ -31,12 +34,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     if (allTeams.length === 0) {
       setTeamId('');
       setHasTeam(false);
+      setFilterTeamIdRaw(null);
       return;
     }
     const key = userId ? selectedTeamKey(userId) : '';
     const saved = key ? localStorage.getItem(key) : null;
     const match = allTeams.find((t) => t.team_id === saved);
-    const active = match ?? allTeams[0];
+    let active = match ?? allTeams[0];
     setTeamId(active.team_id);
     setHasTeam(true);
     if (key) localStorage.setItem(key, active.team_id);
@@ -44,10 +48,19 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     // Restore filter preference (null = all teams)
     const fKey = userId ? filterTeamKey(userId) : '';
     const savedFilter = fKey ? localStorage.getItem(fKey) : null;
-    if (savedFilter && allTeams.some((t) => t.team_id === savedFilter)) {
-      setFilterTeamIdRaw(savedFilter);
+    const filteredTeam = allTeams.find(t => t.team_id === savedFilter);
+    if (filteredTeam && (filteredTeam.org_id ?? null) === (active.org_id ?? null)) {
+      // Migrate a legacy filter-only selection into one coherent team selection.
+      active = filteredTeam;
+      setTeamId(active.team_id);
+      if (key) localStorage.setItem(key, active.team_id);
+      setFilterTeamIdRaw(active.team_id);
+    } else if (!active.org_id || allTeams.filter(t => t.org_id === active.org_id).length === 1) {
+      setFilterTeamIdRaw(active.team_id);
+      if (fKey) localStorage.setItem(fKey, active.team_id);
     } else {
       setFilterTeamIdRaw(null);
+      if (fKey) localStorage.removeItem(fKey);
     }
   }, [userId]);
 
@@ -58,41 +71,61 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let cancelled = false;
     getTeamsForUser(userId)
       .then((allTeams) => {
+        if (cancelled) return;
         setTeams(allTeams);
         resolveActiveTeam(allTeams);
       })
       .catch((err) => {
+        if (cancelled) return;
         setTeamError(err instanceof Error ? err.message : 'Failed to load team');
         setHasTeam(false);
       })
-      .finally(() => setIsLoadingTeam(false));
+      .finally(() => { if (!cancelled) setIsLoadingTeam(false); });
+    return () => { cancelled = true; };
   }, [userId, resolveActiveTeam]);
 
-  /** Switch to a different team */
+  /** A specific selection is both the viewing and action team. */
   const switchTeam = useCallback((newTeamId: string) => {
-    const match = teams.find((t) => t.team_id === newTeamId);
-    if (match) {
-      setTeamId(newTeamId);
-      if (userId) localStorage.setItem(selectedTeamKey(userId), newTeamId);
-      // Reset filter to "All" when switching teams (org may change)
-      setFilterTeamIdRaw(null);
-      if (userId) localStorage.removeItem(filterTeamKey(userId));
+    if (!teams.some(t => t.team_id === newTeamId)) return;
+    setTeamId(newTeamId);
+    setFilterTeamIdRaw(newTeamId);
+    if (userId) {
+      localStorage.setItem(selectedTeamKey(userId), newTeamId);
+      localStorage.setItem(filterTeamKey(userId), newTeamId);
     }
   }, [teams, userId]);
 
-  /** Update the team filter. null = org-wide ("All Teams"). */
-  const setFilterTeamId = useCallback((id: string | null) => {
-    setFilterTeamIdRaw(id);
+  const switchOrganization = useCallback((newOrgId: string | null) => {
+    const clubTeams = teams.filter(t => (t.org_id ?? null) === newOrgId);
+    const first = clubTeams[0];
+    if (!first) return;
+    setTeamId(first.team_id);
+    const filter = newOrgId && clubTeams.length > 1 ? null : first.team_id;
+    setFilterTeamIdRaw(filter);
     if (userId) {
-      if (id === null) {
-        localStorage.removeItem(filterTeamKey(userId));
-      } else {
-        localStorage.setItem(filterTeamKey(userId), id);
-      }
+      localStorage.setItem(selectedTeamKey(userId), first.team_id);
+      if (filter) localStorage.setItem(filterTeamKey(userId), filter);
+      else localStorage.removeItem(filterTeamKey(userId));
     }
-  }, [userId]);
+  }, [teams, userId]);
+
+  /** All Teams is limited to the current club; specific selections stay in it. */
+  const setFilterTeamId = useCallback((id: string | null) => {
+    const active = teams.find(t => t.team_id === teamId);
+    if (!active) return;
+    if (id !== null) {
+      const next = teams.find(t => t.team_id === id);
+      if (!next || (next.org_id ?? null) !== (active.org_id ?? null)) return;
+      switchTeam(id);
+      return;
+    }
+    if (!active.org_id || teams.filter(t => t.org_id === active.org_id).length < 2) return;
+    setFilterTeamIdRaw(null);
+    if (userId) localStorage.removeItem(filterTeamKey(userId));
+  }, [teams, teamId, switchTeam, userId]);
 
   /** Call after creating a team to refresh context */
   const refreshTeam = useCallback(async () => {
@@ -119,7 +152,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   // Derived: filter team name
   const filterTeamName = filterTeamId
     ? (teams.find((t) => t.team_id === filterTeamId)?.team_name ?? teamName)
-    : 'All Teams';
+    : orgId ? 'All Teams' : teamName;
 
   // Derived: teams grouped by organization for the switcher
   const teamsByOrg = useMemo((): OrgTeamGroup[] => {
@@ -164,8 +197,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     teamError,
     hasTeam,
     switchTeam,
+    switchOrganization,
     refreshTeam,
-  }), [userId, teamId, teamName, teamRole, orgId, activeTeam, teams, teamsByOrg, filterTeamId, filterTeamName, setFilterTeamId, isLoadingTeam, teamError, hasTeam, switchTeam, refreshTeam]);
+  }), [userId, teamId, teamName, teamRole, orgId, activeTeam, teams, teamsByOrg, filterTeamId, filterTeamName, setFilterTeamId, isLoadingTeam, teamError, hasTeam, switchTeam, switchOrganization, refreshTeam]);
 
   return (
     <CoachingContext.Provider value={value}>
