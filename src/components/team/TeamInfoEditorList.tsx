@@ -15,6 +15,8 @@ const ROLE_VARIANT: Record<TeamRole, 'coaching' | 'warning' | 'muted'> = {
 
 interface TeamInfoEditorListProps {
   teams: UserTeamInfo[];
+  title?: string;
+  subtitle?: string;
   onTeamsChanged?: () => Promise<void> | void;
 }
 
@@ -29,7 +31,7 @@ interface TeamGroup {
   teams: UserTeamInfo[];
 }
 
-export function TeamInfoEditorList({ teams, onTeamsChanged }: TeamInfoEditorListProps) {
+export function TeamInfoEditorList({ teams, onTeamsChanged, title = 'All team identities', subtitle = 'Edit any team you can access here. This section no longer depends on the active team selector or the top filter pills.' }: TeamInfoEditorListProps) {
   const [drafts, setDrafts] = useState<Record<string, TeamDraft>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [savingTeamId, setSavingTeamId] = useState<string | null>(null);
@@ -166,8 +168,8 @@ export function TeamInfoEditorList({ teams, onTeamsChanged }: TeamInfoEditorList
     <div className="space-y-4">
       <Card variant="ghost" padding="md">
         <CardHeader
-          title="All team identities"
-          subtitle="Edit any team you can access here. This section no longer depends on the active team selector or the top filter pills."
+          title={title}
+          subtitle={subtitle}
         />
         <div className="flex flex-wrap gap-2">
           <Badge variant="coaching" dot>

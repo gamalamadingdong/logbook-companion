@@ -22,8 +22,7 @@ import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Do
 import { EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
-import { AthleteEditorModal } from '../../components/coaching/AthleteEditorModal';
-import { BulkRosterModal } from '../../components/coaching/BulkRosterModal';
+import { RosterAddModal } from '../../components/coaching/RosterAddModal';
 import { AthleteNotesDrawer } from '../../components/coaching/AthleteNotesDrawer';
 import { downloadCsv } from '../../utils/csvExport';
 import { exportToPdf, exportToExcel } from '../../utils/exportUtils';
@@ -48,6 +47,12 @@ function gradeRank(grade: string | undefined | null): number {
 }
 
 export function CoachingRoster() {
+  const { userId, orgId, teamId, filterTeamId } = useCoachingContext();
+  // Scope changes discard old rows, drafts, and in-flight response destinations.
+  return <><CoachingNav /><ScopedCoachingRoster key={`${userId}:${orgId}:${filterTeamId ?? 'all'}:${teamId}`} /></>;
+}
+
+function ScopedCoachingRoster() {
   const { userId, teamId, orgId, teams, isLoadingTeam, teamError, filterTeamId, filterTeamName } = useCoachingContext();
   const units = useMeasurementUnits();
   const { addNotification } = useNotifications();
@@ -98,9 +103,10 @@ export function CoachingRoster() {
   const [noteCountsByAthlete, setNoteCountsByAthlete] = useState<Record<string, number>>({});
 
   // Sibling teams in the same org (for transfers)
-  const currentTeamInfo = teams.find((t) => t.team_id === teamId);
+  const transferSourceTeamId = transferringAthlete?.team_id ?? filterTeamId ?? teamId;
+  const currentTeamInfo = teams.find((t) => t.team_id === transferSourceTeamId);
   const siblingTeams = currentTeamInfo?.org_id
-    ? teams.filter((t) => t.org_id === currentTeamInfo.org_id && t.team_id !== teamId)
+    ? teams.filter((t) => t.org_id === currentTeamInfo.org_id && t.team_id !== transferSourceTeamId)
     : [];
   const canTransfer = siblingTeams.length > 0;
 
@@ -193,10 +199,10 @@ export function CoachingRoster() {
     }
   }, [teamId, isOrgWide, orgId, effectiveTeamId, refreshCompletions, refresh2kBenchmarks, refreshNoteCounts]);
 
-  const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string; performance_tier?: CoachingAthlete['performance_tier'] }) => {
-    if (!teamId) return;
+  const handleSave = async (destinationTeamId: string, data: Partial<CoachingAthlete> & { squad?: string; performance_tier?: CoachingAthlete['performance_tier'] }) => {
+    if (!teams.some(t => t.team_id === destinationTeamId && (t.org_id ?? null) === orgId)) return;
     try {
-      await createAthlete(teamId, userId, {
+      await createAthlete(destinationTeamId, userId, {
         first_name: data.first_name ?? '',
         last_name: data.last_name ?? '',
         grade: data.grade,
@@ -496,7 +502,6 @@ export function CoachingRoster() {
 
   return (
     <>
-    <CoachingNav />
     <div className="px-4 sm:px-6 py-3 sm:py-6 max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6">
@@ -1347,24 +1352,17 @@ export function CoachingRoster() {
         />
       )}
 
-      {/* Add Modal (modal only used for adding new athletes) */}
-      {isAdding && (
-        <AthleteEditorModal
-          athlete={null}
-          squads={squads}
-          units={units}
-          onSave={handleSave}
-          onCancel={() => setIsAdding(false)}
-        />
-      )}
-
-      {/* Bulk Add Modal */}
-      {showBulkAdd && teamId && (
-        <BulkRosterModal
-          teamId={teamId}
+      {/* All Teams requires a destination before either add form opens. */}
+      {(isAdding || showBulkAdd) && (
+        <RosterAddModal
+          mode={showBulkAdd ? 'bulk' : 'single'}
+          teams={teams.filter(t => (t.org_id ?? null) === orgId && (orgId || t.team_id === effectiveTeamId))}
+          initialTeamId={isOrgWide ? null : effectiveTeamId}
           userId={userId}
-          existingSquads={squads}
-          onClose={() => setShowBulkAdd(false)}
+          units={units}
+          squads={squads}
+          onSave={handleSave}
+          onClose={() => { setIsAdding(false); setShowBulkAdd(false); }}
           onSaved={async (count) => {
             setShowBulkAdd(false);
             await refreshAthletes();
@@ -1378,7 +1376,7 @@ export function CoachingRoster() {
         <QuickScoreModal
           athlete={quickScoreAthlete}
           missingCompletions={getMissingCompletionsForAthlete(quickScoreAthlete.id)}
-          teamId={teamId}
+          teamId={quickScoreAthlete.team_id ?? effectiveTeamId}
           coachUserId={userId}
           onClose={() => setQuickScoreAthlete(null)}
           onComplete={async () => {
@@ -1461,7 +1459,7 @@ export function CoachingRoster() {
       {/* Notes Drawer */}
       <AthleteNotesDrawer
         athlete={notesDrawerAthlete}
-        teamId={effectiveTeamId}
+        teamId={notesDrawerAthlete?.team_id ?? effectiveTeamId}
         userId={userId}
         onClose={() => setNotesDrawerAthlete(null)}
         onNoteAdded={refreshNoteCounts}

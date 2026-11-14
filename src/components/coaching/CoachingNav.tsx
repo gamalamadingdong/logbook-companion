@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronDown, ChevronsRight, Building2, LayoutDashboard } from 'lucide-react';
+import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronsRight, LayoutDashboard } from 'lucide-react';
+import { Select } from '../ui';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { getTeamStats, getTeamAthleteCounts } from '../../services/coaching/coachingService';
 
@@ -17,30 +18,23 @@ const tabs = [
 function CoachingNav() {
   const { pathname } = useLocation();
   const {
-    teamName, teamId, teamsByOrg, activeTeam,
-    switchTeam, isLoadingTeam,
+    teamId, teamsByOrg,
+    switchOrganization, isLoadingTeam,
     orgId, filterTeamId, setFilterTeamId,
   } = useCoachingContext();
   const [rosterCount, setRosterCount] = useState<number | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const currentTab = tabs.find((t) => !t.exact && pathname.startsWith(t.path));
-  const orgName = activeTeam?.org_name ?? null;
 
-  // Teams in the current org (for the filter pills)
-  const orgTeams = useMemo(() => (
-    orgId
-      ? teamsByOrg.find((g) => g.org_id === orgId)?.teams ?? []
-      : []
+  const clubTeams = useMemo(() => (
+    teamsByOrg.find(group => group.org_id === orgId)?.teams ?? []
   ), [orgId, teamsByOrg]);
-  const showFilterPills = orgTeams.length > 1;
-
-  // Does this coach belong to multiple orgs? If so, show the org switcher dropdown
-  const multipleOrgs = teamsByOrg.filter((g) => g.org_id !== null).length > 1
-    || (teamsByOrg.some((g) => g.org_id !== null) && teamsByOrg.some((g) => g.org_id === null));
+  const orgTeams = useMemo(() => orgId ? clubTeams : [], [orgId, clubTeams]);
 
   useEffect(() => {
     const effectiveTeamId = filterTeamId ?? teamId;
+    let cancelled = false;
     const loadRosterCount = async () => {
       if (!effectiveTeamId && !orgId) {
         setRosterCount(null);
@@ -50,9 +44,9 @@ function CoachingNav() {
       if (filterTeamId === null && orgId && orgTeams.length > 0) {
         try {
           const counts = await getTeamAthleteCounts(orgTeams.map((team) => team.team_id));
-          setRosterCount(Object.values(counts).reduce((total, count) => total + count, 0));
+          if (!cancelled) setRosterCount(Object.values(counts).reduce((total, count) => total + count, 0));
         } catch {
-          setRosterCount(null);
+          if (!cancelled) setRosterCount(null);
         }
         return;
       }
@@ -60,14 +54,15 @@ function CoachingNav() {
       if (effectiveTeamId) {
         try {
           const stats = await getTeamStats(effectiveTeamId);
-          setRosterCount(stats.athleteCount);
+          if (!cancelled) setRosterCount(stats.athleteCount);
         } catch {
-          setRosterCount(null);
+          if (!cancelled) setRosterCount(null);
         }
       }
     };
 
     void loadRosterCount();
+    return () => { cancelled = true; };
   }, [teamId, filterTeamId, orgId, orgTeams]);
 
   useEffect(() => {
@@ -94,94 +89,29 @@ function CoachingNav() {
 
   return (
     <div className="px-4 sm:px-6 pt-4 max-w-6xl mx-auto">
-      {/* Breadcrumb + Org/Team context */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1 text-sm text-neutral-500">
-          <Link to="/team-management" className="hover:text-indigo-400 transition-colors">
-            Team Management
-          </Link>
-          {currentTab && (
-            <>
-              <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-neutral-300">{currentTab.label}</span>
-            </>
-          )}
-        </div>
-
-        {/* Org label + org-switcher (only when coach spans multiple orgs) */}
-        <div className="flex items-center gap-2">
-          {orgName && !multipleOrgs && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400">
-              <Building2 className="w-3.5 h-3.5" />
-              {orgName}
-            </span>
-          )}
-
-          {/* Multi-org coach: dropdown to pick org/team (rare, but supported) */}
-          {multipleOrgs && (
-            <div className="relative">
-              <select
-                value={teamId}
-                onChange={(e) => switchTeam(e.target.value)}
-                className="appearance-none bg-neutral-800 border border-neutral-700 rounded-lg pl-3 pr-8 py-1.5 text-sm font-medium text-white cursor-pointer hover:border-neutral-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                aria-label="Switch organization"
-              >
-                {teamsByOrg.map((group) => (
-                  <optgroup key={group.org_id ?? '_standalone'} label={group.org_name}>
-                    {group.teams.map((t) => (
-                      <option key={t.team_id} value={t.team_id}>
-                        {t.team_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
-            </div>
-          )}
-
-          {/* Single-team, no org: static label */}
-          {!multipleOrgs && !showFilterPills && teamName && (
-            <span className="text-sm font-medium text-neutral-300 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5">
-              {teamName}
-            </span>
-          )}
-
-          {isLoadingTeam && (
-            <span className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          )}
-        </div>
+      <div className="flex items-center gap-1 text-sm text-content-muted mb-3">
+        <Link to="/team-management" className="hover:text-accent-coaching transition-colors">
+          Team Management
+        </Link>
+        {currentTab && <>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-content-secondary">{currentTab.label}</span>
+        </>}
       </div>
-
-      {/* Team filter pills (org coaches with multiple teams) */}
-      {showFilterPills && (
-        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 text-xs font-medium text-neutral-500 uppercase tracking-wider mr-1">Filter:</span>
-          <button
-            onClick={() => setFilterTeamId(null)}
-            className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              filterTeamId === null
-                ? 'bg-indigo-600 text-white'
-                : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700'
-            }`}
-          >
-            All Teams
-          </button>
-          {orgTeams.map((t) => (
-            <button
-              key={t.team_id}
-              onClick={() => setFilterTeamId(t.team_id)}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                filterTeamId === t.team_id
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700'
-              }`}
-            >
-              {t.team_name}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4" aria-busy={isLoadingTeam}>
+        <Select label="Club" aria-label="Club" id="coaching-club" className="min-h-11"
+          value={orgId ?? '__standalone__'} disabled={isLoadingTeam || teamsByOrg.length === 0}
+          onChange={e => switchOrganization(e.target.value === '__standalone__' ? null : e.target.value)}>
+          {teamsByOrg.map(group => <option key={group.org_id ?? '__standalone__'} value={group.org_id ?? '__standalone__'}>{group.org_name}</option>)}
+        </Select>
+        <Select label="Team" aria-label="Team" id="coaching-team" className="min-h-11"
+          value={filterTeamId ?? (orgId && clubTeams.length > 1 ? '__all__' : teamId)}
+          disabled={isLoadingTeam || clubTeams.length === 0}
+          onChange={e => setFilterTeamId(e.target.value === '__all__' ? null : e.target.value)}>
+          {orgId && clubTeams.length > 1 && <option value="__all__">All Teams</option>}
+          {clubTeams.map(team => <option key={team.team_id} value={team.team_id}>{team.team_name}</option>)}
+        </Select>
+      </div>
 
       {/* Tab bar */}
       <div className="relative">

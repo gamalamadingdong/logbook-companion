@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Copy,
   Check,
@@ -19,6 +19,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { TeamInfoEditorList } from '../../components/team/TeamInfoEditorList';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
@@ -88,7 +89,22 @@ const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof
 };
 
 export function CoachingSettings() {
+  const { userId, teamId, filterTeamId, orgId, isLoadingTeam } = useCoachingContext();
+  if (!isLoadingTeam && orgId && filterTeamId === null) {
+    return <>
+      <CoachingNav />
+      <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+        <EmptyState title="Select a team to manage settings"
+          description="You're viewing All Teams. Choose a team above to manage its details, invitations, and account access." />
+      </div>
+    </>;
+  }
+  return <><CoachingNav /><SelectedTeamSettings key={`${userId}:${teamId}`} /></>;
+}
+
+function SelectedTeamSettings() {
   const { userId, teamId, isLoadingTeam, teams, refreshTeam } = useCoachingContext();
+  const selectedTeams = useMemo(() => teams.filter(t => t.team_id === teamId), [teams, teamId]);
   const navigate = useNavigate();
 
   const [team, setTeam] = useState<Team | null>(null);
@@ -144,8 +160,10 @@ export function CoachingSettings() {
   useEffect(() => {
     if (!teamId || isLoadingTeam) return;
 
+    let cancelled = false;
     Promise.all([getTeam(teamId), getTeamMembers(teamId), userId ? getOrganizationsForUser(userId) : Promise.resolve([])])
       .then(([t, m, userOrgs]) => {
+        if (cancelled) return;
         setTeam(t);
         setMembers(m);
         setOrgs(userOrgs);
@@ -154,8 +172,9 @@ export function CoachingSettings() {
         setEditOrgName(selectedOrg?.name ?? '');
         setRubricForm(buildRubricForm(selectedOrg));
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load team'))
-      .finally(() => setIsLoading(false));
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load team'); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
   }, [teamId, isLoadingTeam, userId]);
 
   const handleTeamInfoChanged = async () => {
@@ -374,7 +393,6 @@ export function CoachingSettings() {
   if (isLoading || isLoadingTeam) {
     return (
       <>
-        <CoachingNav />
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
         </div>
@@ -384,13 +402,12 @@ export function CoachingSettings() {
 
   return (
     <>
-      <CoachingNav />
       <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Team Settings</h1>
-            <p className="text-neutral-400 mt-1">Manage this team, or create another one for the same program.</p>
+            <h1 className="text-2xl font-bold text-white">Team Settings · {team?.name}</h1>
+            <p className="text-neutral-400 mt-1">Changes here apply to {team?.name ?? 'the selected team'}.</p>
           </div>
           <RouterLink
             to="/team-management/setup"
@@ -415,7 +432,9 @@ export function CoachingSettings() {
         {/* Team Info */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white">Team Info</h2>
-          <TeamInfoEditorList teams={teams} onTeamsChanged={handleTeamInfoChanged} />
+          <TeamInfoEditorList teams={selectedTeams} title="Selected team identity"
+            subtitle="Edit the team selected above. Choose another team to manage its details."
+            onTeamsChanged={handleTeamInfoChanged} />
         </div>
 
         {/* Organization */}

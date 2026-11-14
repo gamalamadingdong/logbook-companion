@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '../ui';
 import { X } from 'lucide-react';
 import type { CoachingAthlete } from '../../services/coaching/coachingService';
 import { cmToFtIn, ftInToCm, kgToLbs, lbsToKg, type MeasurementUnits } from '../../utils/unitConversion';
@@ -7,11 +8,12 @@ interface AthleteEditorModalProps {
   athlete: CoachingAthlete | null; // null = adding new
   squads: string[];
   units: MeasurementUnits;
-  onSave: (data: Partial<CoachingAthlete> & { squad?: string }) => void;
+  destinationLabel?: string;
+  onSave: (data: Partial<CoachingAthlete> & { squad?: string }) => Promise<void> | void;
   onCancel: () => void;
 }
 
-export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }: AthleteEditorModalProps) {
+export function AthleteEditorModal({ athlete, squads, units, destinationLabel, onSave, onCancel }: AthleteEditorModalProps) {
   const isEditing = !!athlete;
   const isImperial = units === 'imperial';
 
@@ -24,6 +26,7 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
   const [side, setSide] = useState<CoachingAthlete['side']>(athlete?.side ?? 'both');
   const [squad, setSquad] = useState(athlete?.squad ?? '');
   const [notes, setNotes] = useState(athlete?.notes ?? '');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Height: store internal as cm, allow ft/in input
   const initialCm = athlete?.height_cm ?? null;
@@ -59,9 +62,11 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
     ? (isImperial ? lbsToKg(parsedWeight) : parsedWeight)
     : null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
+    if (isSaving) return;
+    setIsSaving(true);
+    try { await onSave({
       first_name: firstName,
       last_name: lastName,
       grade: grade || undefined,
@@ -72,6 +77,7 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
       weight_kg: weightKgComputed,
       notes: notes || undefined,
     } as Partial<CoachingAthlete> & { squad?: string });
+    } finally { setIsSaving(false); }
   };
 
   return (
@@ -84,6 +90,7 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
           </button>
         </div>
 
+        {destinationLabel && <p className="text-sm text-content-secondary mb-4">Adding to: <strong>{destinationLabel}</strong></p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -200,14 +207,14 @@ export function AthleteEditorModal({ athlete, squads, units, onSave, onCancel }:
 
           {/* Actions */}
           <div className="flex gap-3">
-            <button type="button" onClick={onCancel}
-              className="flex-1 px-4 py-2 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-800 transition-colors">
+            <Button type="button" variant="secondary" disabled={isSaving} onClick={onCancel}
+              className="flex-1 min-h-11">
               Cancel
-            </button>
-            <button type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
+            </Button>
+            <Button type="submit" variant="coaching" loading={isSaving}
+              className="flex-1 min-h-11">
               Save
-            </button>
+            </Button>
           </div>
         </form>
       </div>

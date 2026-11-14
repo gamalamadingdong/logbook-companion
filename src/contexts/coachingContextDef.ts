@@ -27,6 +27,8 @@ export interface CoachingContextType {
   teamError: string | null;
   hasTeam: boolean | null;
   switchTeam: (newTeamId: string) => void;
+  /** Select a club, using All Teams when it contains multiple teams. */
+  switchOrganization: (orgId: string | null) => void;
   refreshTeam: () => Promise<void>;
 }
 
