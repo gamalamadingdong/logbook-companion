@@ -5,6 +5,7 @@ import { useMeasurementUnits } from '../../hooks/useMeasurementUnits';
 import {
   getGroupAssignments,
   createGroupAssignment,
+  AssignmentDeliveryError,
   deleteGroupAssignment,
   updateGroupAssignment,
   syncAssignmentAthletes,
@@ -210,6 +211,11 @@ export function CoachingAssignments() {
       if (viewMode === 'compliance') await loadComplianceData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create assignment');
+      if (err instanceof AssignmentDeliveryError) {
+        setShowCreateForm(false);
+        await loadData();
+        if (viewMode === 'compliance') await loadComplianceData();
+      }
     }
   };
 

@@ -50,6 +50,15 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); });
 
 describe('coach scope selection', () => {
+  it('shows a single club and team as context text and exposes season management', async () => {
+    mocks.getTeams.mockResolvedValue([teams[0]]);
+    await render();
+    expect(document.querySelector('select[aria-label="Club"]')).toBeNull();
+    expect(document.querySelector('select[aria-label="Team"]')).toBeNull();
+    expect(document.body.textContent).toContain('River Club');
+    expect(document.body.textContent).toContain('Juniors');
+    expect(document.querySelector('a[href="/team-management/seasons"]')).not.toBeNull();
+  });
   it('keeps the selected roster and action team together, including after refresh', async () => {
     await render();
     await act(async () => ctx.setFilterTeamId('a2'));

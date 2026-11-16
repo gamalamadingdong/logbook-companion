@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -481,7 +481,7 @@ export type Database = {
           coach_notes: string | null
           coach_notes_visible_to_athlete: boolean
           created_at: string
-          created_by: string
+          created_by: string | null
           date_of_birth: string | null
           email: string | null
           experience_level: string | null
@@ -500,7 +500,7 @@ export type Database = {
           coach_notes?: string | null
           coach_notes_visible_to_athlete?: boolean
           created_at?: string
-          created_by: string
+          created_by?: string | null
           date_of_birth?: string | null
           email?: string | null
           experience_level?: string | null
@@ -519,7 +519,7 @@ export type Database = {
           coach_notes?: string | null
           coach_notes_visible_to_athlete?: boolean
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           date_of_birth?: string | null
           email?: string | null
           experience_level?: string | null
@@ -533,6 +533,178 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      c2_development_auth: {
+        Row: {
+          access_token: string | null
+          environment: string
+          expires_at: string | null
+          needs_reconnect: boolean
+          operation_id: string | null
+          operation_scope: string | null
+          operation_started_at: string | null
+          provider_user_id: string | null
+          refresh_token: string | null
+          requested_scope: string
+          state_expires_at: string | null
+          state_hash: string | null
+          token_scope: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          environment?: string
+          expires_at?: string | null
+          needs_reconnect?: boolean
+          operation_id?: string | null
+          operation_scope?: string | null
+          operation_started_at?: string | null
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          requested_scope?: string
+          state_expires_at?: string | null
+          state_hash?: string | null
+          token_scope?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          environment?: string
+          expires_at?: string | null
+          needs_reconnect?: boolean
+          operation_id?: string | null
+          operation_scope?: string | null
+          operation_started_at?: string | null
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          requested_scope?: string
+          state_expires_at?: string | null
+          state_hash?: string | null
+          token_scope?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      c2_development_fixture_workouts: {
+        Row: {
+          completed_result: Json
+          created_at: string
+          fixture_name: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          completed_result: Json
+          created_at?: string
+          fixture_name: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          completed_result?: Json
+          created_at?: string
+          fixture_name?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_development_fixture_workouts_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: true
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      c2_development_publications: {
+        Row: {
+          attempt_count: number
+          attempt_id: string
+          created_at: string
+          environment: string
+          id: string
+          mapper_version: number
+          payload: Json
+          provider_user_id: string
+          resolution_evidence: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          result_id: number | null
+          status: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          attempt_id: string
+          created_at?: string
+          environment?: string
+          id?: string
+          mapper_version?: number
+          payload: Json
+          provider_user_id: string
+          resolution_evidence?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          result_id?: number | null
+          status: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          attempt_count?: number
+          attempt_id?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          mapper_version?: number
+          payload?: Json
+          provider_user_id?: string
+          resolution_evidence?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          result_id?: number | null
+          status?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "c2_development_publications_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      c2_development_results: {
+        Row: {
+          environment: string
+          imported_at: string
+          provider_user_id: string
+          result_id: number
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          environment?: string
+          imported_at?: string
+          provider_user_id: string
+          result_id: number
+          summary: Json
+          user_id: string
+        }
+        Update: {
+          environment?: string
+          imported_at?: string
+          provider_user_id?: string
+          result_id?: number
+          summary?: Json
+          user_id?: string
         }
         Relationships: []
       }
@@ -679,7 +851,7 @@ export type Database = {
       coaching_athlete_coach_notes: {
         Row: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           id: string
           note: string
@@ -689,7 +861,7 @@ export type Database = {
         }
         Insert: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           note: string
@@ -699,7 +871,7 @@ export type Database = {
         }
         Update: {
           athlete_id?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           note?: string
@@ -727,7 +899,7 @@ export type Database = {
       coaching_athlete_notes: {
         Row: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           id: string
           note: string
@@ -736,7 +908,7 @@ export type Database = {
         }
         Insert: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           note: string
@@ -745,7 +917,7 @@ export type Database = {
         }
         Update: {
           athlete_id?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           note?: string
@@ -785,7 +957,7 @@ export type Database = {
       }
       coaching_athletes: {
         Row: {
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           experience_level: string | null
           grade: string | null
@@ -796,7 +968,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           experience_level?: string | null
           grade?: string | null
@@ -807,7 +979,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           experience_level?: string | null
           grade?: string | null
@@ -830,7 +1002,7 @@ export type Database = {
       coaching_boating_race_results: {
         Row: {
           boating_id: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           distance_meters: number
           event_name: string
@@ -846,7 +1018,7 @@ export type Database = {
         }
         Insert: {
           boating_id: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           distance_meters: number
           event_name: string
@@ -862,7 +1034,7 @@ export type Database = {
         }
         Update: {
           boating_id?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           distance_meters?: number
           event_name?: string
@@ -905,7 +1077,7 @@ export type Database = {
           boat_id: string | null
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           date: string
           id: string
@@ -921,7 +1093,7 @@ export type Database = {
           boat_id?: string | null
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           date: string
           id?: string
@@ -937,7 +1109,7 @@ export type Database = {
           boat_id?: string | null
           boat_name?: string
           boat_type?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           date?: string
           id?: string
@@ -984,7 +1156,7 @@ export type Database = {
         Row: {
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           id: string
           is_active: boolean
@@ -996,7 +1168,7 @@ export type Database = {
         Insert: {
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -1008,7 +1180,7 @@ export type Database = {
         Update: {
           boat_name?: string
           boat_type?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -1030,7 +1202,7 @@ export type Database = {
       coaching_erg_scores: {
         Row: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           date: string
           distance: number
@@ -1045,7 +1217,7 @@ export type Database = {
         }
         Insert: {
           athlete_id: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           date: string
           distance: number
@@ -1060,7 +1232,7 @@ export type Database = {
         }
         Update: {
           athlete_id?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           date?: string
           distance?: number
@@ -1099,7 +1271,7 @@ export type Database = {
       }
       coaching_schedule_events: {
         Row: {
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           date: string
           end_date: string | null
@@ -1113,7 +1285,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           date: string
           end_date?: string | null
@@ -1127,7 +1299,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           date?: string
           end_date?: string | null
@@ -1154,7 +1326,7 @@ export type Database = {
         Row: {
           athlete_id: string | null
           athlete_name: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           id: string
           seat: number
@@ -1164,7 +1336,7 @@ export type Database = {
         Insert: {
           athlete_id?: string | null
           athlete_name: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           seat: number
@@ -1174,7 +1346,7 @@ export type Database = {
         Update: {
           athlete_id?: string | null
           athlete_name?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           seat?: number
@@ -1210,7 +1382,7 @@ export type Database = {
           boat_id: string | null
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           id: string
           notes: string | null
@@ -1224,7 +1396,7 @@ export type Database = {
           boat_id?: string | null
           boat_name: string
           boat_type: string
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1238,7 +1410,7 @@ export type Database = {
           boat_id?: string | null
           boat_name?: string
           boat_type?: string
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1281,7 +1453,7 @@ export type Database = {
       }
       coaching_sessions: {
         Row: {
-          coach_user_id: string
+          coach_user_id: string | null
           created_at: string
           date: string
           focus: string | null
@@ -1293,7 +1465,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          coach_user_id: string
+          coach_user_id?: string | null
           created_at?: string
           date: string
           focus?: string | null
@@ -1305,7 +1477,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          coach_user_id?: string
+          coach_user_id?: string | null
           created_at?: string
           date?: string
           focus?: string | null
@@ -1344,7 +1516,7 @@ export type Database = {
         Row: {
           coaching_points: string[] | null
           created_at: string | null
-          created_by: string
+          created_by: string | null
           drill_examples: string[] | null
           goals: string[] | null
           id: string
@@ -1359,7 +1531,7 @@ export type Database = {
         Insert: {
           coaching_points?: string[] | null
           created_at?: string | null
-          created_by: string
+          created_by?: string | null
           drill_examples?: string[] | null
           goals?: string[] | null
           id?: string
@@ -1374,7 +1546,7 @@ export type Database = {
         Update: {
           coaching_points?: string[] | null
           created_at?: string | null
-          created_by?: string
+          created_by?: string | null
           drill_examples?: string[] | null
           goals?: string[] | null
           id?: string
@@ -2596,7 +2768,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           description: string | null
           id: string
           invite_code: string
@@ -2606,7 +2778,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           description?: string | null
           id?: string
           invite_code: string
@@ -2616,7 +2788,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           invite_code?: string
@@ -3448,6 +3620,101 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      team_season_athletes: {
+        Row: {
+          athlete_id: string
+          first_name: string
+          grade: string | null
+          has_account: boolean
+          last_name: string
+          performance_tier: string | null
+          season_id: string
+          squad: string | null
+          status: string
+        }
+        Insert: {
+          athlete_id: string
+          first_name: string
+          grade?: string | null
+          has_account: boolean
+          last_name: string
+          performance_tier?: string | null
+          season_id: string
+          squad?: string | null
+          status: string
+        }
+        Update: {
+          athlete_id?: string
+          first_name?: string
+          grade?: string | null
+          has_account?: boolean
+          last_name?: string
+          performance_tier?: string | null
+          season_id?: string
+          squad?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_season_athletes_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_season_athletes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "team_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_seasons: {
+        Row: {
+          activated_at: string | null
+          created_at: string
+          creation_fingerprint: Json
+          ends_on: string
+          id: string
+          name: string
+          starts_on: string
+          status: string
+          team_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string
+          creation_fingerprint: Json
+          ends_on: string
+          id?: string
+          name: string
+          starts_on: string
+          status?: string
+          team_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string
+          creation_fingerprint?: Json
+          ends_on?: string
+          id?: string
+          name?: string
+          starts_on?: string
+          status?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_seasons_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4503,6 +4770,7 @@ export type Database = {
           duration_seconds: number | null
           external_id: string | null
           id: string
+          is_benchmark: boolean
           manual_rwn: string | null
           match_confidence: number | null
           match_reason: string | null
@@ -4537,6 +4805,7 @@ export type Database = {
           duration_seconds?: number | null
           external_id?: string | null
           id?: string
+          is_benchmark?: boolean
           manual_rwn?: string | null
           match_confidence?: number | null
           match_reason?: string | null
@@ -4571,6 +4840,7 @@ export type Database = {
           duration_seconds?: number | null
           external_id?: string | null
           id?: string
+          is_benchmark?: boolean
           manual_rwn?: string | null
           match_confidence?: number | null
           match_reason?: string | null
@@ -4894,6 +5164,10 @@ export type Database = {
       }
     }
     Functions: {
+      activate_team_season: {
+        Args: { p_season_id: string }
+        Returns: undefined
+      }
       add_baseline_test: {
         Args: {
           p_distance_meters?: number
@@ -4911,6 +5185,36 @@ export type Database = {
       }
       approve_coaching_request: {
         Args: { new_status: string; request_id: string }
+        Returns: Json
+      }
+      archive_team_season: { Args: { p_season_id: string }; Returns: undefined }
+      c2_development_auth_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_create_fixture_workout: {
+        Args: { p_completed: Json; p_fixture_name: string; p_user_id: string }
+        Returns: Json
+      }
+      c2_development_create_manual_workout: {
+        Args: { p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_manual_interval_payload: {
+        Args: {
+          p_privacy: string
+          p_timezone: string
+          p_weight_class: string
+          p_workout: Database["public"]["Tables"]["workout_logs"]["Row"]
+        }
+        Returns: Json
+      }
+      c2_development_publish_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
+        Returns: Json
+      }
+      c2_development_sync_operation: {
+        Args: { p_action: string; p_user_id: string; p_values?: Json }
         Returns: Json
       }
       calculate_split_500m: {
@@ -5012,6 +5316,19 @@ export type Database = {
         }
         Returns: Json
       }
+      create_team_season: {
+        Args: {
+          p_athlete_ids: string[]
+          p_copy_squads?: boolean
+          p_ends_on: string
+          p_name: string
+          p_source_season_id: string
+          p_starts_on: string
+          p_team_id: string
+        }
+        Returns: string
+      }
+      delete_my_account: { Args: never; Returns: undefined }
       ensure_team_member_athlete_link: {
         Args: { p_team_id: string; p_user_id: string }
         Returns: string
@@ -5102,6 +5419,10 @@ export type Database = {
       resolve_team_leaderboard_share: {
         Args: { p_token: string }
         Returns: Json
+      }
+      set_team_season_squad: {
+        Args: { p_athlete_id: string; p_season_id: string; p_squad: string }
+        Returns: undefined
       }
       update_coach_validation_stats: {
         Args: {
