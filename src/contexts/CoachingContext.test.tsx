@@ -58,6 +58,8 @@ describe('coach scope selection', () => {
     expect(document.body.textContent).toContain('River Club');
     expect(document.body.textContent).toContain('Juniors');
     expect(document.querySelector('a[href="/team-management/seasons"]')).not.toBeNull();
+    expect([...document.querySelectorAll('a')].find(a => a.textContent?.includes('Manage clubs & teams'))?.getAttribute('href'))
+      .toBe('/team-management/settings');
   });
   it('keeps the selected roster and action team together, including after refresh', async () => {
     await render();

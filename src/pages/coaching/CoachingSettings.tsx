@@ -95,7 +95,12 @@ export function CoachingSettings() {
       <CoachingNav />
       <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
         <EmptyState title="Select a team to manage settings"
-          description="You're viewing All Teams. Choose a team above to manage its details, invitations, and account access." />
+          description="You're viewing All Teams. Choose a team above to change or add its club, manage team details and access, or add a new team below."
+          action={<RouterLink to="/team-management/setup"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add team
+          </RouterLink>} />
       </div>
     </>;
   }
@@ -406,15 +411,15 @@ function SelectedTeamSettings() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Team Settings · {team?.name}</h1>
-            <p className="text-neutral-400 mt-1">Changes here apply to {team?.name ?? 'the selected team'}.</p>
+            <h1 className="text-2xl font-bold text-content-primary">Club &amp; Team Settings · {team?.name}</h1>
+            <p className="text-content-secondary mt-1">Manage {team?.name ?? 'the selected team'}, its club, invitations, and account access.</p>
           </div>
           <RouterLink
             to="/team-management/setup"
-            className="self-start flex items-center gap-1.5 px-3 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm"
+            className="self-start inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Another Team</span>
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>Add team</span>
           </RouterLink>
         </div>
 
@@ -441,10 +446,10 @@ function SelectedTeamSettings() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-indigo-400" />
-            Organization
+            Club / organization
           </h2>
           <p className="text-neutral-400 text-sm">
-            Assign this team to an organization (club or program) to group it with other teams.
+            Change this team's club or create a new one to group it with other teams. Clubs can also represent a program or organization.
           </p>
 
           <div className="flex items-center gap-3">

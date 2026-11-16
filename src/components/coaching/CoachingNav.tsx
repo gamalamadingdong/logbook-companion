@@ -99,7 +99,7 @@ function CoachingNav() {
           <span className="text-content-secondary">{currentTab.label}</span>
         </>}
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4" aria-busy={isLoadingTeam}>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-4" aria-busy={isLoadingTeam}>
         {teamsByOrg.length > 1 ? <Select label="Club" aria-label="Club" id="coaching-club" className="min-h-11 sm:min-w-48"
           value={orgId ?? '__standalone__'} disabled={isLoadingTeam || teamsByOrg.length === 0}
           onChange={e => switchOrganization(e.target.value === '__standalone__' ? null : e.target.value)}>
@@ -112,6 +112,15 @@ function CoachingNav() {
           {orgId && clubTeams.length > 1 && <option value="__all__">Club overview · All Teams</option>}
           {clubTeams.map(team => <option key={team.team_id} value={team.team_id}>{team.team_name}</option>)}
         </Select> : <div><p className="text-xs text-content-muted">Team</p><p className="font-medium text-content-primary py-2">{clubTeams[0]?.team_name ?? 'No team selected'}</p></div>}
+        {!isLoadingTeam && clubTeams.length > 0 && (
+          <Link
+            to="/team-management/settings"
+            className="inline-flex min-h-11 self-start items-center gap-1.5 rounded-lg px-2 text-sm text-content-muted transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:ml-auto sm:self-end"
+          >
+            <Settings className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Manage clubs &amp; teams
+          </Link>
+        )}
       </div>
 
       {/* Tab bar */}

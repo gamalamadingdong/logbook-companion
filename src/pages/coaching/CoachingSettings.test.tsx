@@ -32,6 +32,8 @@ describe('settings destination isolation', () => {
     expect(document.body.textContent).toContain('Select a team');
     expect(mocks.getTeam).not.toHaveBeenCalled();
     expect(document.querySelector('[data-testid="editable-teams"]')).toBeNull();
+    expect(document.body.textContent).toContain('change or add its club');
+    expect(document.querySelector('a[href="/team-management/setup"]')?.textContent).toContain('Add team');
   });
   it('names and edits only the selected team, and discards old drafts on switching', async () => {
     mocks.filter = 'a'; await render();
