@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { EmptyState } from '../../components/ui';
+import { ClubManagement } from '../../components/coaching/ClubManagement';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { TeamInfoEditorList } from '../../components/team/TeamInfoEditorList';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
@@ -37,7 +38,6 @@ import {
   getOrganizationsForUser,
   assignTeamToOrg,
   removeTeamFromOrg,
-  createOrganization,
   updateOrganization,
   backfillTitanIndexes,
 } from '../../services/coaching/coachingService';
@@ -89,25 +89,27 @@ const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof
 };
 
 export function CoachingSettings() {
-  const { userId, teamId, filterTeamId, orgId, isLoadingTeam } = useCoachingContext();
-  if (!isLoadingTeam && orgId && filterTeamId === null) {
-    return <>
-      <CoachingNav />
-      <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
-        <EmptyState title="Select a team to manage settings"
-          description="You're viewing All Teams. Choose a team above to change or add its club, manage team details and access, or add a new team below."
-          action={<RouterLink to="/team-management/setup"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add team
-          </RouterLink>} />
-      </div>
-    </>;
-  }
-  return <><CoachingNav /><SelectedTeamSettings key={`${userId}:${teamId}`} /></>;
+  const { userId, teamId, filterTeamId, orgId, isLoadingTeam, refreshTeam } = useCoachingContext();
+  const [clubsVersion, setClubsVersion] = useState(0);
+  const clubsChanged = async () => {
+    try { await refreshTeam({ throwOnError: true }); }
+    finally { setClubsVersion(v => v + 1); }
+  };
+  return <>
+    <CoachingNav />
+    <div className="px-4 sm:px-6 pt-6 max-w-4xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-content-primary">Manage clubs &amp; teams</h1>
+      <ClubManagement key={userId} userId={userId} onChanged={clubsChanged} />
+    </div>
+    {!isLoadingTeam && orgId && filterTeamId === null ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+      <EmptyState title="Select a team to manage settings"
+        description="Choose a team above to manage its club affiliation, details, invitations and account access."
+        action={<RouterLink to="/team-management/setup" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-focus"><Plus className="h-4 w-4" aria-hidden="true" />Add team</RouterLink>} />
+    </div> : <SelectedTeamSettings key={`${userId}:${teamId}`} clubsVersion={clubsVersion} />}
+  </>;
 }
 
-function SelectedTeamSettings() {
+function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
   const { userId, teamId, isLoadingTeam, teams, refreshTeam } = useCoachingContext();
   const selectedTeams = useMemo(() => teams.filter(t => t.team_id === teamId), [teams, teamId]);
   const navigate = useNavigate();
@@ -152,12 +154,6 @@ function SelectedTeamSettings() {
   const [selectedOrgId, setSelectedOrgId] = useState<string>('none');
   const [isSavingOrg, setIsSavingOrg] = useState(false);
   const [orgSaveSuccess, setOrgSaveSuccess] = useState(false);
-  const [showNewOrgForm, setShowNewOrgForm] = useState(false);
-  const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgDescription, setNewOrgDescription] = useState('');
-  const [editOrgName, setEditOrgName] = useState('');
-  const [isSavingOrgName, setIsSavingOrgName] = useState(false);
-  const [orgNameSaveSuccess, setOrgNameSaveSuccess] = useState(false);
   const [rubricForm, setRubricForm] = useState<RubricFormState>(buildRubricForm(null));
   const [isSavingOrgRubric, setIsSavingOrgRubric] = useState(false);
   const [orgRubricSaveSuccess, setOrgRubricSaveSuccess] = useState(false);
@@ -174,13 +170,12 @@ function SelectedTeamSettings() {
         setOrgs(userOrgs);
         setSelectedOrgId(t?.org_id ?? 'none');
         const selectedOrg = userOrgs.find((org) => org.id === (t?.org_id ?? ''));
-        setEditOrgName(selectedOrg?.name ?? '');
         setRubricForm(buildRubricForm(selectedOrg));
       })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load team'); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, [teamId, isLoadingTeam, userId]);
+  }, [teamId, isLoadingTeam, userId, clubsVersion]);
 
   const handleTeamInfoChanged = async () => {
     await refreshTeam();
@@ -284,11 +279,6 @@ function SelectedTeamSettings() {
   };
 
   const handleOrgChange = async (newOrgId: string) => {
-    if (newOrgId === 'new') {
-      setShowNewOrgForm(true);
-      return;
-    }
-    setShowNewOrgForm(false);
     if (!teamId) return;
     setIsSavingOrg(true);
     try {
@@ -300,56 +290,14 @@ function SelectedTeamSettings() {
       setSelectedOrgId(newOrgId);
       setTeam((prev) => prev ? { ...prev, org_id: newOrgId === 'none' ? null : newOrgId } : prev);
       const selectedOrg = orgs.find((o) => o.id === newOrgId);
-      setEditOrgName(selectedOrg?.name ?? '');
       setRubricForm(buildRubricForm(selectedOrg));
       setOrgSaveSuccess(true);
       setTimeout(() => setOrgSaveSuccess(false), 2000);
+      await refreshTeam();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update organization');
     } finally {
       setIsSavingOrg(false);
-    }
-  };
-
-  const handleCreateAndAssignOrg = async () => {
-    if (!teamId || !userId || !newOrgName.trim()) return;
-    setIsSavingOrg(true);
-    try {
-      const newOrg = await createOrganization(userId, {
-        name: newOrgName.trim(),
-        description: newOrgDescription.trim() || undefined,
-      });
-      await assignTeamToOrg(teamId, newOrg.id);
-      setOrgs((prev) => [...prev, newOrg]);
-      setSelectedOrgId(newOrg.id);
-      setTeam((prev) => prev ? { ...prev, org_id: newOrg.id } : prev);
-      setEditOrgName(newOrg.name);
-      setRubricForm(buildRubricForm(newOrg));
-      setShowNewOrgForm(false);
-      setNewOrgName('');
-      setNewOrgDescription('');
-      setOrgSaveSuccess(true);
-      setTimeout(() => setOrgSaveSuccess(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create organization');
-    } finally {
-      setIsSavingOrg(false);
-    }
-  };
-
-  const handleSaveOrgName = async () => {
-    if (selectedOrgId === 'none' || !editOrgName.trim()) return;
-    setIsSavingOrgName(true);
-    try {
-      const updated = await updateOrganization(selectedOrgId, { name: editOrgName.trim() });
-      setOrgs((prev) => prev.map((org) => (org.id === updated.id ? updated : org)));
-      setOrgNameSaveSuccess(true);
-      setTimeout(() => setOrgNameSaveSuccess(false), 2000);
-      await refreshTeam();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update organization name');
-    } finally {
-      setIsSavingOrgName(false);
     }
   };
 
@@ -411,7 +359,7 @@ function SelectedTeamSettings() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-content-primary">Club &amp; Team Settings · {team?.name}</h1>
+            <h2 className="text-xl font-bold text-content-primary">Team settings · {team?.name}</h2>
             <p className="text-content-secondary mt-1">Manage {team?.name ?? 'the selected team'}, its club, invitations, and account access.</p>
           </div>
           <RouterLink
@@ -446,61 +394,31 @@ function SelectedTeamSettings() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-indigo-400" />
-            Club / organization
+            Team's club
           </h2>
           <p className="text-neutral-400 text-sm">
-            Change this team's club or create a new one to group it with other teams. Clubs can also represent a program or organization.
+            Choose an existing club for this team. Use Add club above to create one first.
           </p>
 
           <div className="flex items-center gap-3">
             <select
-              value={showNewOrgForm ? 'new' : selectedOrgId}
+              value={selectedOrgId}
               onChange={(e) => handleOrgChange(e.target.value)}
               disabled={isSavingOrg}
-              aria-label="Organization"
+              aria-label="Club for this team"
               className="flex-1 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none disabled:opacity-50"
             >
-              <option value="none">No organization (standalone)</option>
+              <option value="none">No club (standalone)</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
-              <option value="new">+ Create new organization</option>
             </select>
             {isSavingOrg && <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />}
             {orgSaveSuccess && <Check className="w-4 h-4 text-green-400" />}
           </div>
 
-          {selectedOrgId !== 'none' && !showNewOrgForm && (
+          {selectedOrgId !== 'none' && (
             <div className="border border-neutral-700 rounded-lg p-4 space-y-3 bg-neutral-800/50">
-              <div>
-                <label htmlFor="edit-org-name" className="block text-sm font-medium text-neutral-300 mb-1">
-                  Organization Name
-                </label>
-                <input
-                  id="edit-org-name"
-                  type="text"
-                  value={editOrgName}
-                  onChange={(e) => setEditOrgName(e.target.value)}
-                  minLength={3}
-                  maxLength={100}
-                  className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <button
-                onClick={handleSaveOrgName}
-                disabled={isSavingOrgName || editOrgName.trim().length < 3}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 text-sm"
-              >
-                {isSavingOrgName ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : orgNameSaveSuccess ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {orgNameSaveSuccess ? 'Saved!' : 'Save Organization Name'}
-              </button>
-
               <div className="pt-3 border-t border-neutral-700 space-y-2">
                 <h3 className="text-sm font-semibold text-white">Performance Tier Rubric (2k cutoffs)</h3>
                 <p className="text-xs text-neutral-400">Format all fields as m:ss. Slower-to-faster thresholds must descend left to right.</p>
@@ -548,54 +466,6 @@ function SelectedTeamSettings() {
             </div>
           )}
 
-          {showNewOrgForm && (
-            <div className="border border-neutral-700 rounded-lg p-4 space-y-3 bg-neutral-800/50">
-              <div>
-                <label htmlFor="settings-org-name" className="block text-sm font-medium text-neutral-300 mb-1">
-                  Organization Name *
-                </label>
-                <input
-                  id="settings-org-name"
-                  type="text"
-                  value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
-                  minLength={3}
-                  maxLength={100}
-                  placeholder="e.g. City Rowing Club"
-                  className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor="settings-org-desc" className="block text-sm font-medium text-neutral-300 mb-1">
-                  Description
-                </label>
-                <input
-                  id="settings-org-desc"
-                  type="text"
-                  value={newOrgDescription}
-                  onChange={(e) => setNewOrgDescription(e.target.value)}
-                  placeholder="Optional"
-                  className="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-neutral-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCreateAndAssignOrg}
-                  disabled={isSavingOrg || newOrgName.trim().length < 3}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 text-sm font-medium"
-                >
-                  {isSavingOrg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
-                  Create & Assign
-                </button>
-                <button
-                  onClick={() => { setShowNewOrgForm(false); setSelectedOrgId(team?.org_id ?? 'none'); }}
-                  className="px-4 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Invite Code */}
@@ -1049,7 +919,7 @@ function SelectedTeamSettings() {
           teamId={teamId}
           teamName={team.name}
           orgId={team?.org_id ?? null}
-          orgName={editOrgName || null}
+          orgName={orgs.find(org => org.id === selectedOrgId)?.name ?? null}
           onClose={() => setShowBulkInvite(false)}
           onInvited={() => {
             getTeamMembers(teamId).then(setMembers).catch(() => {});

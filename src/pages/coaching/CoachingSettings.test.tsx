@@ -11,6 +11,7 @@ vi.mock('../../hooks/useCoachingContext', () => ({ useCoachingContext: () => ({
     { team_id: 'b', team_name: 'Masters', org_id: 'club', role: 'coach' },
   ], refreshTeam: vi.fn(), setFilterTeamId: mocks.select,
 }) }));
+vi.mock('../../components/coaching/ClubManagement', () => ({ ClubManagement: () => <section>Clubs · Add club</section> }));
 vi.mock('../../components/coaching/CoachingNav', () => ({ CoachingNav: () => <nav>Scope controls</nav> }));
 vi.mock('../../components/team/TeamInfoEditorList', () => ({ TeamInfoEditorList: ({ teams }: { teams: { team_id: string }[] }) => <div data-testid="editable-teams">{teams.map(t => t.team_id).join(',')}</div> }));
 vi.mock('../../services/coaching/coachingService', () => ({
@@ -32,12 +33,12 @@ describe('settings destination isolation', () => {
     expect(document.body.textContent).toContain('Select a team');
     expect(mocks.getTeam).not.toHaveBeenCalled();
     expect(document.querySelector('[data-testid="editable-teams"]')).toBeNull();
-    expect(document.body.textContent).toContain('change or add its club');
+    expect(document.body.textContent).toContain('Clubs · Add club');
     expect(document.querySelector('a[href="/team-management/setup"]')?.textContent).toContain('Add team');
   });
   it('names and edits only the selected team, and discards old drafts on switching', async () => {
     mocks.filter = 'a'; await render();
-    expect(document.querySelector('h1')?.textContent).toContain('Juniors');
+    expect(document.body.textContent).toContain('Juniors');
     expect(document.querySelector('[data-testid="editable-teams"]')?.textContent).toBe('a');
     const email = document.querySelector('input[type="email"]') as HTMLInputElement;
     await act(async () => {
@@ -45,7 +46,7 @@ describe('settings destination isolation', () => {
       email.dispatchEvent(new Event('input', { bubbles: true }));
     });
     mocks.id = 'b'; mocks.filter = 'b'; await render();
-    expect(document.querySelector('h1')?.textContent).toContain('Masters');
+    expect(document.body.textContent).toContain('Masters');
     expect(document.querySelector('[data-testid="editable-teams"]')?.textContent).toBe('b');
     expect((document.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('');
   });

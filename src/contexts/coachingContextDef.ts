@@ -29,7 +29,7 @@ export interface CoachingContextType {
   switchTeam: (newTeamId: string) => void;
   /** Select a club, using All Teams when it contains multiple teams. */
   switchOrganization: (orgId: string | null) => void;
-  refreshTeam: () => Promise<void>;
+  refreshTeam: (options?: { throwOnError?: boolean }) => Promise<void>;
 }
 
 export const CoachingContext = createContext<CoachingContextType | null>(null);
