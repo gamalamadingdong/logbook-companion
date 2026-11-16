@@ -21,6 +21,7 @@ import {
 import { Plus, Trash2, Loader2, AlertTriangle, Filter, CheckCircle2, XCircle, Download, ExternalLink, ArrowUpDown, ChevronUp, ChevronDown, ArrowRightLeft, Users, FileSpreadsheet, FileText, MessageSquare } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
+import { TeamSeasonNotice } from '../../components/coaching/TeamSeasonNotice';
 import { QuickScoreModal } from '../../components/coaching/QuickScoreModal';
 import { RosterAddModal } from '../../components/coaching/RosterAddModal';
 import { AthleteNotesDrawer } from '../../components/coaching/AthleteNotesDrawer';
@@ -49,7 +50,14 @@ function gradeRank(grade: string | undefined | null): number {
 export function CoachingRoster() {
   const { userId, orgId, teamId, filterTeamId } = useCoachingContext();
   // Scope changes discard old rows, drafts, and in-flight response destinations.
-  return <><CoachingNav /><ScopedCoachingRoster key={`${userId}:${orgId}:${filterTeamId ?? 'all'}:${teamId}`} /></>;
+  return <><CoachingNav />
+    <div className="px-4 sm:px-6 pt-3 max-w-[1400px] mx-auto">
+      {orgId && filterTeamId === null
+        ? <p className="text-sm text-content-muted">Club overview shows current rosters. Select a team to manage its seasons and roster history.</p>
+        : teamId && <TeamSeasonNotice key={`${userId}:${teamId}`} teamId={teamId} />}
+    </div>
+    <ScopedCoachingRoster key={`${userId}:${orgId}:${filterTeamId ?? 'all'}:${teamId}`} />
+  </>;
 }
 
 function ScopedCoachingRoster() {

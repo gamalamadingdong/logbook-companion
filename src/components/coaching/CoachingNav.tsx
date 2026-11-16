@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronsRight, LayoutDashboard } from 'lucide-react';
+import { Users, Calendar, Settings, ChevronRight, Activity, ClipboardList, BarChart3, ChevronsRight, LayoutDashboard, History } from 'lucide-react';
 import { Select } from '../ui';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { getTeamStats, getTeamAthleteCounts } from '../../services/coaching/coachingService';
@@ -8,6 +8,7 @@ import { getTeamStats, getTeamAthleteCounts } from '../../services/coaching/coac
 const tabs = [
   { path: '/team-management' as const, label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { path: '/team-management/roster' as const, label: 'Roster', icon: Users, exact: false },
+  { path: '/team-management/seasons' as const, label: 'Seasons', icon: History, exact: false },
   { path: '/team-management/schedule' as const, label: 'Schedule', icon: Calendar, exact: false },
   { path: '/team-management/assignments' as const, label: 'Team Workouts', icon: ClipboardList, exact: false },
   { path: '/team-management/analytics' as const, label: 'Analytics', icon: BarChart3, exact: false },
@@ -98,19 +99,19 @@ function CoachingNav() {
           <span className="text-content-secondary">{currentTab.label}</span>
         </>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4" aria-busy={isLoadingTeam}>
-        <Select label="Club" aria-label="Club" id="coaching-club" className="min-h-11"
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4" aria-busy={isLoadingTeam}>
+        {teamsByOrg.length > 1 ? <Select label="Club" aria-label="Club" id="coaching-club" className="min-h-11 sm:min-w-48"
           value={orgId ?? '__standalone__'} disabled={isLoadingTeam || teamsByOrg.length === 0}
           onChange={e => switchOrganization(e.target.value === '__standalone__' ? null : e.target.value)}>
           {teamsByOrg.map(group => <option key={group.org_id ?? '__standalone__'} value={group.org_id ?? '__standalone__'}>{group.org_name}</option>)}
-        </Select>
-        <Select label="Team" aria-label="Team" id="coaching-team" className="min-h-11"
+        </Select> : orgId && <div className="sm:pr-4"><p className="text-xs text-content-muted">Club</p><p className="font-medium text-content-primary py-2">{teamsByOrg[0]?.org_name}</p></div>}
+        {clubTeams.length > 1 || isLoadingTeam ? <Select label="Team" aria-label="Team" id="coaching-team" className="min-h-11 sm:min-w-48"
           value={filterTeamId ?? (orgId && clubTeams.length > 1 ? '__all__' : teamId)}
           disabled={isLoadingTeam || clubTeams.length === 0}
           onChange={e => setFilterTeamId(e.target.value === '__all__' ? null : e.target.value)}>
-          {orgId && clubTeams.length > 1 && <option value="__all__">All Teams</option>}
+          {orgId && clubTeams.length > 1 && <option value="__all__">Club overview · All Teams</option>}
           {clubTeams.map(team => <option key={team.team_id} value={team.team_id}>{team.team_name}</option>)}
-        </Select>
+        </Select> : <div><p className="text-xs text-content-muted">Team</p><p className="font-medium text-content-primary py-2">{clubTeams[0]?.team_name ?? 'No team selected'}</p></div>}
       </div>
 
       {/* Tab bar */}
@@ -134,7 +135,7 @@ function CoachingNav() {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <span>{label}</span>
                 {isRoster && rosterCount !== null && (
                   <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[10px] font-semibold ${
                     isActive ? 'bg-indigo-500/20 text-indigo-300' : 'bg-neutral-700 text-neutral-300'

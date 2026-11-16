@@ -2292,6 +2292,13 @@ export async function getAssignmentsForDate(
   return getGroupAssignments(teamId, { from: date, to: date, orgId });
 }
 
+export class AssignmentDeliveryError extends Error {
+  constructor(message: string) {
+    super(`Group assignment saved, but athlete assignments could not be delivered. Open the saved assignment to update recipients or date. ${message}`);
+    this.name = 'AssignmentDeliveryError';
+  }
+}
+
 /** Create a group assignment and fan out per-athlete rows.
  *  For org-level assignments (input.org_id set, input.team_id null),
  *  automatically fans out to ALL active athletes across every team in the org.
@@ -2314,58 +2321,64 @@ export async function createGroupAssignment(
       .single()
   );
 
-  // 2. Resolve the final athlete list
-  //    For org-level assignments, merge provided IDs with all org athletes
-  //    and build an athlete→team_id map so each daily row gets the correct team_id
-  let finalAthleteIds = athleteIds;
-  const athleteTeamMap = new Map<string, string>();
+  try {
+    // 2. Resolve the final athlete list
+    //    For org-level assignments, use all active org athletes
+    //    and build an athlete→team_id map so each daily row gets the correct team_id
+    let finalAthleteIds = athleteIds;
+    const athleteTeamMap = new Map<string, string>();
 
-  if (input.org_id && !input.team_id) {
-    // Fetch org athletes with their team_id from team_athletes junction
-    const orgTeams = await getTeamsForOrg(input.org_id);
-    const teamIds = orgTeams.map((t) => t.id);
-    if (teamIds.length > 0) {
-      const { data: junctionRows } = await supabase
-        .from('team_athletes')
-        .select('athlete_id, team_id')
-        .in('team_id', teamIds)
-        .eq('status', 'active');
-      for (const row of junctionRows ?? []) {
-        // First team wins (de-dup: athlete may be on multiple teams)
-        if (!athleteTeamMap.has(row.athlete_id)) {
-          athleteTeamMap.set(row.athlete_id, row.team_id);
+    if (input.org_id && !input.team_id) {
+      // Fetch org athletes with their team_id from team_athletes junction
+      const orgTeams = await getTeamsForOrg(input.org_id);
+      const teamIds = orgTeams.map((t) => t.id);
+      if (teamIds.length > 0) {
+        const { data: junctionRows, error: rosterError } = await supabase
+          .from('team_athletes')
+          .select('athlete_id, team_id')
+          .in('team_id', teamIds)
+          .eq('status', 'active');
+        if (rosterError) throw rosterError;
+        for (const row of junctionRows ?? []) {
+          // First team wins (de-dup: athlete may be on multiple teams)
+          if (!athleteTeamMap.has(row.athlete_id)) {
+            athleteTeamMap.set(row.athlete_id, row.team_id);
+          }
         }
       }
+      finalAthleteIds = [...athleteTeamMap.keys()];
     }
-    const orgAthleteIds = [...athleteTeamMap.keys()];
-    // Union of explicitly-provided + org-wide athletes
-    finalAthleteIds = [...new Set([...athleteIds, ...orgAthleteIds])];
-  }
 
-  // 3. Fan out daily_workout_assignments for each athlete
-  if (finalAthleteIds.length > 0) {
-    const dateObj = new Date(input.scheduled_date + 'T00:00:00');
-    const rows = finalAthleteIds.map((athleteId) => ({
-      athlete_id: athleteId,
-      // For org assignments, resolve each athlete's actual team_id (RLS requires non-null team_id)
-      team_id: athleteTeamMap.get(athleteId) ?? input.team_id ?? null,
-      original_template_id: input.template_id,
-      workout_date: input.scheduled_date,
-      day_of_week: dateObj.getDay(),
-      week_number: 0,
-      scheduled_workout: { template_id: input.template_id, title: input.title },
-      group_assignment_id: ga.id as string,
-      completed: false,
-    }));
+    // 3. Fan out daily_workout_assignments for each athlete
+    if (finalAthleteIds.length > 0) {
+      const dateObj = new Date(input.scheduled_date + 'T00:00:00');
+      const rows = finalAthleteIds.map((athleteId) => ({
+        athlete_id: athleteId,
+        // For org assignments, resolve each athlete's actual team_id (RLS requires non-null team_id)
+        team_id: athleteTeamMap.get(athleteId) ?? input.team_id ?? null,
+        original_template_id: input.template_id,
+        workout_date: input.scheduled_date,
+        day_of_week: dateObj.getDay(),
+        week_number: 0,
+        scheduled_workout: { template_id: input.template_id, title: input.title },
+        group_assignment_id: ga.id as string,
+        completed: false,
+      }));
 
-    const { error } = await supabase
-      .from('daily_workout_assignments')
-      .insert(rows);
+      const { error } = await supabase
+        .from('daily_workout_assignments')
+        .insert(rows);
 
-    if (error) {
-      console.error('Error fanning out athlete assignments:', error);
-      // Don't throw — group assignment is created, individual rows are best-effort
+      if (error) {
+        throw new AssignmentDeliveryError(error.message);
+      }
     }
+  } catch (error) {
+    if (error instanceof AssignmentDeliveryError) throw error;
+    const message = error instanceof Error ? error.message
+      : typeof error === 'object' && error !== null && 'message' in error ? String(error.message)
+        : 'Unable to resolve the active roster.';
+    throw new AssignmentDeliveryError(message);
   }
 
   return {

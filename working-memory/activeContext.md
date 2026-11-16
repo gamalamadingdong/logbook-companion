@@ -1,12 +1,16 @@
 # Active Context
 
-Last updated: 2026-11-14
+Last updated: 2026-11-16
 
 ## Current work
 
-Team management foundation for winter training. Work is on `feature/team-management-winter-training`, based on updated main `99224ec` (PR #240). The initial analysis is saved in [team management current state](../docs/team-management-current-state.md).
+Team management seasonal roster foundation implemented on `feature/roster-lifecycle`, based on main `e19397c` (PR #242). See the [implementation and rollout receipt](../docs/superpowers/plans/2026-11-16-team-seasons.md) and [approved broader strategy](../docs/superpowers/specs/2026-11-16-team-seasons-context-design.md).
 
-The first coach-scope UX slice is implemented, alongside the overview and memory cleanup, and is being submitted as a focused PR against main. The user authorized publication on November 14. No schema changes or live data writes were made. See the [scope plan and verification receipt](../docs/superpowers/plans/2026-11-13-coach-scope.md).
+Current slice adds `/team-management/seasons`: prepare annual drafts such as `2026/2027`, explicitly select returning athletes, optionally copy squads, activate/archive with confirmation, and view frozen historical roster snapshots. Club/team context is compact with visible mobile navigation labels. Athletes without accounts remain fully supported; no season operation creates accounts or invitations. Coach writes and staff reads follow existing team/org permissions; coxswains see read-only history.
+
+Database migration `20261116215714_team_seasons_and_rosters.sql` is applied through Supabase MCP on `vmlhcbkyonemmlawnqqr`; generated types refreshed. Both new tables are empty: no real roster adoption/rollover occurred. Draft preparation preserves legacy operation; eligibility enforcement starts after explicit activation. Pending assignments block close/first adoption; results can still be completed/corrected afterward. Archived snapshots protect athlete/team deletion. Existing results remain in their current stores/views, without inferred historical membership or global season filtering.
+
+Verification: 543 tests/56 files, production build, isolated PostgreSQL authorization/history/concurrent-transition assertions passed; lint zero errors (115 existing warnings). Independent scoped review blockers fixed. No connected browser was available, so signed-in visual/mobile walkthrough is pending. UI changes remain local; no push/PR/deployment or staging sync performed. Current code and docs are ready for local review.
 
 ## Agreed sequence
 
@@ -14,9 +18,9 @@ The first coach-scope UX slice is implemented, alongside the overview and memory
 2. Review their UX, especially clear and easy coach switching between organization and team views and the scope of create/edit actions.
 3. Then prioritize assignments, completion/results, training blocks, and other findings from the baseline.
 
-Product direction is one active coached roster per athlete, coach-defined squads, and optional non-roster groups later. Enforcement is not implemented; identity claiming, transfer authority, and existing multiple memberships still need decisions. Next: review the coach-scope UX in the running app, then continue the roster/account lifecycle design.
+Product direction is one active coached roster per athlete, coach-defined squads, and optional non-roster groups later. Enforcement is not implemented; identity claiming, transfer authority, and existing multiple memberships still need decisions. The user favors team codes shared by coaches/coxswains and athlete-controlled leaving, and accepted coach/coxswain confirmation of existing-profile linking for now. Seasonal roster/history is now implemented; identity claiming, departure/transfer synchronization and one-active-team enforcement remain follow-ups.
 
-Questions to resolve include roster versus access membership, primary training responsibility, overlapping assignments, claiming existing roster profiles, join/leave/transfer/archive behavior, historical data preservation, and role permissions. Do not turn these questions into decided rules.
+Next product decisions include claiming existing profiles, departure/transfer authority, overlapping assignments and one-active-team enforcement. Cross-page historical results/assignments/lineups and club-coordinated calendars remain explicit follow-ups. Do not describe the whole coaching workspace as season-filtered.
 
 ## Current model and important seams
 
