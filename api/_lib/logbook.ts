@@ -12,6 +12,7 @@
 // V2 Evidence Platform's ChatGPT integration).
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { normalizeWorkoutDetail, analyzeHeartRate, type WorkoutDetailRow } from '../../shared/workoutDetail.js';
 
 // Sources considered "real training" for analysis surfaces. Mirrors
 // workoutService.viewableSources in the app.
@@ -153,30 +154,116 @@ export async function searchWorkouts(cfg: LogbookConfig, filters: SearchFilters)
     return rows;
 }
 
-export async function getWorkoutDetail(cfg: LogbookConfig, idOrExternalId: string): Promise<Record<string, unknown> | null> {
+/** Accept identifiers and app links without treating user input as a query expression. */
+function workoutIdentifier(value: string): { column: 'id' | 'external_id'; value: string } {
+    let id = value.trim();
+    if (id.startsWith('https://')) {
+        const url = new URL(id);
+        if (url.origin !== 'https://logbook.readyall.org' || url.username || url.password) {
+            throw new Error('Use a Logbook Companion workout URL, UUID or Concept2 result ID.');
+        }
+        const match = /^\/workout\/([^/]+)\/?$/.exec(url.pathname);
+        if (!match) throw new Error('Invalid workout URL.');
+        id = match[1];
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { column: 'id', value: id };
+    if (/^\d{1,20}$/.test(id)) return { column: 'external_id', value: id };
+    throw new Error('Invalid workout identifier. Use its UUID, Concept2 result ID or LC workout URL.');
+}
+
+async function loadWorkoutDocument(cfg: LogbookConfig, id: string) {
+    const lookup = workoutIdentifier(id);
     const client = getClient(cfg);
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrExternalId);
-
-    let query = client
-        .from('workout_logs')
-        .select(`${WORKOUT_COLUMNS}, raw_data`);
-    query = isUUID ? query.eq('id', idOrExternalId) : query.eq('external_id', idOrExternalId);
-
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await client.from('workout_logs')
+        .select(`${WORKOUT_COLUMNS}, rest_distance_meters, raw_data, manual_rwn, template_id, is_benchmark, updated_at`)
+        .eq(lookup.column, lookup.value).maybeSingle();
     if (error) throw new Error(`getWorkoutDetail: ${error.message}`);
-    if (!data) return null;
-
-    const row = data as unknown as WorkoutRow & { raw_data?: unknown };
-    // Surface interval structure when present, without dumping stroke-by-stroke data.
-    const raw = row.raw_data as { workout?: { intervals?: unknown[] }; time_formatted?: string } | null;
-    const intervals = raw?.workout?.intervals ?? null;
-
+    if (!data) return null; // Includes a row hidden by RLS: do not disclose its existence.
+    const row = data as unknown as WorkoutDetailRow;
+    const raw = row.raw_data as { workout?: { intervals?: unknown[] } } | null;
     return {
-        ...row,
-        duration_seconds: durationSeconds(row),
-        raw_data: undefined,
-        intervals,
-        time_formatted: raw?.time_formatted ?? null,
+        document: normalizeWorkoutDetail(row),
+        duration_minutes: row.duration_minutes ?? null,
+        legacyIntervals: raw?.workout?.intervals ?? null,
+    };
+}
+
+export async function getWorkoutDetail(cfg: LogbookConfig, id: string): Promise<Record<string, unknown> | null> {
+    const loaded = await loadWorkoutDocument(cfg, id);
+    if (!loaded) return null;
+    const { document } = loaded;
+    return {
+        ...document.summary,
+        ...document.structure,
+        schema_version: document.schema_version,
+        recorded_splits: document.splits,
+        recorded_intervals: document.intervals,
+        // Preserve original detail fields; normalized records above use explicit unit names.
+        duration_minutes: loaded.duration_minutes,
+        intervals: loaded.legacyIntervals,
+        legacy_interval_units: document.summary.source === 'concept2'
+            ? { time: 'deciseconds', rest_time: 'deciseconds', distance: 'meters' } : null,
+        sample_availability: document.sample_availability,
+        units: document.units,
+        provenance: document.provenance,
+    };
+}
+
+export interface WorkoutSampleFilters {
+    offset?: number;
+    limit?: number;
+    startSeconds?: number;
+    endSeconds?: number;
+}
+
+export async function getWorkoutSamples(cfg: LogbookConfig, id: string, filters: WorkoutSampleFilters = {}) {
+    const offset = filters.offset ?? 0;
+    const limit = filters.limit ?? 200;
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+        throw new Error('Invalid sample pagination: offset must be nonnegative and limit between 1 and 500.');
+    }
+    for (const value of [filters.startSeconds, filters.endSeconds]) {
+        if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error('Invalid sample time window.');
+    }
+    if (filters.startSeconds !== undefined && filters.endSeconds !== undefined && filters.startSeconds > filters.endSeconds) {
+        throw new Error('Sample window end must be on or after its start.');
+    }
+    const loaded = await loadWorkoutDocument(cfg, id);
+    if (!loaded) return null;
+    const { document } = loaded;
+    const samples = document.samples.filter(sample =>
+        (filters.startSeconds === undefined || sample.time_seconds >= filters.startSeconds) &&
+        (filters.endSeconds === undefined || sample.time_seconds <= filters.endSeconds));
+    const page = samples.slice(offset, offset + limit);
+    return {
+        schema_version: document.schema_version,
+        workout_id: document.summary.id,
+        external_id: document.summary.external_id,
+        sample_availability: document.sample_availability,
+        units: document.units,
+        provenance: document.provenance,
+        window: { start_seconds: filters.startSeconds ?? null, end_seconds: filters.endSeconds ?? null, time_basis: 'segment_elapsed' },
+        pagination: { offset, limit, total: samples.length, next_offset: offset + page.length < samples.length ? offset + page.length : null },
+        samples: page,
+    };
+}
+
+export async function analyzeWorkout(cfg: LogbookConfig, id: string, thresholdBpm: number, maxGapSeconds = 10) {
+    if (!Number.isFinite(thresholdBpm) || thresholdBpm < 1 || thresholdBpm > 250 ||
+        !Number.isFinite(maxGapSeconds) || maxGapSeconds < 1 || maxGapSeconds > 60) {
+        throw new Error('HR threshold must be 1–250 bpm and maximum sample gap 1–60 seconds.');
+    }
+    const loaded = await loadWorkoutDocument(cfg, id);
+    if (!loaded) return null;
+    const { document } = loaded;
+    return {
+        schema_version: document.schema_version,
+        workout_id: document.summary.id,
+        external_id: document.summary.external_id,
+        duration_seconds: document.summary.duration_seconds,
+        sample_availability: document.sample_availability,
+        provenance: document.provenance,
+        analysis: analyzeHeartRate(document, thresholdBpm, maxGapSeconds),
     };
 }
 

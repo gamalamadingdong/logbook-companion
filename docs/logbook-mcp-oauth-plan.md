@@ -1,8 +1,9 @@
 # Logbook MCP — OAuth 2.1 (Supabase-native) Reference Design
 
-**Status:** code complete, verified pre-deploy. Supabase OAuth 2.1 Server enabled; asymmetric
-JWT signing keys migrated (ES256 key live in JWKS); `workout_logs` RLS confirmed against the
-live DB (anon read → 0 rows; 2 real users present). Remaining: deploy + real-token round-trip.
+**Status (2026-11-17):** the authenticated connector is working; a real `get_workout`
+call returned workout `98848028`. Earlier deployment and database checks below are
+historical evidence. The richer detail/sample tools and exports are implemented locally;
+see [workout detail contract and deployment boundary](logbook-mcp-workout-details.md).
 **Why this doc exists:** the Logbook ChatGPT connector is the *reference implementation*
 for the V2 Evidence Platform's Phase 7 ChatGPT integration. It must be spec-correct and
 reusable. This supersedes both the shared-bearer-token cut and the WorkOS cut.
