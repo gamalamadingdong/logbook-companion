@@ -94,24 +94,16 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(400, { error: 'Invalid recipient email.' });
     }
 
-    const { data: member, error: memberError } = await supabase
-      .from('team_members')
-      .select('role, teams(name, invite_code)')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (memberError) {
-      return jsonResponse(500, { error: 'Failed to validate team membership.' });
-    }
-
-    if (!member || !['coach', 'coxswain'].includes(member.role)) {
-      return jsonResponse(403, { error: 'Only coaches/coxswains can send invites.' });
-    }
-
-    const team = member.teams as { name?: string; invite_code?: string } | null;
-    const inviteCode = body.inviteCode?.trim() || team?.invite_code;
-    const teamName = body.teamName?.trim() || team?.name || 'Your team';
+    const { data: canAdmin, error: adminError } = await supabase.rpc('can_admin_team', {
+      p_team_id: teamId, p_user_id: user.id,
+    });
+    if (adminError) return jsonResponse(500, { error: 'Failed to validate team administration.' });
+    if (canAdmin !== true) return jsonResponse(403, { error: 'Only team administrators can send invites.' });
+    const { data: team, error: teamError } = await supabase.from('teams')
+      .select('name,invite_code').eq('id', teamId).single();
+    if (teamError || !team) return jsonResponse(404, { error: 'Team not found.' });
+    const inviteCode = team.invite_code;
+    const teamName = team.name || 'Your team';
 
     if (!inviteCode) {
       return jsonResponse(400, { error: 'Invite code is required.' });

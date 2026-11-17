@@ -10,6 +10,8 @@ import {
   type GroupAssignment,
 } from '../../services/coaching/coachingService';
 
+import { useCoachingContext } from '../../hooks/useCoachingContext';
+
 interface WeeklyFocusCardProps {
   teamId: string;
   userId: string;
@@ -31,6 +33,8 @@ function formatWeekRange(weekStart: string): string {
 }
 
 export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId }) => {
+  const { teams } = useCoachingContext();
+  const canEdit = teams.some(t => t.team_id === teamId && t.role === 'coach');
   const [plan, setPlan] = useState<CoachingWeeklyPlan | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -135,6 +139,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
   const isCurrentWeek = weekStart === getWeekStart();
 
   const handleSave = async () => {
+    if (!canEdit) return;
     setSaving(true);
     try {
       const filteredGoals = goals.map((p) => p.trim()).filter(Boolean);
@@ -163,6 +168,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
   };
 
   const handleDelete = async () => {
+    if (!canEdit) return;
     if (!plan) return;
     setSaving(true);
     try {
@@ -372,7 +378,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
           <div className="flex items-center justify-center py-6">
             <Loader2 size={20} className="text-indigo-400 animate-spin" />
           </div>
-        ) : editing ? (
+        ) : editing && canEdit ? (
           /* ─── Edit Mode ────────────────────────────── */
           <div className="space-y-4">
             {/* Theme */}
@@ -558,14 +564,14 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
                   <h3 className="text-white font-semibold text-lg">{plan!.theme}</h3>
                 )}
               </div>
-              <button
+              {canEdit && (<button
                 type="button"
                 onClick={() => setEditing(true)}
                 className="text-neutral-500 hover:text-indigo-400 transition-colors p-1"
                 title="Edit this week"
               >
                 <Pencil size={14} />
-              </button>
+              </button>)}
             </div>
 
             {/* Tabs (display) */}
@@ -665,7 +671,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
           </div>
         ) : (
           /* ─── Empty State ──────────────────────────── */
-          <button
+          canEdit ? <button
             type="button"
             onClick={() => setEditing(true)}
             className="w-full flex flex-col items-center gap-2 py-6 text-neutral-500 hover:text-indigo-400 transition-colors group"
@@ -674,7 +680,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
               <Plus size={20} />
             </div>
             <span className="text-sm">Set this week's focus</span>
-          </button>
+          </button> : <p className="py-6 text-sm text-content-muted">No weekly focus published.</p>
         )}
       </div>
     </div>

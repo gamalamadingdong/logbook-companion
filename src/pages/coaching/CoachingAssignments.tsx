@@ -58,8 +58,12 @@ import { notifyAssignmentCreated } from '../../services/notificationService';
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function CoachingAssignments() {
-  const { userId, teamId, teamName, orgId, activeTeam, isLoadingTeam, filterTeamId, filterTeamName } = useCoachingContext();
+  const { userId, teamId, teamName, orgId, activeTeam, isLoadingTeam, filterTeamId, filterTeamName, teams } = useCoachingContext();
   const effectiveTeamId = filterTeamId ?? teamId;
+  const canPrescribeTeam = (id: string | null | undefined) => teams.some(t => t.team_id === id && t.role === 'coach');
+  const canPrescribeClub = teams.some(t => t.org_id === orgId && (t.org_role === 'owner' || t.org_role === 'admin'));
+  const canCreateAssignment = filterTeamId ? canPrescribeTeam(filterTeamId) : canPrescribeClub;
+  const canEditAssignment = (assignment: GroupAssignment) => assignment.org_id ? canPrescribeClub : canPrescribeTeam(assignment.team_id);
 
   // Data
   const [assignments, setAssignments] = useState<GroupAssignment[]>([]);
@@ -200,6 +204,7 @@ export function CoachingAssignments() {
   }, [viewMode, effectiveTeamId, isLoadingTeam, loadComplianceData]);
 
   const handleCreate = async (input: GroupAssignmentInput, athleteIds: string[]) => {
+    if (input.org_id ? !canPrescribeClub : !canPrescribeTeam(input.team_id)) return;
     try {
       const assignment = await createGroupAssignment(input, athleteIds);
       notifyAssignmentCreated(assignment.id, userId).catch((notificationError) => {
@@ -220,6 +225,8 @@ export function CoachingAssignments() {
   };
 
   const handleDelete = async (id: string) => {
+    const assignment = assignments.find(a => a.id === id);
+    if (!assignment || !canEditAssignment(assignment)) return;
     try {
       await deleteGroupAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
@@ -235,6 +242,7 @@ export function CoachingAssignments() {
     updates: { title?: string | null; instructions?: string | null; scheduled_date?: string },
     newAthleteIds?: string[]
   ) => {
+    if (!editingAssignment || !canEditAssignment(editingAssignment)) return;
     try {
       await updateGroupAssignment(id, updates);
       if (newAthleteIds !== undefined && editingAssignment) {
@@ -361,14 +369,14 @@ export function CoachingAssignments() {
                 <span className="hidden sm:inline">List</span>
               </button>
             </div>
-            <button
+            {canCreateAssignment && (<button
               onClick={() => setShowCreateForm(true)}
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Assign Workout</span>
               <span className="sm:hidden">Assign</span>
-            </button>
+            </button>)}
           </div>
         </div>
 
@@ -539,12 +547,12 @@ export function CoachingAssignments() {
                   title="No workouts"
                   description="No workouts assigned for this date."
                   action={
-                    <button
+                    canCreateAssignment && (<button
                       onClick={() => setShowCreateForm(true)}
                       className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
                       + Assign a workout
-                    </button>
+                    </button>)
                   }
                 />
               ) : (
@@ -553,6 +561,7 @@ export function CoachingAssignments() {
                     <AssignmentDetailCard
                       key={a.id}
                       assignment={a}
+                      canEdit={canEditAssignment(a)}
                       onEdit={() => setEditingAssignment(a)}
                       onDelete={handleDelete}
                       onEnterResults={() => setBulkCompleteAssignmentId(a.id)}
@@ -568,7 +577,7 @@ export function CoachingAssignments() {
         )}
 
         {/* Create Form Modal */}
-        {showCreateForm && (
+        {canCreateAssignment && showCreateForm && (
           <CreateAssignmentForm
             teamId={effectiveTeamId}
             userId={userId}
@@ -596,7 +605,7 @@ export function CoachingAssignments() {
         )}
 
         {/* Edit Assignment Modal */}
-        {editingAssignment && (
+        {editingAssignment && canEditAssignment(editingAssignment) && (
           <EditAssignmentModal
             assignment={editingAssignment}
             athletes={ergAthletes}
@@ -619,7 +628,9 @@ function AssignmentDetailCard({
   onEdit,
   onDelete,
   onEnterResults,
+  canEdit,
 }: {
+  canEdit: boolean;
   assignment: GroupAssignment;
   onEdit: () => void;
   onDelete: (id: string) => void;
@@ -675,7 +686,7 @@ function AssignmentDetailCard({
         </div>
 
         {/* Desktop action icons */}
-        <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {canEdit && (<div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           <button
             onClick={onEdit}
             className="p-1.5 rounded-md text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800 transition-colors"
@@ -692,7 +703,7 @@ function AssignmentDetailCard({
           >
             <Trash2 className="w-4 h-4" />
           </button>
-        </div>
+        </div>)}
       </div>
 
       {/* Action buttons row */}
@@ -712,7 +723,7 @@ function AssignmentDetailCard({
           View Results
         </Link>
         {/* Mobile edit/delete buttons */}
-        <div className="flex items-center gap-1 sm:hidden ml-auto">
+        {canEdit && (<div className="flex items-center gap-1 sm:hidden ml-auto">
           <button
             onClick={onEdit}
             className="p-1.5 rounded-md text-neutral-500 hover:text-indigo-400 transition-colors"
@@ -727,7 +738,7 @@ function AssignmentDetailCard({
           >
             <Trash2 className="w-4 h-4" />
           </button>
-        </div>
+        </div>)}
       </div>
     </div>
   );
@@ -758,7 +769,9 @@ function CreateAssignmentForm({
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [assignTo, setAssignTo] = useState<'all' | 'squad' | 'org'>(orgId ? 'org' : 'all');
+  const { teams } = useCoachingContext();
+  const canPrescribeClub = teams.some(t => t.org_id === orgId && (t.org_role === 'owner' || t.org_role === 'admin'));
+  const [assignTo, setAssignTo] = useState<'all' | 'squad' | 'org'>(orgId && canPrescribeClub ? 'org' : 'all');
   const [selectedSquad, setSelectedSquad] = useState('');
   const [templateSearch, setTemplateSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -947,7 +960,7 @@ function CreateAssignmentForm({
                     Squad
                   </label>
                 )}
-                {orgId && (
+                {orgId && canPrescribeClub && (
                   <label className="flex items-center gap-2 text-sm text-neutral-300">
                     <input
                       type="radio"
@@ -1125,6 +1138,10 @@ export function ResultsEntryModal({
   onClose: () => void;
   onComplete: () => void;
 }): React.JSX.Element {
+  const { teams } = useCoachingContext();
+  const canManageRecipients = assignment.org_id
+    ? teams.some(t => t.org_id === assignment.org_id && (t.org_role === 'owner' || t.org_role === 'admin'))
+    : teams.some(t => t.team_id === assignment.team_id && t.role === 'coach');
   const units = useMeasurementUnits();
   const isImperial = units === 'imperial';
 
@@ -1277,6 +1294,7 @@ export function ResultsEntryModal({
 
   // Handler: add an athlete to this assignment and create a blank entry row
   const handleAddAthlete = async (athleteId: string) => {
+    if (!canManageRecipients) return;
     setIsAddingAthlete(true);
     try {
       await addAthleteToAssignment(groupAssignmentId, athleteId, {
@@ -1736,7 +1754,7 @@ export function ResultsEntryModal({
                   Mark all complete
                 </button>
                 <div className="relative">
-                  <button
+                  {canManageRecipients && (<button
                     onClick={() => setShowAddAthlete(!showAddAthlete)}
                     disabled={unassignedAthletes.length === 0 || isAddingAthlete}
                     className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 disabled:text-neutral-600 disabled:cursor-not-allowed transition-colors"
@@ -1744,8 +1762,8 @@ export function ResultsEntryModal({
                   >
                     {isAddingAthlete ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
                     Add athlete
-                  </button>
-                  {showAddAthlete && unassignedAthletes.length > 0 && (
+                  </button>)}
+                  {canManageRecipients && showAddAthlete && unassignedAthletes.length > 0 && (
                     <div className="absolute left-0 top-full mt-1 z-50 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-auto w-56">
                       {unassignedAthletes.map((a) => (
                         <button

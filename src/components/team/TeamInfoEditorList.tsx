@@ -111,6 +111,7 @@ export function TeamInfoEditorList({ teams, onTeamsChanged, title = 'All team id
   };
 
   const handleSave = async (team: UserTeamInfo) => {
+    if (team.is_admin !== true) return;
     const draft = drafts[team.team_id];
     if (!draft || draft.name.trim().length < 3) {
       setErrors((current) => ({ ...current, [team.team_id]: 'Team name must be at least 3 characters.' }));
@@ -176,7 +177,7 @@ export function TeamInfoEditorList({ teams, onTeamsChanged, title = 'All team id
             {orderedTeams.length} accessible team{orderedTeams.length === 1 ? '' : 's'}
           </Badge>
           <Badge variant="muted">
-            {orderedTeams.filter((team) => team.role === 'coach').length} coach-editable
+            {orderedTeams.filter((team) => team.is_admin === true).length} admin-editable
           </Badge>
         </div>
       </Card>
@@ -202,7 +203,7 @@ export function TeamInfoEditorList({ teams, onTeamsChanged, title = 'All team id
 
             {group.teams.map((team) => {
               const draft = drafts[team.team_id];
-              const canEdit = team.role === 'coach';
+              const canEdit = team.is_admin === true;
               const isSaving = savingTeamId === team.team_id;
               const didSave = savedTeamId === team.team_id;
               const error = errors[team.team_id];

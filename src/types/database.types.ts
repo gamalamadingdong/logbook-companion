@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      athlete_private_notes: {
+        Row: { athlete_id: string; notes: string | null; coach_notes: string | null; coach_notes_visible_to_athlete: boolean }
+        Insert: { athlete_id: string; notes?: string | null; coach_notes?: string | null; coach_notes_visible_to_athlete?: boolean }
+        Update: { athlete_id?: string; notes?: string | null; coach_notes?: string | null; coach_notes_visible_to_athlete?: boolean }
+        Relationships: [{ foreignKeyName: "athlete_private_notes_athlete_id_fkey"; columns: ["athlete_id"]; isOneToOne: true; referencedRelation: "athletes"; referencedColumns: ["id"] }]
+      }
       activity_feed: {
         Row: {
           activity_type: string
@@ -1001,6 +1007,8 @@ export type Database = {
       }
       coaching_boating_race_results: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           boating_id: string
           coach_user_id: string | null
           created_at: string
@@ -1017,6 +1025,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           boating_id: string
           coach_user_id?: string | null
           created_at?: string
@@ -1033,6 +1043,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           boating_id?: string
           coach_user_id?: string | null
           created_at?: string
@@ -1074,6 +1086,8 @@ export type Database = {
       }
       coaching_boatings: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           boat_id: string | null
           boat_name: string
           boat_type: string
@@ -1090,6 +1104,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           boat_id?: string | null
           boat_name: string
           boat_type: string
@@ -1106,6 +1122,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           boat_id?: string | null
           boat_name?: string
           boat_type?: string
@@ -1201,6 +1219,8 @@ export type Database = {
       }
       coaching_erg_scores: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           athlete_id: string
           coach_user_id: string | null
           created_at: string
@@ -1216,6 +1236,8 @@ export type Database = {
           watts: number | null
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           athlete_id: string
           coach_user_id?: string | null
           created_at?: string
@@ -1231,6 +1253,8 @@ export type Database = {
           watts?: number | null
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           athlete_id?: string
           coach_user_id?: string | null
           created_at?: string
@@ -1324,6 +1348,8 @@ export type Database = {
       }
       coaching_session_crew_positions: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           athlete_id: string | null
           athlete_name: string
           coach_user_id: string | null
@@ -1334,6 +1360,8 @@ export type Database = {
           team_id: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           athlete_id?: string | null
           athlete_name: string
           coach_user_id?: string | null
@@ -1344,6 +1372,8 @@ export type Database = {
           team_id: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           athlete_id?: string | null
           athlete_name?: string
           coach_user_id?: string | null
@@ -1379,6 +1409,8 @@ export type Database = {
       }
       coaching_session_crews: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           boat_id: string | null
           boat_name: string
           boat_type: string
@@ -1393,6 +1425,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           boat_id?: string | null
           boat_name: string
           boat_type: string
@@ -1407,6 +1441,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           boat_id?: string | null
           boat_name?: string
           boat_type?: string
@@ -1453,6 +1489,8 @@ export type Database = {
       }
       coaching_sessions: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           coach_user_id: string | null
           created_at: string
           date: string
@@ -1465,6 +1503,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           coach_user_id?: string | null
           created_at?: string
           date: string
@@ -1477,6 +1517,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           coach_user_id?: string | null
           created_at?: string
           date?: string
@@ -1762,6 +1804,8 @@ export type Database = {
       }
       daily_workout_assignments: {
         Row: {
+          edited_by: string | null
+          edited_at: string | null
           actual_workout: Json | null
           athlete_id: string | null
           completed: boolean | null
@@ -1793,6 +1837,8 @@ export type Database = {
           workout_date: string
         }
         Insert: {
+          edited_by?: string | null
+          edited_at?: string | null
           actual_workout?: Json | null
           athlete_id?: string | null
           completed?: boolean | null
@@ -1824,6 +1870,8 @@ export type Database = {
           workout_date: string
         }
         Update: {
+          edited_by?: string | null
+          edited_at?: string | null
           actual_workout?: Json | null
           athlete_id?: string | null
           completed?: boolean | null
@@ -3586,6 +3634,7 @@ export type Database = {
       }
       team_members: {
         Row: {
+          is_admin: boolean
           id: string
           joined_at: string
           role: string
@@ -3593,6 +3642,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          is_admin?: boolean
           id?: string
           joined_at?: string
           role: string
@@ -3600,6 +3650,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          is_admin?: boolean
           id?: string
           joined_at?: string
           role?: string
@@ -5164,6 +5215,13 @@ export type Database = {
       }
     }
     Functions: {
+      set_team_club: { Args: { p_team_id: string; p_org_id: string | null }; Returns: undefined }
+      get_team_access: { Args: Record<PropertyKey, never>; Returns: { team_id: string; role: string; is_admin: boolean; org_role: string | null }[] }
+      can_create_coaching_space: { Args: Record<PropertyKey, never>; Returns: boolean }
+      join_team_by_code: { Args: { p_code: string }; Returns: string }
+      join_organization_by_code: { Args: { p_code: string }; Returns: string }
+      can_admin_team: { Args: { p_team_id: string; p_user_id: string }; Returns: boolean }
+
       activate_team_season: {
         Args: { p_season_id: string }
         Returns: undefined

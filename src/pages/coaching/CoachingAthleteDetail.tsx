@@ -47,7 +47,7 @@ import { getOrganizationsForUser } from '../../services/coaching/coachingService
 export function CoachingAthleteDetail() {
   const { athleteId } = useParams<{ athleteId: string }>();
   const navigate = useNavigate();
-  const { teamId, userId, orgId, isLoadingTeam } = useCoachingContext();
+  const { teamId, userId, orgId, teams, isLoadingTeam } = useCoachingContext();
 
   const [athlete, setAthlete] = useState<CoachingAthlete | null>(null);
   const [allAthletes, setAllAthletes] = useState<CoachingAthlete[]>([]);
@@ -65,6 +65,7 @@ export function CoachingAthleteDetail() {
   const [orgRubric, setOrgRubric] = useState<PerformanceTierRubricConfig | null>(null);
   const units = useMeasurementUnits();
   const athleteTeamId = athlete?.team_id ?? teamId;
+  const canCoachAthlete = teams.some(t => t.team_id === athleteTeamId && t.role === 'coach');
 
   // Load org rubric for tier progress
   useEffect(() => {
@@ -97,7 +98,7 @@ export function CoachingAthleteDetail() {
           setAthlete(found);
           const [scores, runningCoachNotes, notes, assignments] = await Promise.all([
             getErgScoresForAthlete(athleteId, 50),
-            getCoachNotesForAthlete(athleteId, 50),
+            teams.some(t => t.team_id === found.team_id && t.role === 'coach') ? getCoachNotesForAthlete(athleteId, 50) : Promise.resolve([]),
             getNotesForAthlete(athleteId, 30),
             getAssignmentsForAthlete(athleteId, 100),
           ]);
@@ -116,10 +117,10 @@ export function CoachingAthleteDetail() {
     };
     
     loadData();
-  }, [teamId, orgId, athleteId, isLoadingTeam]);
+  }, [teamId, orgId, athleteId, isLoadingTeam, teams]);
 
   const handleSave = async (data: Partial<CoachingAthlete> & { squad?: string }) => {
-    if (!athleteId || !athleteTeamId) return;
+    if (!athleteId || !athleteTeamId || !canCoachAthlete) return;
     try {
       await updateAthlete(athleteId, {
         first_name: data.first_name,
@@ -149,7 +150,7 @@ export function CoachingAthleteDetail() {
   };
 
   const handleDelete = async () => {
-    if (!athleteId) return;
+    if (!athleteId || !canCoachAthlete) return;
     try {
       await deleteAthlete(athleteId);
       navigate('/team-management/roster');
@@ -159,7 +160,7 @@ export function CoachingAthleteDetail() {
   };
 
   const handleAddCoachNote = async () => {
-    if (!athleteId || !athleteTeamId || !newCoachNote.trim()) return;
+    if (!athleteId || !athleteTeamId || !canCoachAthlete || !newCoachNote.trim()) return;
     setIsSavingCoachNote(true);
     try {
       const created = await createCoachNote(athleteTeamId, userId, {
@@ -285,7 +286,7 @@ export function CoachingAthleteDetail() {
                 })()}
               </div>
             </div>
-            <div className="flex gap-2">
+            {canCoachAthlete && (<div className="flex gap-2">
               <button onClick={() => setIsEditing(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors font-medium">
                 <Edit2 className="w-4 h-4" />
@@ -296,10 +297,10 @@ export function CoachingAthleteDetail() {
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
-            </div>
+            </div>)}
           </div>
 
-          {athlete.notes && (
+          {canCoachAthlete && athlete.notes && (
             <div className="mt-4 p-4 bg-neutral-800/50 rounded-xl">
               <div>
                 <h3 className="font-medium mb-2 text-sm text-neutral-500 uppercase tracking-wide">General Notes</h3>
@@ -510,7 +511,7 @@ export function CoachingAthleteDetail() {
         </div>
 
         {/* Coach Notes */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        {canCoachAthlete && (<div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="font-semibold text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
@@ -571,6 +572,8 @@ export function CoachingAthleteDetail() {
           )}
         </div>
 
+        )}
+
         {/* Session Notes */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
@@ -613,7 +616,7 @@ export function CoachingAthleteDetail() {
       </div>
 
       {/* Edit Modal */}
-      {isEditing && (
+      {canCoachAthlete && isEditing && (
         <AthleteEditorModal
           athlete={athlete}
           squads={[...new Set(allAthletes.map((a) => a.squad).filter((s): s is string => !!s))].sort()}
@@ -624,7 +627,7 @@ export function CoachingAthleteDetail() {
       )}
 
       {/* Delete Confirmation */}
-      {showDeleteConfirm && (
+      {canCoachAthlete && showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm">
             <div className="flex items-center gap-3 mb-4">

@@ -83,7 +83,8 @@ type SessionCrewFormData = Pick<CoachingSessionCrew, 'boat_name' | 'boat_type'> 
 };
 
 function CoachingSchedule() {
-  const { userId, teamId, orgId, isLoadingTeam, filterTeamId, setFilterTeamId } = useCoachingContext();
+  const { userId, teamId, orgId, isLoadingTeam, filterTeamId, setFilterTeamId, teams } = useCoachingContext();
+  const canManageEvents = teams.some(t => t.org_id === orgId && (t.org_role === 'owner' || t.org_role === 'admin'));
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSessionId = searchParams.get('sessionId');
@@ -147,9 +148,10 @@ function CoachingSchedule() {
   }, [focusDay]);
 
   const openAddEventForDate = useCallback((date: Date) => {
+    if (!canManageEvents) return;
     focusDay(date);
     setIsAddingEvent(true);
-  }, [focusDay]);
+  }, [focusDay, canManageEvents]);
 
   const getVisibleRange = useCallback(() => {
     if (viewMode === 'day') {
@@ -363,7 +365,7 @@ function CoachingSchedule() {
   }, [sessionCrews]);
 
   const handleAddEvent = async (data: Pick<CoachingScheduleEvent, 'date' | 'title' | 'event_type'> & Partial<Pick<CoachingScheduleEvent, 'end_date' | 'location' | 'team_ids' | 'notes'>>) => {
-    if (!orgId) return;
+    if (!orgId || !canManageEvents) return;
     try {
       await createScheduleEvent(orgId, userId, data);
       setIsAddingEvent(false);
@@ -374,7 +376,7 @@ function CoachingSchedule() {
   };
 
   const handleEditEvent = async (data: Partial<Pick<CoachingScheduleEvent, 'date' | 'end_date' | 'title' | 'event_type' | 'location' | 'team_ids' | 'notes'>>) => {
-    if (!editingEvent) return;
+    if (!editingEvent || !canManageEvents) return;
     try {
       await updateScheduleEvent(editingEvent.id, data);
       setEditingEvent(null);
@@ -385,6 +387,7 @@ function CoachingSchedule() {
   };
 
   const handleDeleteEvent = async (id: string) => {
+    if (!canManageEvents) return;
     try {
       await deleteScheduleEvent(id);
       await refreshSessions();
@@ -431,6 +434,8 @@ function CoachingSchedule() {
   };
 
   const handleDeleteSession = async (id: string) => {
+    const session = sessions.find(s => s.id === id);
+    if (!session?.team_id || !teams.some(t => t.team_id === session.team_id && t.role === 'coach')) return;
     try {
       await deleteSession(id);
       await refreshSessions();
@@ -440,9 +445,10 @@ function CoachingSchedule() {
   };
 
   const handleAddNote = async (sessionId: string, athleteId: string, note: string) => {
-    if (!effectiveTeamId) return;
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session?.team_id || !teams.some(t => t.team_id === session.team_id && t.role === 'coach')) return;
     try {
-      await createNote(effectiveTeamId, userId, { session_id: sessionId, athlete_id: athleteId, note });
+      await createNote(session.team_id, userId, { session_id: sessionId, athlete_id: athleteId, note });
       setAddingNoteFor(null);
       setNotesVersion((v) => v + 1);
     } catch (err) {
@@ -628,7 +634,7 @@ function CoachingSchedule() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                    <Button
+                    {canManageEvents && (<Button
                       type="button"
                       variant="secondary"
                       size="lg"
@@ -640,7 +646,7 @@ function CoachingSchedule() {
                     >
                       <Flag className="h-4 w-4" />
                       Add Event
-                    </Button>
+                    </Button>)}
                     <Button
                       type="button"
                       variant="coaching"
@@ -735,7 +741,7 @@ function CoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}
-              onEdit={() => navigate('/team-management')}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
             />
           )}
 
@@ -758,8 +764,7 @@ function CoachingSchedule() {
                   <Plus className="w-4 h-4" />
                   Add Session
                 </button>
-                {orgId && (
-                  <button
+                {orgId && canManageEvents && (<button
                     type="button"
                     onClick={() => openAddEventForDate(currentDay)}
                     className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors"
@@ -774,7 +779,7 @@ function CoachingSchedule() {
             {getEventsForDay(currentDay).length > 0 && (
               <div className="space-y-2 mb-4">
                 {getEventsForDay(currentDay).map((ev) => (
-                  <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={() => setEditingEvent(ev)} onDelete={() => handleDeleteEvent(ev.id)} />
+                  <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={canManageEvents ? () => setEditingEvent(ev) : undefined} onDelete={canManageEvents ? () => handleDeleteEvent(ev.id) : undefined} />
                 ))}
               </div>
             )}
@@ -838,7 +843,7 @@ function CoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(weekStart)}
-              onEdit={() => navigate('/team-management')}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
             />
           )}
           {weekDays.map((day) => {
@@ -862,7 +867,7 @@ function CoachingSchedule() {
                 {dayEvents.length > 0 && (
                   <div className="space-y-0">
                     {dayEvents.map((ev) => (
-                      <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={() => setEditingEvent(ev)} onDelete={() => handleDeleteEvent(ev.id)} />
+                      <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={canManageEvents ? () => setEditingEvent(ev) : undefined} onDelete={canManageEvents ? () => handleDeleteEvent(ev.id) : undefined} />
                     ))}
                   </div>
                 )}
@@ -899,8 +904,7 @@ function CoachingSchedule() {
                         {dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}
                       </span>
                     )}
-                    {orgId && (
-                      <button
+                    {orgId && canManageEvents && (<button
                         onClick={(e) => { e.stopPropagation(); openAddEventForDate(day); }}
                         className="p-1.5 hover:bg-surface-secondary rounded-lg transition-colors"
                         aria-label="Add event"
@@ -1066,8 +1070,7 @@ function CoachingSchedule() {
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </h2>
             <div className="flex items-center gap-2">
-              {orgId && (
-                <button onClick={() => openAddEventForDate(selectedDate)}
+              {orgId && canManageEvents && (<button onClick={() => openAddEventForDate(selectedDate)}
                   className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-content-secondary hover:bg-surface-secondary transition-colors text-sm">
                   <Flag className="w-4 h-4" />
                   Add Event
@@ -1085,7 +1088,7 @@ function CoachingSchedule() {
           {getEventsForDay(selectedDate).length > 0 && (
             <div className="space-y-2 mb-4">
               {getEventsForDay(selectedDate).map((ev) => (
-                <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={() => setEditingEvent(ev)} onDelete={() => handleDeleteEvent(ev.id)} />
+                <EventBanner key={ev.id} event={ev} orgTeams={orgTeams} onEdit={canManageEvents ? () => setEditingEvent(ev) : undefined} onDelete={canManageEvents ? () => handleDeleteEvent(ev.id) : undefined} />
               ))}
             </div>
           )}
@@ -1190,7 +1193,7 @@ function CoachingSchedule() {
       )}
 
       {/* Add Event Modal */}
-      {isAddingEvent && activeDay && (
+      {canManageEvents && isAddingEvent && activeDay && (
         <EventForm
           title={`Add Event — ${format(activeDay, 'EEE, MMM d')}`}
           defaultDate={format(activeDay, 'yyyy-MM-dd')}
@@ -1201,7 +1204,7 @@ function CoachingSchedule() {
       )}
 
       {/* Edit Event Modal */}
-      {editingEvent && (
+      {canManageEvents && editingEvent && (
         <EventForm
           title="Edit Event"
           event={editingEvent}
@@ -1359,7 +1362,7 @@ function SessionForm({
 
 /* ─── Session Card (with expandable notes) ─────────────────────────────────── */
 
-function SessionCard({
+export function SessionCard({
   session,
   athletes,
   assignments,
@@ -1404,15 +1407,18 @@ function SessionCard({
   onDeleteCrew?: (crewId: string) => void;
   onManageTemplates?: () => void;
 }) {
+  const { teams } = useCoachingContext();
+  const canCoachSession = teams.some(t => t.team_id === session.team_id && t.role === 'coach');
   const [notes, setNotes] = useState<CoachingAthleteNote[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
 
   useEffect(() => {
+    if (!canCoachSession) { setNotes([]); return; }
     if (isExpanded) {
       getNotesForSession(session.id).then(setNotes).catch(console.error);
     }
-  }, [isExpanded, session.id, notesVersion]);
+  }, [isExpanded, session.id, notesVersion, canCoachSession]);
 
   const getAthleteName = (athleteId: string) =>
     athletes.find((a) => a.id === athleteId)?.name ?? 'Unknown';
@@ -1464,10 +1470,10 @@ function SessionCard({
             className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors" aria-label="Edit session" title="Edit session">
             <Edit2 className="w-4 h-4 text-neutral-500 hover:text-indigo-400" />
           </button>
-          <button onClick={onDelete}
+          {canCoachSession && (<button onClick={onDelete}
             className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors" aria-label="Delete session" title="Delete session">
             <Trash2 className="w-4 h-4 text-neutral-500 hover:text-red-400" />
-          </button>
+          </button>)}
           <button onClick={onToggle}
             className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors" aria-label="Toggle notes" title="Toggle notes">
             {isExpanded ? (
@@ -1545,7 +1551,7 @@ function SessionCard({
           )}
 
           {/* Athlete Notes */}
-          <div>
+          {canCoachSession && (<div>
             <h4 className="text-xs font-medium text-neutral-500 mb-3 uppercase tracking-wide">Athlete Notes</h4>
 
             {notes.length > 0 && (
@@ -1613,7 +1619,7 @@ function SessionCard({
             ) : (
               <AddNoteForm athletes={athletes} onSave={onAddNote} onCancel={onCancelNote} />
             )}
-          </div>
+          </div>)}
         </div>
       )}
     </div>
@@ -2145,8 +2151,8 @@ function EventBanner({
 }: {
   event: CoachingScheduleEvent;
   orgTeams: Team[];
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const style = eventTypeStyles[event.event_type] ?? eventTypeStyles.team_event;
   const teamNames = event.team_ids
@@ -2178,12 +2184,12 @@ function EventBanner({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={onEdit} className="p-1 hover:bg-surface-secondary rounded transition-colors" aria-label="Edit event" title="Edit event">
+        {onEdit && (<button onClick={onEdit} className="p-1 hover:bg-surface-secondary rounded transition-colors" aria-label="Edit event" title="Edit event">
           <Edit2 className="w-3.5 h-3.5 text-content-muted hover:text-accent-coaching" />
-        </button>
-        <button onClick={onDelete} className="p-1 hover:bg-surface-secondary rounded transition-colors" aria-label="Delete event" title="Delete event">
+        </button>)}
+        {onDelete && (<button onClick={onDelete} className="p-1 hover:bg-surface-secondary rounded transition-colors" aria-label="Delete event" title="Delete event">
           <Trash2 className="w-3.5 h-3.5 text-content-muted hover:text-red-400" />
-        </button>
+        </button>)}
       </div>
     </div>
   );

@@ -84,38 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(data)
       }
 
-      // Check if user has team-scoped coach/coxswain access, org-scoped coach access,
-      // or an approved coaching request.
-      const { data: coachRow } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('user_id', userId)
-        .in('role', ['coach', 'coxswain'])
-        .limit(1)
-        .maybeSingle()
-
-      let isCoach = !!coachRow
+      // Workspace access includes coxswains, while individual write capabilities
+      // come from the database's effective team access and admin checks.
+      const { data: access, error: accessError } = await supabase.rpc('get_team_access');
+      if (accessError) throw accessError;
+      let isCoach = (access as { role: string }[] | null)?.some(row => row.role === 'coach' || row.role === 'coxswain') ?? false;
       if (!isCoach) {
-        const { data: orgCoachRow } = await supabase
-          .from('organization_members')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1)
-          .maybeSingle()
-        isCoach = !!orgCoachRow
-      }
-      if (!isCoach) {
-        const { data: approvedRequest } = await supabase
-          .from('coaching_access_requests')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('status', 'approved')
-          .limit(1)
-          .maybeSingle()
-        isCoach = !!approvedRequest
+        const { data: canCreate, error: createError } = await supabase.rpc('can_create_coaching_space');
+        if (createError) throw createError;
+        isCoach = canCreate === true;
       }
       setIsCoachRole(isCoach)
     } catch (error) {
+      setIsCoachRole(false)
       console.error('Exception in fetchProfile:', error)
     } finally {
       setProfileLoading(false)

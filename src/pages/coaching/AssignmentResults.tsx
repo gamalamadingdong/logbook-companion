@@ -1684,7 +1684,7 @@ function SummaryTable({
 export function AssignmentResults() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const navigate = useNavigate();
-  const { teamId, orgId, isLoadingTeam } = useCoachingContext();
+  const { teamId, orgId, isLoadingTeam, teams: accessTeams } = useCoachingContext();
   const isImperial = useMeasurementUnits() === 'imperial';
 
   const [assignment, setAssignment] = useState<GroupAssignment | null>(null);
@@ -1698,6 +1698,10 @@ export function AssignmentResults() {
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [squadFilter, setSquadFilter] = useState<string>('all');
   const [viewTab, setViewTab] = useState<'table' | 'heatmap' | 'charts'>('table');
+  // CSV import may add missing recipients, so it requires prescription access.
+  const canImportRecipients = assignment?.org_id
+    ? accessTeams.some(t => t.org_id === assignment.org_id && (t.org_role === 'owner' || t.org_role === 'admin'))
+    : accessTeams.some(t => t.team_id === assignment?.team_id && t.role === 'coach');
 
   const handleCreateShareLink = useCallback(async () => {
     if (!assignmentId) return;
@@ -2131,12 +2135,12 @@ export function AssignmentResults() {
                   <FileDown className="w-3.5 h-3.5" />
                   CSV
                 </button>
-                <button
+                {canImportRecipients && (<button
                   onClick={async () => {
                     // Fetch athletes for the import modal
                     const aths = assignment.org_id && orgId
                       ? await getOrgAthletes(orgId)
-                      : await getAthletes(teamId!);
+                      : await getAthletes(assignment.team_id ?? teamId!);
                     setImportAthletes(aths.filter((a) => a.side !== 'coxswain'));
                     setShowImportModal(true);
                   }}
@@ -2145,7 +2149,7 @@ export function AssignmentResults() {
                 >
                   <Upload className="w-3.5 h-3.5" />
                   Import CSV
-                </button>
+                </button>)}
                 <div className="text-center">
                   <div className="text-3xl font-bold text-neutral-100">{finishedCount}</div>
                   <div className="text-xs text-neutral-500">of {squadFilter === 'all' ? totalCount : filteredTotal} finished</div>
@@ -2396,7 +2400,7 @@ export function AssignmentResults() {
         <ResultsModalLoader
           assignmentId={assignmentId!}
           assignment={assignment}
-          teamId={teamId}
+          teamId={assignment.team_id ?? teamId}
           orgId={orgId}
           onClose={() => setShowEntryModal(false)}
           onComplete={() => {
@@ -2408,7 +2412,7 @@ export function AssignmentResults() {
 
       {/* CSV Import Modal */}
       <ImportCsvModal
-        open={showImportModal}
+        open={canImportRecipients && showImportModal}
         onClose={() => setShowImportModal(false)}
         onComplete={() => {
           setShowImportModal(false);
@@ -2417,7 +2421,7 @@ export function AssignmentResults() {
         groupAssignmentId={assignmentId!}
         assignment={assignment}
         athletes={importAthletes}
-        teamId={teamId!}
+        teamId={assignment.team_id ?? teamId!}
         orgId={orgId}
       />
     </>
@@ -2475,7 +2479,7 @@ function ResultsModalLoader({
       groupAssignmentId={assignmentId}
       assignment={assignment}
       athletes={athletes}
-      teamId={teamId}
+      teamId={assignment.team_id ?? teamId}
       orgId={orgId}
       userId={userId}
       onClose={onClose}

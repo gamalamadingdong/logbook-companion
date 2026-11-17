@@ -4,10 +4,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoachingAthlete } from '../../services/coaching/types';
-const mocks = vi.hoisted(() => ({ team: 'a', filter: null as string | null, load: vi.fn(), create: vi.fn() }));
+const mocks = vi.hoisted(() => ({ team: 'a', roleA: 'coach', roleB: 'coach', filter: null as string | null, load: vi.fn(), create: vi.fn() }));
 vi.mock('../../hooks/useCoachingContext', () => ({ useCoachingContext: () => ({
   userId: 'coach', teamId: mocks.team, orgId: 'club', filterTeamId: mocks.filter, filterTeamName: 'Juniors', isLoadingTeam: false,
-  teams: [{ team_id: 'a', team_name: 'Juniors', org_id: 'club', org_name: 'River Club', role: 'coach' }, { team_id: 'b', team_name: 'Masters', org_id: 'club', org_name: 'River Club', role: 'coach' }],
+  teams: [{ team_id: 'a', team_name: 'Juniors', org_id: 'club', org_name: 'River Club', role: mocks.roleA }, { team_id: 'b', team_name: 'Masters', org_id: 'club', org_name: 'River Club', role: mocks.roleB }],
 }) }));
 vi.mock('../../hooks/useMeasurementUnits', () => ({ useMeasurementUnits: () => 'metric' }));
 vi.mock('../../hooks/useNotifications', () => ({ useNotifications: () => ({ addNotification: vi.fn() }) }));
@@ -25,7 +25,7 @@ const button = (text: string) => [...document.querySelectorAll('button')].find(b
 async function render() { await act(async () => root.render(<MemoryRouter><CoachingRoster /></MemoryRouter>)); }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); vi.clearAllMocks();
-  mocks.team = 'a'; mocks.filter = null; mocks.load.mockResolvedValue([]); mocks.create.mockResolvedValue({ id: 'new' });
+  mocks.team = 'a'; mocks.roleA = 'coach'; mocks.roleB = 'coach'; mocks.filter = null; mocks.load.mockResolvedValue([]); mocks.create.mockResolvedValue({ id: 'new' });
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
 afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); });
@@ -70,4 +70,30 @@ describe('roster scope actions', () => {
     expect(dialog.textContent).toContain('Juniors');
     expect(dialog.textContent).not.toContain('Masters');
   });
+  it('keeps score entry for a coxswain while hiding roster and private note operations', async () => {
+    mocks.roleA = 'coxswain'; mocks.roleB = 'coxswain'; mocks.filter = 'a';
+    mocks.load.mockResolvedValue([{ id: 'athlete-a', first_name: 'Alex', last_name: 'River', name: 'Alex River', team_id: 'a', user_id: null }]);
+    await render();
+    expect(button('Add Athlete')).toBeUndefined();
+    expect(button('Bulk Add')).toBeUndefined();
+    expect(button('Edit Mode')).toBeUndefined();
+    expect(document.querySelector('button[aria-label="Delete athlete"]')).toBeNull();
+    expect(document.querySelector('button[aria-label="Move to another team"]')).toBeNull();
+    expect(document.querySelector('button[aria-label="Add note for Alex River"]')).toBeNull();
+    await act(async () => (document.querySelector('button[aria-label="Add score"]') as HTMLButtonElement).click());
+    expect(document.querySelector('[data-testid="score-team"]')?.textContent).toBe('a');
+  });
+  it('uses each row role in All Teams without granting the anchor coach role to another team', async () => {
+    mocks.roleB = 'coxswain';
+    mocks.load.mockResolvedValue([{ id: 'athlete-b', first_name: 'Alex', last_name: 'River', name: 'Alex River', team_id: 'b' }]);
+    await render();
+    expect(button('Add Athlete')).toBeDefined();
+    expect(document.querySelector('button[aria-label="Delete athlete"]')).toBeNull();
+    expect(document.querySelector('button[aria-label="Add note for Alex River"]')).toBeNull();
+    await act(async () => button('Add Athlete').click());
+    const destinations = [...document.querySelectorAll('select#roster-destination option')].map(o => (o as HTMLOptionElement).value);
+    expect(destinations).toContain('a');
+    expect(destinations).not.toContain('b');
+  });
+
 });
