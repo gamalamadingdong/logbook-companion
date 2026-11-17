@@ -2,8 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ list: vi.fn(), members: vi.fn(), create: vi.fn(), update: vi.fn() }));
-vi.mock('../../services/coaching/coachingService', () => ({ getOrganizationsForUser: mocks.list, getOrganizationMembershipsForUser: mocks.members, createOrganization: mocks.create, updateOrganization: mocks.update }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), members: vi.fn(), create: vi.fn(), update: vi.fn(), canCreate: vi.fn(), people: vi.fn(), role: vi.fn() }));
+vi.mock('../../services/coaching/coachingService', () => ({ getOrganizationsForUser: mocks.list, getOrganizationMembershipsForUser: mocks.members, canCreateCoachingSpace: mocks.canCreate, getOrganizationMembers: mocks.people, updateOrganizationMemberRole: mocks.role, createOrganization: mocks.create, updateOrganization: mocks.update }));
 import { ClubManagement } from './ClubManagement';
 let root: Root;
 const changed = vi.fn();
@@ -13,7 +13,7 @@ async function click(label: string) { const button = Array.from(document.querySe
 async function name(value: string) { await act(async () => { const input = document.querySelector('#club-name')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); vi.resetAllMocks();
-  mocks.list.mockResolvedValue([club]); mocks.members.mockResolvedValue([{ org_id: 'club', role: 'owner' }]);
+  mocks.canCreate.mockResolvedValue(true); mocks.people.mockResolvedValue([]); mocks.role.mockResolvedValue(undefined); mocks.list.mockResolvedValue([club]); mocks.members.mockResolvedValue([{ org_id: 'club', role: 'owner' }]);
   mocks.create.mockResolvedValue({ ...club, id: 'new', name: 'New club' }); changed.mockResolvedValue(undefined);
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
@@ -48,5 +48,38 @@ it('shows a retry when clubs fail to load', async () => {
 it('prevents creation while an older club snapshot is still loading', async () => {
   mocks.list.mockReturnValue(new Promise(() => {})); await render();
   const add = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Add club')!;
-  expect(add.disabled).toBe(true);
+  expect(add?.disabled ?? true).toBe(true);
+});
+
+it('hides creation for an account without coaching creation permission', async () => {
+  mocks.canCreate.mockResolvedValue(false); await render();
+  expect([...document.querySelectorAll('button')].some(b => b.textContent === 'Add club')).toBe(false);
+});
+it('lets club owners grant Admin to existing club coaches', async () => {
+  mocks.people.mockResolvedValue([
+    { id: 'owner', user_id: 'coach', role: 'owner', display_name: 'Owner' },
+    { id: 'assistant', user_id: 'assistant', role: 'coach', display_name: 'Assistant' },
+  ]);
+  await render(); await click('People & access');
+  expect(document.querySelector('[aria-label="Club admin access for Owner"]')).toBeNull();
+  const toggle = document.querySelector('[aria-label="Club admin access for Assistant"]') as HTMLButtonElement;
+  expect(toggle).toBeTruthy(); await act(async () => toggle.click());
+  expect(mocks.role).toHaveBeenCalledWith('assistant', 'admin');
+  expect(toggle.getAttribute('aria-pressed')).toBe('true');
+});
+
+it('preserves club Admin state and shows an actionable failure when save fails', async () => {
+  mocks.people.mockResolvedValue([{ id: 'assistant', user_id: 'assistant', role: 'admin', display_name: 'Assistant' }]);
+  mocks.role.mockRejectedValue(new Error('denied'));
+  await render(); await click('People & access');
+  const toggle = document.querySelector('[aria-label="Club admin access for Assistant"]') as HTMLButtonElement;
+  await act(async () => toggle.click());
+  expect(mocks.role).toHaveBeenCalledWith('assistant', 'coach');
+  expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('Check your permissions');
+});
+it('never offers club people controls to ordinary club coaches', async () => {
+  mocks.members.mockResolvedValue([{ org_id: 'club', role: 'coach' }]); await render();
+  expect(document.querySelector('[aria-label="People & access for Titan"]')).toBeNull();
+  expect(mocks.people).not.toHaveBeenCalled();
 });

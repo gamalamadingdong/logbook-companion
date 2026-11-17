@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
+import { Button } from '../../components/ui';
 import { useNavigate } from 'react-router-dom';
 import { Users, Loader2, AlertTriangle, ArrowLeft, Building2 } from 'lucide-react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
-import { createTeam, getOrganizationsForUser, assignTeamToOrg, createOrganization } from '../../services/coaching/coachingService';
+import { createTeam, getOrganizationsForUser, assignTeamToOrg, createOrganization, canCreateCoachingSpace, getOrganizationMembershipsForUser } from '../../services/coaching/coachingService';
 import type { Organization } from '../../services/coaching/types';
 
 export function TeamSetup() {
   const { userId, refreshTeam, hasTeam } = useCoachingContext();
   const navigate = useNavigate();
 
+  const [canCreate, setCanCreate] = useState<boolean | null>(null);
+  const [permissionError, setPermissionError] = useState(false);
+  const [permissionRetry, setPermissionRetry] = useState(0);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,13 +26,21 @@ export function TeamSetup() {
   const [newOrgDescription, setNewOrgDescription] = useState('');
 
   useEffect(() => {
-    if (!userId) return;
-    getOrganizationsForUser(userId).then(setOrgs).catch(() => {});
-  }, [userId]);
+    let cancelled = false;
+    setCanCreate(null); setPermissionError(false);
+    if (!userId) { setCanCreate(false); return; }
+    Promise.all([canCreateCoachingSpace(), getOrganizationsForUser(userId), getOrganizationMembershipsForUser(userId)])
+      .then(([allowed, clubs, memberships]) => {
+        if (cancelled) return;
+        setCanCreate(allowed);
+        setOrgs(clubs.filter(club => memberships.some(m => m.org_id === club.id && (m.role === 'owner' || m.role === 'admin'))));
+      }).catch(() => { if (!cancelled) { setCanCreate(false); setPermissionError(true); } });
+  return () => { cancelled = true; };
+  }, [userId, permissionRetry]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !name.trim()) return;
+    if (!userId || !name.trim() || canCreate !== true) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -66,6 +78,14 @@ export function TeamSetup() {
       setIsSubmitting(false);
     }
   };
+
+  if (canCreate === null) return <p role="status" className="p-6 text-content-muted">Checking team creation access…</p>;
+  if (!canCreate) return <div className="p-6 space-y-3 text-content-secondary">
+    <h1 className="text-xl font-semibold text-content-primary">Team creation</h1>
+    <p>{permissionError ? 'Unable to check your access. Try again.' : 'Creating clubs and teams requires coaching access. Ask your club administrator for help.'}</p>
+    {permissionError && <Button variant="ghost" className="min-h-11 underline" onClick={() => setPermissionRetry(v => v + 1)}>Retry</Button>}
+    <Button variant="ghost" className="min-h-11 underline" onClick={() => navigate('/team-management')}>Back to team</Button>
+  </div>;
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">

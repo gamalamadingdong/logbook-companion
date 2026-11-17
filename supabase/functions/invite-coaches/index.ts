@@ -108,21 +108,12 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(400, { error: 'role must be "coach" or "coxswain".' });
     }
 
-    // Verify caller is a coach on this team
-    const { data: callerMember, error: memberError } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', teamId)
-      .eq('user_id', caller.id)
-      .maybeSingle();
-
-    if (memberError) {
-      return jsonResponse(500, { error: 'Failed to validate team membership.' });
-    }
-
-    if (!callerMember || callerMember.role !== 'coach') {
-      return jsonResponse(403, { error: 'Only coaches can invite other coaches.' });
-    }
+    // Verify team administration before using the service-role client for writes.
+    const { data: canAdmin, error: adminError } = await supabase.rpc('can_admin_team', {
+      p_team_id: teamId, p_user_id: caller.id,
+    });
+    if (adminError) return jsonResponse(500, { error: 'Failed to validate team administration.' });
+    if (canAdmin !== true) return jsonResponse(403, { error: 'Only team administrators can invite staff.' });
 
     // If orgId provided, verify the team belongs to the org
     if (orgId) {
@@ -282,6 +273,15 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (existingMember) {
+          if (existingMember.role === 'coxswain' || existingMember.role === 'member') {
+            const { error: linkError } = await supabase.rpc('ensure_team_member_athlete_link', {
+              p_team_id: teamId, p_user_id: userId,
+            });
+            if (linkError) {
+              results.push({ email, status: 'error', message: 'Existing membership could not be linked to its athlete roster. Retry this invitation.' });
+              continue;
+            }
+          }
           results.push({
             email,
             status: 'added',
@@ -297,6 +297,7 @@ Deno.serve(async (req: Request) => {
             team_id: teamId,
             user_id: userId,
             role: role,
+            is_admin: false,
           });
 
         if (teamInsertError) {
@@ -304,27 +305,17 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Add to organization if specified
-        if (orgId) {
-          const { data: existingOrgMember } = await supabase
-            .from('organization_members')
-            .select('id')
-            .eq('org_id', orgId)
-            .eq('user_id', userId)
-            .maybeSingle();
-
-          if (!existingOrgMember) {
-            await supabase
-              .from('organization_members')
-              .insert({
-                org_id: orgId,
-                user_id: userId,
-                role: 'coach',
-              });
+        // Staff invitations are team-scoped; never grant club membership implicitly.
+        if (role === 'coxswain') {
+          const { error: linkError } = await supabase.rpc('ensure_team_member_athlete_link', {
+            p_team_id: teamId, p_user_id: userId,
+          });
+          if (linkError) {
+            results.push({ email, status: 'error', message: 'Team access saved, but athlete roster linking failed. Review this member before retrying.' });
+            continue;
           }
         }
 
-        const wasExisting = !wasNewUser;
         results.push({
           email,
           status: wasNewUser ? 'created' : 'added',

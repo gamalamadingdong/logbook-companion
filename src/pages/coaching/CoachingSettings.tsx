@@ -19,7 +19,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { EmptyState } from '../../components/ui';
+import { Button, Card, EmptyState } from '../../components/ui';
 import { ClubManagement } from '../../components/coaching/ClubManagement';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { TeamInfoEditorList } from '../../components/team/TeamInfoEditorList';
@@ -32,6 +32,9 @@ import {
   regenerateInviteCode,
   getTeamMembers,
   updateTeamMemberRole,
+  updateTeamMemberAdmin,
+  canCreateCoachingSpace,
+  getOrganizationMembershipsForUser,
   removeTeamMember,
   addTeamMemberByEmail,
   sendTeamInviteEmail,
@@ -89,7 +92,15 @@ const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof
 };
 
 export function CoachingSettings() {
-  const { userId, teamId, filterTeamId, orgId, isLoadingTeam, refreshTeam } = useCoachingContext();
+  const { userId, teamId, filterTeamId, orgId, isLoadingTeam, refreshTeam, teams } = useCoachingContext();
+  const [canCreate, setCanCreate] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setCanCreate(false);
+    canCreateCoachingSpace().then(allowed => { if (!cancelled) setCanCreate(allowed === true); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [userId]);
+  const selectedTeam = teams.find(t => t.team_id === teamId);
   const [clubsVersion, setClubsVersion] = useState(0);
   const clubsChanged = async () => {
     try { await refreshTeam({ throwOnError: true }); }
@@ -104,12 +115,17 @@ export function CoachingSettings() {
     {!isLoadingTeam && orgId && filterTeamId === null ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
       <EmptyState title="Select a team to manage settings"
         description="Choose a team above to manage its club affiliation, details, invitations and account access."
-        action={<RouterLink to="/team-management/setup" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-focus"><Plus className="h-4 w-4" aria-hidden="true" />Add team</RouterLink>} />
-    </div> : <SelectedTeamSettings key={`${userId}:${teamId}`} clubsVersion={clubsVersion} />}
+        action={canCreate ? <RouterLink to="/team-management/setup" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-focus"><Plus className="h-4 w-4" aria-hidden="true" />Add team</RouterLink> : undefined} />
+    </div> : !isLoadingTeam && selectedTeam?.is_admin !== true ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+      <Card padding="lg"><h2 className="text-lg font-semibold text-content-primary">Team settings · {selectedTeam?.team_name ?? 'Selected team'}</h2>
+        <p className="mt-2 text-content-secondary">Team administration requires Admin access. Ask a team or club admin to change settings, invitations, staff access or club affiliation.</p>
+        <p className="mt-2 text-sm text-content-muted">Coaches can continue managing training and roster operations. Coxswains can edit lineups, practice records and workout results.</p>
+      </Card>
+    </div> : <SelectedTeamSettings key={`${userId}:${teamId}:${selectedTeam?.is_admin}`} clubsVersion={clubsVersion} canCreate={canCreate} />}
   </>;
 }
 
-function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
+function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: number; canCreate: boolean }) {
   const { userId, teamId, isLoadingTeam, teams, refreshTeam } = useCoachingContext();
   const selectedTeams = useMemo(() => teams.filter(t => t.team_id === teamId), [teams, teamId]);
   const navigate = useNavigate();
@@ -117,6 +133,8 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
   const [team, setTeam] = useState<Team | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [adminSaving, setAdminSaving] = useState<string | null>(null);
+  const [clubAdminIds, setClubAdminIds] = useState<string[]>([]);
   const [members, setMembers] = useState<TeamMemberWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,12 +180,13 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
     if (!teamId || isLoadingTeam) return;
 
     let cancelled = false;
-    Promise.all([getTeam(teamId), getTeamMembers(teamId), userId ? getOrganizationsForUser(userId) : Promise.resolve([])])
-      .then(([t, m, userOrgs]) => {
+    Promise.all([getTeam(teamId), getTeamMembers(teamId), userId ? getOrganizationsForUser(userId) : Promise.resolve([]), userId ? getOrganizationMembershipsForUser(userId) : Promise.resolve([])])
+      .then(([t, m, userOrgs, orgMemberships]) => {
         if (cancelled) return;
         setTeam(t);
         setMembers(m);
         setOrgs(userOrgs);
+        setClubAdminIds(orgMemberships.filter(m => m.role === 'owner' || m.role === 'admin').map(m => m.org_id));
         setSelectedOrgId(t?.org_id ?? 'none');
         const selectedOrg = userOrgs.find((org) => org.id === (t?.org_id ?? ''));
         setRubricForm(buildRubricForm(selectedOrg));
@@ -257,11 +276,24 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
     }
   };
 
+  const handleAdminChange = async (member: TeamMemberWithProfile) => {
+    if (adminSaving || member.role !== 'coach' || member.user_id === userId || member.user_id === team?.coach_id) return;
+    setAdminSaving(member.id);
+    try {
+      const isAdmin = member.is_admin !== true;
+      await updateTeamMemberAdmin(member.id, isAdmin);
+      setMembers(previous => previous.map(m => m.id === member.id ? { ...m, is_admin: isAdmin } : m));
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to change Admin access. Please try again.'); }
+    finally { setAdminSaving(null); }
+  };
+
   const handleRoleChange = async (memberId: string, newRole: TeamRole) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member || member.user_id === team?.coach_id || member.user_id === userId) return;
     try {
       await updateTeamMemberRole(memberId, newRole);
       setMembers((prev) =>
-        prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+        prev.map((m) => (m.id === memberId ? { ...m, role: newRole, is_admin: newRole === 'coach' ? m.is_admin : false } : m))
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update role');
@@ -269,6 +301,8 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
   };
 
   const handleRemoveMember = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (!member || member.user_id === team?.coach_id || member.user_id === userId) return;
     try {
       await removeTeamMember(memberId);
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
@@ -309,6 +343,7 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
   };
 
   const handleSaveOrgRubric = async () => {
+    if (!clubAdminIds.includes(selectedOrgId)) return;
     if (selectedOrgId === 'none') return;
     setIsSavingOrgRubric(true);
     try {
@@ -362,13 +397,13 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
             <h2 className="text-xl font-bold text-content-primary">Team settings · {team?.name}</h2>
             <p className="text-content-secondary mt-1">Manage {team?.name ?? 'the selected team'}, its club, invitations, and account access.</p>
           </div>
-          <RouterLink
+          {canCreate && <RouterLink
             to="/team-management/setup"
             className="self-start inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             <span>Add team</span>
-          </RouterLink>
+          </RouterLink>}
         </div>
 
         {/* Error */}
@@ -417,7 +452,7 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
             {orgSaveSuccess && <Check className="w-4 h-4 text-green-400" />}
           </div>
 
-          {selectedOrgId !== 'none' && (
+          {selectedOrgId !== 'none' && clubAdminIds.includes(selectedOrgId) && (
             <div className="border border-neutral-700 rounded-lg p-4 space-y-3 bg-neutral-800/50">
               <div className="pt-3 border-t border-neutral-700 space-y-2">
                 <h3 className="text-sm font-semibold text-white">Performance Tier Rubric (2k cutoffs)</h3>
@@ -621,6 +656,7 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
             </button>
           </div>
 
+          <p className="text-sm text-content-muted">Admin grants team settings and staff management. Team owners and club admins retain access through their existing roles.</p>
           {members.length === 0 ? (
             <p className="text-neutral-500 text-sm py-4 text-center">
               No members yet. Share your invite code to get started.
@@ -629,11 +665,12 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
             <div className="divide-y divide-neutral-800">
               {members.map((member) => {
                 const isCurrentUser = member.user_id === userId;
+                const isOwner = member.user_id === team?.coach_id;
                 const cfg = ROLE_CONFIG[member.role];
                 const Icon = cfg.icon;
 
                 return (
-                  <div key={member.id} className="flex items-center justify-between py-3 gap-4">
+                  <div key={member.id} className="flex flex-wrap items-center justify-between py-3 gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-neutral-800 flex items-center justify-center shrink-0">
                         <Icon className={`w-4 h-4 ${cfg.color}`} />
@@ -652,8 +689,11 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {member.role === 'coach' && <Button variant="secondary" className="min-h-11" aria-label={`Admin access for ${member.display_name}`} aria-pressed={isOwner || member.is_admin === true} disabled={isCurrentUser || isOwner || adminSaving !== null} loading={adminSaving === member.id} onClick={() => void handleAdminChange(member)}>
+                        Admin: {isOwner ? 'On (inherited)' : member.is_admin === true ? 'On' : 'Off'}
+                      </Button>}
                       {/* Role selector — don't allow self-demotion */}
-                      {!isCurrentUser ? (
+                      {!isCurrentUser && !isOwner ? (
                         <select
                           value={member.role}
                           onChange={(e) => handleRoleChange(member.id, e.target.value as TeamRole)}
@@ -669,7 +709,7 @@ function SelectedTeamSettings({ clubsVersion }: { clubsVersion: number }) {
                       )}
 
                       {/* Remove — can't remove yourself */}
-                      {!isCurrentUser && (
+                      {!isCurrentUser && !isOwner && (
                         <button
                           onClick={() => setRemovingMember(member)}
                           className="p-1.5 hover:bg-neutral-700 rounded transition-colors"

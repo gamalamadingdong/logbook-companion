@@ -23,6 +23,8 @@ export interface OrganizationMember {
   org_id: string;
   user_id: string;
   role: OrgRole;
+  display_name?: string;
+  email?: string | null;
   joined_at: string;
 }
 
@@ -50,6 +52,9 @@ export interface UserTeamInfo {
   team_id: string;
   team_name: string;
   role: TeamRole;
+  /** Effective administration, including team owner and club administrators. */
+  is_admin?: boolean;
+  org_role?: OrgRole | null;
   org_id?: string | null;
   org_name?: string | null;
 }
@@ -59,6 +64,7 @@ export interface TeamMember {
   team_id: string;
   user_id: string;
   role: TeamRole;
+  is_admin?: boolean;
   joined_at: string;
 }
 
@@ -83,7 +89,7 @@ export interface Athlete {
   side?: 'port' | 'starboard' | 'coxswain' | 'both';
   height_cm?: number | null;
   weight_kg?: number | null;
-  notes?: string;
+  notes?: string | null;
   coach_notes?: string | null;
   coach_notes_visible_to_athlete?: boolean;
   created_by: string; // FK → auth.users (coach who created)

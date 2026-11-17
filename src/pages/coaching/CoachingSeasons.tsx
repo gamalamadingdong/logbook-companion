@@ -58,9 +58,9 @@ export function CoachingSeasons() {
         <p role="status">Loading team…</p>
       ) : selected ? (
         <SeasonWorkspace
-          key={`${context.userId}:${selected}:${context.teams.find((t) => t.team_id === selected)?.role}`}
+          key={`${context.userId}:${selected}:${context.teams.find((t) => t.team_id === selected)?.is_admin}`}
           canManage={
-            context.teams.find((t) => t.team_id === selected)?.role === "coach"
+            context.teams.find((t) => t.team_id === selected)?.is_admin === true
           }
           teamId={selected}
           teamName={
@@ -197,7 +197,7 @@ function SeasonWorkspace({
         <>
           {!canManage && (
             <p className="text-sm text-content-muted">
-              Read-only season access. A team coach can prepare seasons,
+              Read-only season access. A team admin can prepare seasons,
               activate or archive them, and edit squad placements.
             </p>
           )}

@@ -65,6 +65,9 @@ function ScopedCoachingRoster() {
   const units = useMeasurementUnits();
   const { addNotification } = useNotifications();
   const isImperial = units === 'imperial';
+  const canCoachTeam = useCallback((id: string | null | undefined) => teams.some(t => t.team_id === id && t.role === 'coach'), [teams]);
+  const coachTeams = teams.filter(t => t.role === 'coach' && (t.org_id ?? null) === orgId);
+  const canManageRoster = filterTeamId ? canCoachTeam(filterTeamId) : coachTeams.length > 0;
   const navigate = useNavigate();
 
   const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
@@ -114,9 +117,14 @@ function ScopedCoachingRoster() {
   const transferSourceTeamId = transferringAthlete?.team_id ?? filterTeamId ?? teamId;
   const currentTeamInfo = teams.find((t) => t.team_id === transferSourceTeamId);
   const siblingTeams = currentTeamInfo?.org_id
-    ? teams.filter((t) => t.org_id === currentTeamInfo.org_id && t.team_id !== transferSourceTeamId)
+    ? teams.filter((t) => t.org_id === currentTeamInfo.org_id && t.team_id !== transferSourceTeamId && t.role === 'coach')
     : [];
-  const canTransfer = siblingTeams.length > 0;
+  const canTransfer = siblingTeams.length > 0 && canCoachTeam(transferSourceTeamId);
+  const canTransferAthlete = (athlete: CoachingAthlete) => {
+    const sourceId = athlete.team_id ?? effectiveTeamId;
+    const source = teams.find(t => t.team_id === sourceId);
+    return canCoachTeam(sourceId) && !!source?.org_id && teams.some(t => t.org_id === source.org_id && t.team_id !== sourceId && t.role === 'coach');
+  };
 
   // Org-wide mode: filterTeamId is null and coach is in an org
   const isOrgWide = filterTeamId === null && !!orgId;
@@ -147,6 +155,7 @@ function ScopedCoachingRoster() {
   }, [effectiveTeamId, orgId]);
 
   const refreshNoteCounts = useCallback(async () => {
+    if (!canManageRoster) { setNoteCountsByAthlete({}); return; }
     try {
       const counts = isOrgWide && orgId
         ? await getCoachNoteCountsByOrg(orgId)
@@ -157,7 +166,7 @@ function ScopedCoachingRoster() {
     } catch {
       // non-critical
     }
-  }, [isOrgWide, orgId, effectiveTeamId]);
+  }, [isOrgWide, orgId, effectiveTeamId, canManageRoster]);
 
   useEffect(() => {
     if (!userId || !orgId) return;
@@ -208,7 +217,7 @@ function ScopedCoachingRoster() {
   }, [teamId, isOrgWide, orgId, effectiveTeamId, refreshCompletions, refresh2kBenchmarks, refreshNoteCounts]);
 
   const handleSave = async (destinationTeamId: string, data: Partial<CoachingAthlete> & { squad?: string; performance_tier?: CoachingAthlete['performance_tier'] }) => {
-    if (!teams.some(t => t.team_id === destinationTeamId && (t.org_id ?? null) === orgId)) return;
+    if (!teams.some(t => t.team_id === destinationTeamId && t.role === 'coach' && (t.org_id ?? null) === orgId)) return;
     try {
       await createAthlete(destinationTeamId, userId, {
         first_name: data.first_name ?? '',
@@ -238,7 +247,7 @@ function ScopedCoachingRoster() {
 
   const startEditing = useCallback((athleteId: string, field: string) => {
     const a = athletes.find(x => x.id === athleteId);
-    if (!a) return;
+    if (!a || !canCoachTeam(a.team_id ?? effectiveTeamId)) return;
 
     setEditingCell({ athleteId, field });
 
@@ -277,13 +286,13 @@ function ScopedCoachingRoster() {
 
     // Focus after render
     setTimeout(() => editRef.current?.focus(), 0);
-  }, [athletes, isImperial]);
+  }, [athletes, isImperial, canCoachTeam, effectiveTeamId]);
 
   const commitEdit = useCallback(async (valueOverride?: string) => {
     if (!editingCell) return;
     const { athleteId, field } = editingCell;
     const a = athletes.find(x => x.id === athleteId);
-    if (!a) { setEditingCell(null); return; }
+    if (!a || !canCoachTeam(a.team_id ?? effectiveTeamId)) { setEditingCell(null); return; }
     const resolvedValue = valueOverride ?? editValue;
 
     setEditingCell(null);
@@ -348,7 +357,7 @@ function ScopedCoachingRoster() {
       // Revert on failure
       await refreshAthletes();
     }
-  }, [editingCell, editValue, editValue2, athletes, effectiveTeamId, refreshAthletes, isImperial]);
+  }, [editingCell, editValue, editValue2, athletes, effectiveTeamId, refreshAthletes, isImperial, canCoachTeam]);
 
   const handleCellKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
@@ -356,6 +365,8 @@ function ScopedCoachingRoster() {
   };
 
   const handleDelete = async (id: string) => {
+    const athlete = athletes.find(a => a.id === id);
+    if (!athlete || !canCoachTeam(athlete.team_id ?? effectiveTeamId)) return;
     try {
       await deleteAthlete(id);
       setDeletingAthlete(null);
@@ -367,6 +378,7 @@ function ScopedCoachingRoster() {
 
   const handleTransfer = async (athlete: CoachingAthlete, toTeamId: string) => {
     const destTeam = siblingTeams.find((t) => t.team_id === toTeamId);
+    if (!destTeam || !canCoachTeam(athlete.team_id ?? effectiveTeamId)) return;
     try {
       await transferAthlete(athlete.id, athlete.team_id ?? effectiveTeamId, toTeamId);
       // Remove from local state immediately
@@ -531,7 +543,7 @@ function ScopedCoachingRoster() {
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button
+            {canManageRoster && (<button
               type="button"
               onClick={() => {
                 if (editMode) {
@@ -546,7 +558,7 @@ function ScopedCoachingRoster() {
               }`}
             >
               {editMode ? 'Editing On' : 'Edit Mode'}
-            </button>
+            </button>)}
             {squads.length > 0 && (
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-neutral-500 hidden sm:block" />
@@ -592,22 +604,22 @@ function ScopedCoachingRoster() {
                 <span className="sm:hidden">{showMissingOnly ? missingAthleteIds.size : 'Missing'}</span>
               </button>
             )}
-            <button
+            {canManageRoster && (<button
               onClick={() => setIsAdding(true)}
               className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors text-sm"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Add Athlete</span>
               <span className="sm:hidden">Add</span>
-            </button>
-            <button
+            </button>)}
+            {canManageRoster && (<button
               onClick={() => setShowBulkAdd(true)}
               className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Bulk Add</span>
               <span className="sm:hidden">Bulk</span>
-            </button>
+            </button>)}
             <button
               onClick={() => {
                 downloadCsv(
@@ -622,7 +634,7 @@ function ScopedCoachingRoster() {
                     performance_tier: a.performance_tier ?? '',
                     height_cm: a.height_cm ?? '',
                     weight_kg: a.weight_kg ?? '',
-                    notes: a.notes ?? '',
+                    notes: canCoachTeam(a.team_id ?? effectiveTeamId) ? a.notes ?? '' : '',
                   })),
                   `roster-${format(new Date(), 'yyyy-MM-dd')}.csv`,
                   [
@@ -843,7 +855,7 @@ function ScopedCoachingRoster() {
                   {(() => {
                     const hasNotes = noteCount > 0;
                     return (
-                      <button
+                      canCoachTeam(athlete.team_id ?? effectiveTeamId) && (<button
                         onClick={() => setNotesDrawerAthlete(athlete)}
                         className="inline-flex items-center gap-0.5 p-2 rounded-lg hover:bg-neutral-700 transition-colors"
                         aria-label={hasNotes ? `${noteCount} notes` : 'Add note'}
@@ -855,7 +867,7 @@ function ScopedCoachingRoster() {
                             {noteCount}
                           </span>
                         )}
-                      </button>
+                      </button>)
                     );
                   })()}
                   <button
@@ -874,7 +886,7 @@ function ScopedCoachingRoster() {
                   >
                     <Plus className="w-4 h-4 text-neutral-400" />
                   </button>
-                  {canTransfer && (
+                  {canTransferAthlete(athlete) && (
                     <button
                       onClick={() => setTransferringAthlete(athlete)}
                       className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
@@ -884,14 +896,14 @@ function ScopedCoachingRoster() {
                       <ArrowRightLeft className="w-4 h-4 text-neutral-400" />
                     </button>
                   )}
-                  <button
+                  {canCoachTeam(athlete.team_id ?? effectiveTeamId) && (<button
                     onClick={() => setDeletingAthlete(athlete)}
                     className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
                     aria-label="Delete athlete"
                     title="Delete athlete"
                   >
                     <Trash2 className="w-4 h-4 text-neutral-500" />
-                  </button>
+                  </button>)}
                 </div>
               </div>
 
@@ -957,7 +969,7 @@ function ScopedCoachingRoster() {
                   <div className="min-h-[44px]">
                     <span className="text-neutral-500 text-xs">Notes</span>
                     <div>
-                      <button
+                      {canCoachTeam(athlete.team_id ?? effectiveTeamId) && (<button
                         onClick={() => setNotesDrawerAthlete(athlete)}
                         className="inline-flex items-center gap-1 text-sm hover:text-indigo-300 transition-colors min-h-[28px]"
                       >
@@ -965,7 +977,7 @@ function ScopedCoachingRoster() {
                         <span className={noteCount > 0 ? 'text-indigo-400' : 'text-neutral-600'}>
                           {noteCount > 0 ? `${noteCount} note${noteCount !== 1 ? 's' : ''}` : 'None'}
                         </span>
-                      </button>
+                      </button>)}
                     </div>
                   </div>
 
@@ -1255,7 +1267,7 @@ function ScopedCoachingRoster() {
                         const count = noteCountsByAthlete[athlete.id] ?? 0;
                         const hasNotes = count > 0;
                         return (
-                          <button
+                          canCoachTeam(athlete.team_id ?? effectiveTeamId) && (<button
                             onClick={() => setNotesDrawerAthlete(athlete)}
                             className={`inline-flex items-center gap-0.5 p-1.5 rounded-lg transition-colors ${
                               hasNotes
@@ -1271,7 +1283,7 @@ function ScopedCoachingRoster() {
                                 {count}
                               </span>
                             )}
-                          </button>
+                          </button>)
                         );
                       })()}
                     </td>
@@ -1317,7 +1329,7 @@ function ScopedCoachingRoster() {
                         >
                           <Plus className="w-3.5 h-3.5 text-neutral-500 hover:text-indigo-400" />
                         </button>
-                        {canTransfer && (
+                        {canTransferAthlete(athlete) && (
                           <button
                             onClick={() => setTransferringAthlete(athlete)}
                             className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors"
@@ -1327,14 +1339,14 @@ function ScopedCoachingRoster() {
                             <ArrowRightLeft className="w-3.5 h-3.5 text-neutral-500 hover:text-amber-400" />
                           </button>
                         )}
-                        <button
+                        {canCoachTeam(athlete.team_id ?? effectiveTeamId) && (<button
                           onClick={() => setDeletingAthlete(athlete)}
                           className="p-1.5 hover:bg-neutral-700 rounded-lg transition-colors"
                           aria-label="Delete athlete"
                           title="Delete athlete"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-neutral-500 hover:text-red-400" />
-                        </button>
+                        </button>)}
                       </div>
                     </td>
                   </tr>
@@ -1353,18 +1365,18 @@ function ScopedCoachingRoster() {
           title="No athletes yet"
           description="Add athletes to your roster to get started."
           action={
-            <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
+            canManageRoster && (<button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors">
               Add your first athlete
-            </button>
+            </button>)
           }
         />
       )}
 
       {/* All Teams requires a destination before either add form opens. */}
-      {(isAdding || showBulkAdd) && (
+      {canManageRoster && (isAdding || showBulkAdd) && (
         <RosterAddModal
           mode={showBulkAdd ? 'bulk' : 'single'}
-          teams={teams.filter(t => (t.org_id ?? null) === orgId && (orgId || t.team_id === effectiveTeamId))}
+          teams={teams.filter(t => t.role === 'coach' && (t.org_id ?? null) === orgId && (orgId || t.team_id === effectiveTeamId))}
           initialTeamId={isOrgWide ? null : effectiveTeamId}
           userId={userId}
           units={units}
@@ -1431,7 +1443,7 @@ function ScopedCoachingRoster() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      {deletingAthlete && (
+      {deletingAthlete && canCoachTeam(deletingAthlete.team_id ?? effectiveTeamId) && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm">
             <div className="flex items-center gap-3 mb-4">
@@ -1466,7 +1478,7 @@ function ScopedCoachingRoster() {
 
       {/* Notes Drawer */}
       <AthleteNotesDrawer
-        athlete={notesDrawerAthlete}
+        athlete={notesDrawerAthlete && canCoachTeam(notesDrawerAthlete.team_id ?? effectiveTeamId) ? notesDrawerAthlete : null}
         teamId={notesDrawerAthlete?.team_id ?? effectiveTeamId}
         userId={userId}
         onClose={() => setNotesDrawerAthlete(null)}

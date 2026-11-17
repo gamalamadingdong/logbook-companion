@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   team: "a" as string | null,
   role: "coach",
+  admin: true as boolean | undefined,
   list: vi.fn(),
   roster: vi.fn(),
   legacy: vi.fn(),
@@ -21,8 +22,8 @@ vi.mock("../../hooks/useCoachingContext", () => ({
     orgId: "club",
     isLoadingTeam: false,
     teams: [
-      { team_id: "a", team_name: "Juniors", role: mocks.role },
-      { team_id: "b", team_name: "Masters", role: "coach" },
+      { team_id: "a", team_name: "Juniors", role: mocks.role, is_admin: mocks.admin },
+      { team_id: "b", team_name: "Masters", role: "coach", is_admin: true },
     ],
   }),
 }));
@@ -73,6 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.team = "a";
   mocks.role = "coach";
+  mocks.admin = true;
   mocks.list.mockResolvedValue([]);
   mocks.roster.mockResolvedValue([]);
   mocks.legacy.mockResolvedValue([
@@ -295,8 +297,9 @@ describe("season workspace", () => {
       "Varsity",
     );
   });
-  it("gives coxswains read-only snapshots without mutation controls", async () => {
-    mocks.role = "coxswain";
+  it.each(["coach", "coxswain"])("gives %s without Admin read-only snapshots without mutation controls", async (role) => {
+    mocks.role = role;
+    mocks.admin = false;
     mocks.list.mockResolvedValue([
       {
         id: "draft",
@@ -328,4 +331,10 @@ describe("season workspace", () => {
     expect(document.querySelector("#squad-athlete")).toBeNull();
     expect(mocks.create).not.toHaveBeenCalled();
   });
+});
+
+it.each([false, undefined])('ordinary coaches cannot prepare seasons without admin flag (%s)', async (admin) => {
+  mocks.admin = admin; await render();
+  expect(document.body.textContent).toContain('Read-only season access');
+  expect([...document.querySelectorAll('button')].some(b => b.textContent === 'Prepare a season')).toBe(false);
 });

@@ -142,22 +142,6 @@ function toCoachingAthlete(athlete: Athlete): CoachingAthlete {
   };
 }
 
-const teamRolePriority: Record<TeamRole, number> = {
-  member: 0,
-  coxswain: 1,
-  coach: 2,
-};
-
-function orgRoleToTeamRole(role: OrgRole): TeamRole {
-  switch (role) {
-    case 'owner':
-    case 'admin':
-    case 'coach':
-    default:
-      return 'coach';
-  }
-}
-
 async function ensureTeamMemberAthleteLink(teamId: string, userId: string): Promise<void> {
   const { error } = await supabase.rpc('ensure_team_member_athlete_link', {
     p_team_id: teamId,
@@ -173,25 +157,6 @@ function resolveOrgName(
   if (!value) return null;
   if (Array.isArray(value)) return value[0]?.name ?? null;
   return value.name ?? null;
-}
-
-function mergeUserTeamInfo(
-  existing: UserTeamInfo | undefined,
-  incoming: UserTeamInfo
-): UserTeamInfo {
-  if (!existing) return incoming;
-
-  const role = teamRolePriority[incoming.role] > teamRolePriority[existing.role]
-    ? incoming.role
-    : existing.role;
-
-  return {
-    team_id: existing.team_id,
-    team_name: existing.team_name !== 'Unnamed Team' ? existing.team_name : incoming.team_name,
-    role,
-    org_id: existing.org_id ?? incoming.org_id ?? null,
-    org_name: existing.org_name ?? incoming.org_name ?? null,
-  };
 }
 
 // ─── Team Resolution ────────────────────────────────────────────────────────
@@ -211,90 +176,30 @@ export async function getTeamForUser(userId: string): Promise<string | null> {
 
 /** Get ALL teams a user belongs to (with team name + role + org info) */
 export async function getTeamsForUser(userId: string): Promise<UserTeamInfo[]> {
-  const { data: directRows, error: directError } = await supabase
-    .from('team_members')
-    .select('team_id, role, teams(name, org_id, organizations(name))')
-    .eq('user_id', userId)
-    .order('joined_at');
+  if (!userId) return [];
+  // Roles are resolved for auth.uid() by the database, never inferred from
+  // mere club membership or a client-supplied user ID.
+  const { data: access, error } = await supabase.rpc('get_team_access');
+  if (error) throw error;
+  const accessRows = (access ?? []) as { team_id: string; role: TeamRole; is_admin: boolean; org_role: OrgRole | null }[];
+  if (!accessRows.length) return [];
+  const { data: teams, error: teamError } = await supabase.from('teams')
+    .select('id,name,org_id,organizations(name)').in('id', accessRows.map(row => row.team_id)).order('name');
+  if (teamError) throw teamError;
+  const grants = new Map(accessRows.map(row => [row.team_id, row]));
+  return (teams ?? []).map(team => {
+    const grant = grants.get(team.id)!;
+    return { team_id: team.id, team_name: team.name, role: grant.role as TeamRole,
+      is_admin: grant.is_admin === true, org_role: grant.org_role as OrgRole | null,
+      org_id: team.org_id, org_name: resolveOrgName(team.organizations) };
+  }).sort((a, b) => (a.org_name ?? 'Standalone Teams').localeCompare(b.org_name ?? 'Standalone Teams') || a.team_name.localeCompare(b.team_name));
+}
 
-  if (directError || !directRows) return [];
-
-  const directTeams = (directRows as unknown as {
-    team_id: string;
-    role: string;
-    teams: {
-      name: string;
-      org_id: string | null;
-      organizations: { name: string } | { name: string }[] | null;
-    } | null;
-  }[]).map((row) => ({
-    team_id: row.team_id,
-    team_name: row.teams?.name ?? 'Unnamed Team',
-    role: row.role as TeamRole,
-    org_id: row.teams?.org_id ?? null,
-    org_name: resolveOrgName(row.teams?.organizations),
-  }));
-
-  const { data: orgMembershipRows, error: orgMembershipError } = await supabase
-    .from('organization_members')
-    .select('org_id, role, organizations(name)')
-    .eq('user_id', userId);
-
-  if (orgMembershipError || !orgMembershipRows || orgMembershipRows.length === 0) {
-    return directTeams;
-  }
-
-  const orgAccess = new Map<string, { role: OrgRole; org_name: string | null }>();
-  for (const row of orgMembershipRows as unknown as {
-    org_id: string;
-    role: OrgRole;
-    organizations: { name: string } | { name: string }[] | null;
-  }[]) {
-    orgAccess.set(row.org_id, {
-      role: row.role,
-      org_name: resolveOrgName(row.organizations),
-    });
-  }
-
-  const orgIds = [...orgAccess.keys()];
-  if (orgIds.length === 0) return directTeams;
-
-  const { data: orgTeamRows, error: orgTeamsError } = await supabase
-    .from('teams')
-    .select('id, name, org_id')
-    .in('org_id', orgIds)
-    .order('name');
-
-  if (orgTeamsError || !orgTeamRows) {
-    return directTeams;
-  }
-
-  const merged = new Map<string, UserTeamInfo>();
-  for (const team of directTeams) {
-    merged.set(team.team_id, team);
-  }
-
-  for (const row of orgTeamRows as { id: string; name: string; org_id: string | null }[]) {
-    if (!row.org_id) continue;
-    const orgEntry = orgAccess.get(row.org_id);
-    if (!orgEntry) continue;
-
-    const nextTeam: UserTeamInfo = {
-      team_id: row.id,
-      team_name: row.name,
-      role: orgRoleToTeamRole(orgEntry.role),
-      org_id: row.org_id,
-      org_name: orgEntry.org_name,
-    };
-
-    merged.set(nextTeam.team_id, mergeUserTeamInfo(merged.get(nextTeam.team_id), nextTeam));
-  }
-
-  return Array.from(merged.values()).sort((a, b) => {
-    const orgA = a.org_name ?? 'Standalone Teams';
-    const orgB = b.org_name ?? 'Standalone Teams';
-    return orgA.localeCompare(orgB) || a.team_name.localeCompare(b.team_name);
-  });
+/** Trusted capability: coxswain/athlete access alone cannot create a club/team. */
+export async function canCreateCoachingSpace(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('can_create_coaching_space');
+  if (error) throw error;
+  return data === true;
 }
 
 // ─── Team CRUD ──────────────────────────────────────────────────────────────
@@ -509,6 +414,24 @@ export async function getOrganizationMembershipsForUser(userId: string): Promise
   return (data ?? []) as OrganizationMember[];
 }
 
+/** Club administrators manage staff explicitly; membership does not grant every team. */
+export async function getOrganizationMembers(orgId: string): Promise<OrganizationMember[]> {
+  const { data, error } = await supabase.from('organization_members').select('*').eq('org_id', orgId).order('joined_at');
+  if (error) throw error;
+  const members = (data ?? []) as OrganizationMember[];
+  if (!members.length) return [];
+  const { data: profiles, error: profileError } = await supabase.from('user_profiles').select('user_id,display_name,email').in('user_id', members.map(m => m.user_id));
+  if (profileError) throw profileError;
+  return members.map(member => {
+    const profile = profiles?.find(p => p.user_id === member.user_id);
+    return { ...member, display_name: profile?.display_name ?? profile?.email ?? 'Club member', email: profile?.email };
+  });
+}
+
+export async function updateOrganizationMemberRole(memberId: string, role: 'admin' | 'coach'): Promise<void> {
+  throwOnError(await supabase.from('organization_members').update({ role }).eq('id', memberId).select().single());
+}
+
 /** Look up an organization by its invite code */
 export async function getOrgByInviteCode(code: string): Promise<Organization | null> {
   const { data, error } = await supabase
@@ -527,30 +450,11 @@ export async function joinOrgByInviteCode(
   code: string,
   role: OrgRole = 'coach'
 ): Promise<{ org: Organization; membership: OrganizationMember }> {
-  const org = await getOrgByInviteCode(code);
-  if (!org) throw new Error('Invalid organization invite code.');
-
-  // Check if already a member
-  const { data: existing } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('org_id', org.id)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (existing) throw new Error('You are already a member of this organization.');
-
-  const membership = throwOnError(
-    await supabase
-      .from('organization_members')
-      .insert({
-        org_id: org.id,
-        user_id: userId,
-        role,
-      })
-      .select()
-      .single()
-  ) as OrganizationMember;
+  if (role !== 'coach') throw new Error('Club administrator access must be granted by an existing administrator.');
+  const { data: orgId, error } = await supabase.rpc('join_organization_by_code', { p_code: code.toUpperCase().trim() });
+  if (error) throw error;
+  const org = throwOnError(await supabase.from('organizations').select('*').eq('id', orgId).single()) as Organization;
+  const membership = throwOnError(await supabase.from('organization_members').select('*').eq('org_id', orgId).eq('user_id', userId).single()) as OrganizationMember;
 
   return { org, membership };
 }
@@ -567,26 +471,14 @@ export async function regenerateOrgInviteCode(orgId: string): Promise<string> {
 
 /** Assign a team to an organization */
 export async function assignTeamToOrg(teamId: string, orgId: string): Promise<void> {
-  throwOnError(
-    await supabase
-      .from('teams')
-      .update({ org_id: orgId, updated_at: new Date().toISOString() })
-      .eq('id', teamId)
-      .select()
-      .single()
-  );
+  const { error } = await supabase.rpc('set_team_club', { p_team_id: teamId, p_org_id: orgId });
+  if (error) throw error;
 }
 
-/** Remove a team from its organization (set org_id to null) */
+/** Club affiliation requires administration of both current team and destination club. */
 export async function removeTeamFromOrg(teamId: string): Promise<void> {
-  throwOnError(
-    await supabase
-      .from('teams')
-      .update({ org_id: null, updated_at: new Date().toISOString() })
-      .eq('id', teamId)
-      .select()
-      .single()
-  );
+  const { error } = await supabase.rpc('set_team_club', { p_team_id: teamId, p_org_id: null });
+  if (error) throw error;
 }
 
 /** Get all teams belonging to an organization */
@@ -604,6 +496,15 @@ export async function getTeamsForOrg(orgId: string): Promise<Team[]> {
  * Get all active athletes across every team in an organization.
  * De-duplicates athletes that belong to multiple teams.
  */
+// Notes are stored separately so roster viewers cannot read private coaching content.
+async function attachPrivateAthleteNotes<T extends CoachingAthlete>(athletes: T[]): Promise<T[]> {
+  if (!athletes.length) return athletes;
+  const rows = throwOnError(await supabase.from('athlete_private_notes')
+    .select('athlete_id,notes').in('athlete_id', athletes.map(athlete => athlete.id))) as { athlete_id: string; notes: string | null }[];
+  const notes = new Map(rows.map(row => [row.athlete_id, row.notes]));
+  return athletes.map(athlete => ({ ...athlete, notes: notes.get(athlete.id) ?? null }));
+}
+
 export async function getOrgAthletes(orgId: string): Promise<CoachingAthlete[]> {
   // Get all team IDs for this org
   const teams = await getTeamsForOrg(orgId);
@@ -654,7 +555,7 @@ export async function getOrgAthletes(orgId: string): Promise<CoachingAthlete[]> 
       performance_tier: (team_athletes[0]?.performance_tier as PerformanceTier | null | undefined) ?? null,
     });
   }
-  return result;
+  return attachPrivateAthleteNotes(result);
 }
 
 // ─── Team Members ───────────────────────────────────────────────────────────
@@ -684,11 +585,16 @@ export async function updateTeamMemberRole(
   throwOnError(
     await supabase
       .from('team_members')
-      .update({ role })
+      .update({ role, ...(role !== 'coach' ? { is_admin: false } : {}) })
       .eq('id', memberId)
       .select()
       .single()
   );
+}
+
+/** Only team administrators can grant/revoke this flag; RLS enforces it. */
+export async function updateTeamMemberAdmin(memberId: string, isAdmin: boolean): Promise<void> {
+  throwOnError(await supabase.from('team_members').update({ is_admin: isAdmin }).eq('id', memberId).select().single());
 }
 
 /** Remove a member from a team */
@@ -742,7 +648,7 @@ export async function addTeamMemberByEmail(
       .single()
   ) as TeamMember;
 
-  if (role === 'member') {
+  if (role === 'member' || role === 'coxswain') {
     try {
       await ensureTeamMemberAthleteLink(teamId, profile.user_id);
     } catch (error) {
@@ -891,44 +797,11 @@ export async function joinTeamByInviteCode(
   code: string,
   role: TeamRole = 'member'
 ): Promise<{ team: Team; membership: TeamMember }> {
-  // 1. Find the team
-  const team = await getTeamByInviteCode(code);
-  if (!team) throw new Error('Invalid invite code. Please check and try again.');
-
-  // 2. Check if already a member
-  const { data: existing } = await supabase
-    .from('team_members')
-    .select('id')
-    .eq('team_id', team.id)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (existing) throw new Error('You are already a member of this team.');
-
-  // 3. Add as member
-  const membership = throwOnError(
-    await supabase
-      .from('team_members')
-      .insert({
-        team_id: team.id,
-        user_id: userId,
-        role,
-      })
-      .select()
-      .single()
-  ) as TeamMember;
-
-  if (role === 'member') {
-    try {
-      await ensureTeamMemberAthleteLink(team.id, userId);
-    } catch (error) {
-      await supabase
-        .from('team_members')
-        .delete()
-        .eq('id', membership.id);
-      throw error;
-    }
-  }
+  if (role !== 'member') throw new Error('Staff access must be granted by a team administrator.');
+  const { data: teamId, error } = await supabase.rpc('join_team_by_code', { p_code: code.toUpperCase().trim() });
+  if (error) throw error;
+  const team = throwOnError(await supabase.from('teams').select('*').eq('id', teamId).single()) as Team;
+  const membership = throwOnError(await supabase.from('team_members').select('*').eq('team_id', teamId).eq('user_id', userId).single()) as TeamMember;
 
   return { team, membership };
 }
@@ -1278,12 +1151,12 @@ export async function getAthletes(teamId: string): Promise<CoachingAthlete[]> {
 
   if (rowErr) throw rowErr;
 
-  return (rows ?? []).map(({ team_athletes, ...athlete }) => ({
+  return attachPrivateAthleteNotes((rows ?? []).map(({ team_athletes, ...athlete }) => ({
     ...toCoachingAthlete(athlete as Athlete),
     team_id: team_athletes[0]?.team_id ?? undefined,
     squad: team_athletes[0]?.squad ?? null,
     performance_tier: (team_athletes[0]?.performance_tier as PerformanceTier | null | undefined) ?? null,
-  }));
+  })));
 }
 
 /** Fetch a single athlete by their athletes.id, regardless of which team they're on. */
@@ -1306,23 +1179,23 @@ export async function getAthleteById(athleteId: string): Promise<CoachingAthlete
     if (fallback.error || !fallback.data) return null;
     const row = fallback.data as Athlete & { team_athletes: TeamAthlete[] };
     const active = row.team_athletes?.find((ta) => ta.status === 'active') ?? row.team_athletes?.[0];
-    return {
+    return (await attachPrivateAthleteNotes([{
       ...toCoachingAthlete(row),
       team_id: active?.team_id ?? undefined,
       squad: active?.squad ?? null,
       performance_tier: null,
-    };
+    }]))[0];
   }
 
   if (!data) return null;
   const row = data as Athlete & { team_athletes: TeamAthlete[] };
   const active = row.team_athletes?.find((ta) => ta.status === 'active') ?? row.team_athletes?.[0];
-  return {
+  return (await attachPrivateAthleteNotes([{
     ...toCoachingAthlete(row),
     team_id: active?.team_id ?? undefined,
     squad: active?.squad ?? null,
     performance_tier: (active?.performance_tier as PerformanceTier | null | undefined) ?? null,
-  };
+  }]))[0];
 }
 
 /** Get distinct squad names for a team (for filter dropdowns / autocomplete) */
@@ -1402,11 +1275,12 @@ export async function createAthlete(
   squad?: string | null,
   performanceTier?: PerformanceTier | null
 ): Promise<CoachingAthlete> {
+  const { notes, ...identity } = athlete;
   // 1. Insert into athletes
   const newAthlete = throwOnError(
     await supabase
       .from('athletes')
-      .insert({ created_by: createdBy, ...athlete })
+      .insert({ created_by: createdBy, ...identity })
       .select()
       .single()
   ) as Athlete;
@@ -1432,22 +1306,25 @@ export async function createAthlete(
     throwOnError(fallback);
   }
 
-  return { ...toCoachingAthlete(newAthlete), squad: squad ?? null, performance_tier: performanceTier ?? null };
+  if (notes !== undefined) throwOnError(await supabase.from('athlete_private_notes').upsert({ athlete_id: newAthlete.id, notes }, { onConflict: 'athlete_id' }));
+  return { ...toCoachingAthlete(newAthlete), notes: notes ?? null, squad: squad ?? null, performance_tier: performanceTier ?? null };
 }
 
 export async function updateAthlete(
   id: string,
   updates: Partial<Pick<Athlete, 'first_name' | 'last_name' | 'grade' | 'experience_level' | 'side' | 'height_cm' | 'weight_kg' | 'notes'>>
 ): Promise<CoachingAthlete> {
+  const { notes, ...identity } = updates;
   const updated = throwOnError(
     await supabase
       .from('athletes')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...identity, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()
   ) as Athlete;
-  return toCoachingAthlete(updated);
+  if (notes !== undefined) throwOnError(await supabase.from('athlete_private_notes').upsert({ athlete_id: id, notes }, { onConflict: 'athlete_id' }));
+  return (await attachPrivateAthleteNotes([toCoachingAthlete(updated)]))[0];
 }
 
 export async function deleteAthlete(id: string): Promise<void> {
@@ -1653,6 +1530,9 @@ export async function updateSessionCrew(
     positions?: SessionCrewPositionInput[];
   }
 ): Promise<CoachingSessionCrew> {
+  const { data: { user: editor }, error: editorError } = await supabase.auth.getUser();
+  if (editorError) throw editorError;
+  if (!editor) throw new Error('Sign in before editing a lineup.');
   const existingCrew = throwOnError(
     await supabase
       .from('coaching_session_crews')
@@ -1692,7 +1572,7 @@ export async function updateSessionCrew(
             updates.positions.map((position) => ({
               session_crew_id: id,
               team_id: existingCrew.team_id,
-              coach_user_id: existingCrew.coach_user_id,
+              coach_user_id: editor.id,
               seat: position.seat,
               athlete_id: position.athlete_id ?? null,
               athlete_name: position.athlete_name,

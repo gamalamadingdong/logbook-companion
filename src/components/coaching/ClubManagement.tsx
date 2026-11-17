@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Card, Input } from '../ui';
 import { Modal } from '../ui/Modal';
-import { createOrganization, getOrganizationMembershipsForUser, getOrganizationsForUser, updateOrganization } from '../../services/coaching/coachingService';
+import { canCreateCoachingSpace, createOrganization, getOrganizationMembershipsForUser, getOrganizationsForUser, updateOrganization } from '../../services/coaching/coachingService';
+import { ClubPeopleAccess } from './ClubPeopleAccess';
 import type { Organization, OrganizationMember } from '../../services/coaching/types';
 
 interface Props { userId: string | null; onChanged: () => Promise<void> }
 
 /** Mount keyed by account so drafts and late responses cannot cross accounts. */
 export function ClubManagement({ userId, onChanged }: Props) {
+  const [canCreate, setCanCreate] = useState(false);
+  const [peopleClub, setPeopleClub] = useState<string | null>(null);
   const [clubs, setClubs] = useState<Organization[]>([]);
   const [memberships, setMemberships] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,10 +27,10 @@ export function ClubManagement({ userId, onChanged }: Props) {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setLoadError(false);
+    setLoading(true); setLoadError(false); setCanCreate(false);
     if (!userId) { setClubs([]); setMemberships([]); setLoading(false); return; }
-    Promise.all([getOrganizationsForUser(userId), getOrganizationMembershipsForUser(userId)])
-      .then(([orgs, roles]) => { if (!cancelled) { setClubs(orgs); setMemberships(roles); } })
+    Promise.all([getOrganizationsForUser(userId), getOrganizationMembershipsForUser(userId), canCreateCoachingSpace()])
+      .then(([orgs, roles, allowed]) => { if (!cancelled) { setClubs(orgs); setMemberships(roles); setCanCreate(allowed === true); } })
       .catch(() => { if (!cancelled) setLoadError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -37,11 +40,13 @@ export function ClubManagement({ userId, onChanged }: Props) {
     catch { if (mounted.current) setRefreshFailed(true); }
   };
   const open = (club: Organization | 'new') => {
+    if (club === 'new' ? !canCreate : !memberships.some(m => m.org_id === club.id && (m.role === 'owner' || m.role === 'admin'))) return;
     setEditing(club); setName(club === 'new' ? '' : club.name);
     setDescription(club === 'new' ? '' : club.description ?? ''); setError(null);
   };
   const save = async () => {
     if (!userId || !editing || name.trim().length < 3 || savingLock.current) return;
+    if (editing === 'new' ? !canCreate : !memberships.some(m => m.org_id === editing.id && (m.role === 'owner' || m.role === 'admin'))) return;
     savingLock.current = true; setSaving(true); setError(null);
     try {
       const saved = editing === 'new'
@@ -60,14 +65,16 @@ export function ClubManagement({ userId, onChanged }: Props) {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-lg font-semibold text-content-primary">Clubs</h2>
         <p className="text-sm text-content-secondary">Add a club or edit its details here. Choose a team below to change its club.</p></div>
-      <Button variant="secondary" className="min-h-11" onClick={() => open('new')} disabled={!userId || saving || loading}>Add club</Button>
+      {canCreate && <Button variant="secondary" className="min-h-11" onClick={() => open('new')} disabled={!userId || saving || loading}>Add club</Button>}
     </div>
     {loading ? <p role="status" className="text-content-muted">Loading clubs…</p> : loadError ? <div role="alert" className="text-content-secondary">Unable to load clubs. <Button variant="ghost" className="min-h-11" onClick={() => setRetry(v => v + 1)}>Retry</Button></div> : clubs.length === 0 ? <p className="text-sm text-content-muted">You haven't joined or created a club yet.</p> : <ul className="divide-y divide-border">
       {clubs.map(club => <li key={club.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
         <div className="min-w-0"><h3 className="font-medium text-content-primary break-words">{club.name}</h3>{club.description && <p className="text-sm text-content-muted break-words">{club.description}</p>}</div>
         {memberships.some(m => m.org_id === club.id && (m.role === 'owner' || m.role === 'admin'))
-          ? <Button variant="secondary" className="min-h-11" aria-label={`Edit club ${club.name}`} onClick={() => open(club)} disabled={saving}>Edit club</Button>
+          ? <div className="flex flex-wrap gap-2"><Button variant="secondary" className="min-h-11" aria-label={`Edit club ${club.name}`} onClick={() => open(club)} disabled={saving}>Edit club</Button>
+            <Button variant="secondary" className="min-h-11" aria-label={`People & access for ${club.name}`} aria-expanded={peopleClub === club.id} onClick={() => setPeopleClub(id => id === club.id ? null : club.id)}>People &amp; access</Button></div>
           : <span className="text-xs text-content-muted">Club owners and admins can edit details.</span>}
+        {peopleClub === club.id && memberships.some(m => m.org_id === club.id && (m.role === 'owner' || m.role === 'admin')) && <div className="w-full"><ClubPeopleAccess key={`${userId}:${club.id}`} orgId={club.id} userId={userId} onChanged={onChanged} /></div>}
       </li>)}
     </ul>}
     {refreshFailed && <div role="status" className="text-sm text-content-secondary">Club saved. The scope selector could not refresh. <Button variant="ghost" className="min-h-11" onClick={() => void refresh()}>Retry refresh</Button></div>}
