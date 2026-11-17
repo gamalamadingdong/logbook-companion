@@ -1,156 +1,121 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
-import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
 import { PendingCoachingRequests } from '../../components/coaching/PendingCoachingRequests';
+import { WeeklyFocusCard } from '../../components/coaching/WeeklyFocusCard';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
-import {
-  getAssignmentsForDate, getAssignmentCompletions, getAthletes, getTeamStats,
-  getSeasonMeasuredLeaderboard,
-  type GroupAssignment, type AssignmentCompletion, type SeasonLeaderboardEntry,
-} from '../../services/coaching/coachingService';
+import { getDashboardPractices, getDashboardRoster, getDashboardWorkouts, type DashboardScope } from '../../services/coaching/teamDashboardService';
 
-type TeamStats = Awaited<ReturnType<typeof getTeamStats>>;
-interface OverviewData {
-  stats: TeamStats;
-  assignments: GroupAssignment[];
-  completions: AssignmentCompletion[];
-  leaderboard: SeasonLeaderboardEntry[];
-}
-interface OverviewProps {
-  teamIds: string[];
-  selectedTeamId: string | null;
-  orgId: string | null;
-  userId: string;
-}
 const actionClass = 'inline-flex min-h-11 items-center text-sm font-medium text-accent-coaching hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus';
 
-function DashboardOverview({ teamIds, selectedTeamId, orgId, userId }: OverviewProps) {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [failed, setFailed] = useState(false);
+/** Each section retries independently. Cleanup prevents an obsolete request from updating a new scope. */
+function useDashboardSection<T>(load: () => Promise<T>) {
+  const [state, setState] = useState<{ data: T | null; failed: boolean }>({ data: null, failed: false });
   const [attempt, setAttempt] = useState(0);
-
   useEffect(() => {
     let cancelled = false;
-    const today = format(new Date(), 'yyyy-MM-dd');
-    async function load() {
-      try {
-        const results = await Promise.all(teamIds.map(async teamId => {
-          const [assignments, athletes, stats] = await Promise.all([
-            getAssignmentsForDate(teamId, today, orgId ?? undefined),
-            getAthletes(teamId), getTeamStats(teamId),
-          ]);
-          const completions = await getAssignmentCompletions(teamId, today, athletes, orgId ?? undefined);
-          return { assignments, athletes, stats, completions };
-        }));
-        const leaderboard = selectedTeamId
-          ? await getSeasonMeasuredLeaderboard(selectedTeamId, { limit: 5, orgId: orgId ?? undefined })
-          : [];
-        if (cancelled) return;
-        // Club assignments appear in each team's response. Their completion summaries
-        // already include every assigned athlete, so retain each summary once.
-        const assignments = [...new Map(results.flatMap(r => r.assignments).map(a => [a.id, a])).values()];
-        const completions = [...new Map(results.flatMap(r => r.completions).map(c => [c.group_assignment_id, c])).values()];
-        const stats = selectedTeamId ? results[0].stats : {
-          athleteCount: new Set(results.flatMap(r => r.athletes.map(a => a.id))).size,
-          squadCount: results.reduce((sum, r) => sum + r.stats.squadCount, 0),
-          sessionsThisWeek: results.reduce((sum, r) => sum + r.stats.sessionsThisWeek, 0),
-          weeklyCompletionRate: null,
-        };
-        setData({ stats, assignments, completions, leaderboard });
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    }
-    void load();
+    setState({ data: null, failed: false });
+    load().then(data => { if (!cancelled) setState({ data, failed: false }); })
+      .catch(() => { if (!cancelled) setState({ data: null, failed: true }); });
     return () => { cancelled = true; };
-  }, [teamIds, selectedTeamId, orgId, attempt]);
+  }, [load, attempt]);
+  return { ...state, retry: () => setAttempt(value => value + 1) };
+}
 
-  if (failed) return (
-    <Card>
-      <div role="alert">
-        <EmptyState title="Unable to load this overview"
-          description="Check your connection and try again. No dashboard totals are available until loading succeeds."
-          action={<Button variant="secondary" className="min-h-11" onClick={() => { setFailed(false); setData(null); setAttempt(value => value + 1); }}>Retry</Button>} />
-      </div>
-    </Card>
-  );
-  if (!data) return <div role="status" className="flex items-center gap-2 py-10 text-content-muted"><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />Loading overview…</div>;
+function SectionContent<T>({ section, name, children }: {
+  section: ReturnType<typeof useDashboardSection<T>>; name: string; children: (data: T) => ReactNode;
+}) {
+  if (section.failed) return <div role="alert" className="space-y-2 py-3">
+    <p className="text-sm text-content-secondary">Unable to load {name}. Check your connection and retry.</p>
+    <Button variant="secondary" className="min-h-11" onClick={section.retry}>Retry {name}</Button>
+  </div>;
+  if (section.data === null) return <p role="status" className="flex items-center gap-2 py-5 text-sm text-content-muted"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading {name}…</p>;
+  return children(section.data);
+}
 
-  const stats = [
-    { label: 'Athletes', value: data.stats.athleteCount, link: '/team-management/roster' },
-    { label: 'Squads', value: data.stats.squadCount },
-    { label: 'Sessions this week', value: data.stats.sessionsThisWeek, link: '/team-management/schedule' },
-    selectedTeamId
-      ? { label: 'Weekly completion', value: data.stats.weeklyCompletionRate === null ? '—' : `${data.stats.weeklyCompletionRate}%`, detail: data.stats.weeklyCompletionRate === null ? 'No completion data this week' : undefined }
-      : { label: 'Teams', value: teamIds.length },
-  ];
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map(stat => <Card key={stat.label} data-stat={stat.label}>
-          <div className="text-2xl font-semibold text-content-primary">{stat.value}</div>
-          {stat.link ? <Link to={stat.link} className={actionClass}>{stat.label}</Link> : <div className="mt-2 text-sm text-content-secondary">{stat.label}</div>}
-          {stat.detail && <p className="mt-1 text-xs text-content-muted">{stat.detail}</p>}
-        </Card>)}
-      </div>
+function TodayOverview({ scope, selectedTeamId, userId }: { scope: DashboardScope; selectedTeamId: string | null; userId: string }) {
+  const { teams, switchTeam } = useCoachingContext();
+  const canReviewRequests = teams.some(team => team.org_role === 'owner' || team.org_role === 'admin');
+  const loadPractices = useCallback(() => getDashboardPractices(scope), [scope]);
+  const loadWorkouts = useCallback(() => getDashboardWorkouts(scope), [scope]);
+  const loadRoster = useCallback(() => getDashboardRoster(scope), [scope]);
+  const practices = useDashboardSection(loadPractices);
+  const workouts = useDashboardSection(loadWorkouts);
+  const roster = useDashboardSection(loadRoster);
+  const teamName = (id?: string | null) => teams.find(team => team.team_id === id)?.team_name;
+
+  return <div className="space-y-6">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
       <Card>
-        <CardHeader title="Today's Workouts" subtitle="Completion across each workout's assigned athletes."
-          action={<Link to="/team-management/assignments" className={actionClass}>View all</Link>} />
-        {data.assignments.length === 0
-          ? <EmptyState title="No workouts scheduled for today." description="Open Workouts to plan your next session." />
-          : <div className="space-y-3">{data.assignments.map(assignment => {
-            const completion = data.completions.find(c => c.group_assignment_id === assignment.id);
-            return <div key={assignment.id} className="flex flex-col gap-2 rounded-lg bg-surface-secondary p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="break-words font-medium text-content-primary">{assignment.title || assignment.template_name || 'Workout'}</p>
-                {(assignment.training_zone || assignment.canonical_name) && <p className="mt-1 break-words text-xs text-content-muted">{[assignment.training_zone, assignment.canonical_name].filter(Boolean).join(' · ')}</p>}
-                {assignment.instructions && <p className="mt-1 break-words text-sm text-content-secondary">{assignment.instructions}</p>}
-              </div>
-              <p className="shrink-0 text-sm text-content-secondary">{completion
-                ? completion.total === 0 ? 'No athletes assigned' : `${completion.completed}/${completion.total} complete`
-                : 'Completion unavailable'}</p>
-            </div>;
-          })}</div>}
+        <CardHeader title="Practices" subtitle="Today's practice records. Open one for attendance and lineups."
+          action={<Link to="/team-management/schedule" className={actionClass}>Schedule</Link>} />
+        <SectionContent section={practices} name="practices">{sessions => sessions.length === 0
+          ? <EmptyState title="No practices today" description="Open Schedule to review upcoming training." />
+          : <ul className="space-y-3">{sessions.map(session => <li key={session.id} className="rounded-lg bg-surface-secondary p-3">
+            <p className="break-words font-medium text-content-primary">{session.focus || `${session.type.charAt(0).toUpperCase()}${session.type.slice(1)} practice`}</p>
+            <p className="mt-1 text-xs text-content-muted">{[teamName(session.team_id), session.type].filter(Boolean).join(' · ')}</p>
+            <Link className={actionClass} to={`/team-management/schedule?date=${session.date}&sessionId=${session.id}`}
+              onClick={() => { if (session.team_id) switchTeam(session.team_id); }}>Open practice</Link>
+          </li>)}</ul>}
+        </SectionContent>
       </Card>
-      {selectedTeamId && <>
-        <WeeklyFocusCard teamId={selectedTeamId} userId={userId} />
-        <Card>
-          <CardHeader title="Season Leaderboard" subtitle="Speed Index preview for this team."
-            action={<Link to="/team-management/analytics" className={actionClass}>Analytics</Link>} />
-          {data.leaderboard.length === 0
-            ? <EmptyState title="No completed workouts with scores yet." />
-            : <ol className="space-y-2">{data.leaderboard.map((athlete, index) => <li key={athlete.athlete_id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-secondary p-3">
-              <div className="min-w-0">
-                <p className="break-words text-sm font-medium text-content-primary">{index + 1}. {athlete.athlete_name}</p>
-                <p className="mt-1 text-xs text-content-muted">{[athlete.squad, athlete.performance_tier].filter(Boolean).join(' · ')}</p>
-              </div>
-              <div className="shrink-0 text-right"><p className="text-xs text-content-muted">Speed Index</p><p className="font-mono text-content-primary">{athlete.titan_index?.toFixed(1) ?? '—'}</p></div>
-            </li>)}</ol>}
-        </Card>
-      </>}
+      <Card>
+        <CardHeader title="Workouts" subtitle="Completion for the selected roster. Shared results may include other club teams."
+          action={<Link to="/team-management/assignments" className={actionClass}>All workouts</Link>} />
+        <SectionContent section={workouts} name="workouts">{rows => rows.length === 0
+          ? <EmptyState title="No workouts today" description="Open Workouts to review upcoming assignments." />
+          : <ul className="space-y-3">{rows.map(({ assignment, completed, total }) => <li key={assignment.id} className="rounded-lg bg-surface-secondary p-3">
+            <p className="break-words font-medium text-content-primary">{assignment.title || assignment.template_name || 'Workout'}</p>
+            <p className="mt-1 text-xs text-content-muted">{assignment.org_id ? 'Shared club workout' : teamName(assignment.team_id)}</p>
+            {(assignment.training_zone || assignment.canonical_name) && <p className="mt-1 break-words text-xs text-content-muted">{[assignment.training_zone, assignment.canonical_name].filter(Boolean).join(' · ')}</p>}
+            <p className="mt-2 text-sm text-content-secondary">{total === 0 ? 'No athletes assigned in this roster' : `${completed}/${total} recorded complete`}</p>
+            {total > completed && <p className="mt-1 text-xs text-content-muted">{total - completed} not recorded complete</p>}
+            <Link className={actionClass} to={`/team-management/assignments/${assignment.id}/results`}
+              onClick={() => { if (assignment.team_id) switchTeam(assignment.team_id); }}>View results</Link>
+          </li>)}</ul>}
+        </SectionContent>
+      </Card>
     </div>
-  );
+    <Card>
+      <SectionContent section={roster} name="roster">{athletes => <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link to="/team-management/roster" className={actionClass}>{athletes.length} {athletes.length === 1 ? 'athlete' : 'athletes'} · Open roster</Link>
+        <Link to="/team-management/analytics" className={actionClass}>Performance analytics</Link>
+      </div>}</SectionContent>
+    </Card>
+    {selectedTeamId && <section aria-label="This week's focus"><WeeklyFocusCard teamId={selectedTeamId} userId={userId} /></section>}
+    {canReviewRequests && <details className="rounded-xl border border-border bg-surface-card p-4">
+      <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-content-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus">Coaching access requests · Account administration</summary>
+      <p className="mb-3 text-sm text-content-muted">These requests concern coaching account access, independently of the club or team selected above.</p>
+      <PendingCoachingRequests />
+    </details>}
+  </div>;
 }
 
 export function CoachDashboard() {
   const { hasTeam, isLoadingTeam, teamId, orgId, userId, teamName, teams, teamsByOrg, filterTeamId } = useCoachingContext();
   const selectedTeamId = orgId && filterTeamId === null ? null : filterTeamId ?? teamId;
-  const teamIds = useMemo(() => selectedTeamId ? [selectedTeamId] : teams.filter(team => team.org_id === orgId).map(team => team.team_id), [selectedTeamId, teams, orgId]);
+  const teamIds = useMemo(() => teams.filter(team => (team.role === 'coach' || team.role === 'coxswain') &&
+    (selectedTeamId ? team.team_id === selectedTeamId : team.org_id === orgId)).map(team => team.team_id), [selectedTeamId, teams, orgId]);
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const scope = useMemo<DashboardScope>(() => ({ teamIds, orgId, date: today }), [teamIds, orgId, today]);
   const clubName = teams.find(team => team.org_id === orgId)?.org_name ?? teamsByOrg.find(group => group.org_id === orgId)?.org_name ?? 'Club';
   const scopeName = selectedTeamId ? teams.find(team => team.team_id === selectedTeamId)?.team_name ?? teamName : `${clubName} · All Teams`;
 
   if (isLoadingTeam || hasTeam === null) return <div role="status" className="p-6 text-content-muted">Loading coaching workspace…</div>;
   if (!hasTeam) return <Navigate to="/team-management/setup" replace />;
-  return <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+  return <>
     <CoachingNav />
-    <header className="mb-6 mt-6"><h1 className="text-2xl font-semibold text-content-primary">Dashboard</h1><p className="mt-1 text-sm text-content-secondary">{scopeName}</p></header>
-    <DashboardOverview key={`${userId}:${orgId}:${selectedTeamId ?? 'all'}:${teamIds.join(',')}`} teamIds={teamIds} selectedTeamId={selectedTeamId} orgId={orgId} userId={userId} />
-    <div className="mt-6"><PendingCoachingRequests /></div>
-  </div>;
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-2">
+        <div><h1 className="text-2xl font-semibold text-content-primary">Today</h1><p className="mt-1 text-sm text-content-secondary">{scopeName}</p></div>
+        <p className="text-sm text-content-muted"><time dateTime={today}>{format(new Date(), 'EEEE, MMMM d')}</time></p>
+      </header>
+      {teamIds.length === 0 ? <EmptyState title="Staff access required" description="Select a team where you are a coach or coxswain to view its training dashboard." /> : <TodayOverview key={`${userId}:${orgId}:${selectedTeamId ?? 'all'}:${teamIds.join(',')}:${today}`} scope={scope} selectedTeamId={selectedTeamId} userId={userId} />}
+    </div>
+  </>;
 }
