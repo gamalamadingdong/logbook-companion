@@ -307,6 +307,12 @@ export async function getTeamDataCounts(teamId: string): Promise<{
     supabase.from('coaching_boatings').select('id', { count: 'exact', head: true }).eq('team_id', teamId),
     supabase.from('coaching_erg_scores').select('id', { count: 'exact', head: true }).eq('team_id', teamId),
   ]);
+  for (const result of [athletes, sessions, assignments, boatings, ergScores]) {
+    if (result.error) throw result.error;
+    if (!Number.isSafeInteger(result.count) || result.count === null || result.count < 0) {
+      throw new Error('Unable to verify team data. Please retry before deleting.');
+    }
+  }
   return {
     athletes: athletes.count ?? 0,
     sessions: sessions.count ?? 0,
@@ -319,7 +325,7 @@ export async function getTeamDataCounts(teamId: string): Promise<{
 /** Permanently delete a team and all its data (requires ON DELETE CASCADE FKs) */
 export async function deleteTeam(teamId: string): Promise<void> {
   throwOnError(
-    await supabase.from('teams').delete().eq('id', teamId)
+    await supabase.from('teams').delete().eq('id', teamId).select('id').single()
   );
 }
 
@@ -430,6 +436,32 @@ export async function getOrganizationMembers(orgId: string): Promise<Organizatio
 
 export async function updateOrganizationMemberRole(memberId: string, role: 'admin' | 'coach'): Promise<void> {
   throwOnError(await supabase.from('organization_members').update({ role }).eq('id', memberId).select().single());
+}
+
+export interface ClubDeletionCounts {
+  teams: number;
+  schedule_events: number;
+  assignments: number;
+  training_enrollments: number;
+  leaderboard_shares: number;
+}
+
+/** Server-side counts include dependencies hidden by per-table read policies. */
+export async function getClubDeletionCounts(orgId: string): Promise<ClubDeletionCounts> {
+  const { data, error } = await supabase.rpc('get_club_deletion_counts', { p_org_id: orgId });
+  if (error) throw error;
+  const row = data?.[0] as ClubDeletionCounts | undefined;
+  const keys: (keyof ClubDeletionCounts)[] = ['teams', 'schedule_events', 'assignments', 'training_enrollments', 'leaderboard_shares'];
+  if (!row || !keys.every(key => Number.isSafeInteger(row[key]) && row[key] >= 0)) {
+    throw new Error('Unable to verify club deletion safety. Please retry.');
+  }
+  return row;
+}
+
+/** Database guard rechecks dependencies, even if the preview is now stale. */
+export async function deleteOrganization(orgId: string): Promise<void> {
+  const deleted = throwOnError(await supabase.from('organizations').delete().eq('id', orgId).select('id').single());
+  if (!deleted) throw new Error('Club was not deleted. Refresh your access and try again.');
 }
 
 /** Look up an organization by its invite code */

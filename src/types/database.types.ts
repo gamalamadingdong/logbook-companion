@@ -5215,6 +5215,11 @@ export type Database = {
       }
     }
     Functions: {
+      get_club_deletion_counts: {
+        Args: { p_org_id: string }
+        Returns: { teams: number; schedule_events: number; assignments: number; training_enrollments: number; leaderboard_shares: number }[]
+      }
+
       set_team_club: { Args: { p_team_id: string; p_org_id: string | null }; Returns: undefined }
       get_team_access: { Args: Record<PropertyKey, never>; Returns: { team_id: string; role: string; is_admin: boolean; org_role: string | null }[] }
       can_create_coaching_space: { Args: Record<PropertyKey, never>; Returns: boolean }

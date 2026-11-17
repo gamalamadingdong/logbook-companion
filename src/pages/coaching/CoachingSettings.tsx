@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Copy,
   Check,
@@ -6,6 +6,7 @@ import {
   Save,
   Loader2,
   AlertTriangle,
+  TriangleAlert,
   Shield,
   ShieldAlert,
   User,
@@ -14,12 +15,12 @@ import {
   Link,
   Mail,
   Building2,
-  TriangleAlert,
   Plus,
   BarChart3,
 } from 'lucide-react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Button, Card, EmptyState } from '../../components/ui';
+import { Link as RouterLink } from 'react-router-dom';
+import { Button, Card, EmptyState, Input } from '../../components/ui';
+import { Modal } from '../../components/ui/Modal';
 import { ClubManagement } from '../../components/coaching/ClubManagement';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
 import { TeamInfoEditorList } from '../../components/team/TeamInfoEditorList';
@@ -92,7 +93,12 @@ const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof
 };
 
 export function CoachingSettings() {
-  const { userId, teamId, filterTeamId, orgId, isLoadingTeam, refreshTeam, teams } = useCoachingContext();
+  const { userId, teamId, filterTeamId, orgId, isLoadingTeam, refreshTeam, teams, setFilterTeamId, switchTeam } = useCoachingContext();
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const [manageDestination, setManageDestination] = useState<string | null>(null);
+  useEffect(() => {
+    if (manageDestination && teamId === manageDestination && filterTeamId === manageDestination) settingsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [manageDestination, teamId, filterTeamId]);
   const [canCreate, setCanCreate] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -109,26 +115,37 @@ export function CoachingSettings() {
   return <>
     <CoachingNav />
     <div className="px-4 sm:px-6 pt-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-content-primary">Manage clubs &amp; teams</h1>
-      <ClubManagement key={userId} userId={userId} onChanged={clubsChanged} />
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold text-content-primary">Manage clubs &amp; teams</h1>{canCreate && <RouterLink to="/team-management/setup" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-focus"><Plus className="h-4 w-4" aria-hidden="true" />Add team</RouterLink>}</div>
+      <ClubManagement key={userId} userId={userId} onChanged={clubsChanged} teams={teams} isLoadingTeams={isLoadingTeam} onManageTeam={id => {
+        const destination = teams.find(team => team.team_id === id);
+        if (!destination || destination.is_admin !== true) return;
+        if ((destination.org_id ?? null) === orgId) setFilterTeamId(id); else switchTeam(id);
+        setManageDestination(id);
+        if (teamId === id && filterTeamId === id) settingsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      }} />
     </div>
-    {!isLoadingTeam && orgId && filterTeamId === null ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+    <div ref={settingsRef}>
+    {!isLoadingTeam && (!selectedTeam || (orgId && filterTeamId === null)) ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
       <EmptyState title="Select a team to manage settings"
-        description="Choose a team above to manage its club affiliation, details, invitations and account access."
-        action={canCreate ? <RouterLink to="/team-management/setup" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-focus"><Plus className="h-4 w-4" aria-hidden="true" />Add team</RouterLink> : undefined} />
+        description="Use Manage team in the directory above to change club affiliation, details, invitations and account access. You can also add a team." />
     </div> : !isLoadingTeam && selectedTeam?.is_admin !== true ? <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
       <Card padding="lg"><h2 className="text-lg font-semibold text-content-primary">Team settings · {selectedTeam?.team_name ?? 'Selected team'}</h2>
         <p className="mt-2 text-content-secondary">Team administration requires Admin access. Ask a team or club admin to change settings, invitations, staff access or club affiliation.</p>
         <p className="mt-2 text-sm text-content-muted">Coaches can continue managing training and roster operations. Coxswains can edit lineups, practice records and workout results.</p>
       </Card>
-    </div> : <SelectedTeamSettings key={`${userId}:${teamId}:${selectedTeam?.is_admin}`} clubsVersion={clubsVersion} canCreate={canCreate} />}
+    </div> : <SelectedTeamSettings key={`${userId}:${teamId}:${selectedTeam?.is_admin}`} clubsVersion={clubsVersion} onDeleted={clubsChanged} />}
+    </div>
   </>;
 }
 
-function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: number; canCreate: boolean }) {
+function errorMessage(error: unknown, fallback: string) {
+  return typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' ? error.message : fallback;
+}
+
+function SelectedTeamSettings({ clubsVersion, onDeleted }: { clubsVersion: number; onDeleted: () => Promise<void> }) {
   const { userId, teamId, isLoadingTeam, teams, refreshTeam } = useCoachingContext();
   const selectedTeams = useMemo(() => teams.filter(t => t.team_id === teamId), [teams, teamId]);
-  const navigate = useNavigate();
+
 
   const [team, setTeam] = useState<Team | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -163,6 +180,11 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBulkInvite, setShowBulkInvite] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const deleteLock = useRef(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [countsError, setCountsError] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState(false);
+  const [deleteRefreshFailed, setDeleteRefreshFailed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [dataCounts, setDataCounts] = useState<{ athletes: number; sessions: number; assignments: number; boatings: number; ergScores: number } | null>(null);
   const [isLoadingCounts, setIsLoadingCounts] = useState(false);
@@ -193,7 +215,7 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
       })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load team'); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
-    return () => { cancelled = true; };
+  return () => { cancelled = true; };
   }, [teamId, isLoadingTeam, userId, clubsVersion]);
 
   const handleTeamInfoChanged = async () => {
@@ -378,6 +400,17 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
     }
   };
 
+  async function loadDeleteCounts() {
+    setIsLoadingCounts(true); setDataCounts(null); setCountsError(null);
+    try { setDataCounts(await getTeamDataCounts(teamId)); }
+    catch (err) { setCountsError(errorMessage(err, 'Unable to check team data. Please retry.')); }
+    finally { setIsLoadingCounts(false); }
+  }
+  async function refreshAfterDelete() {
+    try { await onDeleted(); setDeleteRefreshFailed(false); }
+    catch { setDeleteRefreshFailed(true); }
+  }
+  if (deleted) return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><Card padding="lg"><p role="status" className="text-content-secondary">Team deleted.</p>{deleteRefreshFailed && <div role="alert" className="text-content-secondary">The scope selector could not refresh. <Button variant="secondary" className="min-h-11" onClick={() => void refreshAfterDelete()}>Retry refresh</Button></div>}</Card></div>;
   if (isLoading || isLoadingTeam) {
     return (
       <>
@@ -397,13 +430,7 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
             <h2 className="text-xl font-bold text-content-primary">Team settings · {team?.name}</h2>
             <p className="text-content-secondary mt-1">Manage {team?.name ?? 'the selected team'}, its club, invitations, and account access.</p>
           </div>
-          {canCreate && <RouterLink
-            to="/team-management/setup"
-            className="self-start inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-content-secondary transition-colors hover:bg-surface-card hover:text-accent-coaching focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>Add team</span>
-          </RouterLink>}
+
         </div>
 
         {/* Error */}
@@ -816,20 +843,9 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
             </p>
           </div>
           <button
-            onClick={async () => {
-              setShowDeleteConfirm(true);
-              setDeleteConfirmName('');
-              if (!dataCounts) {
-                setIsLoadingCounts(true);
-                try {
-                  const counts = await getTeamDataCounts(teamId);
-                  setDataCounts(counts);
-                } catch {
-                  // non-critical — just won't show counts
-                } finally {
-                  setIsLoadingCounts(false);
-                }
-              }
+            onClick={() => {
+              setShowDeleteConfirm(true); setDeleteConfirmName(''); setDeleteError(null);
+              void loadDeleteCounts();
             }}
             className="px-4 py-2 bg-red-900/30 border border-red-800 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors text-sm font-medium whitespace-nowrap"
           >
@@ -872,86 +888,24 @@ function SelectedTeamSettings({ clubsVersion, canCreate }: { clubsVersion: numbe
         </div>
       )}
 
-      {/* Delete Team Confirmation Dialog */}
-      {showDeleteConfirm && team && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-900 border border-red-900/40 rounded-xl p-6 w-full max-w-md">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                <TriangleAlert className="w-5 h-5 text-red-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Delete Team Permanently</h3>
-            </div>
-
-            {/* Data warning */}
-            {isLoadingCounts ? (
-              <div className="flex items-center gap-2 text-neutral-400 text-sm mb-4">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Checking team data...
-              </div>
-            ) : dataCounts && (dataCounts.athletes > 0 || dataCounts.sessions > 0 || dataCounts.assignments > 0 || dataCounts.boatings > 0 || dataCounts.ergScores > 0) ? (
-              <div className="bg-red-900/20 border border-red-800/30 rounded-lg p-3 mb-4">
-                <p className="text-red-400 text-sm font-medium mb-2">This will permanently delete:</p>
-                <ul className="text-red-300/80 text-sm space-y-1">
-                  {dataCounts.athletes > 0 && <li>• {dataCounts.athletes} athlete{dataCounts.athletes !== 1 ? 's' : ''} (roster data)</li>}
-                  {dataCounts.sessions > 0 && <li>• {dataCounts.sessions} practice session{dataCounts.sessions !== 1 ? 's' : ''}</li>}
-                  {dataCounts.assignments > 0 && <li>• {dataCounts.assignments} workout assignment{dataCounts.assignments !== 1 ? 's' : ''}</li>}
-                  {dataCounts.boatings > 0 && <li>• {dataCounts.boatings} boating lineup{dataCounts.boatings !== 1 ? 's' : ''}</li>}
-                  {dataCounts.ergScores > 0 && <li>• {dataCounts.ergScores} erg score{dataCounts.ergScores !== 1 ? 's' : ''}</li>}
-                </ul>
-                <p className="text-red-400/70 text-xs mt-2">This data cannot be recovered.</p>
-              </div>
-            ) : dataCounts ? (
-              <p className="text-neutral-400 text-sm mb-4">This team has no coaching data. It's safe to delete.</p>
-            ) : null}
-
-            <p className="text-neutral-300 text-sm mb-3">
-              Type <span className="font-mono font-semibold text-white bg-neutral-800 px-1.5 py-0.5 rounded">{team.name}</span> to confirm:
-            </p>
-            <input
-              type="text"
-              value={deleteConfirmName}
-              onChange={(e) => setDeleteConfirmName(e.target.value)}
-              placeholder={team.name}
-              className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none mb-4"
-              autoFocus
-            />
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmName(''); }}
-                className="px-4 py-2 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={deleteConfirmName !== team.name || isDeleting}
-                onClick={async () => {
-                  setIsDeleting(true);
-                  try {
-                    await deleteTeam(teamId);
-                    setShowDeleteConfirm(false);
-                    // If user has other teams, refresh and go to dashboard; otherwise go to setup
-                    if (teams.length > 1) {
-                      await refreshTeam();
-                      navigate('/team-management');
-                    } else {
-                      navigate('/team-management/setup');
-                    }
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Failed to delete team');
-                    setIsDeleting(false);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium flex items-center gap-2"
-              >
-                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Delete Forever
-              </button>
-            </div>
-          </div>
+      {showDeleteConfirm && team && <Modal open onClose={() => { if (!deleteLock.current) setShowDeleteConfirm(false); }} title="Delete Team Permanently" description="Deleting a team permanently removes its coaching data. Archived season history may prevent deletion.">
+        <div className="space-y-4">
+          {isLoadingCounts && <p role="status" className="text-content-muted">Checking team data…</p>}
+          {countsError && <div role="alert" className="text-content-secondary">{countsError}<Button variant="secondary" className="min-h-11" onClick={() => void loadDeleteCounts()}>Retry preview</Button></div>}
+          {dataCounts && <ul className="text-sm text-content-secondary space-y-1"><li>Athletes: {dataCounts.athletes}</li><li>Practice sessions: {dataCounts.sessions}</li><li>Assignments: {dataCounts.assignments}</li><li>Boating lineups: {dataCounts.boatings}</li><li>Erg scores: {dataCounts.ergScores}</li></ul>}
+          <Input id="team-delete-confirm" label={`Type ${team.name} to confirm`} value={deleteConfirmName} onChange={event => setDeleteConfirmName(event.target.value)} disabled={isDeleting} className="min-h-11" />
+          {deleteError && <p role="alert" className="text-sm text-accent-danger">{deleteError}</p>}
+          <div className="flex flex-wrap justify-end gap-3"><Button variant="secondary" className="min-h-11" disabled={isDeleting} onClick={() => setShowDeleteConfirm(false)}>Cancel</Button><Button variant="danger" className="min-h-11" loading={isDeleting} disabled={deleteConfirmName !== team.name || isDeleting || isLoadingCounts || !dataCounts || !!countsError} onClick={async () => {
+            if (deleteLock.current || isLoadingCounts || !dataCounts || countsError || deleteConfirmName !== team.name) return;
+            deleteLock.current = true; setIsDeleting(true); setDeleteError(null);
+            try {
+              await deleteTeam(teamId); setShowDeleteConfirm(false); setDeleted(true);
+              await refreshAfterDelete();
+            } catch (err) { setDeleteError(errorMessage(err, 'Failed to delete team. Please retry.')); }
+            finally { deleteLock.current = false; setIsDeleting(false); }
+          }}>Delete Forever</Button></div>
         </div>
-      )}
+      </Modal>}
 
       {/* Bulk Coach Invite Modal */}
       {showBulkInvite && team && (

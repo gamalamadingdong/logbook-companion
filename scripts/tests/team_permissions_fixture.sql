@@ -456,3 +456,12 @@ create policy "Coaches can view assignment shares" on public.assignment_result_s
 grant all on public.team_leaderboard_shares,public.assignment_result_shares to authenticated;
 insert into athletes(id,first_name,last_name,created_by,notes,coach_notes) values('30000000-0000-0000-0000-000000000099','Legacy','Notes','00000000-0000-0000-0000-000000000001','Private legacy notes','Private legacy coach notes');
 insert into team_athletes(team_id,athlete_id) values('10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000099');
+-- Mirror the real club FK actions: deletion tests must exercise actual cascades.
+create table public.training_block_enrollments(id uuid primary key default gen_random_uuid(),org_id uuid references public.organizations(id) on delete cascade);
+alter table public.training_block_enrollments enable row level security;
+grant select,insert,update,delete on public.training_block_enrollments to authenticated;
+alter table public.teams add foreign key(org_id) references public.organizations(id) on delete set null;
+alter table public.organization_members add foreign key(org_id) references public.organizations(id) on delete cascade;
+alter table public.coaching_schedule_events add foreign key(org_id) references public.organizations(id) on delete cascade;
+alter table public.group_assignments add foreign key(org_id) references public.organizations(id) on delete cascade;
+alter table public.team_leaderboard_shares add foreign key(org_id) references public.organizations(id) on delete cascade;
