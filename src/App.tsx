@@ -39,6 +39,8 @@ const CoachDashboard = lazyNamed(() => import('./pages/coaching/CoachDashboard')
 const CoachSessions = lazyNamed(() => import('./pages/CoachSessions'), 'CoachSessions');
 const CoachingRoster = lazyNamed(() => import('./pages/coaching/CoachingRoster'), 'CoachingRoster');
 const CoachingSeasons = lazyNamed(() => import('./pages/coaching/CoachingSeasons'), 'CoachingSeasons');
+const CoachingWeeklyFocus = lazyNamed(() => import('./pages/coaching/CoachingWeeklyFocus'), 'default');
+const CoachingAdministration = lazyNamed(() => import('./pages/coaching/CoachingAdministration'), 'CoachingAdministration');
 const CoachingAthleteDetail = lazyNamed(() => import('./pages/coaching/CoachingAthleteDetail'), 'CoachingAthleteDetail');
 const CoachingSchedule = lazyNamed(() => import('./pages/coaching/CoachingSchedule'), 'CoachingSchedule');
 const CoachingAssignments = lazyNamed(() => import('./pages/coaching/CoachingAssignments'), 'CoachingAssignments');
@@ -277,6 +279,8 @@ const AppContent: React.FC = () => {
             }
           />
           <Route path="/team-management/seasons" element={<CoachRoute><CoachingSeasons /></CoachRoute>} />
+          <Route path="/team-management/weekly-focus" element={<CoachRoute><CoachingWeeklyFocus /></CoachRoute>} />
+          <Route path="/team-management/administration" element={<CoachRoute><CoachingAdministration /></CoachRoute>} />
           <Route
             path="/team-management/schedule"
             element={

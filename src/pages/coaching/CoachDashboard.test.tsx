@@ -14,7 +14,9 @@ vi.mock('../../hooks/useCoachingContext', () => ({ useCoachingContext: () => ({
   filterTeamId: mocks.filter, teamsByOrg: [], teams: [...mocks.teams.map(t => ({ ...t, role: mocks.role, org_role: mocks.admin ? 'admin' : 'coach' })), ...(mocks.memberTeam ? [{ team_id: 'read-only', team_name: 'Athlete team', org_id: 'club', org_name: 'Titan', role: 'member', org_role: 'member' }] : [])], switchTeam: mocks.switchTeam,
 }) }));
 vi.mock('../../components/coaching/CoachingNav', () => ({ CoachingNav: () => <nav>Scope controls</nav> }));
-vi.mock('../../components/coaching/WeeklyFocusCard', () => ({ WeeklyFocusCard: ({ teamId }: { teamId: string }) => <div data-focus={teamId}>Weekly focus</div> }));
+vi.mock('../../components/coaching/WeeklyFocusSummary', () => ({ WeeklyFocusSummary: ({ teamId }: { teamId: string }) => <div data-focus={teamId}>Weekly focus</div> }));
+vi.mock('../../components/coaching/ClubTeamOverview', () => ({ ClubTeamOverview: ({ onOpenTeam }: { onOpenTeam: (id: string) => void }) => <button onClick={() => onOpenTeam('b')}>Open Masters team</button> }));
+vi.mock('../../components/coaching/DashboardContext', () => ({ DashboardEvents: () => <div>Events today</div>, DashboardSeason: ({ teamId }: { teamId: string }) => <div data-season={teamId}>Roster season</div> }));
 vi.mock('../../components/coaching/PendingCoachingRequests', () => ({ PendingCoachingRequests: () => <div>Pending requests</div> }));
 vi.mock('../../services/coaching/teamDashboardService', () => ({
   getDashboardWorkouts: mocks.workouts, getDashboardPractices: mocks.practices, getDashboardRoster: mocks.roster,
@@ -53,7 +55,15 @@ describe('today-first coaching dashboard', () => {
     expect(mocks.workouts).toHaveBeenCalledWith(expect.objectContaining({ teamIds: ['a', 'b'], orgId: 'club' }));
     expect(mocks.practices).toHaveBeenCalledWith(expect.objectContaining({ teamIds: ['a', 'b'] }));
     expect(document.querySelector('[data-focus]')).toBeNull();
-    expect(document.body.textContent).toContain('Titan · All Teams');
+    expect(document.querySelector('[data-season]')).toBeNull();
+    await act(async () => findButton('Open Masters team')!.click());
+    expect(mocks.switchTeam).toHaveBeenCalledWith('b');
+  });
+  it('labels a club-associated team workout with its actual team', async () => {
+    mocks.workouts.mockResolvedValue([{ ...workout, assignment: { ...workout.assignment, team_id: 'a' } }]);
+    await render();
+    const item = document.querySelector('a[href="/team-management/assignments/workout/results"]')?.closest('li');
+    expect(item?.textContent).toContain('Juniors');
   });
   it('restricts a selected-team read to that team', async () => {
     mocks.filter = 'b'; await render();
@@ -123,12 +133,11 @@ describe('today-first coaching dashboard', () => {
     expect(document.body.textContent).not.toContain('Assign workout');
     expect(document.body.textContent).not.toContain('Delete');
   });
-  it('preserves request review for admins in an explicitly separate collapsed account section', async () => {
+  it('keeps account administration off the daily overview even for admins', async () => {
     mocks.admin = true; await render();
-    expect(document.querySelector('details')?.open).toBe(false);
-    expect(document.querySelector('summary')?.textContent).toContain('Account administration');
-    expect(document.body.textContent).toContain('independently of the club or team selected above');
-    expect(document.body.textContent).toContain('Pending requests');
+    expect(document.body.textContent).not.toContain('Pending requests');
+    expect(document.querySelector('details')).toBeNull();
+    expect(document.querySelector('[data-season]')?.getAttribute('data-season')).toBe('a');
   });
   it('excludes ordinary athlete memberships from All Teams coaching reads', async () => {
     mocks.filter = null; mocks.memberTeam = true; await render();

@@ -775,7 +775,7 @@ function ScopedCoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}
-              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate(`/team-management/weekly-focus?week=${getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}`) : undefined}
             />
           )}
 
@@ -879,7 +879,7 @@ function ScopedCoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(weekStart)}
-              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate(`/team-management/weekly-focus?week=${getWeekStart(weekStart)}`) : undefined}
             />
           )}
           {weekDays.map((day) => {
