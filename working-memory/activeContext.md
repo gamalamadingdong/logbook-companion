@@ -1,18 +1,16 @@
 # Active Context
 
-Last updated: 2026-11-16
+Last updated: 2026-11-17
 
 ## Current work
 
-Club/team management and dashboard cleanup merged through PR #244; main base is `50302cc`. Current branch: `feature/team-admin-coxswain-access`. User approved implementing simplified admin/coach/coxswain access and submitting its PR.
+PR #245 (team admin/coxswain permissions) is merged into main at `7c98afc`. User confirmed its migration/functions deployed and app looked healthy; signed-in role-by-role verification was not performed by the agent.
 
-Implemented: coach/coxswain/member roles plus coach-only `team_members.is_admin`; team owner and club owner/admin inherit administration. Ordinary club coaches require explicit team assignments; migration preserves their current-team access without automatic future teams or admin promotion. Coaches manage assigned-team roster/training; Admin manages settings/access/codes/season transitions. Coxswains edit lineups/practice/attendance/results, without prescribing, changing roster identities/transfers/removals, reading private notes, or administering. Athlete accounts remain optional.
+Current fix: `fix/team-creation-owner-visibility`. Live logs confirmed `new row violates row-level security policy for table "teams"`. The SELECT policy called stable helpers that query teams; those cannot see the new row during INSERT RETURNING. `createTeam().insert().select().single()` failed before membership creation. New migration explicitly checks the row's `coach_id = auth.uid()` before the existing effective-access helper. Existing INSERT authorization and immutable owner guards remain intact.
 
-Server-authoritative access discovery, secure joins and affiliation, invite authorization, scope guards, result prescription guards, editor attribution, and private legacy athlete notes storage are implemented. Team codes grant member only and atomically link an athlete; club codes grant ordinary club coach without team access. No custom capability editor. See [implementation/rollout receipt](../docs/superpowers/plans/2026-11-16-team-admin-coxswain.md).
+Migration `20261117152157_team_creation_owner_visibility.sql` applied through Supabase MCP and verified in live policy/migration history. No real teams/rosters/invites created for verification. Disposable PostgreSQL test reproduced the original failure and now covers club-team creation/affiliation, first approved coach creation/membership, outsider/unassigned coach read denial, cox/outsider create denial, and spoofed owner denial. Entire permission suite passes; 602 app tests / 66 files, build, lint (0 errors / 114 warnings) pass. Security advisor finding counts unchanged; health advisors clear before change. This is database-only and works with the deployed app; no frontend or Edge Function deployment needed. PR handoff pending.
 
-**Rollout pending:** new permission migration is local only. No live schema writes, function deploys, real invites, or roster mutations in this slice. Coordinate migration via Supabase MCP, invite-coaches/send-team-invite deployment, and app deployment in one release window; old direct join flows conflict with tightened policies. Type additions reflect the local migration and need live generated refresh after rollout. Prior season migration `20261116215714_team_seasons_and_rosters.sql` remains applied live.
-
-Verification: 602 tests / 66 files; production build; lint 0 errors / 114 existing warnings; disposable PostgreSQL 16 permission suite; independent bounded security review. Signed-in visual/mobile review remains pending. Staging and preserved local artifacts remain untouched. Submitted as [PR #245](https://github.com/gamalamadingdong/logbook-companion/pull/245) targeting main; not merged. Coordinated live rollout remains pending.
+Permission model: coach/coxswain/member plus coach-only Admin flag. Team owner and club owner/admin inherit administration. Ordinary club coaches require explicit team assignments; current-team legacy access preserved by prior migration. Coaches manage assigned-team roster/training; Admin manages settings/access/codes/season transitions. Coxswains edit lineups/practice/attendance/results without prescribing, roster removal/transfers, private notes, or administration. Athlete accounts remain optional. Code joins and private notes boundaries are described in [permission receipt](../docs/superpowers/plans/2026-11-16-team-admin-coxswain.md).
 
 ## Agreed sequence
 

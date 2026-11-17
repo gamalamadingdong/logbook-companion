@@ -1,6 +1,33 @@
 \set ON_ERROR_STOP on
 create function pg_temp.assert_true(ok boolean,msg text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'Assertion failed: %',msg; end if; end$$;
 create function pg_temp.denied(q text) returns void language plpgsql as $$begin execute q; raise exception 'Expected permission denial: %',q; exception when insufficient_privilege or check_violation then null; end$$;
+-- Match PostgREST insert(...).select().single(): the new owner must be visible
+-- during the INSERT RETURNING statement, before a membership row exists.
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000006',false);
+insert into teams(id,name,invite_code,coach_id)
+values('10000000-0000-0000-0000-000000000010','New owned team','NEWOWNER',auth.uid()) returning *;
+insert into team_members(team_id,user_id,role)
+values('10000000-0000-0000-0000-000000000010',auth.uid(),'coach') returning *;
+select set_team_club('10000000-0000-0000-0000-000000000010','20000000-0000-0000-0000-000000000001');
+select pg_temp.assert_true((select org_id='20000000-0000-0000-0000-000000000001' from teams where id='10000000-0000-0000-0000-000000000010'),'new team can be created and assigned to existing club');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
+select pg_temp.assert_true((select count(*)=0 from teams where id='10000000-0000-0000-0000-000000000010'),'unassigned coach cannot read new team');
+select pg_temp.denied($q$insert into teams(name,invite_code,coach_id,org_id) values('Not club admin','NOADMIN',auth.uid(),'20000000-0000-0000-0000-000000000001') returning *$q$);
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000003',false);
+select pg_temp.denied($q$insert into teams(name,invite_code,coach_id) values('Cox denied','NOCOX',auth.uid()) returning *$q$);
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000007',false);
+select pg_temp.assert_true((select count(*)=0 from teams where id='10000000-0000-0000-0000-000000000010'),'outsider cannot read new team');
+select pg_temp.denied($q$insert into teams(name,invite_code,coach_id) values('Outsider denied','NOOUT',auth.uid()) returning *$q$);
+reset role;
+insert into coaching_access_requests(user_id,display_name,status) values('00000000-0000-0000-0000-000000000019','First coach','approved');
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000019',false);
+insert into teams(id,name,invite_code,coach_id) values('10000000-0000-0000-0000-000000000011','First standalone','FIRSTNEW',auth.uid()) returning *;
+insert into team_members(team_id,user_id,role) values('10000000-0000-0000-0000-000000000011',auth.uid(),'coach') returning *;
+select pg_temp.assert_true((select is_admin from get_team_access() where team_id='10000000-0000-0000-0000-000000000011'),'first-time approved coach inherits owner administration');
+select pg_temp.denied($q$insert into teams(name,invite_code,coach_id) values('Spoofed owner','SPOOF', '00000000-0000-0000-0000-000000000006') returning *$q$);
+reset role;
 select pg_temp.assert_true(can_coach_team('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000005'),'legacy club coach materialized');
 select pg_temp.assert_true(not can_admin_team('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000005'),'backfill does not grant admin');
 insert into teams(id,name,invite_code,coach_id,org_id) values('10000000-0000-0000-0000-000000000003','Future','FUTURE','00000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001');
