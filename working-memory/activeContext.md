@@ -12,7 +12,7 @@ Server-authoritative access discovery, secure joins and affiliation, invite auth
 
 **Rollout pending:** new permission migration is local only. No live schema writes, function deploys, real invites, or roster mutations in this slice. Coordinate migration via Supabase MCP, invite-coaches/send-team-invite deployment, and app deployment in one release window; old direct join flows conflict with tightened policies. Type additions reflect the local migration and need live generated refresh after rollout. Prior season migration `20261116215714_team_seasons_and_rosters.sql` remains applied live.
 
-Verification: 602 tests / 66 files; production build; lint 0 errors / 114 existing warnings; disposable PostgreSQL 16 permission suite; independent bounded security review. Signed-in visual/mobile review remains pending. Staging and preserved local artifacts remain untouched. PR publication pending final integrated handoff.
+Verification: 602 tests / 66 files; production build; lint 0 errors / 114 existing warnings; disposable PostgreSQL 16 permission suite; independent bounded security review. Signed-in visual/mobile review remains pending. Staging and preserved local artifacts remain untouched. Submitted as [PR #245](https://github.com/gamalamadingdong/logbook-companion/pull/245) targeting main; not merged. Coordinated live rollout remains pending.
 
 ## Agreed sequence
 
