@@ -2,18 +2,21 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ list: vi.fn(), members: vi.fn(), create: vi.fn(), update: vi.fn(), canCreate: vi.fn(), people: vi.fn(), role: vi.fn() }));
-vi.mock('../../services/coaching/coachingService', () => ({ getOrganizationsForUser: mocks.list, getOrganizationMembershipsForUser: mocks.members, canCreateCoachingSpace: mocks.canCreate, getOrganizationMembers: mocks.people, updateOrganizationMemberRole: mocks.role, createOrganization: mocks.create, updateOrganization: mocks.update }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), members: vi.fn(), create: vi.fn(), update: vi.fn(), canCreate: vi.fn(), people: vi.fn(), role: vi.fn(), counts: vi.fn(), remove: vi.fn() }));
+vi.mock('../../services/coaching/coachingService', () => ({ getClubDeletionCounts: mocks.counts, deleteOrganization: mocks.remove, getOrganizationsForUser: mocks.list, getOrganizationMembershipsForUser: mocks.members, canCreateCoachingSpace: mocks.canCreate, getOrganizationMembers: mocks.people, updateOrganizationMemberRole: mocks.role, createOrganization: mocks.create, updateOrganization: mocks.update }));
+import type { UserTeamInfo } from '../../services/coaching/types';
 import { ClubManagement } from './ClubManagement';
 let root: Root;
 const changed = vi.fn();
+const manage = vi.fn();
+let teams: UserTeamInfo[] = [];
 const club = { id: 'club', name: 'Titan', description: 'Rowing' };
-async function render(userId = 'coach') { await act(async () => root.render(<ClubManagement key={userId} userId={userId} onChanged={changed} />)); }
+async function render(userId = 'coach') { await act(async () => root.render(<ClubManagement key={userId} userId={userId} onChanged={changed} teams={teams} onManageTeam={manage} />)); }
 async function click(label: string) { const button = Array.from(document.querySelectorAll('button')).find(b => b.textContent === label)!; await act(async () => button.click()); }
 async function name(value: string) { await act(async () => { const input = document.querySelector('#club-name')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); vi.resetAllMocks();
-  mocks.canCreate.mockResolvedValue(true); mocks.people.mockResolvedValue([]); mocks.role.mockResolvedValue(undefined); mocks.list.mockResolvedValue([club]); mocks.members.mockResolvedValue([{ org_id: 'club', role: 'owner' }]);
+  teams = []; mocks.counts.mockResolvedValue({ teams: 0, schedule_events: 0, assignments: 0, training_enrollments: 0, leaderboard_shares: 0 }); mocks.remove.mockResolvedValue(undefined); mocks.canCreate.mockResolvedValue(true); mocks.people.mockResolvedValue([]); mocks.role.mockResolvedValue(undefined); mocks.list.mockResolvedValue([club]); mocks.members.mockResolvedValue([{ org_id: 'club', role: 'owner' }]);
   mocks.create.mockResolvedValue({ ...club, id: 'new', name: 'New club' }); changed.mockResolvedValue(undefined);
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
@@ -82,4 +85,66 @@ it('never offers club people controls to ordinary club coaches', async () => {
   mocks.members.mockResolvedValue([{ org_id: 'club', role: 'coach' }]); await render();
   expect(document.querySelector('[aria-label="People & access for Titan"]')).toBeNull();
   expect(mocks.people).not.toHaveBeenCalled();
+});
+
+it('groups only accessible teams by club and standalone and offers exact admin destinations', async () => {
+  teams = [
+    { team_id: 'a', team_name: 'Juniors', org_id: 'club', org_name: 'Titan', role: 'coach', is_admin: true },
+    { team_id: 'b', team_name: 'Masters', org_id: 'other', org_name: 'Other club', role: 'coxswain', is_admin: false },
+    { team_id: 'c', team_name: 'Independent', role: 'coach', is_admin: true },
+  ];
+  await render();
+  expect(document.body.textContent).toContain('Other club');
+  expect(document.body.textContent).toContain('Masters');
+  expect(document.body.textContent).toContain('Standalone teams');
+  expect(document.querySelector('[aria-label="Manage team Masters"]')).toBeNull();
+  await act(async () => (document.querySelector('[aria-label="Manage team Independent"]') as HTMLButtonElement).click());
+  expect(manage).toHaveBeenCalledWith('c');
+  expect(document.body.textContent).toContain('Admin access is required');
+});
+it('blocks deletion with every dependency count and does not offer deletion to ordinary club coaches', async () => {
+  mocks.counts.mockResolvedValue({ teams: 2, schedule_events: 3, assignments: 4, training_enrollments: 5, leaderboard_shares: 6 });
+  await render(); await click('Delete club');
+  expect(mocks.counts).toHaveBeenCalledWith('club');
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Training enrollments: 5');
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Leaderboard shares: 6');
+  expect(document.querySelector('[role="dialog"] button[type="submit"]')?.hasAttribute('disabled')).toBe(true);
+  expect(mocks.remove).not.toHaveBeenCalled();
+});
+async function confirmDelete() {
+  await act(async () => {
+    const input = document.querySelector('#club-delete-confirm')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Titan');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const submit = document.querySelector('[role="dialog"] button[type="submit"]') as HTMLButtonElement;
+  await act(async () => { submit.click(); submit.click(); });
+}
+it('fails closed on preview errors and allows retry before deletion', async () => {
+  mocks.counts.mockRejectedValueOnce({ message: 'Preview unavailable' }); await render(); await click('Delete club');
+  expect(document.body.textContent).toContain('Preview unavailable'); expect(mocks.remove).not.toHaveBeenCalled();
+  await click('Retry preview'); await confirmDelete(); expect(mocks.remove).toHaveBeenCalledWith('club');
+});
+it('retains the confirmation and plain Supabase error after failed deletion', async () => {
+  mocks.remove.mockRejectedValue({ message: 'Club changed. Teams remain.' }); await render(); await click('Delete club'); await confirmDelete();
+  expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+  expect((document.querySelector('#club-delete-confirm') as HTMLInputElement).value).toBe('Titan');
+  expect(document.body.textContent).toContain('Club changed. Teams remain.');
+  expect(mocks.remove).toHaveBeenCalledTimes(1);
+});
+it('removes deleted club locally and retries only refresh when context refresh fails', async () => {
+  changed.mockRejectedValue(new Error('offline')); await render(); await click('Delete club'); await confirmDelete();
+  expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(document.body.textContent).not.toContain('Titan');
+  expect(document.body.textContent).toContain('Club deleted'); await click('Retry refresh'); expect(mocks.remove).toHaveBeenCalledTimes(1);
+});
+
+it('refreshing a preview with the correct confirmation never submits deletion', async () => {
+  await render(); await click('Delete club');
+  await act(async () => {
+    const input = document.querySelector('#club-delete-confirm')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Titan');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await click('Refresh preview'); expect(mocks.remove).not.toHaveBeenCalled();
+  expect(mocks.counts).toHaveBeenCalledTimes(2);
 });

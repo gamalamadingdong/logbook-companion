@@ -3,26 +3,28 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ filter: null as string | null, id: 'a', getTeam: vi.fn(), select: vi.fn(), admin: true as boolean | undefined, role: 'coach', members: vi.fn(), adminUpdate: vi.fn(), roleUpdate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ filter: null as string | null, id: 'a', getTeam: vi.fn(), select: vi.fn(), admin: true as boolean | undefined, role: 'coach', members: vi.fn(), adminUpdate: vi.fn(), empty: false, roleUpdate: vi.fn(), switch: vi.fn(), counts: vi.fn(), remove: vi.fn(), refresh: vi.fn() }));
 vi.mock('../../hooks/useCoachingContext', () => ({ useCoachingContext: () => ({
   userId: 'coach', teamId: mocks.id, filterTeamId: mocks.filter, orgId: 'club', isLoadingTeam: false,
-  teams: [
+  teams: mocks.empty ? [] : [
     { team_id: 'a', team_name: 'Juniors', org_id: 'club', role: mocks.role, is_admin: mocks.admin },
     { team_id: 'b', team_name: 'Masters', org_id: 'club', role: mocks.role, is_admin: mocks.admin },
-  ], refreshTeam: vi.fn(), setFilterTeamId: mocks.select,
+    { team_id: 'c', team_name: 'Other', org_id: 'other', role: mocks.role, is_admin: mocks.admin },
+    { team_id: 'd', team_name: 'Standalone', org_id: null, role: mocks.role, is_admin: mocks.admin },
+  ], refreshTeam: mocks.refresh, setFilterTeamId: mocks.select, switchTeam: mocks.switch,
 }) }));
-vi.mock('../../components/coaching/ClubManagement', () => ({ ClubManagement: () => <section>Clubs · Add club</section> }));
+vi.mock('../../components/coaching/ClubManagement', () => ({ ClubManagement: ({ teams = [], onManageTeam }: { teams: { team_id: string }[]; onManageTeam: (id: string) => void }) => <section>Clubs · Add club{teams.map(team => <button key={team.team_id} onClick={() => onManageTeam(team.team_id)}>Manage {team.team_id}</button>)}</section> }));
 vi.mock('../../components/coaching/CoachingNav', () => ({ CoachingNav: () => <nav>Scope controls</nav> }));
 vi.mock('../../components/team/TeamInfoEditorList', () => ({ TeamInfoEditorList: ({ teams }: { teams: { team_id: string }[] }) => <div data-testid="editable-teams">{teams.map(t => t.team_id).join(',')}</div> }));
 vi.mock('../../services/coaching/coachingService', () => ({
-  canCreateCoachingSpace: async () => true, updateTeamMemberAdmin: mocks.adminUpdate, updateTeamMemberRole: mocks.roleUpdate, getTeam: mocks.getTeam, getTeamMembers: mocks.members, getOrganizationsForUser: async () => [], getOrganizationMembershipsForUser: async () => [],
+  deleteTeam: mocks.remove, getTeamDataCounts: mocks.counts, canCreateCoachingSpace: async () => true, updateTeamMemberAdmin: mocks.adminUpdate, updateTeamMemberRole: mocks.roleUpdate, getTeam: mocks.getTeam, getTeamMembers: mocks.members, getOrganizationsForUser: async () => [], getOrganizationMembershipsForUser: async () => [],
 }));
 import { CoachingSettings } from './CoachingSettings';
 let root: Root;
 async function render() { await act(async () => root.render(<MemoryRouter><CoachingSettings /></MemoryRouter>)); }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); vi.clearAllMocks();
-  mocks.id = 'a'; mocks.filter = null; mocks.admin = true; mocks.role = 'coach'; mocks.members.mockResolvedValue([]); mocks.adminUpdate.mockResolvedValue(undefined); mocks.roleUpdate.mockResolvedValue(undefined);
+  mocks.empty = false; mocks.counts.mockResolvedValue({ athletes: 0, sessions: 0, assignments: 0, boatings: 0, ergScores: 0 }); mocks.remove.mockResolvedValue(undefined); mocks.refresh.mockResolvedValue(undefined); mocks.id = 'a'; mocks.filter = null; mocks.admin = true; mocks.role = 'coach'; mocks.members.mockResolvedValue([]); mocks.adminUpdate.mockResolvedValue(undefined); mocks.roleUpdate.mockResolvedValue(undefined);
   mocks.getTeam.mockImplementation(async (id: string) => ({ id, name: id === 'a' ? 'Juniors' : 'Masters', org_id: 'club' }));
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
@@ -114,4 +116,55 @@ it('shows inherited Admin for the team owner and protects their membership contr
   expect(toggle.disabled).toBe(true);
   expect(document.querySelector('[aria-label="Role for Owner"]')).toBeNull();
   expect(toggle.parentElement?.querySelector('[title="Remove from team"]')).toBeNull();
+});
+
+it('opens an exact directory team from All Teams without editing the anchor', async () => {
+  await render(); await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Manage b')!.click());
+  expect(mocks.select).toHaveBeenCalledWith('b');
+  expect(mocks.getTeam).not.toHaveBeenCalled();
+});
+async function openTeamDeletion() {
+  mocks.filter = 'a'; await render();
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Delete Team')!.click());
+}
+async function deleteTeamConfirmation() {
+  await act(async () => {
+    const input = document.querySelector('#team-delete-confirm')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Juniors');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { const button = [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Delete Forever')!; button.click(); button.click(); });
+}
+it('keeps failed team deletion visible inside its confirmation and prevents duplicate requests', async () => {
+  mocks.remove.mockRejectedValue({ message: 'Archived history prevents deletion' }); await openTeamDeletion(); await deleteTeamConfirmation();
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Archived history prevents deletion');
+  expect(mocks.remove).toHaveBeenCalledTimes(1);
+});
+it('fails closed when team data preview fails', async () => {
+  mocks.counts.mockRejectedValue({ message: 'Preview failed' }); await openTeamDeletion();
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Preview failed');
+  await deleteTeamConfirmation(); expect(mocks.remove).not.toHaveBeenCalled();
+});
+it('refreshes context after team deletion while keeping the settings directory available', async () => {
+  await openTeamDeletion(); await deleteTeamConfirmation();
+  expect(mocks.refresh).toHaveBeenCalledWith({ throwOnError: true });
+  expect(document.body.textContent).toContain('Clubs · Add club');
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it.each(['c', 'd'])('uses team switching for directory destinations outside the active club (%s)', async id => {
+  await render(); await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === `Manage ${id}`)!.click());
+  expect(mocks.switch).toHaveBeenCalledWith(id); expect(mocks.select).not.toHaveBeenCalled();
+});
+it('retains creation and a clear empty state after the last team is removed', async () => {
+  mocks.empty = true; await render();
+  expect(document.querySelector('a[href="/team-management/setup"]')?.textContent).toContain('Add team');
+  expect(document.body.textContent).toContain('Select a team');
+  expect(document.body.textContent).not.toContain('Team administration requires Admin access');
+});
+it('retries only refresh after successful team deletion and a failed context reload', async () => {
+  mocks.refresh.mockRejectedValue(new Error('offline')); await openTeamDeletion(); await deleteTeamConfirmation();
+  expect(document.body.textContent).toContain('Team deleted');
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Retry refresh')!.click());
+  expect(mocks.remove).toHaveBeenCalledTimes(1); expect(mocks.refresh).toHaveBeenCalledTimes(2);
 });
