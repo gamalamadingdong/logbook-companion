@@ -58,6 +58,16 @@ describe('coach scope selection', () => {
     expect(document.body.textContent).toContain('River Club');
     expect(document.body.textContent).toContain('Juniors');
     expect(document.querySelector('a[href="/team-management/seasons"]')).not.toBeNull();
+    expect([...document.querySelectorAll('a')].find(a => a.textContent?.includes('Manage clubs & teams'))?.getAttribute('href'))
+      .toBe('/team-management/settings');
+  });
+  it('can report refresh failure to a saved-write recovery flow', async () => {
+    await render();
+    mocks.getTeams.mockRejectedValue(new Error('offline'));
+    await act(async () => { await expect(ctx.refreshTeam({ throwOnError: true })).rejects.toThrow('offline'); });
+    expect(ctx.teamError).toBe('offline');
+    expect(ctx.teamId).toBe('a1');
+    await act(async () => { await expect(ctx.refreshTeam()).resolves.toBeUndefined(); });
   });
   it('keeps the selected roster and action team together, including after refresh', async () => {
     await render();

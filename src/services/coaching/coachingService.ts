@@ -494,10 +494,19 @@ export async function getOrganizationsForUser(userId: string): Promise<Organizat
     .eq('user_id', userId)
     .order('joined_at');
 
-  if (error || !data) return [];
+  if (error) throw error;
+  if (!data) return [];
   return (data as unknown as { organizations: Organization }[])
     .map((row) => row.organizations)
     .filter(Boolean);
+}
+
+/** Membership roles for club management; update permissions remain enforced by RLS. */
+export async function getOrganizationMembershipsForUser(userId: string): Promise<OrganizationMember[]> {
+  const { data, error } = await supabase.from('organization_members')
+    .select('id,org_id,user_id,role,joined_at').eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []) as OrganizationMember[];
 }
 
 /** Look up an organization by its invite code */

@@ -128,7 +128,7 @@ function CoachingSessionProvider({ userId, children }: { userId: string; childre
   }, [teams, teamId, switchTeam, userId]);
 
   /** Call after creating a team to refresh context */
-  const refreshTeam = useCallback(async () => {
+  const refreshTeam = useCallback(async (options?: { throwOnError?: boolean }) => {
     if (!userId) return;
     setIsLoadingTeam(true);
     try {
@@ -138,6 +138,7 @@ function CoachingSessionProvider({ userId, children }: { userId: string; childre
       setTeamError(null);
     } catch (err) {
       setTeamError(err instanceof Error ? err.message : 'Failed to load team');
+      if (options?.throwOnError) throw err;
     } finally {
       setIsLoadingTeam(false);
     }
