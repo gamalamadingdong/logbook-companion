@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 import { parseLocalDate } from '../../utils/dateUtils';
 import { CoachingNav } from '../../components/coaching/CoachingNav';
@@ -27,7 +27,6 @@ import {
   createScheduleEvent,
   updateScheduleEvent,
   deleteScheduleEvent,
-  getTeamsForOrg,
   type CoachingSession,
   type CoachingAthlete,
   type CoachingAthleteNote,
@@ -83,6 +82,12 @@ type SessionCrewFormData = Pick<CoachingSessionCrew, 'boat_name' | 'boat_type'> 
 };
 
 function CoachingSchedule() {
+  const { userId, orgId, teamId, filterTeamId, teams } = useCoachingContext();
+  const accessKey = teams.map(team => `${team.team_id}:${team.role}:${team.org_id}`).sort().join(',');
+  return <ScopedCoachingSchedule key={`${userId}:${orgId}:${teamId}:${filterTeamId}:${accessKey}`} />;
+}
+
+function ScopedCoachingSchedule() {
   const { userId, teamId, orgId, isLoadingTeam, filterTeamId, setFilterTeamId, teams } = useCoachingContext();
   const canManageEvents = teams.some(t => t.org_id === orgId && (t.org_role === 'owner' || t.org_role === 'admin'));
   const navigate = useNavigate();
@@ -90,7 +95,19 @@ function CoachingSchedule() {
   const requestedSessionId = searchParams.get('sessionId');
   const requestedDate = searchParams.get('date');
   const initialFocusDate = requestedDate ? parseLocalDate(requestedDate) : new Date();
-  const effectiveTeamId = filterTeamId ?? teamId;
+  const scopedTeamIds = useMemo(() => teams
+    .filter(team => (team.role === 'coach' || team.role === 'coxswain') &&
+      (filterTeamId ? team.team_id === filterTeamId : orgId ? team.org_id === orgId : team.team_id === teamId))
+    .map(team => team.team_id), [teams, filterTeamId, orgId, teamId]);
+  const effectiveTeamId = filterTeamId && scopedTeamIds.includes(filterTeamId)
+    ? filterTeamId : !orgId ? scopedTeamIds[0] : null;
+  const scopedTeamIdsKey = scopedTeamIds.join(',');
+  const loadVersion = useRef(0);
+  const crewFormVersion = useRef(0);
+  const invalidateLoads = useCallback(() => {
+    loadVersion.current++;
+    crewFormVersion.current++;
+  }, []);
   const activeTab: ScheduleTab = searchParams.get('tab') === 'lineups' ? 'lineups' : 'schedule';
   const showLegacyLineupsPointer = searchParams.get('from') === 'boatings';
   const [viewMode, setViewMode] = useState<ViewMode>('week');
@@ -102,7 +119,8 @@ function CoachingSchedule() {
   const [editingSession, setEditingSession] = useState<CoachingSession | null>(null);
   const [sessions, setSessions] = useState<CoachingSession[]>([]);
   const [sessionCrews, setSessionCrews] = useState<CoachingSessionCrew[]>([]);
-  const [athletes, setAthletes] = useState<CoachingAthlete[]>([]);
+  const [athletesByTeam, setAthletesByTeam] = useState<Record<string, CoachingAthlete[]>>({});
+  const getSessionAthletes = (session: CoachingSession) => session.team_id ? athletesByTeam[session.team_id] ?? [] : [];
   const [assignments, setAssignments] = useState<GroupAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +133,8 @@ function CoachingSchedule() {
   const [crewFormSession, setCrewFormSession] = useState<CoachingSession | null>(null);
   const [editingCrew, setEditingCrew] = useState<CoachingSessionCrew | null>(null);
   const [isLoadingCrewForm, setIsLoadingCrewForm] = useState(false);
-  const [orgTeams, setOrgTeams] = useState<Team[]>([]);
+  const orgTeams = teams.filter(team => scopedTeamIds.includes(team.team_id))
+    .map(team => ({ id: team.team_id, name: team.team_name }));
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CoachingScheduleEvent | null>(null);
 
@@ -177,33 +196,42 @@ function CoachingSchedule() {
   }, [viewMode, currentDay, currentWeek, currentMonth]);
 
   const loadVisibleData = useCallback(async () => {
-    if (!effectiveTeamId) return;
-
+    const version = ++loadVersion.current;
+    const teamIds = scopedTeamIdsKey ? scopedTeamIdsKey.split(',') : [];
     const { start, end } = getVisibleRange();
-    const [s, a, ga, ev, teams] = await Promise.all([
-      getSessionsByDateRange(effectiveTeamId, start, end),
-      getAthletes(effectiveTeamId),
-      getGroupAssignments(effectiveTeamId, { from: start, to: end, orgId: orgId ?? undefined }),
-      orgId ? getScheduleEvents(orgId, start, end, filterTeamId ?? undefined) : Promise.resolve([]),
-      orgId ? getTeamsForOrg(orgId) : Promise.resolve([]),
+    const [teamData, ga, ev] = await Promise.all([
+      Promise.all(teamIds.map(async id => {
+        const [sessions, athletes] = await Promise.all([
+          getSessionsByDateRange(id, start, end), getAthletes(id),
+        ]);
+        const scopedSessions = sessions.filter(session => session.team_id === id);
+        const crews = await getSessionCrewsForSessions(id, scopedSessions.map(session => session.id));
+        return { id, sessions: scopedSessions, athletes, crews };
+      })),
+      teamIds.length ? (orgId
+        ? getGroupAssignments(teamIds[0], { from: start, to: end, orgId })
+        : getGroupAssignments(teamIds[0], { from: start, to: end })) : Promise.resolve([]),
+      orgId && teamIds.length ? getScheduleEvents(orgId, start, end, effectiveTeamId ?? undefined) : Promise.resolve([]),
     ]);
-    const crews = await getSessionCrewsForSessions(effectiveTeamId, s.map((session) => session.id));
-
-    setSessions(s);
-    setSessionCrews(crews);
-    setAthletes(a);
-    setAssignments(ga);
-    setEvents(ev);
-    if (teams.length) {
-      setOrgTeams(teams);
-    }
-  }, [effectiveTeamId, filterTeamId, getVisibleRange, orgId]);
+    if (version !== loadVersion.current) return;
+    const allowed = new Set(teamIds);
+    setSessions(teamData.flatMap(data => data.sessions));
+    setSessionCrews(teamData.flatMap(data => data.crews.filter(crew => data.sessions.some(session => session.id === crew.session_id))));
+    setAthletesByTeam(Object.fromEntries(teamData.map(data => [data.id, data.athletes])));
+    setAssignments(ga.filter(assignment => assignment.team_id
+      ? allowed.has(assignment.team_id) : Boolean(orgId && assignment.org_id === orgId)));
+    setEvents(ev.filter(event => !event.team_ids?.length || event.team_ids.some(id => allowed.has(id))));
+  }, [effectiveTeamId, getVisibleRange, orgId, scopedTeamIdsKey]);
 
   useEffect(() => {
-    if (!teamId || isLoadingTeam) return;
+    if (isLoadingTeam) return;
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    setAdjacentHasData({ prev: false, next: false });
     loadVisibleData()
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load sessions'))
-      .finally(() => setIsLoading(false));
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load sessions'); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
 
     // Lightweight lookahead for adjacent period indicators (non-blocking)
     const checkAdjacent = async () => {
@@ -231,20 +259,24 @@ function CoachingSchedule() {
           nextStart = format(startOfMonth(nm), 'yyyy-MM-dd');
           nextEnd = format(endOfMonth(nm), 'yyyy-MM-dd');
         }
-        const [prevSessions, nextSessions] = await Promise.all([
-          getSessionsByDateRange(effectiveTeamId, prevStart, prevEnd),
-          getSessionsByDateRange(effectiveTeamId, nextStart, nextEnd),
-        ]);
-        setAdjacentHasData({ prev: prevSessions.length > 0, next: nextSessions.length > 0 });
+        const teamIds = scopedTeamIdsKey ? scopedTeamIdsKey.split(',') : [];
+        const adjacent = await Promise.all(teamIds.map(async id => {
+          const [prev, next] = await Promise.all([
+            getSessionsByDateRange(id, prevStart, prevEnd),
+            getSessionsByDateRange(id, nextStart, nextEnd),
+          ]);
+          return { prev: prev.some(session => session.team_id === id), next: next.some(session => session.team_id === id) };
+        }));
+        if (!cancelled) setAdjacentHasData({ prev: adjacent.some(data => data.prev), next: adjacent.some(data => data.next) });
       } catch {
         // Non-critical — keep previous indicator state
       }
     };
     checkAdjacent();
-  }, [teamId, isLoadingTeam, currentDay, currentWeek, currentMonth, effectiveTeamId, filterTeamId, loadVisibleData, orgId, viewMode]);
+    return () => { cancelled = true; invalidateLoads(); };
+  }, [teamId, isLoadingTeam, currentDay, currentWeek, currentMonth, effectiveTeamId, filterTeamId, loadVisibleData, orgId, viewMode, scopedTeamIdsKey, invalidateLoads]);
 
   const refreshSessions = async () => {
-    if (!effectiveTeamId) return;
     try {
       await loadVisibleData();
     } catch (err) {
@@ -253,10 +285,12 @@ function CoachingSchedule() {
   };
 
   const openCrewForm = async (session: CoachingSession, crew?: CoachingSessionCrew) => {
-    if (!effectiveTeamId) return;
+    if (!session.team_id || !scopedTeamIds.includes(session.team_id)) return;
+    const version = ++crewFormVersion.current;
+    setCrewFormSession(null);
     setIsLoadingCrewForm(true);
     try {
-      const targetTeamId = session.team_id ?? effectiveTeamId;
+      const targetTeamId = session.team_id;
       const fetchBoats = orgId
         ? () => getOrgBoats(orgId)
         : () => getBoats(targetTeamId);
@@ -269,30 +303,32 @@ function CoachingSchedule() {
         fetchBoatings(),
       ]);
 
+      if (version !== crewFormVersion.current) return;
       setCrewFormBoats(boats.filter((boat) => boat.team_id === targetTeamId));
       setCrewFormTemplates(
         templateBoatings.filter((entry) =>
-          entry.is_active !== false && (!orgId ? entry.team_id === targetTeamId : true)
+          entry.is_active !== false && Boolean(entry.team_id && scopedTeamIds.includes(entry.team_id))
         )
       );
       setCrewFormSession(session);
       setEditingCrew(crew ?? null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load crew form');
+      if (version === crewFormVersion.current) toast.error(err instanceof Error ? err.message : 'Failed to load crew form');
     } finally {
-      setIsLoadingCrewForm(false);
+      if (version === crewFormVersion.current) setIsLoadingCrewForm(false);
     }
   };
 
   const handleSaveCrewForSession = async (session: CoachingSession, data: SessionCrewFormData) => {
-    if (!effectiveTeamId) return;
+    const targetTeamId = session.team_id;
+    if (!targetTeamId || !scopedTeamIds.includes(targetTeamId)) return;
     try {
       let boatId = data.boat_id ?? null;
 
       if (!boatId && data.boat_name.trim()) {
         const normalizedName = data.boat_name.trim().toLowerCase();
         const existingBoat = crewFormBoats.find((boat) =>
-          boat.team_id === effectiveTeamId &&
+          boat.team_id === targetTeamId &&
           boat.boat_type === data.boat_type &&
           boat.boat_name.trim().toLowerCase() === normalizedName
         );
@@ -300,7 +336,7 @@ function CoachingSchedule() {
         if (existingBoat) {
           boatId = existingBoat.id;
         } else {
-          const createdBoat = await createBoat(effectiveTeamId, userId, {
+          const createdBoat = await createBoat(targetTeamId, userId, {
             boat_name: data.boat_name.trim(),
             boat_type: data.boat_type,
             sort_order: crewFormBoats.length,
@@ -324,7 +360,7 @@ function CoachingSchedule() {
         toast.success('Crew snapshot updated.');
       } else {
         const existingCrews = sessionCrews.filter((crew) => crew.session_id === session.id);
-        await createSessionCrew(effectiveTeamId, userId, {
+        await createSessionCrew(targetTeamId, userId, {
           session_id: session.id,
           sort_order: existingCrews.length,
           ...payload,
@@ -402,9 +438,10 @@ function CoachingSchedule() {
       team_id?: string;
     }
   ) => {
-    if (!activeDay || !effectiveTeamId) return;
+    if (!activeDay) return;
+    const targetTeamId = data.team_id ?? effectiveTeamId;
+    if (!targetTeamId || !scopedTeamIds.includes(targetTeamId)) return;
     try {
-      const targetTeamId = data.team_id ?? effectiveTeamId;
       await createSession(targetTeamId, userId, {
         date: format(activeDay, 'yyyy-MM-dd'),
         type: data.type,
@@ -412,9 +449,6 @@ function CoachingSchedule() {
         general_notes: data.general_notes,
         group_assignment_id: data.group_assignment_id ?? null,
       });
-      if (targetTeamId !== effectiveTeamId) {
-        setFilterTeamId(targetTeamId);
-      }
       setIsAdding(false);
       await refreshSessions();
     } catch (err) {
@@ -741,7 +775,7 @@ function CoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}
-              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate(`/team-management/weekly-focus?week=${getWeekStart(startOfWeek(currentDay, { weekStartsOn: 1 }))}`) : undefined}
             />
           )}
 
@@ -796,7 +830,7 @@ function CoachingSchedule() {
                   <SessionCard
                     key={session.id}
                     session={session}
-                    athletes={athletes}
+                    athletes={getSessionAthletes(session)}
                     assignments={assignments}
                     isExpanded={expandedSession === session.id}
                     onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
@@ -824,6 +858,8 @@ function CoachingSchedule() {
                       }
                     } : undefined}
                     onManageTemplates={session.type === 'water' ? () => {
+                      if (!session.team_id) return;
+                      setFilterTeamId(session.team_id);
                       focusDay(parseLocalDate(session.date));
                       updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
                     } : undefined}
@@ -843,7 +879,7 @@ function CoachingSchedule() {
             <WeeklyFocusBanner
               teamId={effectiveTeamId}
               weekStart={getWeekStart(weekStart)}
-              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate('/team-management') : undefined}
+              onEdit={teams.some(t => t.team_id === effectiveTeamId && t.role === 'coach') ? () => navigate(`/team-management/weekly-focus?week=${getWeekStart(weekStart)}`) : undefined}
             />
           )}
           {weekDays.map((day) => {
@@ -932,7 +968,7 @@ function CoachingSchedule() {
                       <SessionCard
                         key={session.id}
                         session={session}
-                        athletes={athletes}
+                        athletes={getSessionAthletes(session)}
                         assignments={assignments}
                         isExpanded={expandedSession === session.id}
                         onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
@@ -960,6 +996,8 @@ function CoachingSchedule() {
                            }
                          } : undefined}
                           onManageTemplates={session.type === 'water' ? () => {
+                            if (!session.team_id) return;
+                            setFilterTeamId(session.team_id);
                             focusDay(parseLocalDate(session.date));
                             updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
                           } : undefined}
@@ -1105,7 +1143,7 @@ function CoachingSchedule() {
                 <SessionCard
                   key={session.id}
                   session={session}
-                  athletes={athletes}
+                  athletes={getSessionAthletes(session)}
                   assignments={assignments}
                   isExpanded={expandedSession === session.id}
                   onToggle={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
@@ -1133,6 +1171,8 @@ function CoachingSchedule() {
                      }
                    } : undefined}
                     onManageTemplates={session.type === 'water' ? () => {
+                      if (!session.team_id) return;
+                      setFilterTeamId(session.team_id);
                       focusDay(parseLocalDate(session.date));
                       updateScheduleQuery({ tab: 'lineups', from: null, date: session.date });
                     } : undefined}
@@ -1179,7 +1219,7 @@ function CoachingSchedule() {
         <SessionCrewForm
           session={crewFormSession}
           crew={editingCrew ?? undefined}
-          athletes={athletes}
+          athletes={getSessionAthletes(crewFormSession)}
           boats={crewFormBoats}
           orgTeams={orgTeams}
           existingCrews={sessionCrews.filter((crew) => crew.session_id === crewFormSession.id)}
@@ -1240,7 +1280,7 @@ function SessionForm({
   session?: CoachingSession;
   teamId?: string | null;
   teamName?: string | null;
-  orgTeams?: Team[];
+  orgTeams?: Array<Pick<Team, 'id' | 'name'>>;
   assignments?: GroupAssignment[];
   onSave: (data: Pick<CoachingSession, 'type' | 'focus' | 'general_notes'> & {
     group_assignment_id?: string | null;
@@ -1267,6 +1307,7 @@ function SessionForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!session && !selectedTeamId) return;
             onSave({
               type,
               focus: focus || undefined,
@@ -1290,10 +1331,11 @@ function SessionForm({
               <select
                 id="session-team"
                 value={selectedTeamId}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
+                onChange={(e) => { setSelectedTeamId(e.target.value); setAssignmentId(''); }}
                 className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                 required
               >
+                <option value="">Select a team</option>
                 {orgTeams.map((team) => (
                   <option key={team.id} value={team.id}>{team.name}</option>
                 ))}
@@ -1330,7 +1372,7 @@ function SessionForm({
               <select id="session-assignment" value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}
                 className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
                 <option value="">None</option>
-                {assignments.map((a) => (
+                {assignments.filter(a => !a.team_id || a.team_id === selectedTeamId).map((a) => (
                   <option key={a.id} value={a.id}>{a.title}</option>
                 ))}
               </select>
@@ -1641,7 +1683,7 @@ function SessionCrewForm({
   crew?: CoachingSessionCrew;
   athletes: CoachingAthlete[];
   boats: CoachingBoat[];
-  orgTeams: Team[];
+  orgTeams: Array<Pick<Team, 'id' | 'name'>>;
   existingCrews: CoachingSessionCrew[];
   templateBoatings: CoachingBoating[];
   onSave: (data: SessionCrewFormData) => void;
@@ -2150,7 +2192,7 @@ function EventBanner({
   onDelete,
 }: {
   event: CoachingScheduleEvent;
-  orgTeams: Team[];
+  orgTeams: Array<Pick<Team, 'id' | 'name'>>;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -2208,7 +2250,7 @@ function EventForm({
   title: string;
   event?: CoachingScheduleEvent;
   defaultDate: string;
-  orgTeams: Team[];
+  orgTeams: Array<Pick<Team, 'id' | 'name'>>;
   onSave: (data: Pick<CoachingScheduleEvent, 'date' | 'title' | 'event_type'> & Partial<Pick<CoachingScheduleEvent, 'end_date' | 'location' | 'team_ids' | 'notes'>>) => void;
   onCancel: () => void;
 }) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Target, Plus, Pencil, X, Check, Loader2, ChevronLeft, ChevronRight, Trash2, BookOpen, Crosshair, MessageSquare, Activity, Timer, ClipboardList, Copy, ChevronsRight } from 'lucide-react';
+import { Target, Plus, Pencil, X, Check, Loader2, ChevronLeft, ChevronRight, Trash2, BookOpen, Crosshair, MessageSquare, Activity, Timer, Copy } from 'lucide-react';
 import {
   getWeeklyPlan,
   upsertWeeklyPlan,
@@ -10,11 +10,15 @@ import {
   type GroupAssignment,
 } from '../../services/coaching/coachingService';
 
+import { Button, Card, Input } from '../ui';
+import { Modal } from '../ui/Modal';
+import { toast } from 'sonner';
 import { useCoachingContext } from '../../hooks/useCoachingContext';
 
 interface WeeklyFocusCardProps {
   teamId: string;
   userId: string;
+  initialWeekStart?: string;
 }
 
 /** Format a week_start date into a readable range: "Feb 17 – 23" */
@@ -32,14 +36,22 @@ function formatWeekRange(weekStart: string): string {
   return `${startMonth} ${start.getDate()} – ${endMonth} ${end.getDate()}`;
 }
 
-export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId }) => {
+export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = (props) => <WeeklyFocusEditor key={`${props.userId}:${props.teamId}:${props.initialWeekStart ?? getWeekStart()}`} {...props} />;
+
+const WeeklyFocusEditor: React.FC<WeeklyFocusCardProps> = ({ teamId, userId, initialWeekStart }) => {
   const { teams } = useCoachingContext();
   const canEdit = teams.some(t => t.team_id === teamId && t.role === 'coach');
   const [plan, setPlan] = useState<CoachingWeeklyPlan | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [assignmentsReady, setAssignmentsReady] = useState(false);
+  const [assignmentsError, setAssignmentsError] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [weekStart, setWeekStart] = useState(() => getWeekStart());
+  const [weekStart, setWeekStart] = useState(() => initialWeekStart ?? getWeekStart());
 
   // Edit form state
   const [theme, setTheme] = useState('');
@@ -49,10 +61,12 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
   const [pieceExamples, setPieceExamples] = useState<string[]>(['']);
   const [notes, setNotes] = useState('');
   const [reflection, setReflection] = useState('');
-  const [activeTab, setActiveTab] = useState<'goals' | 'coaching' | 'drills' | 'pieces' | 'assignments'>('goals');
+  const [activeTab, setActiveTab] = useState<'goals' | 'coaching' | 'drills' | 'pieces'>('goals');
   const [assignments, setAssignments] = useState<GroupAssignment[]>([]);
-  const [showTabsScrollHint, setShowTabsScrollHint] = useState(false);
-  const tabsStripRef = useRef<HTMLDivElement | null>(null);
+  const mounted = useRef(true);
+  const mutationLock = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [assignmentsRetry, setAssignmentsRetry] = useState(0);
   const loading = loadedKey !== `${teamId}:${weekStart}`;
 
   // Load plan for current week
@@ -60,6 +74,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
     if (!teamId) return;
     let cancelled = false;
     const key = `${teamId}:${weekStart}`;
+    setLoadError(false); setLoadedKey(null); setError('');
 
     getWeeklyPlan(teamId, weekStart)
       .then((data) => {
@@ -83,51 +98,27 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
           setReflection('');
         }
       })
-      .catch(() => { if (!cancelled) setPlan(null); })
+      .catch(() => { if (!cancelled) setLoadError(true); })
       .finally(() => { if (!cancelled) setLoadedKey(key); });
 
     return () => { cancelled = true; };
-  }, [teamId, weekStart]);
-
-  useEffect(() => {
-    const el = tabsStripRef.current;
-    if (!el) {
-      setShowTabsScrollHint(false);
-      return;
-    }
-
-    const updateHint = () => {
-      const maxScrollLeft = el.scrollWidth - el.clientWidth;
-      const hasOverflow = maxScrollLeft > 2;
-      const atRightEdge = el.scrollLeft >= maxScrollLeft - 2;
-      setShowTabsScrollHint(hasOverflow && !atRightEdge);
-    };
-
-    const raf = requestAnimationFrame(updateHint);
-    el.addEventListener('scroll', updateHint, { passive: true });
-    window.addEventListener('resize', updateHint);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      el.removeEventListener('scroll', updateHint);
-      window.removeEventListener('resize', updateHint);
-    };
-  }, [editing, activeTab, assignments.length, goals.length, coachingPoints.length, drillExamples.length, pieceExamples.length, plan?.goals.length, plan?.coaching_points.length, plan?.drill_examples.length, plan?.piece_examples.length]);
+  }, [teamId, weekStart, retry]);
 
   // Load assignments for this week
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
+    setAssignments([]); setAssignmentsReady(false); setAssignmentsError(false);
     const weekEnd = new Date(weekStart + 'T00:00:00');
     weekEnd.setDate(weekEnd.getDate() + 6);
     const to = weekEnd.toISOString().slice(0, 10);
 
     getGroupAssignments(teamId, { from: weekStart, to })
-      .then((data) => { if (!cancelled) setAssignments(data); })
-      .catch(() => { if (!cancelled) setAssignments([]); });
+      .then((data) => { if (!cancelled) { setAssignments(data); setAssignmentsReady(true); } })
+      .catch(() => { if (!cancelled) setAssignmentsError(true); });
 
     return () => { cancelled = true; };
-  }, [teamId, weekStart]);
+  }, [teamId, weekStart, assignmentsRetry]);
 
   const navigateWeek = (direction: -1 | 1) => {
     const current = new Date(weekStart + 'T00:00:00');
@@ -139,7 +130,9 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
   const isCurrentWeek = weekStart === getWeekStart();
 
   const handleSave = async () => {
-    if (!canEdit) return;
+    if (!canEdit || mutationLock.current) return;
+    mutationLock.current = true;
+    setError('');
     setSaving(true);
     try {
       const filteredGoals = goals.map((p) => p.trim()).filter(Boolean);
@@ -158,21 +151,29 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
         reflection: reflection.trim() || null,
         created_by: userId,
       });
+      if (!mounted.current) return;
       setPlan(saved);
+      toast.success('Weekly focus saved');
       setEditing(false);
-    } catch (err) {
-      console.error('Failed to save weekly plan', err);
+    } catch {
+      if (mounted.current) setError('Weekly focus could not be saved. Your draft is kept; try Save again.');
     } finally {
-      setSaving(false);
+      mutationLock.current = false;
+      if (mounted.current) setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!canEdit) return;
+    if (!canEdit || mutationLock.current) return;
     if (!plan) return;
+    mutationLock.current = true;
+    setError('');
     setSaving(true);
     try {
       await deleteWeeklyPlan(plan.id);
+      if (!mounted.current) return;
+      setConfirmDelete(false);
+      toast.success('Weekly focus deleted');
       setPlan(null);
       setTheme('');
       setGoals(['']);
@@ -182,10 +183,11 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
       setNotes('');
       setReflection('');
       setEditing(false);
-    } catch (err) {
-      console.error('Failed to delete weekly plan', err);
+    } catch {
+      if (mounted.current) setError('Weekly focus could not be deleted. Try again.');
     } finally {
-      setSaving(false);
+      mutationLock.current = false;
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -205,11 +207,10 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
     });
 
   const tabs = [
-    { key: 'goals' as const, label: 'Goals', icon: Crosshair, color: 'text-emerald-400' },
-    { key: 'coaching' as const, label: 'Coaching', icon: MessageSquare, color: 'text-amber-400' },
-    { key: 'drills' as const, label: 'Drills', icon: Activity, color: 'text-cyan-400' },
-    { key: 'pieces' as const, label: 'Pieces', icon: Timer, color: 'text-purple-400' },
-    { key: 'assignments' as const, label: 'Schedule', icon: ClipboardList, color: 'text-indigo-400' },
+    { key: 'goals' as const, label: 'Goals', icon: Crosshair, color: 'text-accent-coaching-text' },
+    { key: 'coaching' as const, label: 'Coaching', icon: MessageSquare, color: 'text-accent-coaching-text' },
+    { key: 'drills' as const, label: 'Drills', icon: Activity, color: 'text-accent-coaching-text' },
+    { key: 'pieces' as const, label: 'Pieces', icon: Timer, color: 'text-accent-coaching-text' },
   ] as const;
 
   const tabData = {
@@ -228,7 +229,7 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
 
   /** Check if plan has any meaningful content */
   const hasContent = plan && (
-    plan.theme ||
+    plan.notes || plan.reflection || plan.theme ||
     plan.goals.length > 0 ||
     plan.coaching_points.length > 0 ||
     plan.drill_examples.length > 0 ||
@@ -310,145 +311,137 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
           'text/plain': new Blob([text], { type: 'text/plain' }),
         }),
       ]);
+      if (!mounted.current) return;
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => { if (mounted.current) setCopied(false); }, 2000);
     } catch {
       // Fallback: plain text
-      await navigator.clipboard.writeText(text);
+      try { await navigator.clipboard.writeText(text); } catch { setError('Weekly focus could not be copied. Check clipboard permissions and try again.'); return; }
+      if (!mounted.current) return;
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => { if (mounted.current) setCopied(false); }, 2000);
     }
   };
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+    <Card padding="none" className="overflow-hidden break-words">
       {/* Header with week navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-neutral-800 bg-neutral-800/30">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border bg-surface-secondary/30">
         <div className="flex items-center gap-2">
-          <Target size={16} className="text-indigo-400 shrink-0" />
-          <span className="text-sm font-semibold text-white">Weekly Focus</span>
-          {(hasContent || assignments.length > 0) && (
-            <button
+          <Target size={16} className="text-accent-coaching-text shrink-0" />
+          <span className="text-sm font-semibold text-content-primary">Weekly Focus</span>
+          {!loading && !loadError && assignmentsReady && (hasContent || assignments.length > 0) && (
+            <Button variant="ghost"
               type="button"
+              aria-label={copied ? 'Copied!' : 'Copy to clipboard for email'}
               onClick={copyToClipboard}
-              className="text-neutral-500 hover:text-indigo-400 transition-colors p-1"
+              className="min-h-11 min-w-11 text-content-muted hover:text-accent-coaching-text transition-colors p-1"
               title={copied ? 'Copied!' : 'Copy to clipboard for email'}
             >
               {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <Button variant="ghost"
             type="button"
+            disabled={saving}
+            aria-label="Previous week"
             onClick={() => navigateWeek(-1)}
-            className="p-1 text-neutral-500 hover:text-white transition-colors shrink-0"
+            className="min-h-11 min-w-11 p-1 text-content-muted hover:text-content-primary transition-colors shrink-0"
             title="Previous week"
           >
             <ChevronLeft size={16} />
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             type="button"
+            disabled={saving}
             onClick={() => {
               setWeekStart(getWeekStart());
               setEditing(false);
             }}
-            className={`text-xs px-2 py-1 rounded transition-colors truncate ${
+            className={`min-h-11 min-w-11 text-xs px-2 py-1 rounded transition-colors truncate ${
               isCurrentWeek
-                ? 'text-indigo-400 bg-indigo-500/10'
-                : 'text-neutral-500 hover:text-white hover:bg-neutral-700'
+                ? 'text-accent-coaching-text bg-accent-coaching-surface/10'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-elevated'
             }`}
           >
             {formatWeekRange(weekStart)}
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             type="button"
+            disabled={saving}
+            aria-label="Next week"
             onClick={() => navigateWeek(1)}
-            className="p-1 text-neutral-500 hover:text-white transition-colors shrink-0"
+            className="min-h-11 min-w-11 p-1 text-content-muted hover:text-content-primary transition-colors shrink-0"
             title="Next week"
           >
             <ChevronRight size={16} />
-          </button>
+          </Button>
         </div>
       </div>
 
+      <div className="px-4 sm:px-5 pt-3">
+        <a className="inline-flex items-center min-h-11 text-sm text-accent-coaching-text rounded focus-visible:ring-2 focus-visible:ring-focus" href={`/team-management/schedule?date=${weekStart}`}>Open this week in Schedule</a>
+        {assignmentsError && <div><p role="alert">Weekly assignments could not be loaded for sharing.</p><Button variant="secondary" className="min-h-11 min-w-11" onClick={() => setAssignmentsRetry(value => value + 1)}>Retry assignments</Button></div>}
+        {error && <p role="alert">{error}</p>}
+      </div>
+      <Modal open={confirmDelete} title="Delete weekly focus?" onClose={() => { if (!saving) setConfirmDelete(false); }} footer={<Button className="min-h-11 min-w-11" variant="danger" loading={saving} onClick={handleDelete}>Confirm delete</Button>}>
+        <p>This removes the focus and reflection for this week.</p>{error && <p role="alert">{error}</p>}
+      </Modal>
       {/* Content */}
       <div className="p-4 sm:p-5">
         {loading ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 size={20} className="text-indigo-400 animate-spin" />
+            <Loader2 size={20} className="text-accent-coaching-text animate-spin" />
           </div>
-        ) : editing && canEdit ? (
+        ) : loadError ? <div><p role="alert">Weekly focus could not be loaded. Check your connection and try again.</p><Button variant="secondary" className="min-h-11 min-w-11" onClick={() => setRetry(value => value + 1)}>Retry weekly focus</Button></div> : editing && canEdit ? (
           /* ─── Edit Mode ────────────────────────────── */
           <div className="space-y-4">
             {/* Theme */}
             <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider mb-1 block">
+              <label className="text-xs text-content-muted uppercase tracking-wider mb-1 block">
                 Theme
               </label>
-              <input
+              <Input
+                aria-label="Theme"
                 type="text"
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
                 placeholder="e.g. Build the Stroke"
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                className="min-h-11 w-full bg-surface-secondary border border-border rounded-lg px-3 py-2 text-sm text-content-primary placeholder-content-faint focus:outline-none focus:border-accent-coaching"
               />
             </div>
 
             {/* Tabs */}
             <div>
               <div className="relative">
-                <div ref={tabsStripRef} className="flex gap-1 border-b border-neutral-800 mb-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex flex-wrap gap-1 border-b border-border mb-3 pb-1">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.key;
                     return (
-                      <button
+                      <Button variant="ghost"
                         key={tab.key}
                         type="button"
+                        aria-pressed={isActive}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                        className={`min-h-11 min-w-11 shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
                           isActive
                             ? `${tab.color} border-current`
-                            : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                            : 'text-content-muted border-transparent hover:text-content-secondary'
                         }`}
                       >
                         <Icon size={12} />
                         {tab.label}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
-                {showTabsScrollHint && (
-                  <ChevronsRight className="sm:hidden pointer-events-none absolute right-1 top-[calc(50%-7px)] w-3.5 h-3.5 text-neutral-500/80" aria-hidden="true" />
-                )}
               </div>
 
               {/* Active tab content (edit mode) */}
-              {activeTab === 'assignments' ? (
-                /* Assignments tab — read-only in edit mode */
-                assignments.length === 0 ? (
-                  <p className="text-xs text-neutral-600 italic py-2">No workouts scheduled this week</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {assignments.map((a) => (
-                      <li key={a.id} className="flex items-start gap-2 text-sm">
-                        <span className="text-indigo-400 mt-0.5">•</span>
-                        <div className="min-w-0">
-                          <span className="text-white font-medium">{a.title || a.template_name || 'Untitled'}</span>
-                          <div className="flex items-center gap-2 text-xs text-neutral-500">
-                            <span>{new Date(a.scheduled_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                            {a.workout_type && <span className="text-neutral-600">· {a.workout_type}</span>}
-                            {a.training_zone && <span className="text-neutral-600">· {a.training_zone}</span>}
-                            {a.is_test_template && <span className="text-amber-400 font-medium">TEST</span>}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : (
-                /* Editable tab list */
+              {(                /* Editable tab list */
                 (() => {
                   const data = tabData[activeTab as keyof typeof tabData];
                   const { items, setter, placeholder } = data;
@@ -456,40 +449,41 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
                     <div className="space-y-2">
                       {items.map((item, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-neutral-600 text-sm">•</span>
-                          <input
+                          <span className="text-content-faint text-sm">•</span>
+                          <div className="flex-1 min-w-0"><Input
+                            aria-label={`${tabs.find(tab => tab.key === activeTab)?.label} item ${i + 1}`}
                             type="text"
                             value={item}
                             onChange={(e) => updateItem(setter, i, e.target.value)}
                             placeholder={placeholder}
-                            className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500"
+                            className="min-h-11 bg-surface-secondary border border-border rounded-lg px-3 py-1.5 text-sm text-content-primary placeholder-content-faint focus:outline-none focus:border-accent-coaching"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && item.trim()) {
                                 e.preventDefault();
                                 addItem(setter);
                               }
                             }}
-                          />
+                          /></div>
                           {items.length > 1 && (
-                            <button
+                            <Button variant="ghost"
                               type="button"
                               onClick={() => removeItem(setter, i)}
-                              className="text-neutral-600 hover:text-red-400 transition-colors"
+                              className="min-h-11 min-w-11 text-content-faint hover:text-accent-danger-text transition-colors"
                               aria-label="Remove item"
                             >
                               <X size={14} />
-                            </button>
+                            </Button>
                           )}
                         </div>
                       ))}
-                      <button
+                      <Button variant="ghost"
                         type="button"
                         onClick={() => addItem(setter)}
-                        className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        className="min-h-11 min-w-11 flex items-center gap-1 text-xs text-accent-coaching-text hover:text-accent-coaching-text transition-colors"
                       >
                         <Plus size={12} />
                         Add item
-                      </button>
+                      </Button>
                     </div>
                   );
                 })()
@@ -498,154 +492,133 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
 
             {/* Notes */}
             <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider mb-1 block">
+              <label className="text-xs text-content-muted uppercase tracking-wider mb-1 block">
                 Notes
               </label>
               <textarea
+                aria-label="Notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Any extra notes for the week..."
                 rows={2}
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500 resize-none"
+                className="min-h-11 w-full bg-surface-secondary border border-border rounded-lg px-3 py-2 text-sm text-content-primary placeholder-content-faint focus:outline-none focus:border-accent-coaching resize-none"
               />
             </div>
 
             {/* Reflection */}
             <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider mb-1 block">
+              <label className="text-xs text-content-muted uppercase tracking-wider mb-1 block">
                 <span className="flex items-center gap-1"><BookOpen size={11} /> Reflection</span>
               </label>
               <textarea
+                aria-label="Reflection"
                 value={reflection}
                 onChange={(e) => setReflection(e.target.value)}
                 placeholder="How did the week go? What worked, what to adjust..."
                 rows={3}
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500 resize-none"
+                className="min-h-11 w-full bg-surface-secondary border border-border rounded-lg px-3 py-2 text-sm text-content-primary placeholder-content-faint focus:outline-none focus:border-accent-coaching resize-none"
               />
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button variant="coaching"
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                className="min-h-11 min-w-11 flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 Save
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 type="button"
+                disabled={saving}
                 onClick={() => setEditing(false)}
-                className="text-sm text-neutral-500 hover:text-white px-3 py-2 transition-colors"
+                className="min-h-11 min-w-11 text-sm text-content-muted hover:text-content-primary px-3 py-2 transition-colors"
               >
                 Cancel
-              </button>
+              </Button>
               {plan && (
-                <button
+                <Button variant="ghost"
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setConfirmDelete(true)}
                   disabled={saving}
-                  className="ml-auto flex items-center gap-1 text-xs text-red-400/60 hover:text-red-400 transition-colors disabled:opacity-50"
+                  className="min-h-11 min-w-11 ml-auto flex items-center gap-1 text-xs text-accent-danger-text hover:text-accent-danger-text transition-colors disabled:opacity-50"
                 >
                   <Trash2 size={12} />
                   Delete
-                </button>
+                </Button>
               )}
             </div>
           </div>
         ) : hasContent ? (
           /* ─── Display Mode ─────────────────────────── */
           <div className="space-y-3">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div>
                 {plan!.theme && (
-                  <h3 className="text-white font-semibold text-lg">{plan!.theme}</h3>
+                  <h3 className="text-content-primary font-semibold text-lg">{plan!.theme}</h3>
                 )}
               </div>
-              {canEdit && (<button
+              {canEdit && (<Button variant="ghost"
                 type="button"
+                aria-label="Edit this week"
                 onClick={() => setEditing(true)}
-                className="text-neutral-500 hover:text-indigo-400 transition-colors p-1"
+                className="min-h-11 min-w-11 text-content-muted hover:text-accent-coaching-text transition-colors p-1"
                 title="Edit this week"
               >
                 <Pencil size={14} />
-              </button>)}
+              </Button>)}
             </div>
 
             {/* Tabs (display) */}
             <div>
               <div className="relative">
-                <div ref={tabsStripRef} className="flex gap-1 border-b border-neutral-800 mb-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex flex-wrap gap-1 border-b border-border mb-3 pb-1">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.key;
-                    const count = tab.key === 'assignments'
-                      ? assignments.length
-                      : (planTabData?.[tab.key as keyof typeof planTabData]?.length ?? 0);
+                    const count = planTabData?.[tab.key]?.length ?? 0;
                     return (
-                      <button
+                      <Button variant="ghost"
                         key={tab.key}
                         type="button"
+                        aria-pressed={isActive}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                        className={`min-h-11 min-w-11 shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
                           isActive
                             ? `${tab.color} border-current`
-                            : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                            : 'text-content-muted border-transparent hover:text-content-secondary'
                         }`}
                       >
                         <Icon size={12} />
                         {tab.label}
                         {count > 0 && (
-                          <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded-full">
+                          <span className="text-[10px] bg-surface-secondary text-content-secondary px-1.5 py-0.5 rounded-full">
                             {count}
                           </span>
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
-                {showTabsScrollHint && (
-                  <ChevronsRight className="sm:hidden pointer-events-none absolute right-1 top-[calc(50%-7px)] w-3.5 h-3.5 text-neutral-500/80" aria-hidden="true" />
-                )}
               </div>
 
               {/* Active tab content */}
-              {activeTab === 'assignments' ? (
-                assignments.length === 0 ? (
-                  <p className="text-xs text-neutral-600 italic py-2">No workouts scheduled this week</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {assignments.map((a) => (
-                      <li key={a.id} className="flex items-start gap-2 text-sm">
-                        <span className="text-indigo-400 mt-0.5">•</span>
-                        <div className="min-w-0">
-                          <span className="text-white font-medium">{a.title || a.template_name || 'Untitled'}</span>
-                          <div className="flex items-center gap-2 text-xs text-neutral-500">
-                            <span>{new Date(a.scheduled_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                            {a.workout_type && <span className="text-neutral-600">· {a.workout_type}</span>}
-                            {a.training_zone && <span className="text-neutral-600">· {a.training_zone}</span>}
-                            {a.is_test_template && <span className="text-amber-400 font-medium">TEST</span>}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : (() => {
+              {(() => {
                 const items = planTabData?.[activeTab as keyof typeof planTabData] ?? [];
                 if (items.length === 0) {
                   return (
-                    <p className="text-xs text-neutral-600 italic py-2">No items set</p>
+                    <p className="text-xs text-content-faint italic py-2">No items set</p>
                   );
                 }
                 return (
                   <ul className="space-y-1.5">
                     {items.map((item, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
-                        <span className={`mt-0.5 ${tabs.find((t) => t.key === activeTab)?.color ?? 'text-indigo-400'}`}>•</span>
-                        <span className="text-neutral-300">{item}</span>
+                        <span className={`mt-0.5 ${tabs.find((t) => t.key === activeTab)?.color ?? 'text-accent-coaching-text'}`}>•</span>
+                        <span className="text-content-secondary">{item}</span>
                       </li>
                     ))}
                   </ul>
@@ -654,35 +627,35 @@ export const WeeklyFocusCard: React.FC<WeeklyFocusCardProps> = ({ teamId, userId
             </div>
 
             {plan!.notes && (
-              <p className="text-xs text-neutral-500 italic border-t border-neutral-800 pt-2 mt-2">
+              <p className="text-xs text-content-muted italic border-t border-border pt-2 mt-2">
                 {plan!.notes}
               </p>
             )}
 
             {plan!.reflection && (
-              <div className="border-t border-neutral-800 pt-3 mt-3">
-                <div className="flex items-center gap-1.5 text-xs text-amber-400/70 font-medium mb-1.5">
+              <div className="border-t border-border pt-3 mt-3">
+                <div className="flex items-center gap-1.5 text-xs text-accent-coaching-text/70 font-medium mb-1.5">
                   <BookOpen size={12} />
                   Reflection
                 </div>
-                <p className="text-sm text-neutral-400 whitespace-pre-wrap">{plan!.reflection}</p>
+                <p className="text-sm text-content-secondary whitespace-pre-wrap">{plan!.reflection}</p>
               </div>
             )}
           </div>
         ) : (
           /* ─── Empty State ──────────────────────────── */
-          canEdit ? <button
+          canEdit ? <Button variant="ghost"
             type="button"
             onClick={() => setEditing(true)}
-            className="w-full flex flex-col items-center gap-2 py-6 text-neutral-500 hover:text-indigo-400 transition-colors group"
+            className="min-h-11 min-w-11 w-full flex flex-col items-center gap-2 py-6 text-content-muted hover:text-accent-coaching-text transition-colors group"
           >
-            <div className="p-3 bg-neutral-800 rounded-lg group-hover:bg-indigo-500/10 transition-colors">
+            <div className="p-3 bg-surface-secondary rounded-lg group-hover:bg-accent-coaching-surface/10 transition-colors">
               <Plus size={20} />
             </div>
             <span className="text-sm">Set this week's focus</span>
-          </button> : <p className="py-6 text-sm text-content-muted">No weekly focus published.</p>
+          </Button> : <p className="py-6 text-sm text-content-muted">No weekly focus published.</p>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
