@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { TemplateEditor } from '../components/TemplateEditor';
+import { WorkoutExport } from '../components/WorkoutExport';
 import { TemplateLinkConfirmation } from '../components/TemplateLinkConfirmation';
 import { fetchTemplateById } from '../services/templateService';
 import { useAuth } from '../hooks/useAuth';
@@ -995,6 +996,8 @@ export const WorkoutDetail: React.FC = () => {
                 </Link>
             </div>
 
+
+            {!isGuest && id && <WorkoutExport workoutId={dbId ?? id} />}
 
             {/* Stats Grid - Row 1: Distance & Time Metrics */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -18,6 +18,8 @@ import {
     readEnv,
     searchWorkouts,
     getWorkoutDetail,
+    getWorkoutSamples,
+    analyzeWorkout,
     getTrainingSummary,
     getBenchmarkHistory,
     getWeeklyTrend,
@@ -49,14 +51,17 @@ const dateSchema = z
 
 function buildServer(cfg: LogbookConfig): McpServer {
     const server = new McpServer(
-        { name: 'logbook-companion', version: '0.2.0' },
+        { name: 'logbook-companion', version: '0.3.0' },
         {
             instructions:
                 "Read-only access to the authenticated athlete's rowing and cross-training history from " +
                 'Logbook Companion. Distances are meters, durations are seconds, pace (avg_split_500m) ' +
                 'is seconds per 500m, watts is average power. Use search_workouts to find sessions, ' +
                 'get_training_summary for rollups, compare_training_periods to contrast two windows, ' +
-                'and get_benchmark_history for named efforts like "2000m".',
+                'and get_benchmark_history for named efforts like "2000m". ' +
+                'get_workout reports stored splits and sample availability. Use get_workout_samples for paginated normalized ' +
+                'time-series data and analyze_workout for estimated time above an HR threshold with coverage. ' +
+                'Never interpret unavailable or unexposed samples as proof that no samples are stored.',
         },
     );
 
@@ -92,13 +97,58 @@ function buildServer(cfg: LogbookConfig): McpServer {
             title: 'Get workout detail',
             description:
                 'Get full detail for one workout by its id (UUID) or Concept2 external_id, including ' +
-                'interval structure when present.',
-            inputSchema: { id: z.string().describe('Workout UUID or Concept2 external_id') },
+                'recorded splits, interval structure, template link and sample availability. Accepts LC workout URLs too. ' +
+                'Use get_workout_samples for stroke samples; they are intentionally omitted here.',
+            inputSchema: { id: z.string().min(1).max(2048).describe('Workout UUID, Concept2 external_id or https://logbook.readyall.org/workout/ID') },
             annotations: READ_ONLY,
         },
         async ({ id }) => {
             const detail = await getWorkoutDetail(cfg, id);
             return detail ? json(detail) : json({ error: 'Workout not found', id });
+        },
+    );
+
+    server.registerTool(
+        'get_workout_samples',
+        {
+            title: 'Get workout samples',
+            description: 'Read normalized workout time-series samples, including HR, pace and stroke rate. ' +
+                'Use get_workout first to check availability. Follow pagination.next_offset for the remaining samples. ' +
+                'Time is seconds within each segment; clock resets start a new segment. Time windows apply to each segment. ' +
+                'No samples are invented when the source has none or its encoding is unsupported.',
+            inputSchema: {
+                id: z.string().min(1).max(2048).describe('Workout UUID, Concept2 external_id or LC workout URL'),
+                offset: z.number().int().min(0).max(10000000).optional(),
+                limit: z.number().int().min(1).max(500).optional(),
+                startSeconds: z.number().min(0).optional(),
+                endSeconds: z.number().min(0).optional(),
+            },
+            annotations: READ_ONLY,
+        },
+        async ({ id, ...filters }) => {
+            const page = await getWorkoutSamples(cfg, id, filters);
+            return page ? json(page) : json({ error: 'Workout not found', id });
+        },
+    );
+
+    server.registerTool(
+        'analyze_workout',
+        {
+            title: 'Analyze workout heart rate',
+            description: 'Estimate seconds strictly above an HR threshold using time-weighted linear interpolation ' +
+                'between adjacent valid samples. Reports coverage and excluded gaps; never extrapolates before/after ' +
+                'samples or across clock resets. This is a sampled estimate, not an exact physiological measurement. ' +
+                'Unavailable HR data is distinct from measured zero seconds above the threshold.',
+            inputSchema: {
+                id: z.string().min(1).max(2048).describe('Workout UUID, Concept2 external_id or LC workout URL'),
+                thresholdBpm: z.number().min(1).max(250).describe('Calculate time strictly above this heart rate in bpm'),
+                maxGapSeconds: z.number().min(1).max(60).optional().describe('Exclude adjacent samples farther apart than this; default 10 seconds'),
+            },
+            annotations: READ_ONLY,
+        },
+        async ({ id, thresholdBpm, maxGapSeconds }) => {
+            const result = await analyzeWorkout(cfg, id, thresholdBpm, maxGapSeconds);
+            return result ? json(result) : json({ error: 'Workout not found', id });
         },
     );
 
