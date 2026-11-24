@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   routeId: '93d73146-1bdb-426c-b6c6-9cf7d9fbe9f7',
-  getDetail: vi.fn(), link: vi.fn(), from: vi.fn(), error: vi.fn(),
+  getDetail: vi.fn(), link: vi.fn(), from: vi.fn(), error: vi.fn(), paceRank: vi.fn(),
 }));
 vi.mock('react-router-dom', async importOriginal => ({
   ...await importOriginal<typeof import('react-router-dom')>(),
@@ -25,6 +25,7 @@ vi.mock('../services/templateLinkingService', () => ({
   },
 }));
 vi.mock('../services/supabase', () => ({ supabase: { from: mocks.from } }));
+vi.mock('../services/workoutPaceRankService', () => ({ loadWorkoutPaceRank: mocks.paceRank }));
 vi.mock('../utils/paceCalculator', async importOriginal => ({
   ...await importOriginal<typeof import('../utils/paceCalculator')>(),
   getUserBaseline2kWatts: async () => 300,
@@ -49,6 +50,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => null } });
   vi.clearAllMocks();
   mocks.link.mockResolvedValue({ template_id: 'template-1' });
+  mocks.paceRank.mockResolvedValue(null);
   mocks.getDetail.mockResolvedValue({
     id: 122675261, db_id: dbId, workout_type: 'VariableInterval', date: '2026-11-09T16:21:00Z', distance: 4000, time: 8163,
     workout: { intervals: [250, 500, 750, 1000, 750, 500, 250].map(distance => ({ type: 'distance', distance, time: 1000, rest_time: 900, stroke_rate: 28 })) },
@@ -60,6 +62,42 @@ beforeEach(() => {
   };
   mocks.from.mockReturnValue(query);
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
+});
+
+describe('workout detail pace history', () => {
+  it('places the pace comparison below the complete performance grid', async () => {
+    mocks.routeId = '122675261';
+    mocks.paceRank.mockResolvedValue({ rank: 2, attemptCount: 21, percentile: 95, tied: false, secondsOffBest: 0.3 });
+    await act(async () => root.render(<MemoryRouter><WorkoutDetail /></MemoryRouter>));
+    const comparison = document.querySelector('[aria-label="Work pace vs. your history"]');
+    expect(comparison?.textContent).toContain('95th percentile');
+    expect(comparison?.textContent).toContain('2nd of 21 attempts');
+    expect(comparison?.textContent).toContain('0.3 s/500m off your best');
+    expect(comparison?.previousElementSibling?.textContent).toContain('Stroke Rate');
+    expect(comparison?.previousElementSibling?.textContent).toContain('Work Pace');
+    expect(mocks.paceRank).toHaveBeenCalledWith(expect.objectContaining({ userId: 'owner', workoutId: dbId }));
+  });
+
+  it('preserves the performance cards when the comparison fails', async () => {
+    mocks.paceRank.mockRejectedValueOnce(new Error('History is unavailable'));
+    await act(async () => root.render(<MemoryRouter><WorkoutDetail /></MemoryRouter>));
+    expect(document.body.textContent).toContain('Work Pace');
+    expect(document.body.textContent).toContain('Stroke Rate');
+    expect(document.querySelector('[aria-label="Work pace vs. your history"]')).toBeNull();
+  });
+
+  it.each([
+    [{ rank: 1, attemptCount: 1, percentile: null, tied: false, secondsOffBest: 0 }, 'First recorded attempt'],
+    [{ rank: 1, attemptCount: 12, percentile: 100, tied: false, secondsOffBest: 0 }, 'Best of 12 attempts'],
+    [{ rank: 1, attemptCount: 12, percentile: 90, tied: true, secondsOffBest: 0 }, 'Tied for best of 12 attempts'],
+    [{ rank: 2, attemptCount: 4, percentile: null, tied: false, secondsOffBest: 0.2 }, '2nd of 4 attempts'],
+  ])('shows useful rank wording without a percentile when appropriate', async (rank, label) => {
+    mocks.paceRank.mockResolvedValueOnce(rank);
+    await act(async () => root.render(<MemoryRouter><WorkoutDetail /></MemoryRouter>));
+    const comparison = document.querySelector('[aria-label="Work pace vs. your history"]');
+    expect(comparison?.textContent).toContain(label);
+    expect(comparison?.textContent).not.toContain('percentile');
+  });
 });
 afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); });
 
