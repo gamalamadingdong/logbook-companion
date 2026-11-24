@@ -41,8 +41,7 @@ function manualSteps(s: WorkoutStructure, machine: string): Step[] | null {
   }
   return steps;
 }
-/** Conservative identity: no names, recording splits, or measured intensity. Unknown data cannot bulk-match. */
-export function workoutIdentity(row: IdentityWorkout): string | null {
+export function workoutIdentitySteps(row: IdentityWorkout): Step[] | null {
   const mode = modality(row.workout_type);
   if (!mode) return null;
   let steps: Step[] | null = null;
@@ -70,5 +69,11 @@ export function workoutIdentity(row: IdentityWorkout): string | null {
     }
   }
   if (!steps?.length || steps.length > 1000 || steps.some(s => !positive(s.value) || !nonnegative(s.rest))) return null;
-  return JSON.stringify(steps);
+  return steps;
+}
+
+/** Conservative identity: no names, recording splits, or measured intensity. Unknown data cannot bulk-match. */
+export function workoutIdentity(row: IdentityWorkout): string | null {
+  const steps = workoutIdentitySteps(row);
+  return steps ? JSON.stringify(steps) : null;
 }

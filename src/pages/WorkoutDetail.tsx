@@ -6,6 +6,7 @@ import { workoutService } from '../services/workoutService';
 import { PowerDistributionChart } from '../components/analytics/PowerDistributionChart';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { WorkoutExport } from '../components/WorkoutExport';
+import { WorkoutPaceHistory } from '../components/WorkoutPaceHistory';
 import { TemplateLinkConfirmation } from '../components/TemplateLinkConfirmation';
 import { fetchTemplateById } from '../services/templateService';
 import { useAuth } from '../hooks/useAuth';
@@ -379,6 +380,8 @@ export const WorkoutDetail: React.FC = () => {
     const stats = useMemo(() => {
         if (!detail) return {
             avgPaceFormatted: '-',
+            avgPaceSeconds: 0,
+            mainIndices: null,
             workDistance: 0,
             workTime: 0,
             totalDistance: 0,
@@ -446,6 +449,8 @@ export const WorkoutDetail: React.FC = () => {
 
         return {
             avgPaceFormatted,
+            avgPaceSeconds,
+            mainIndices,
             workDistance,
             workTime,
             totalDistance,
@@ -456,7 +461,7 @@ export const WorkoutDetail: React.FC = () => {
         };
     }, [detail, linkedTemplate]); // Added linkedTemplate dependency
 
-    const { avgPaceFormatted, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals, sessionPaceFormatted } = stats;
+    const { avgPaceFormatted, avgPaceSeconds, mainIndices, workDistance, workTime, totalDistance, restTime, isInterval, workIntervals, sessionPaceFormatted } = stats;
 
     // 4. Power Buckets
     const activeBuckets = useMemo(() => {
@@ -1096,6 +1101,16 @@ export const WorkoutDetail: React.FC = () => {
                     ))
                 }
             </div>
+
+            {!isGuest && profile?.user_id && dbId && avgPaceSeconds > 0 && (
+                <WorkoutPaceHistory
+                    key={JSON.stringify([id, profile.user_id, dbId, avgPaceSeconds, mainIndices, detail.manual_rwn])}
+                    userId={profile.user_id}
+                    workoutId={dbId}
+                    workPace={avgPaceSeconds}
+                    mainIndices={mainIndices}
+                />
+            )}
 
             {/* Charts */}
             {
